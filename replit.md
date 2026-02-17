@@ -1,4 +1,4 @@
-# StockVault - Client Portal & Admin Panel
+# SYSTEM D - Client Portal & Admin Panel
 
 ## Overview
 Full-stack web application for a warehousing and storage business. Two interfaces: Admin Panel and Client Portal. Uses Replit Auth for authentication.

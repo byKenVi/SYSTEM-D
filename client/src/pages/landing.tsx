@@ -11,7 +11,7 @@ export default function Landing() {
             <div className="h-9 w-9 rounded-md bg-primary flex items-center justify-center">
               <Warehouse className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-lg tracking-tight" data-testid="text-app-name">StockVault</span>
+            <span className="font-semibold text-lg tracking-tight" data-testid="text-app-name">SYSTEM D</span>
           </div>
           <div className="flex items-center gap-3">
             <a href="/api/login">
@@ -134,7 +134,7 @@ export default function Landing() {
 
       <footer className="py-8 px-6 border-t">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap text-sm text-muted-foreground">
-          <p>StockVault - Warehousing & Storage Management</p>
+          <p>SYSTEM D - Warehousing & Storage Management</p>
           <p>Built with Replit</p>
         </div>
       </footer>

@@ -65,7 +65,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               <Warehouse className="h-4 w-4 text-primary-foreground" />
             </div>
             <div>
-              <p className="font-semibold text-sm leading-none">StockVault</p>
+              <p className="font-semibold text-sm leading-none">SYSTEM D</p>
               <p className="text-xs text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
             </div>
           </div>
