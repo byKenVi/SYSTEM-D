@@ -1,0 +1,124 @@
+Here's the complete final prompt with all changes applied:
+
+---
+
+## App Specification: Client Portal & Admin Panel (Warehousing & Storage Business)
+
+### Overview
+Build a full-stack web application with **two interfaces**: an **Admin Panel** and a **Client Portal**. This app serves a warehousing and storage company ("manutention et entreposage") that stores and manages inventory on behalf of their clients. Use **Replit Auth** for authentication across both interfaces.
+
+---
+
+### 1. Authentication & User Roles
+
+- Use **Replit Auth** for all login/signup flows.
+- Two roles: **Admin** and **Client**.
+- Admins access the Admin Panel at `/admin`.
+- Clients access the Client Portal at `/portal`.
+- Route users to the correct interface based on their role after login.
+
+---
+
+### 2. Admin Panel
+
+#### 2.1 — Contacts (`/admin/contacts`)
+- Contacts are created automatically via an **inbound webhook** (`POST /api/webhooks/zoho-crm`).
+- When Zoho CRM sends a webhook payload (containing client name, email, company name, phone, and any relevant fields), the system creates a new Contact record in the database and **automatically sends an email invitation** to the client with a signup link to the Client Portal. The contact status is set to `"invited"` immediately.
+- The admin sees a list of all contacts with columns: Name, Company, Email, Status (Invited / Active).
+- Each contact row has a **"Resend Invite"** button in case the client didn't receive or missed the original email.
+- When the client completes signup via Replit Auth, their status updates to `"active"` and their Replit Auth account is linked to their Contact record.
+
+#### 2.2 — Products & Inventory (`/admin/products`)
+- Displays all products imported from client Shopify stores, **grouped by client** (collapsible sections or filterable by client dropdown).
+- Each product shows: Product Name, SKU, Description, Image, Price, **Current Inventory Quantity** (synced from Zoho Inventory), Last Updated.
+- Products with low stock are visually flagged (warning icon or red highlight).
+- **Actions per product:**
+  - **"Push to Zoho Inventory"** — exports the product to the admin's connected Zoho Inventory account.
+  - Once pushed, inventory quantities sync back automatically from Zoho Inventory.
+- **Bulk actions:** Select multiple products and push them to Zoho Inventory at once.
+- A summary bar at the top showing: Total Clients, Total Products, Total Items in Stock, and a count of Low Stock items.
+
+#### 2.3 — Restock Requests (`/admin/restock-requests`)
+- Lists all restock requests submitted by clients.
+- Each request shows: Client Name, Product, Requested Quantity, Date Submitted, Status (Processing / Confirmed / Shipped / Delivered), Zoho Sales Order ID.
+- **A Sales Order is automatically created in Zoho Inventory the moment the client submits a restock request** — no admin approval needed.
+- The status syncs back from Zoho Inventory (via periodic polling or webhook) and updates in real-time for both the admin and the client.
+- Admin view is read-only / monitoring — they can filter by client, status, or date range.
+
+#### 2.4 — Settings (`/admin/settings`)
+
+**Shopify Integration Card:**
+- Displays a Shopify integration card.
+- Clicking it opens a form with:
+  - A **client dropdown** (only shows clients who do NOT already have a Shopify integration enabled).
+  - Fields for **Shopify API Key**, **API Secret**, and **Store URL** (provided by the client).
+  - A **"Connect"** button that validates the credentials against the Shopify API.
+- Once connected, show an **"Enable Products Scope"** toggle and an **"Import Products"** button.
+- Clicking **"Import Products"** fetches all products from that client's Shopify store via the Shopify API and saves them to the database, linked to that client.
+- The imported products then appear in both the Admin Products & Inventory module and the Client's Products & Inventory module.
+
+**Zoho Inventory Integration Card:**
+- Admin connects their own Zoho Inventory account (OAuth or API key-based).
+- Fields: Zoho Inventory API credentials (Client ID, Client Secret, Refresh Token, Organization ID).
+- A **"Connect"** button to validate and store the credentials.
+- Once connected, the admin can push products to Zoho Inventory and sync inventory data back.
+
+---
+
+### 3. Client Portal
+
+#### 3.1 — Profile (`/portal/profile`)
+- Displays the client's general information: Full Name, Email, Phone, Company Name, Company Address.
+- Information is pre-populated from the Zoho CRM webhook data.
+- Client can view (and optionally edit) their profile.
+
+#### 3.2 — Products & Inventory (`/portal/products`)
+- Shows only the products linked to this client's account (imported from their Shopify store by the admin).
+- Each product displays: Product Name, SKU, Description, Image, Price, and **Current Inventory Quantity** (synced from Zoho Inventory), Last Updated.
+- Client can filter/search products and sort by stock level.
+- Products with low stock are visually flagged (warning icon or red highlight).
+- Each product row has a **"Request Restock"** button that opens the restock request form pre-filled with that product.
+
+#### 3.3 — Restock Requests (`/portal/restock`)
+- Client can submit a restock request by selecting a product from their catalog, entering the desired restock quantity, and submitting.
+- **On submission, a Sales Order is automatically created in Zoho Inventory** and the request status starts at `"Processing"`.
+- Shows a history of their past restock requests with real-time status updates synced from Zoho Inventory (Processing → Confirmed → Shipped → Delivered).
+- Each request shows: Product Name, Requested Quantity, Date Submitted, Status, Zoho Sales Order reference number.
+
+---
+
+### 4. Integration Flow Summary
+
+```
+Zoho CRM (Webhook) → Contact created in Admin → Invite auto-sent → Client Signs Up
+Client gives Shopify API keys to Admin (offline)
+Admin connects Shopify per client → Imports Products → Products visible to Admin & Client
+Admin pushes Products → Zoho Inventory
+Zoho Inventory syncs inventory quantities → Reflected in Admin & Client views
+Client requests Restock → Sales Order auto-created in Zoho Inventory → Status syncs back to both Admin & Client
+```
+
+---
+
+### 5. Tech Stack Preferences
+- **Backend**: Node.js (Express) or Python (Flask/FastAPI) — your choice for best Replit compatibility.
+- **Frontend**: React or Next.js with a clean, modern UI (use shadcn/ui or Tailwind CSS).
+- **Database**: PostgreSQL (via Replit's built-in DB or Neon).
+- **Auth**: Replit Auth.
+- **External APIs**: Shopify Admin API, Zoho Inventory API v1, Zoho CRM Webhooks.
+
+### 6. Database Models (minimum)
+- **Users** (id, replit_id, role, contact_id, created_at)
+- **Contacts** (id, name, email, phone, company_name, company_address, status, shopify_connected, zoho_inventory_pushed, created_at)
+- **ShopifyIntegrations** (id, contact_id, api_key, api_secret, store_url, is_active, created_at)
+- **Products** (id, contact_id, shopify_product_id, name, sku, description, image_url, price, inventory_quantity, pushed_to_zoho, zoho_item_id, last_synced_at, created_at)
+- **RestockRequests** (id, contact_id, product_id, requested_quantity, status, zoho_sales_order_id, zoho_sales_order_ref, created_at, updated_at)
+- **AdminSettings** (id, zoho_inventory_client_id, zoho_inventory_client_secret, zoho_inventory_refresh_token, zoho_inventory_org_id, created_at)
+
+---
+
+*Build this step by step. Start with the database schema and auth, then the admin contacts + webhook endpoint, then the client portal, then Shopify integration, then Zoho Inventory integration, and finally the restock/sales order flow.*
+
+---
+
+Ready to paste into Replit Agent. Want any final tweaks?
