@@ -41,15 +41,18 @@ import {
 
 const LOW_STOCK_THRESHOLD = 10;
 
-export default function PortalProducts() {
+export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [restockQty, setRestockQty] = useState("");
+  const isViewAs = !!viewAsContactId;
 
   const { data: products, isLoading } = useQuery<Product[]>({
-    queryKey: ["/api/portal/products"],
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "products"]
+      : ["/api/portal/products"],
   });
 
   const restockMutation = useMutation({
@@ -169,7 +172,7 @@ export default function PortalProducts() {
                   <TableHead>SKU</TableHead>
                   <TableHead className="text-right">Price</TableHead>
                   <TableHead className="text-right">Stock</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {!isViewAs && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -214,20 +217,22 @@ export default function PortalProducts() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setRestockProduct(product);
-                            setRestockQty("");
-                          }}
-                          data-testid={`button-request-restock-${product.id}`}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                          Restock
-                        </Button>
-                      </TableCell>
+                      {!isViewAs && (
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setRestockProduct(product);
+                              setRestockQty("");
+                            }}
+                            data-testid={`button-request-restock-${product.id}`}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                            Restock
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}

@@ -26,6 +26,7 @@ import {
 
 interface AppSidebarProps {
   role: "admin" | "client";
+  viewAsContactId?: number;
 }
 
 const adminItems = [
@@ -41,10 +42,16 @@ const clientItems = [
   { title: "Restock Requests", url: "/portal/restock", icon: RefreshCw },
 ];
 
-export function AppSidebar({ role }: AppSidebarProps) {
+export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-  const items = role === "admin" ? adminItems : clientItems;
+  const baseItems = role === "admin" ? adminItems : clientItems;
+  const items = viewAsContactId
+    ? baseItems.map((item) => ({
+        ...item,
+        url: `${item.url}?viewAs=${viewAsContactId}`,
+      }))
+    : baseItems;
   const initials = user
     ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "U"
     : "U";
@@ -73,7 +80,7 @@ export function AppSidebar({ role }: AppSidebarProps) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={location === item.url || location.startsWith(item.url + "/")}
+                    isActive={location === item.url.split("?")[0] || location.startsWith(item.url.split("?")[0] + "/")}
                   >
                     <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                       <item.icon className="h-4 w-4" />

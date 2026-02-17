@@ -1,6 +1,6 @@
-import { Switch, Route, useLocation, Redirect } from "wouter";
+import { Switch, Route, useLocation, Redirect, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -9,6 +9,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Eye, ArrowLeft } from "lucide-react";
+import type { Contact } from "@shared/schema";
 import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import AdminContacts from "@/pages/admin/contacts";
@@ -18,7 +21,6 @@ import AdminSettingsPage from "@/pages/admin/settings";
 import PortalProfile from "@/pages/portal/profile";
 import PortalProducts from "@/pages/portal/products";
 import PortalRestock from "@/pages/portal/restock";
-import { useQuery } from "@tanstack/react-query";
 
 interface UserRole {
   role: "admin" | "client";
@@ -58,7 +60,7 @@ function AdminLayout() {
   );
 }
 
-function ClientLayout() {
+function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -67,19 +69,26 @@ function ClientLayout() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
-        <AppSidebar role="client" />
+        <AppSidebar role="client" viewAsContactId={viewAsContactId} />
         <div className="flex flex-col flex-1 min-w-0">
           <header className="flex items-center justify-between gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <ThemeToggle />
           </header>
+          {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
           <main className="flex-1 overflow-auto p-6">
             <Switch>
-              <Route path="/portal/profile" component={PortalProfile} />
-              <Route path="/portal/products" component={PortalProducts} />
-              <Route path="/portal/restock" component={PortalRestock} />
+              <Route path="/portal/profile">
+                <PortalProfile viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/products">
+                <PortalProducts viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/restock">
+                <PortalRestock viewAsContactId={viewAsContactId} />
+              </Route>
               <Route path="/portal">
-                <Redirect to="/portal/profile" />
+                <Redirect to={`/portal/profile${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
               </Route>
               <Route component={NotFound} />
             </Switch>
@@ -87,6 +96,30 @@ function ClientLayout() {
         </div>
       </div>
     </SidebarProvider>
+  );
+}
+
+function ViewAsBanner({ contactId }: { contactId: number }) {
+  const { data: contact } = useQuery<Contact>({
+    queryKey: ["/api/admin/view-as", contactId, "profile"],
+  });
+
+  return (
+    <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between gap-4 flex-wrap" data-testid="banner-view-as">
+      <div className="flex items-center gap-2 text-sm">
+        <Eye className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+        <span className="text-amber-800 dark:text-amber-200">
+          Viewing as <span className="font-semibold">{contact?.name || `Contact #${contactId}`}</span>
+          {contact?.companyName && <span className="text-amber-700 dark:text-amber-300"> ({contact.companyName})</span>}
+        </span>
+      </div>
+      <Link href="/admin/contacts">
+        <Button size="sm" variant="outline" data-testid="button-exit-view-as">
+          <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+          Back to Admin
+        </Button>
+      </Link>
+    </div>
   );
 }
 
@@ -119,7 +152,10 @@ function AuthenticatedApp() {
   }
 
   if (location.startsWith("/portal")) {
-    return <ClientLayout />;
+    const params = new URLSearchParams(window.location.search);
+    const viewAs = params.get("viewAs");
+    const viewAsContactId = role === "admin" && viewAs ? Number(viewAs) : undefined;
+    return <ClientLayout viewAsContactId={viewAsContactId} />;
   }
 
   return <Redirect to={role === "admin" ? "/admin/contacts" : "/portal/profile"} />;

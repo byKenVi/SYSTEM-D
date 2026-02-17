@@ -75,6 +75,7 @@ export type RestockRequest = typeof restockRequests.$inferSelect;
 
 export const adminSettings = pgTable("admin_settings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  adminUserId: varchar("admin_user_id"),
   zohoInventoryClientId: text("zoho_inventory_client_id"),
   zohoInventoryClientSecret: text("zoho_inventory_client_secret"),
   zohoInventoryRefreshToken: text("zoho_inventory_refresh_token"),

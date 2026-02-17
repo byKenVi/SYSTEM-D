@@ -11,12 +11,34 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  let firstAdminId: string | null = null;
+  async function getAdminUserId(): Promise<string | null> {
+    const settings = await storage.getAdminSettings();
+    return settings?.adminUserId || null;
+  }
+
+  async function setAdminUserId(userId: string): Promise<void> {
+    const settings = await storage.getAdminSettings();
+    if (settings) {
+      await storage.upsertAdminSettings({ ...settings, adminUserId: userId });
+    } else {
+      await storage.upsertAdminSettings({ adminUserId: userId });
+    }
+  }
 
   async function getUserRole(req: any) {
     const userId = req.user?.claims?.sub;
     const email = req.user?.claims?.email;
     if (!userId) return null;
+
+    const adminId = await getAdminUserId();
+    if (!adminId) {
+      await setAdminUserId(userId);
+      return { role: "admin" as const };
+    }
+
+    if (userId === adminId) {
+      return { role: "admin" as const };
+    }
 
     const contact = await storage.getContactByUserId(userId);
     if (contact) {
@@ -35,14 +57,6 @@ export async function registerRoutes(
       if (contactByEmail) {
         return { role: "client" as const, contactId: contactByEmail.id };
       }
-    }
-
-    if (firstAdminId === null) {
-      firstAdminId = userId;
-    }
-
-    if (userId === firstAdminId) {
-      return { role: "admin" as const };
     }
 
     return { role: "client" as const };
@@ -243,6 +257,41 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error saving settings:", error);
       res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ====== ADMIN VIEW-AS ENDPOINTS ======
+  app.get("/api/admin/view-as/:contactId/profile", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const contact = await storage.getContact(contactId);
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+      res.json(contact);
+    } catch (error) {
+      console.error("Error fetching view-as profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  app.get("/api/admin/view-as/:contactId/products", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const products = await storage.getProductsByContactId(contactId);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching view-as products:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/admin/view-as/:contactId/restock-requests", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const requests = await storage.getRestockRequestsByContactId(contactId);
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching view-as restock requests:", error);
+      res.status(500).json({ message: "Failed to fetch restock requests" });
     }
   });
 

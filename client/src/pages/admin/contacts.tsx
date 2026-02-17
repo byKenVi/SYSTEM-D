@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Mail, Building2, Phone, Send, Search } from "lucide-react";
+import { Users, Mail, Building2, Phone, Send, Search, Eye } from "lucide-react";
+import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import {
@@ -157,18 +158,30 @@ export default function AdminContacts() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {contact.status === "invited" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => resendInviteMutation.mutate(contact.id)}
-                          disabled={resendInviteMutation.isPending}
-                          data-testid={`button-resend-${contact.id}`}
-                        >
-                          <Send className="h-3.5 w-3.5 mr-1.5" />
-                          Resend Invite
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        <Link href={`/portal/profile?viewAs=${contact.id}`}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid={`button-view-as-${contact.id}`}
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1.5" />
+                            View As
+                          </Button>
+                        </Link>
+                        {contact.status === "invited" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => resendInviteMutation.mutate(contact.id)}
+                            disabled={resendInviteMutation.isPending}
+                            data-testid={`button-resend-${contact.id}`}
+                          >
+                            <Send className="h-3.5 w-3.5 mr-1.5" />
+                            Resend Invite
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

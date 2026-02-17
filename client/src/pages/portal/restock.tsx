@@ -34,13 +34,17 @@ const statusVariants: Record<string, "default" | "secondary" | "destructive"> = 
   Delivered: "default",
 };
 
-export default function PortalRestock() {
+export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: number }) {
   const { data: requests, isLoading } = useQuery<RestockRequest[]>({
-    queryKey: ["/api/portal/restock-requests"],
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "restock-requests"]
+      : ["/api/portal/restock-requests"],
   });
 
   const { data: products } = useQuery<Product[]>({
-    queryKey: ["/api/portal/products"],
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "products"]
+      : ["/api/portal/products"],
   });
 
   const productMap = new Map(products?.map((p) => [p.id, p]) || []);

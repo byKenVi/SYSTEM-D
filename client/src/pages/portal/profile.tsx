@@ -12,12 +12,15 @@ import { useToast } from "@/hooks/use-toast";
 import { User, Mail, Phone, Building2, MapPin, Save } from "lucide-react";
 import { useState, useEffect } from "react";
 
-export default function PortalProfile() {
+export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: number }) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isViewAs = !!viewAsContactId;
 
   const { data: contact, isLoading } = useQuery<Contact>({
-    queryKey: ["/api/portal/profile"],
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "profile"]
+      : ["/api/portal/profile"],
   });
 
   const [name, setName] = useState("");
@@ -97,7 +100,7 @@ export default function PortalProfile() {
         <Card className="lg:col-span-2">
           <CardHeader className="pb-4">
             <h3 className="font-semibold">Contact Information</h3>
-            <p className="text-sm text-muted-foreground">Update your details below</p>
+            <p className="text-sm text-muted-foreground">{isViewAs ? "Read-only view of client details" : "Update your details below"}</p>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -108,6 +111,7 @@ export default function PortalProfile() {
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  disabled={isViewAs}
                   data-testid="input-profile-name"
                 />
               </div>
@@ -129,6 +133,7 @@ export default function PortalProfile() {
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  disabled={isViewAs}
                   placeholder="Phone number"
                   data-testid="input-profile-phone"
                 />
@@ -140,6 +145,7 @@ export default function PortalProfile() {
                 <Input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={isViewAs}
                   placeholder="Company name"
                   data-testid="input-profile-company"
                 />
@@ -151,20 +157,23 @@ export default function PortalProfile() {
                 <Input
                   value={companyAddress}
                   onChange={(e) => setCompanyAddress(e.target.value)}
+                  disabled={isViewAs}
                   placeholder="Company address"
                   data-testid="input-profile-address"
                 />
               </div>
             </div>
-            <Button
-              className="mt-6"
-              onClick={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending}
-              data-testid="button-save-profile"
-            >
-              <Save className="h-4 w-4 mr-1.5" />
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
-            </Button>
+            {!isViewAs && (
+              <Button
+                className="mt-6"
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending}
+                data-testid="button-save-profile"
+              >
+                <Save className="h-4 w-4 mr-1.5" />
+                {updateMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
