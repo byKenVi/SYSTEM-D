@@ -4,7 +4,6 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -38,9 +37,6 @@ function AdminLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar role="admin" />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-end gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-            <ThemeToggle />
-          </header>
           <main className="flex-1 overflow-auto p-6">
             <Switch>
               <Route path="/admin/contacts" component={AdminContacts} />
@@ -70,9 +66,6 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
       <div className="flex h-screen w-full">
         <AppSidebar role="client" viewAsContactId={viewAsContactId} />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-end gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-            <ThemeToggle />
-          </header>
           {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
           <main className="flex-1 overflow-auto p-6">
             <Switch>

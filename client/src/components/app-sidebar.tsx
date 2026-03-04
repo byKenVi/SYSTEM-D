@@ -2,6 +2,7 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import type { Contact } from "@shared/schema";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Sidebar,
   SidebarContent,
@@ -176,15 +177,17 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             </p>
             <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
           </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => logout()}
-            data-testid="button-logout"
-            className="group-data-[collapsible=icon]:hidden"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center group-data-[collapsible=icon]:hidden">
+            <ThemeToggle />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => logout()}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>
