@@ -95,9 +95,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               </div>
             </div>
           </Link>
-          <div className="group-data-[collapsible=icon]:hidden">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-          </div>
+          <SidebarTrigger data-testid="button-sidebar-toggle" className="group-data-[collapsible=icon]:mx-auto" />
         </div>
       </SidebarHeader>
       <SidebarContent>
