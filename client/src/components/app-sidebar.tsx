@@ -81,21 +81,23 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   }
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4">
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
         <div className="flex items-center justify-between gap-2">
           <Link href={role === "admin" ? "/admin/contacts" : "/portal/profile"}>
             <div className="flex items-center gap-2 hover-elevate rounded-md p-1 cursor-pointer" data-testid="link-sidebar-home">
               <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
                 <Warehouse className="h-4 w-4 text-primary-foreground" />
               </div>
-              <div>
+              <div className="group-data-[collapsible=icon]:hidden">
                 <p className="font-semibold text-sm leading-none">SYSTEM D</p>
                 <p className="text-xs text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
               </div>
             </div>
           </Link>
-          <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <div className="group-data-[collapsible=icon]:hidden">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -159,13 +161,13 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
           </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter className="p-4">
-        <div className="flex items-center gap-3">
+      <SidebarFooter className="p-4 group-data-[collapsible=icon]:p-2">
+        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
           <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
             <p className="text-sm font-medium truncate" data-testid="text-sidebar-username">
               {user?.firstName} {user?.lastName}
             </p>
@@ -176,6 +178,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             variant="ghost"
             onClick={() => logout()}
             data-testid="button-logout"
+            className="group-data-[collapsible=icon]:hidden"
           >
             <LogOut className="h-4 w-4" />
           </Button>
