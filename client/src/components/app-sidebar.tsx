@@ -116,7 +116,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {role === "admin" && contacts && contacts.length > 0 && (
+        {role === "admin" && viewAsContactId && contacts && contacts.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>
               <span className="flex items-center gap-1.5">
