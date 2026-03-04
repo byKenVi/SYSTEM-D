@@ -6,20 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Mail, Building2, Phone, Send, Search, Eye, ShieldOff, Trash2 } from "lucide-react";
+import { Users, Mail, Building2, Phone, Send, Search, Eye, ShieldOff, Trash2, X } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function AdminContacts() {
   const { toast } = useToast();
@@ -36,10 +34,10 @@ export default function AdminContacts() {
       await apiRequest("POST", `/api/contacts/${contactId}/resend-invite`);
     },
     onSuccess: () => {
-      toast({ title: "Invite resent", description: "The invitation email has been sent again." });
+      toast({ title: "Invite sent", description: "The invitation email has been sent." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to resend invite.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to send invite.", variant: "destructive" });
     },
   });
 
@@ -193,7 +191,7 @@ export default function AdminContacts() {
                         data-testid={`button-resend-${contact.id}`}
                       >
                         <Send className="h-3.5 w-3.5 mr-1.5" />
-                        Resend Invite
+                        Send Invite
                       </Button>
                     )}
                     {contact.status === "active" && (
@@ -235,48 +233,50 @@ export default function AdminContacts() {
       </Card>
 
       {/* Revoke Access Confirmation */}
-      <AlertDialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Revoke access for {revokeTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove their ability to log in to the client portal. Their contact record will remain and you can reinvite them later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+      <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revoke access for {revokeTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              This will remove their ability to log in to the client portal. Their contact record will remain and you can resend an invite later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevokeTarget(null)}>Cancel</Button>
+            <Button
               className="bg-amber-600 hover:bg-amber-700 text-white"
               onClick={() => revokeTarget && revokeAccessMutation.mutate(revokeTarget.id)}
+              disabled={revokeAccessMutation.isPending}
               data-testid="button-confirm-revoke"
             >
               Revoke Access
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Contact Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {deleteTarget?.name}?</DialogTitle>
+            <DialogDescription>
               This will permanently delete the contact and all their associated data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
               onClick={() => deleteTarget && deleteContactMutation.mutate(deleteTarget.id)}
+              disabled={deleteContactMutation.isPending}
               data-testid="button-confirm-delete"
             >
               Delete Contact
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
