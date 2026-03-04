@@ -37,7 +37,7 @@ function AdminLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar role="admin" />
         <div className="flex flex-col flex-1 min-w-0">
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto scrollbar-hide p-6">
             <Switch>
               <Route path="/admin/contacts" component={AdminContacts} />
               <Route path="/admin/products" component={AdminProducts} />
@@ -67,7 +67,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
         <AppSidebar role="client" viewAsContactId={viewAsContactId} />
         <div className="flex flex-col flex-1 min-w-0">
           {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto scrollbar-hide p-6">
             <Switch>
               <Route path="/portal/profile">
                 <PortalProfile viewAsContactId={viewAsContactId} />
