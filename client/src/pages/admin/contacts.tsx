@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Mail, Building2, Phone, Send, Search, Eye, ShieldOff, Trash2, X } from "lucide-react";
+import { Users, Mail, Building2, Phone, Send, Search, Eye, ShieldOff, Trash2, X, Link2, Link2Off } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -155,6 +155,17 @@ export default function AdminContacts() {
                       >
                         {contact.status === "active" ? "Active" : "Invited"}
                       </Badge>
+                      {contact.zohoCrmContactId ? (
+                        <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700" data-testid={`badge-zoho-synced-${contact.id}`}>
+                          <Link2 className="h-3 w-3" />
+                          Zoho CRM
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 text-muted-foreground" data-testid={`badge-zoho-unsynced-${contact.id}`}>
+                          <Link2Off className="h-3 w-3" />
+                          Not in Zoho
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       {contact.companyName && (
