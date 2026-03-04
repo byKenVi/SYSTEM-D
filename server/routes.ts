@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
+import { sendInviteEmail } from "./resend";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -100,6 +101,11 @@ export async function registerRoutes(
     try {
       const contact = await storage.getContact(Number(req.params.id));
       if (!contact) return res.status(404).json({ message: "Contact not found" });
+      await sendInviteEmail({
+        name: contact.name,
+        email: contact.email,
+        companyName: contact.companyName,
+      });
       res.json({ message: "Invite resent", contactId: contact.id });
     } catch (error) {
       console.error("Error resending invite:", error);
@@ -192,6 +198,11 @@ export async function registerRoutes(
             zohoCrmAccountId: zoho_account_id || null,
           });
           results.push({ email, status: "created", contact });
+
+          // Send invite email (non-blocking — don't fail webhook if email fails)
+          sendInviteEmail({ name, email, companyName: company_name || null }).catch((err) => {
+            console.error(`Failed to send invite email to ${email}:`, err);
+          });
         }
       }
 
