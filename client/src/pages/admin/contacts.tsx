@@ -56,14 +56,14 @@ export default function AdminContacts() {
         <p className="text-muted-foreground mt-1">Manage client contacts and invitations</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Users className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Contacts</p>
+              <p className="text-sm text-muted-foreground">Total</p>
               <p className="text-2xl font-bold" data-testid="text-total-contacts">{contacts?.length || 0}</p>
             </div>
           </CardContent>
@@ -113,80 +113,135 @@ export default function AdminContacts() {
               ))}
             </div>
           ) : filtered && filtered.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile: card list */}
+              <div className="md:hidden divide-y">
                 {filtered.map((contact) => (
-                  <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
-                    <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
-                      {contact.name}
-                    </TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Building2 className="h-3.5 w-3.5" />
-                        {contact.companyName || "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{contact.email}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        {contact.phone ? (
-                          <>
-                            <Phone className="h-3.5 w-3.5" />
-                            {contact.phone}
-                          </>
-                        ) : (
-                          "—"
+                  <div key={contact.id} className="p-4 space-y-3" data-testid={`row-contact-${contact.id}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium" data-testid={`text-contact-name-${contact.id}`}>{contact.name}</p>
+                        {contact.companyName && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Building2 className="h-3 w-3" /> {contact.companyName}
+                          </p>
                         )}
-                      </span>
-                    </TableCell>
-                    <TableCell>
+                      </div>
                       <Badge
                         variant={contact.status === "active" ? "default" : "secondary"}
                         data-testid={`badge-status-${contact.id}`}
                       >
                         {contact.status === "active" ? "Active" : "Invited"}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link href={`/portal/profile?viewAs=${contact.id}`}>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid={`button-view-as-${contact.id}`}
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1.5" />
-                            View As
-                          </Button>
-                        </Link>
-                        {contact.status === "invited" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => resendInviteMutation.mutate(contact.id)}
-                            disabled={resendInviteMutation.isPending}
-                            data-testid={`button-resend-${contact.id}`}
-                          >
-                            <Send className="h-3.5 w-3.5 mr-1.5" />
-                            Resend Invite
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p className="flex items-center gap-1.5">
+                        <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="truncate">{contact.email}</span>
+                      </p>
+                      {contact.phone && (
+                        <p className="flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                          {contact.phone}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link href={`/portal/profile?viewAs=${contact.id}`}>
+                        <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
+                          <Eye className="h-3.5 w-3.5 mr-1.5" />
+                          View As
+                        </Button>
+                      </Link>
+                      {contact.status === "invited" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resendInviteMutation.mutate(contact.id)}
+                          disabled={resendInviteMutation.isPending}
+                          data-testid={`button-resend-${contact.id}`}
+                        >
+                          <Send className="h-3.5 w-3.5 mr-1.5" />
+                          Resend Invite
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="hidden lg:table-cell">Company</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="hidden lg:table-cell">Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((contact) => (
+                      <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
+                        <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
+                          {contact.name}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <Building2 className="h-3.5 w-3.5" />
+                            {contact.companyName || "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{contact.email}</TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            {contact.phone ? (
+                              <>
+                                <Phone className="h-3.5 w-3.5" />
+                                {contact.phone}
+                              </>
+                            ) : "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={contact.status === "active" ? "default" : "secondary"}
+                            data-testid={`badge-status-${contact.id}`}
+                          >
+                            {contact.status === "active" ? "Active" : "Invited"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link href={`/portal/profile?viewAs=${contact.id}`}>
+                              <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
+                                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                                View As
+                              </Button>
+                            </Link>
+                            {contact.status === "invited" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => resendInviteMutation.mutate(contact.id)}
+                                disabled={resendInviteMutation.isPending}
+                                data-testid={`button-resend-${contact.id}`}
+                              >
+                                <Send className="h-3.5 w-3.5 mr-1.5" />
+                                Resend Invite
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           ) : (
             <div className="p-12 text-center">
               <Users className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
