@@ -6,14 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Mail, Building2, Phone, Send, Search, Eye } from "lucide-react";
+import { Users, Mail, Building2, Phone, Send, Search, Eye, ShieldOff, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function AdminContacts() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [revokeTarget, setRevokeTarget] = useState<Contact | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
 
   const { data: contacts, isLoading } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
@@ -28,6 +40,34 @@ export default function AdminContacts() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to resend invite.", variant: "destructive" });
+    },
+  });
+
+  const revokeAccessMutation = useMutation({
+    mutationFn: async (contactId: number) => {
+      await apiRequest("POST", `/api/contacts/${contactId}/revoke-access`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Access revoked", description: "The contact's login access has been removed." });
+      setRevokeTarget(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to revoke access.", variant: "destructive" });
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: number) => {
+      await apiRequest("DELETE", `/api/contacts/${contactId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Contact deleted", description: "The contact has been permanently removed." });
+      setDeleteTarget(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" });
     },
   });
 
@@ -137,7 +177,7 @@ export default function AdminContacts() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                     <Link href={`/portal/profile?viewAs=${contact.id}`}>
                       <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
                         <Eye className="h-3.5 w-3.5 mr-1.5" />
@@ -156,6 +196,28 @@ export default function AdminContacts() {
                         Resend Invite
                       </Button>
                     )}
+                    {contact.status === "active" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950"
+                        onClick={() => setRevokeTarget(contact)}
+                        data-testid={`button-revoke-${contact.id}`}
+                      >
+                        <ShieldOff className="h-3.5 w-3.5 mr-1.5" />
+                        Revoke Access
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(contact)}
+                      data-testid={`button-delete-${contact.id}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -171,6 +233,50 @@ export default function AdminContacts() {
           )}
         </CardContent>
       </Card>
+
+      {/* Revoke Access Confirmation */}
+      <AlertDialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke access for {revokeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove their ability to log in to the client portal. Their contact record will remain and you can reinvite them later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => revokeTarget && revokeAccessMutation.mutate(revokeTarget.id)}
+              data-testid="button-confirm-revoke"
+            >
+              Revoke Access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Contact Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the contact and all their associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={() => deleteTarget && deleteContactMutation.mutate(deleteTarget.id)}
+              data-testid="button-confirm-delete"
+            >
+              Delete Contact
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

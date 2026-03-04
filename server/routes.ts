@@ -107,6 +107,33 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/contacts/:id/revoke-access", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contact = await storage.getContact(Number(req.params.id));
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+      const updated = await storage.updateContact(contact.id, {
+        userId: null,
+        status: "invited",
+      });
+      res.json({ message: "Access revoked", contact: updated });
+    } catch (error) {
+      console.error("Error revoking access:", error);
+      res.status(500).json({ message: "Failed to revoke access" });
+    }
+  });
+
+  app.delete("/api/contacts/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contact = await storage.getContact(Number(req.params.id));
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+      await storage.deleteContact(contact.id);
+      res.json({ message: "Contact deleted" });
+    } catch (error) {
+      console.error("Error deleting contact:", error);
+      res.status(500).json({ message: "Failed to delete contact" });
+    }
+  });
+
   // Zoho CRM Webhook (no auth - external webhook)
   // Accepts: single object, array of objects, or { contacts: [...] }
   app.post("/api/webhooks/zoho-crm", async (req, res) => {
