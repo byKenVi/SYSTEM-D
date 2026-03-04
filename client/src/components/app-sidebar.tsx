@@ -83,19 +83,24 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
-        <div className="flex items-center justify-between gap-2">
+        {/* Expanded state: logo + name + trigger */}
+        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:hidden">
           <Link href={role === "admin" ? "/admin/contacts" : "/portal/profile"}>
             <div className="flex items-center gap-2 hover-elevate rounded-md p-1 cursor-pointer" data-testid="link-sidebar-home">
               <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
                 <Warehouse className="h-4 w-4 text-primary-foreground" />
               </div>
-              <div className="group-data-[collapsible=icon]:hidden">
+              <div>
                 <p className="font-semibold text-sm leading-none">SYSTEM D</p>
                 <p className="text-xs text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
               </div>
             </div>
           </Link>
-          <SidebarTrigger data-testid="button-sidebar-toggle" className="group-data-[collapsible=icon]:mx-auto" />
+          <SidebarTrigger data-testid="button-sidebar-toggle" />
+        </div>
+        {/* Collapsed state: just the trigger centered */}
+        <div className="hidden group-data-[collapsible=icon]:flex justify-center">
+          <SidebarTrigger data-testid="button-sidebar-toggle-collapsed" />
         </div>
       </SidebarHeader>
       <SidebarContent>
