@@ -95,7 +95,7 @@ export default function AdminContacts() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card>
+        <Card className="border-2">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Users className="h-4 w-4 text-primary" />
@@ -106,7 +106,7 @@ export default function AdminContacts() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-2">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0">
               <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -117,7 +117,7 @@ export default function AdminContacts() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-2">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
               <Mail className="h-4 w-4 text-amber-600 dark:text-amber-400" />
