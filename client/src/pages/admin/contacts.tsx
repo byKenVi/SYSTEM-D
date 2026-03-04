@@ -10,14 +10,6 @@ import { Users, Mail, Building2, Phone, Send, Search, Eye } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export default function AdminContacts() {
   const { toast } = useToast();
@@ -113,20 +105,12 @@ export default function AdminContacts() {
               ))}
             </div>
           ) : filtered && filtered.length > 0 ? (
-            <>
-              {/* Mobile: card list */}
-              <div className="md:hidden divide-y">
-                {filtered.map((contact) => (
-                  <div key={contact.id} className="p-4 space-y-3" data-testid={`row-contact-${contact.id}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium" data-testid={`text-contact-name-${contact.id}`}>{contact.name}</p>
-                        {contact.companyName && (
-                          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Building2 className="h-3 w-3" /> {contact.companyName}
-                          </p>
-                        )}
-                      </div>
+            <div className="divide-y">
+              {filtered.map((contact) => (
+                <div key={contact.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid={`row-contact-${contact.id}`}>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium" data-testid={`text-contact-name-${contact.id}`}>{contact.name}</p>
                       <Badge
                         variant={contact.status === "active" ? "default" : "secondary"}
                         data-testid={`badge-status-${contact.id}`}
@@ -134,114 +118,48 @@ export default function AdminContacts() {
                         {contact.status === "active" ? "Active" : "Invited"}
                       </Badge>
                     </div>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      <p className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      {contact.companyName && (
+                        <span className="flex items-center gap-1">
+                          <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                          {contact.companyName}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 min-w-0">
                         <Mail className="h-3.5 w-3.5 flex-shrink-0" />
                         <span className="truncate">{contact.email}</span>
-                      </p>
+                      </span>
                       {contact.phone && (
-                        <p className="flex items-center gap-1.5">
+                        <span className="flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5 flex-shrink-0" />
                           {contact.phone}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Link href={`/portal/profile?viewAs=${contact.id}`}>
-                        <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
-                          <Eye className="h-3.5 w-3.5 mr-1.5" />
-                          View As
-                        </Button>
-                      </Link>
-                      {contact.status === "invited" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => resendInviteMutation.mutate(contact.id)}
-                          disabled={resendInviteMutation.isPending}
-                          data-testid={`button-resend-${contact.id}`}
-                        >
-                          <Send className="h-3.5 w-3.5 mr-1.5" />
-                          Resend Invite
-                        </Button>
+                        </span>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-
-              {/* Desktop: table */}
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="hidden lg:table-cell">Company</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead className="hidden lg:table-cell">Phone</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((contact) => (
-                      <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
-                        <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
-                          {contact.name}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <span className="flex items-center gap-1.5 text-muted-foreground">
-                            <Building2 className="h-3.5 w-3.5" />
-                            {contact.companyName || "—"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{contact.email}</TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <span className="flex items-center gap-1.5 text-muted-foreground">
-                            {contact.phone ? (
-                              <>
-                                <Phone className="h-3.5 w-3.5" />
-                                {contact.phone}
-                              </>
-                            ) : "—"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={contact.status === "active" ? "default" : "secondary"}
-                            data-testid={`badge-status-${contact.id}`}
-                          >
-                            {contact.status === "active" ? "Active" : "Invited"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/portal/profile?viewAs=${contact.id}`}>
-                              <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
-                                <Eye className="h-3.5 w-3.5 mr-1.5" />
-                                View As
-                              </Button>
-                            </Link>
-                            {contact.status === "invited" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => resendInviteMutation.mutate(contact.id)}
-                                disabled={resendInviteMutation.isPending}
-                                data-testid={`button-resend-${contact.id}`}
-                              >
-                                <Send className="h-3.5 w-3.5 mr-1.5" />
-                                Resend Invite
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Link href={`/portal/profile?viewAs=${contact.id}`}>
+                      <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
+                        <Eye className="h-3.5 w-3.5 mr-1.5" />
+                        View As
+                      </Button>
+                    </Link>
+                    {contact.status === "invited" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => resendInviteMutation.mutate(contact.id)}
+                        disabled={resendInviteMutation.isPending}
+                        data-testid={`button-resend-${contact.id}`}
+                      >
+                        <Send className="h-3.5 w-3.5 mr-1.5" />
+                        Resend Invite
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="p-12 text-center">
               <Users className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
