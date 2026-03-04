@@ -29,7 +29,7 @@ interface UserRole {
 
 function AdminLayout() {
   const style = {
-    "--sidebar-width": "16rem",
+    "--sidebar-width": "13rem",
     "--sidebar-width-icon": "3rem",
   };
 
@@ -61,7 +61,7 @@ function AdminLayout() {
 
 function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
   const style = {
-    "--sidebar-width": "16rem",
+    "--sidebar-width": "13rem",
     "--sidebar-width-icon": "3rem",
   };
 
