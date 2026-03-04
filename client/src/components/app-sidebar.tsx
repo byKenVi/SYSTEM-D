@@ -1,5 +1,7 @@
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import type { Contact } from "@shared/schema";
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +17,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Users,
   Package,
   RefreshCw,
@@ -22,6 +31,7 @@ import {
   User,
   Warehouse,
   LogOut,
+  Eye,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -43,7 +53,7 @@ const clientItems = [
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { user, logout } = useAuth();
   const baseItems = role === "admin" ? adminItems : clientItems;
   const items = viewAsContactId
@@ -55,6 +65,19 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   const initials = user
     ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "U"
     : "U";
+
+  const { data: contacts } = useQuery<Contact[]>({
+    queryKey: ["/api/contacts"],
+    enabled: role === "admin",
+  });
+
+  function handleViewAsChange(value: string) {
+    if (value === "__admin__") {
+      navigate("/admin/contacts");
+    } else {
+      navigate(`/portal/profile?viewAs=${value}`);
+    }
+  }
 
   return (
     <Sidebar>
@@ -92,6 +115,45 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {role === "admin" && contacts && contacts.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              <span className="flex items-center gap-1.5">
+                <Eye className="h-3 w-3" />
+                Preview Portal
+              </span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent className="px-2">
+              <Select
+                value={viewAsContactId ? String(viewAsContactId) : "__admin__"}
+                onValueChange={handleViewAsChange}
+              >
+                <SelectTrigger
+                  className="w-full h-8 text-xs"
+                  data-testid="select-view-as-contact"
+                >
+                  <SelectValue placeholder="View as client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__admin__" data-testid="option-view-as-admin">
+                    — Admin view
+                  </SelectItem>
+                  {contacts.map((contact) => (
+                    <SelectItem
+                      key={contact.id}
+                      value={String(contact.id)}
+                      data-testid={`option-view-as-${contact.id}`}
+                    >
+                      {contact.name}
+                      {contact.companyName ? ` (${contact.companyName})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4">
         <div className="flex items-center gap-3">
