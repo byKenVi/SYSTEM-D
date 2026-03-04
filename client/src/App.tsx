@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -38,8 +38,7 @@ function AdminLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar role="admin" />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <header className="flex items-center justify-end gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-auto p-6">
@@ -71,8 +70,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
       <div className="flex h-screen w-full">
         <AppSidebar role="client" viewAsContactId={viewAsContactId} />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <header className="flex items-center justify-end gap-4 p-3 border-b sticky top-0 z-50 bg-background/80 backdrop-blur-md">
             <ThemeToggle />
           </header>
           {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}

@@ -13,6 +13,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarHeader,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -82,17 +83,20 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <Link href={role === "admin" ? "/admin/contacts" : "/portal/profile"}>
-          <div className="flex items-center gap-2 hover-elevate rounded-md p-1 cursor-pointer" data-testid="link-sidebar-home">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-              <Warehouse className="h-4 w-4 text-primary-foreground" />
+        <div className="flex items-center justify-between gap-2">
+          <Link href={role === "admin" ? "/admin/contacts" : "/portal/profile"}>
+            <div className="flex items-center gap-2 hover-elevate rounded-md p-1 cursor-pointer" data-testid="link-sidebar-home">
+              <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
+                <Warehouse className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm leading-none">SYSTEM D</p>
+                <p className="text-xs text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-sm leading-none">SYSTEM D</p>
-              <p className="text-xs text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
-            </div>
-          </div>
-        </Link>
+          </Link>
+          <SidebarTrigger data-testid="button-sidebar-toggle" />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
