@@ -6,10 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Mail, Building2, Phone, Send, Search, Eye, ShieldOff, Trash2, X, Link2, Link2Off } from "lucide-react";
-import { Link } from "wouter";
-import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +29,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Users, Mail, Search, Eye, ShieldOff, Trash2, Send, MoreHorizontal, Link2, Link2Off } from "lucide-react";
+import { Link } from "wouter";
+import { Input } from "@/components/ui/input";
+import { useState } from "react";
 
 export default function AdminContacts() {
   const { toast } = useToast();
@@ -30,43 +45,36 @@ export default function AdminContacts() {
   });
 
   const resendInviteMutation = useMutation({
-    mutationFn: async (contactId: number) => {
-      await apiRequest("POST", `/api/contacts/${contactId}/resend-invite`);
-    },
-    onSuccess: () => {
-      toast({ title: "Invite sent", description: "The invitation email has been sent." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to send invite.", variant: "destructive" });
-    },
+    mutationFn: async (contactId: number) =>
+      apiRequest("POST", `/api/contacts/${contactId}/resend-invite`),
+    onSuccess: () =>
+      toast({ title: "Invite sent", description: "The invitation email has been sent." }),
+    onError: () =>
+      toast({ title: "Error", description: "Failed to send invite.", variant: "destructive" }),
   });
 
   const revokeAccessMutation = useMutation({
-    mutationFn: async (contactId: number) => {
-      await apiRequest("POST", `/api/contacts/${contactId}/revoke-access`);
-    },
+    mutationFn: async (contactId: number) =>
+      apiRequest("POST", `/api/contacts/${contactId}/revoke-access`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "Access revoked", description: "The contact's login access has been removed." });
       setRevokeTarget(null);
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to revoke access.", variant: "destructive" });
-    },
+    onError: () =>
+      toast({ title: "Error", description: "Failed to revoke access.", variant: "destructive" }),
   });
 
   const deleteContactMutation = useMutation({
-    mutationFn: async (contactId: number) => {
-      await apiRequest("DELETE", `/api/contacts/${contactId}`);
-    },
+    mutationFn: async (contactId: number) =>
+      apiRequest("DELETE", `/api/contacts/${contactId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({ title: "Contact deleted", description: "The contact has been permanently removed." });
       setDeleteTarget(null);
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" });
-    },
+    onError: () =>
+      toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" }),
   });
 
   const filtered = contacts?.filter(
@@ -89,42 +97,42 @@ export default function AdminContacts() {
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Users className="h-5 w-5 text-primary" />
+            <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Users className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total</p>
-              <p className="text-2xl font-bold" data-testid="text-total-contacts">{contacts?.length || 0}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xl font-bold" data-testid="text-total-contacts">{contacts?.length || 0}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <Users className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <div className="h-9 w-9 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0">
+              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Active</p>
-              <p className="text-2xl font-bold" data-testid="text-active-contacts">{activeCount}</p>
+              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-xl font-bold" data-testid="text-active-contacts">{activeCount}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-              <Mail className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="h-9 w-9 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <Mail className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Invited</p>
-              <p className="text-2xl font-bold" data-testid="text-invited-contacts">{invitedCount}</p>
+              <p className="text-xs text-muted-foreground">Invited</p>
+              <p className="text-xl font-bold" data-testid="text-invited-contacts">{invitedCount}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
-          <div className="relative flex-1 max-w-sm">
+        <CardHeader className="pb-3">
+          <div className="relative max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search contacts..."
@@ -136,110 +144,118 @@ export default function AdminContacts() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : filtered && filtered.length > 0 ? (
-            <div className="divide-y">
-              {filtered.map((contact) => (
-                <div key={contact.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid={`row-contact-${contact.id}`}>
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium" data-testid={`text-contact-name-${contact.id}`}>{contact.name}</p>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Name</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Zoho CRM</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 6 }).map((_, j) => (
+                      <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : filtered && filtered.length > 0 ? (
+                filtered.map((contact) => (
+                  <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
+                    <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
+                      {contact.name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {contact.companyName || <span className="text-muted-foreground/40">—</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {contact.email}
+                    </TableCell>
+                    <TableCell>
                       <Badge
                         variant={contact.status === "active" ? "default" : "secondary"}
                         data-testid={`badge-status-${contact.id}`}
                       >
                         {contact.status === "active" ? "Active" : "Invited"}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
                       {contact.zohoCrmContactId ? (
                         <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700" data-testid={`badge-zoho-synced-${contact.id}`}>
                           <Link2 className="h-3 w-3" />
-                          Zoho CRM
+                          Synced
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="gap-1 text-muted-foreground" data-testid={`badge-zoho-unsynced-${contact.id}`}>
                           <Link2Off className="h-3 w-3" />
-                          Not in Zoho
+                          None
                         </Badge>
                       )}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                      {contact.companyName && (
-                        <span className="flex items-center gap-1">
-                          <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
-                          {contact.companyName}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1 min-w-0">
-                        <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span className="truncate">{contact.email}</span>
-                      </span>
-                      {contact.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 flex-shrink-0" />
-                          {contact.phone}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                    <Link href={`/portal/profile?viewAs=${contact.id}`}>
-                      <Button size="sm" variant="outline" data-testid={`button-view-as-${contact.id}`}>
-                        <Eye className="h-3.5 w-3.5 mr-1.5" />
-                        View As
-                      </Button>
-                    </Link>
-                    {contact.status === "invited" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => resendInviteMutation.mutate(contact.id)}
-                        disabled={resendInviteMutation.isPending}
-                        data-testid={`button-resend-${contact.id}`}
-                      >
-                        <Send className="h-3.5 w-3.5 mr-1.5" />
-                        Send Invite
-                      </Button>
-                    )}
-                    {contact.status === "active" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950"
-                        onClick={() => setRevokeTarget(contact)}
-                        data-testid={`button-revoke-${contact.id}`}
-                      >
-                        <ShieldOff className="h-3.5 w-3.5 mr-1.5" />
-                        Revoke Access
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => setDeleteTarget(contact)}
-                      data-testid={`button-delete-${contact.id}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-12 text-center">
-              <Users className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">No contacts found</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Contacts are created when Zoho CRM sends a webhook.
-              </p>
-            </div>
-          )}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" data-testid={`button-actions-${contact.id}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <Link href={`/portal/profile?viewAs=${contact.id}`}>
+                            <DropdownMenuItem data-testid={`button-view-as-${contact.id}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View as client
+                            </DropdownMenuItem>
+                          </Link>
+                          {contact.status === "invited" && (
+                            <DropdownMenuItem
+                              onClick={() => resendInviteMutation.mutate(contact.id)}
+                              disabled={resendInviteMutation.isPending}
+                              data-testid={`button-resend-${contact.id}`}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Send invite
+                            </DropdownMenuItem>
+                          )}
+                          {contact.status === "active" && (
+                            <DropdownMenuItem
+                              className="text-amber-600 focus:text-amber-600"
+                              onClick={() => setRevokeTarget(contact)}
+                              data-testid={`button-revoke-${contact.id}`}
+                            >
+                              <ShieldOff className="h-4 w-4 mr-2" />
+                              Revoke access
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(contact)}
+                            data-testid={`button-delete-${contact.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete contact
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-36 text-center">
+                    <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+                    <p className="text-sm text-muted-foreground">No contacts found</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Contacts are created when Zoho CRM sends a webhook</p>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
