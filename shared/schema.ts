@@ -16,6 +16,8 @@ export const contacts = pgTable("contacts", {
   shopifyConnected: boolean("shopify_connected").notNull().default(false),
   zohoInventoryPushed: boolean("zoho_inventory_pushed").notNull().default(false),
   userId: varchar("user_id"),
+  zohoCrmContactId: text("zoho_crm_contact_id"),
+  zohoCrmAccountId: text("zoho_crm_account_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

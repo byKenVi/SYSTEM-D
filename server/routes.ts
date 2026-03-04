@@ -108,31 +108,74 @@ export async function registerRoutes(
   });
 
   // Zoho CRM Webhook (no auth - external webhook)
+  // Accepts: single object, array of objects, or { contacts: [...] }
   app.post("/api/webhooks/zoho-crm", async (req, res) => {
     try {
-      const { name, email, phone, company_name, company_address } = req.body;
-      if (!name || !email) {
-        return res.status(400).json({ message: "Name and email are required" });
+      const body = req.body;
+
+      // Normalize to array
+      let entries: any[] = [];
+      if (Array.isArray(body)) {
+        entries = body;
+      } else if (Array.isArray(body?.contacts)) {
+        entries = body.contacts;
+      } else if (body && typeof body === "object") {
+        entries = [body];
       }
 
-      const existing = await storage.getContactByEmail(email);
-      if (existing) {
-        return res.status(200).json({ message: "Contact already exists", contact: existing });
+      if (entries.length === 0) {
+        return res.status(400).json({ message: "No contact data received" });
       }
 
-      const contact = await storage.createContact({
-        name,
-        email,
-        phone: phone || null,
-        companyName: company_name || null,
-        companyAddress: company_address || null,
-        status: "invited",
-        shopifyConnected: false,
-        zohoInventoryPushed: false,
-        userId: null,
+      const results: { email: string; status: "created" | "updated" | "skipped"; contact: any }[] = [];
+
+      for (const entry of entries) {
+        const { name, email, phone, company_name, company_address, zoho_contact_id, zoho_account_id } = entry;
+
+        if (!name || !email) {
+          results.push({ email: email || "(missing)", status: "skipped", contact: null });
+          continue;
+        }
+
+        const existing = await storage.getContactByEmail(email);
+
+        if (existing) {
+          // Update Zoho IDs and any changed fields on the existing contact
+          const updated = await storage.updateContact(existing.id, {
+            name,
+            phone: phone || existing.phone,
+            companyName: company_name || existing.companyName,
+            companyAddress: company_address || existing.companyAddress,
+            zohoCrmContactId: zoho_contact_id || existing.zohoCrmContactId,
+            zohoCrmAccountId: zoho_account_id || existing.zohoCrmAccountId,
+          });
+          results.push({ email, status: "updated", contact: updated });
+        } else {
+          const contact = await storage.createContact({
+            name,
+            email,
+            phone: phone || null,
+            companyName: company_name || null,
+            companyAddress: company_address || null,
+            status: "invited",
+            shopifyConnected: false,
+            zohoInventoryPushed: false,
+            userId: null,
+            zohoCrmContactId: zoho_contact_id || null,
+            zohoCrmAccountId: zoho_account_id || null,
+          });
+          results.push({ email, status: "created", contact });
+        }
+      }
+
+      const created = results.filter(r => r.status === "created").length;
+      const updated = results.filter(r => r.status === "updated").length;
+      const skipped = results.filter(r => r.status === "skipped").length;
+
+      res.status(201).json({
+        message: `Processed ${entries.length} contact(s): ${created} created, ${updated} updated, ${skipped} skipped`,
+        results,
       });
-
-      res.status(201).json({ message: "Contact created and invite sent", contact });
     } catch (error) {
       console.error("Webhook error:", error);
       res.status(500).json({ message: "Webhook processing failed" });
