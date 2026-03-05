@@ -6,7 +6,18 @@ import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shar
 import { sendInviteEmail } from "./resend";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho } from "./zoho-api";
-import { fetchAllProducts, normalizeProducts, testShopifyConnection } from "./shopify-api";
+import {
+  fetchAllProducts,
+  normalizeProducts,
+  testShopifyConnection,
+  buildShopifyAuthUrl,
+  exchangeShopifyCode,
+  generateOAuthState,
+  getShopifyCallbackUrl,
+  getShopDetails,
+  validateShopifyStoreUrl,
+  verifyShopifyHmac,
+} from "./shopify-api";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -283,23 +294,84 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/shopify-integrations", isAuthenticated, isAdmin, async (req, res) => {
+  app.post("/api/auth/shopify/connect", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const parsed = insertShopifyIntegrationSchema.parse(req.body);
-
-      const connectionTest = await testShopifyConnection(parsed.storeUrl, parsed.apiKey);
-      if (!connectionTest.success) {
-        return res.status(400).json({
-          message: `Failed to connect to Shopify store: ${connectionTest.error}`,
-        });
+      const { contactId, storeUrl } = req.body;
+      if (!contactId || !storeUrl) {
+        return res.status(400).json({ message: "contactId and storeUrl are required" });
       }
 
-      const integration = await storage.createShopifyIntegration(parsed);
-      await storage.updateContact(parsed.contactId, { shopifyConnected: true });
-      res.status(201).json({ ...integration, shopName: connectionTest.shopName });
+      if (!validateShopifyStoreUrl(storeUrl)) {
+        return res.status(400).json({ message: "Store URL must be a valid *.myshopify.com domain (e.g. mystore.myshopify.com)" });
+      }
+
+      const settings = await storage.getAdminSettings();
+      if (!settings?.shopifyAppClientId || !settings?.shopifyAppClientSecret) {
+        return res.status(400).json({ message: "Shopify app credentials not configured. Add your Client ID and Client Secret in Settings first." });
+      }
+
+      const state = generateOAuthState();
+      const host = req.get("host");
+      const redirectUri = getShopifyCallbackUrl(host);
+      const authUrl = buildShopifyAuthUrl(storeUrl, settings.shopifyAppClientId, redirectUri, state);
+
+      req.session.shopifyOAuth = { state, contactId: Number(contactId), storeUrl, redirectUri };
+
+      res.json({ authUrl });
     } catch (error) {
-      console.error("Error creating integration:", error);
-      res.status(500).json({ message: "Failed to create integration" });
+      console.error("Error initiating Shopify OAuth:", error);
+      res.status(500).json({ message: "Failed to start Shopify connection" });
+    }
+  });
+
+  app.get("/api/auth/shopify/callback", async (req: any, res) => {
+    try {
+      const { code, shop, state, hmac } = req.query;
+      const oauthData = req.session?.shopifyOAuth;
+
+      if (!oauthData || oauthData.state !== state) {
+        return res.redirect("/admin/settings?shopify_error=invalid_state");
+      }
+
+      const settings = await storage.getAdminSettings();
+      if (!settings?.shopifyAppClientId || !settings?.shopifyAppClientSecret) {
+        return res.redirect("/admin/settings?shopify_error=no_credentials");
+      }
+
+      if (hmac && !verifyShopifyHmac(req.query as Record<string, string>, settings.shopifyAppClientSecret)) {
+        return res.redirect("/admin/settings?shopify_error=hmac_verification_failed");
+      }
+
+      if (shop && !validateShopifyStoreUrl(shop as string)) {
+        return res.redirect("/admin/settings?shopify_error=invalid_shop_domain");
+      }
+
+      const storeUrl = (shop as string) || oauthData.storeUrl;
+      const { accessToken, scope } = await exchangeShopifyCode(
+        storeUrl,
+        settings.shopifyAppClientId,
+        settings.shopifyAppClientSecret,
+        code as string
+      );
+
+      const shopDetails = await getShopDetails(storeUrl, accessToken);
+
+      await storage.createShopifyIntegration({
+        contactId: oauthData.contactId,
+        accessToken,
+        storeUrl,
+        shopName: shopDetails.name,
+        scope,
+        isActive: true,
+      });
+
+      await storage.updateContact(oauthData.contactId, { shopifyConnected: true });
+
+      delete req.session.shopifyOAuth;
+      res.redirect("/admin/settings?shopify_connected=true");
+    } catch (error: any) {
+      console.error("Shopify OAuth callback error:", error);
+      res.redirect(`/admin/settings?shopify_error=${encodeURIComponent(error.message || "token_exchange_failed")}`);
     }
   });
 
@@ -318,7 +390,7 @@ export async function registerRoutes(
       const integration = await storage.getShopifyIntegration(Number(req.params.id));
       if (!integration) return res.status(404).json({ message: "Integration not found" });
 
-      const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.apiKey);
+      const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
       const normalized = normalizeProducts(shopifyProducts);
 
       const existingProducts = await storage.getProductsByContactId(integration.contactId);
@@ -379,6 +451,20 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error saving settings:", error);
       res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  app.patch("/api/admin-settings", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const existing = await storage.getAdminSettings();
+      const settings = await storage.upsertAdminSettings({
+        ...(existing || {}),
+        ...req.body,
+      });
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      res.status(500).json({ message: "Failed to update settings" });
     }
   });
 

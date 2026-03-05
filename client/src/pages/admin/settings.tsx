@@ -52,9 +52,10 @@ export default function AdminSettingsPage() {
   const [location] = useLocation();
   const [shopifyOpen, setShopifyOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
-  const [shopifyApiKey, setShopifyApiKey] = useState("");
-  const [shopifyApiSecret, setShopifyApiSecret] = useState("");
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
+  const [shopifyAppOpen, setShopifyAppOpen] = useState(false);
+  const [shopifyClientId, setShopifyClientId] = useState("");
+  const [shopifyClientSecret, setShopifyClientSecret] = useState("");
   const [zohoRegion, setZohoRegion] = useState("us");
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
 
@@ -75,7 +76,6 @@ export default function AdminSettingsPage() {
     enabled: orgSelectOpen,
   });
 
-  // Handle redirect back from Zoho OAuth
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("zoho_connected") === "true") {
@@ -93,6 +93,20 @@ export default function AdminSettingsPage() {
       });
       window.history.replaceState({}, "", "/admin/settings");
     }
+
+    if (params.get("shopify_connected") === "true") {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Shopify store connected", description: "OAuth authorization completed successfully." });
+      window.history.replaceState({}, "", "/admin/settings");
+    } else if (params.get("shopify_error")) {
+      toast({
+        title: "Shopify connection failed",
+        description: decodeURIComponent(params.get("shopify_error") || "Unknown error"),
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/admin/settings");
+    }
   }, []);
 
   const isZohoConnected = !!adminSettings?.zohoInventoryRefreshToken;
@@ -102,36 +116,43 @@ export default function AdminSettingsPage() {
 
   const connectShopifyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/shopify-integrations", {
+      const res = await apiRequest("POST", "/api/auth/shopify/connect", {
         contactId: Number(selectedClient),
-        apiKey: shopifyApiKey,
-        apiSecret: shopifyApiSecret,
         storeUrl: shopifyStoreUrl,
-        isActive: true,
       });
       return res.json();
     },
     onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setShopifyOpen(false);
       setSelectedClient("");
-      setShopifyApiKey("");
-      setShopifyApiSecret("");
       setShopifyStoreUrl("");
-      toast({
-        title: "Connected",
-        description: data.shopName
-          ? `Connected to "${data.shopName}" successfully.`
-          : "Shopify store connected successfully.",
-      });
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
     },
     onError: (error: any) => {
       toast({
         title: "Connection Failed",
-        description: error.message || "Failed to connect Shopify store. Check your API key and store URL.",
+        description: error.message || "Failed to initiate Shopify OAuth. Make sure your Shopify app credentials are configured.",
         variant: "destructive",
       });
+    },
+  });
+
+  const saveShopifyAppMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", "/api/admin-settings", {
+        shopifyAppClientId: shopifyClientId,
+        shopifyAppClientSecret: shopifyClientSecret,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      setShopifyAppOpen(false);
+      toast({ title: "Saved", description: "Shopify app credentials updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save Shopify credentials.", variant: "destructive" });
     },
   });
 
@@ -328,81 +349,129 @@ export default function AdminSettingsPage() {
               </div>
               <div>
                 <h3 className="font-semibold">Shopify Integration</h3>
-                <p className="text-sm text-muted-foreground">Connect client Shopify stores</p>
+                <p className="text-sm text-muted-foreground">
+                  {adminSettings?.shopifyAppClientId ? "OAuth 2.0 connected" : "Configure app credentials to get started"}
+                </p>
               </div>
             </div>
-            <Dialog open={shopifyOpen} onOpenChange={setShopifyOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" data-testid="button-connect-shopify">
-                  <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
-                  Connect Store
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Connect Shopify Store</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 mt-2">
-                  <div className="space-y-2">
-                    <Label>Client</Label>
-                    <Select value={selectedClient} onValueChange={setSelectedClient}>
-                      <SelectTrigger data-testid="select-shopify-client">
-                        <SelectValue placeholder="Select a client" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableClients.map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)}>
-                            {c.companyName || c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>API Key</Label>
-                    <Input
-                      value={shopifyApiKey}
-                      onChange={(e) => setShopifyApiKey(e.target.value)}
-                      placeholder="Shopify API Key"
-                      data-testid="input-shopify-api-key"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>API Secret</Label>
-                    <Input
-                      type="password"
-                      value={shopifyApiSecret}
-                      onChange={(e) => setShopifyApiSecret(e.target.value)}
-                      placeholder="Shopify API Secret"
-                      data-testid="input-shopify-api-secret"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Store URL</Label>
-                    <Input
-                      value={shopifyStoreUrl}
-                      onChange={(e) => setShopifyStoreUrl(e.target.value)}
-                      placeholder="mystore.myshopify.com"
-                      data-testid="input-shopify-store-url"
-                    />
-                  </div>
-                  <Button
-                    className="w-full"
-                    onClick={() => connectShopifyMutation.mutate()}
-                    disabled={
-                      !selectedClient ||
-                      !shopifyApiKey ||
-                      !shopifyApiSecret ||
-                      !shopifyStoreUrl ||
-                      connectShopifyMutation.isPending
-                    }
-                    data-testid="button-submit-shopify"
-                  >
-                    {connectShopifyMutation.isPending ? "Connecting..." : "Connect"}
+            <div className="flex items-center gap-2">
+              <Dialog open={shopifyAppOpen} onOpenChange={(open) => {
+                setShopifyAppOpen(open);
+                if (open) {
+                  setShopifyClientId(adminSettings?.shopifyAppClientId || "");
+                  setShopifyClientSecret(adminSettings?.shopifyAppClientSecret || "");
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" data-testid="button-shopify-app-settings">
+                    <Plug className="h-3.5 w-3.5 mr-1.5" />
+                    App Settings
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Shopify App Credentials</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Enter your Shopify app's Client ID and Client Secret from the{" "}
+                      <a href="https://partners.shopify.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                        Shopify Partners Dashboard
+                      </a>.
+                    </p>
+                    <div className="space-y-2">
+                      <Label>Client ID</Label>
+                      <Input
+                        value={shopifyClientId}
+                        onChange={(e) => setShopifyClientId(e.target.value)}
+                        placeholder="Shopify App Client ID"
+                        data-testid="input-shopify-client-id"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Client Secret</Label>
+                      <Input
+                        type="password"
+                        value={shopifyClientSecret}
+                        onChange={(e) => setShopifyClientSecret(e.target.value)}
+                        placeholder="Shopify App Client Secret"
+                        data-testid="input-shopify-client-secret"
+                      />
+                    </div>
+                    <div className="rounded-md bg-muted p-3">
+                      <p className="text-xs text-muted-foreground font-medium mb-1">Redirect URI</p>
+                      <p className="text-xs font-mono break-all select-all" data-testid="text-shopify-redirect-uri">
+                        {`${window.location.origin}/api/auth/shopify/callback`}
+                      </p>
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={() => saveShopifyAppMutation.mutate()}
+                      disabled={!shopifyClientId || !shopifyClientSecret || saveShopifyAppMutation.isPending}
+                      data-testid="button-save-shopify-app"
+                    >
+                      {saveShopifyAppMutation.isPending ? "Saving..." : "Save Credentials"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              {adminSettings?.shopifyAppClientId && (
+                <Dialog open={shopifyOpen} onOpenChange={setShopifyOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" data-testid="button-connect-shopify">
+                      <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
+                      Connect Store
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Connect Shopify Store</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-2">
+                      <p className="text-sm text-muted-foreground">
+                        Select a client and enter their Shopify store URL. You'll be redirected to Shopify to authorize access.
+                      </p>
+                      <div className="space-y-2">
+                        <Label>Client</Label>
+                        <Select value={selectedClient} onValueChange={setSelectedClient}>
+                          <SelectTrigger data-testid="select-shopify-client">
+                            <SelectValue placeholder="Select a client" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableClients.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.companyName || c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Store URL</Label>
+                        <Input
+                          value={shopifyStoreUrl}
+                          onChange={(e) => setShopifyStoreUrl(e.target.value)}
+                          placeholder="mystore.myshopify.com"
+                          data-testid="input-shopify-store-url"
+                        />
+                      </div>
+                      <Button
+                        className="w-full"
+                        onClick={() => connectShopifyMutation.mutate()}
+                        disabled={
+                          !selectedClient ||
+                          !shopifyStoreUrl ||
+                          connectShopifyMutation.isPending
+                        }
+                        data-testid="button-submit-shopify"
+                      >
+                        {connectShopifyMutation.isPending ? "Redirecting to Shopify..." : "Authorize on Shopify"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {integrations && integrations.length > 0 ? (
@@ -420,6 +489,9 @@ export default function AdminSettingsPage() {
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">
                             {contact?.companyName || contact?.name || "Client"}
+                            {integration.shopName && (
+                              <span className="text-muted-foreground font-normal"> — {integration.shopName}</span>
+                            )}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
                             {integration.storeUrl}

@@ -28,9 +28,10 @@ export type Contact = typeof contacts.$inferSelect;
 export const shopifyIntegrations = pgTable("shopify_integrations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   contactId: integer("contact_id").notNull(),
-  apiKey: text("api_key").notNull(),
-  apiSecret: text("api_secret").notNull(),
+  accessToken: text("access_token").notNull(),
   storeUrl: text("store_url").notNull(),
+  shopName: text("shop_name"),
+  scope: text("scope"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -80,6 +81,8 @@ export type RestockRequest = typeof restockRequests.$inferSelect;
 export const adminSettings = pgTable("admin_settings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   adminUserId: varchar("admin_user_id"),
+  shopifyAppClientId: text("shopify_app_client_id"),
+  shopifyAppClientSecret: text("shopify_app_client_secret"),
   zohoInventoryClientId: text("zoho_inventory_client_id"),
   zohoInventoryClientSecret: text("zoho_inventory_client_secret"),
   zohoInventoryRefreshToken: text("zoho_inventory_refresh_token"),

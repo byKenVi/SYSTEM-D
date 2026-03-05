@@ -1,4 +1,114 @@
+import crypto from "crypto";
+import type { ParsedQs } from "qs";
+
 const SHOPIFY_API_VERSION = "2024-10";
+
+const SHOPIFY_SCOPES = [
+  "read_products",
+  "read_inventory",
+].join(",");
+
+function normalizeDomain(storeUrl: string): string {
+  return storeUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+export function buildShopifyAuthUrl(
+  storeUrl: string,
+  clientId: string,
+  redirectUri: string,
+  state: string
+): string {
+  const domain = normalizeDomain(storeUrl);
+  const params = new URLSearchParams({
+    client_id: clientId,
+    scope: SHOPIFY_SCOPES,
+    redirect_uri: redirectUri,
+    state,
+  });
+  return `https://${domain}/admin/oauth/authorize?${params.toString()}`;
+}
+
+export function generateOAuthState(): string {
+  return crypto.randomBytes(16).toString("hex");
+}
+
+export function getShopifyCallbackUrl(host: string): string {
+  return `https://${host}/api/auth/shopify/callback`;
+}
+
+export async function exchangeShopifyCode(
+  storeUrl: string,
+  clientId: string,
+  clientSecret: string,
+  code: string
+): Promise<{ accessToken: string; scope: string }> {
+  const domain = normalizeDomain(storeUrl);
+  const res = await fetch(`https://${domain}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Shopify token exchange failed (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  return {
+    accessToken: data.access_token,
+    scope: data.scope,
+  };
+}
+
+export function validateShopifyStoreUrl(storeUrl: string): boolean {
+  const domain = normalizeDomain(storeUrl);
+  return /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(domain);
+}
+
+export function verifyShopifyHmac(
+  query: Record<string, any>,
+  clientSecret: string
+): boolean {
+  const hmac = query.hmac;
+  if (!hmac) return false;
+
+  const params = { ...query };
+  delete params.hmac;
+  delete params.signature;
+
+  const sortedKeys = Object.keys(params).sort();
+  const message = sortedKeys.map((k) => `${k}=${params[k]}`).join("&");
+
+  const computed = crypto
+    .createHmac("sha256", clientSecret)
+    .update(message)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(
+    Buffer.from(computed, "hex"),
+    Buffer.from(hmac as string, "hex")
+  );
+}
+
+export async function getShopDetails(
+  storeUrl: string,
+  accessToken: string
+): Promise<{ name: string; domain: string }> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const res = await fetch(`${baseUrl}/shop.json`, {
+    headers: buildHeaders(accessToken),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch shop details: ${res.status}`);
+  }
+  const data = await res.json();
+  return { name: data.shop.name, domain: data.shop.myshopify_domain };
+}
 
 interface ShopifyProduct {
   id: number;
