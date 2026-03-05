@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Users, Search, Eye, ShieldOff, Trash2, Send, MoreHorizontal, Link2, Link2Off } from "lucide-react";
+import { Users, Search, Eye, ShieldOff, Trash2, Send, MoreHorizontal, Link2, Link2Off, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -39,6 +39,24 @@ export default function AdminContacts() {
   const [search, setSearch] = useState("");
   const [revokeTarget, setRevokeTarget] = useState<Contact | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortKey !== col) return <ChevronsUpDown className="h-3.5 w-3.5 ml-1 opacity-40" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3.5 w-3.5 ml-1" />
+      : <ChevronDown className="h-3.5 w-3.5 ml-1" />;
+  };
 
   const { data: contacts, isLoading } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
@@ -77,12 +95,26 @@ export default function AdminContacts() {
       toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" }),
   });
 
-  const filtered = contacts?.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase()) ||
-      (c.companyName || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = contacts
+    ?.filter(
+      (c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.email.toLowerCase().includes(search.toLowerCase()) ||
+        (c.companyName || "").toLowerCase().includes(search.toLowerCase())
+    )
+    .slice()
+    .sort((a, b) => {
+      if (!sortKey) return 0;
+      let aVal = "";
+      let bVal = "";
+      if (sortKey === "name") { aVal = a.name; bVal = b.name; }
+      else if (sortKey === "company") { aVal = a.companyName || ""; bVal = b.companyName || ""; }
+      else if (sortKey === "email") { aVal = a.email; bVal = b.email; }
+      else if (sortKey === "status") { aVal = a.status; bVal = b.status; }
+      else if (sortKey === "zoho") { aVal = a.zohoCrmContactId ? "1" : "0"; bVal = b.zohoCrmContactId ? "1" : "0"; }
+      const cmp = aVal.localeCompare(bVal);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
 
 
@@ -109,11 +141,19 @@ export default function AdminContacts() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Name</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Zoho CRM</TableHead>
+                {(["name", "company", "email", "status", "zoho"] as const).map((col) => (
+                  <TableHead key={col}>
+                    <button
+                      type="button"
+                      className="flex items-center font-medium hover:text-foreground transition-colors"
+                      onClick={() => handleSort(col)}
+                      data-testid={`sort-${col}`}
+                    >
+                      {col === "name" ? "Name" : col === "company" ? "Company" : col === "email" ? "Email" : col === "status" ? "Status" : "Zoho CRM"}
+                      <SortIcon col={col} />
+                    </button>
+                  </TableHead>
+                ))}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
