@@ -539,7 +539,7 @@ export default function AdminProducts() {
                           <TableHead>SKU</TableHead>
                           <TableHead>Source</TableHead>
                           <TableHead className="text-right">Price</TableHead>
-                          <TableHead className="text-right">Stock</TableHead>
+                          <TableHead className="text-right">Shopify Stock</TableHead>
                           <TableHead className="text-right">Zoho Stock</TableHead>
                           <TableHead>Zoho</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
