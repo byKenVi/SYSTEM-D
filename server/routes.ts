@@ -303,6 +303,16 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/shopify-integrations/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      await storage.deleteShopifyIntegration(Number(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting integration:", error);
+      res.status(500).json({ message: "Failed to delete integration" });
+    }
+  });
+
   app.post("/api/shopify-integrations/:id/import", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const integration = await storage.getShopifyIntegration(Number(req.params.id));

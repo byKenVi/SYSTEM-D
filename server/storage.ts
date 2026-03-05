@@ -31,6 +31,7 @@ export interface IStorage {
   getShopifyIntegrations(): Promise<ShopifyIntegration[]>;
   getShopifyIntegration(id: number): Promise<ShopifyIntegration | undefined>;
   createShopifyIntegration(data: InsertShopifyIntegration): Promise<ShopifyIntegration>;
+  deleteShopifyIntegration(id: number): Promise<void>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
@@ -123,6 +124,17 @@ export class DatabaseStorage implements IStorage {
   async createShopifyIntegration(data: InsertShopifyIntegration): Promise<ShopifyIntegration> {
     const [integration] = await db.insert(shopifyIntegrations).values(data).returning();
     return integration;
+  }
+
+  async deleteShopifyIntegration(id: number): Promise<void> {
+    const [integration] = await db.select().from(shopifyIntegrations).where(eq(shopifyIntegrations.id, id));
+    if (integration) {
+      await db.delete(shopifyIntegrations).where(eq(shopifyIntegrations.id, id));
+      const remaining = await db.select().from(shopifyIntegrations).where(eq(shopifyIntegrations.contactId, integration.contactId));
+      if (remaining.length === 0) {
+        await db.update(contacts).set({ shopifyConnected: false }).where(eq(contacts.id, integration.contactId));
+      }
+    }
   }
 
   async getAdminSettings(): Promise<AdminSettings | undefined> {

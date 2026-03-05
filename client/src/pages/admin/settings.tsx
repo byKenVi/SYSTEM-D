@@ -32,6 +32,7 @@ import {
   Plug,
   PlugZap,
   Globe,
+  Trash2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -134,6 +135,20 @@ export default function AdminSettingsPage() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to import products.", variant: "destructive" });
+    },
+  });
+
+  const disconnectShopifyMutation = useMutation({
+    mutationFn: async (integrationId: number) => {
+      await apiRequest("DELETE", `/api/shopify-integrations/${integrationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Disconnected", description: "Shopify store removed." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to disconnect store.", variant: "destructive" });
     },
   });
 
@@ -393,16 +408,29 @@ export default function AdminSettingsPage() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => importProductsMutation.mutate(integration.id)}
-                        disabled={importProductsMutation.isPending}
-                        data-testid={`button-import-products-${integration.id}`}
-                      >
-                        <Download className="h-3.5 w-3.5 mr-1" />
-                        Import
-                      </Button>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => importProductsMutation.mutate(integration.id)}
+                          disabled={importProductsMutation.isPending}
+                          data-testid={`button-import-products-${integration.id}`}
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1" />
+                          Import
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                          onClick={() => disconnectShopifyMutation.mutate(integration.id)}
+                          disabled={disconnectShopifyMutation.isPending}
+                          data-testid={`button-disconnect-shopify-${integration.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Disconnect
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
