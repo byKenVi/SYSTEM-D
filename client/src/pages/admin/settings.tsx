@@ -206,6 +206,19 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const updateZohoSyncFrequencyMutation = useMutation({
+    mutationFn: async (zohoSyncFrequencyMinutes: number) => {
+      await apiRequest("PATCH", "/api/admin-settings", { zohoSyncFrequencyMinutes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      toast({ title: "Updated", description: "Zoho sync frequency updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update Zoho sync frequency.", variant: "destructive" });
+    },
+  });
+
   const connectZohoMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/auth/zoho/connect", {
@@ -303,6 +316,30 @@ export default function AdminSettingsPage() {
                       </p>
                     )}
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-sm">
+                    <Clock className="h-3.5 w-3.5" />
+                    Auto-sync Frequency
+                  </Label>
+                  <Select
+                    value={String(adminSettings?.zohoSyncFrequencyMinutes ?? 0)}
+                    onValueChange={(v) => updateZohoSyncFrequencyMutation.mutate(Number(v))}
+                    disabled={updateZohoSyncFrequencyMutation.isPending}
+                  >
+                    <SelectTrigger data-testid="select-zoho-sync-frequency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Disabled</SelectItem>
+                      <SelectItem value="15">Every 15 minutes</SelectItem>
+                      <SelectItem value="30">Every 30 minutes</SelectItem>
+                      <SelectItem value="60">Every hour</SelectItem>
+                      <SelectItem value="360">Every 6 hours</SelectItem>
+                      <SelectItem value="720">Every 12 hours</SelectItem>
+                      <SelectItem value="1440">Every 24 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
                   variant="outline"

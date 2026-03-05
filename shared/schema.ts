@@ -103,6 +103,8 @@ export const adminSettings = pgTable("admin_settings", {
   zohoAccessToken: text("zoho_access_token"),
   zohoTokenExpiresAt: timestamp("zoho_token_expires_at"),
   zohoRegion: text("zoho_region").default("us"),
+  zohoSyncFrequencyMinutes: integer("zoho_sync_frequency_minutes").notNull().default(0),
+  zohoLastAutoSyncAt: timestamp("zoho_last_auto_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

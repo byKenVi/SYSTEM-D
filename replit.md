@@ -96,6 +96,10 @@ shared/
 - During Shopify sync/import, if product has Zoho inventory, Zoho quantity is used instead of Shopify's
 - "Sync Zoho Inventory" button on Products page fetches latest stock from Zoho for all pushed products
 - Products table shows separate "Zoho Stock" column for pushed products
+- Auto-sync: `zohoSyncFrequencyMinutes` stored in `admin_settings` (0=disabled, 15/30/60/360/720/1440 min)
+- Background scheduler (`server/zoho-sync.ts`) checks every 60s for when Zoho sync is due
+- `zohoLastAutoSyncAt` tracked in `admin_settings` to determine sync cadence
+- Auto-sync frequency configurable in Settings → Zoho Inventory card (shown when connected)
 
 ## Activity Log
 - New `activity_logs` DB table tracks all significant events
