@@ -464,7 +464,7 @@ export default function AdminProducts() {
                       </div>
                     </button>
                     {!isCollapsed && (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto scrollbar-hide">
                     <Table className="min-w-[800px] w-full">
                       <TableHeader>
                         <TableRow>
