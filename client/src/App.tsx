@@ -16,6 +16,7 @@ import NotFound from "@/pages/not-found";
 import AdminContacts from "@/pages/admin/contacts";
 import AdminProducts from "@/pages/admin/products";
 import AdminRestockRequests from "@/pages/admin/restock-requests";
+import AdminLogs from "@/pages/admin/logs";
 import AdminSettingsPage from "@/pages/admin/settings";
 import PortalProfile from "@/pages/portal/profile";
 import PortalProducts from "@/pages/portal/products";
@@ -42,6 +43,7 @@ function AdminLayout() {
               <Route path="/admin/contacts" component={AdminContacts} />
               <Route path="/admin/products" component={AdminProducts} />
               <Route path="/admin/restock-requests" component={AdminRestockRequests} />
+              <Route path="/admin/logs" component={AdminLogs} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route path="/admin">
                 <Redirect to="/admin/contacts" />

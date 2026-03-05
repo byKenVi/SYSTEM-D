@@ -97,6 +97,13 @@ shared/
 - "Sync Zoho Inventory" button on Products page fetches latest stock from Zoho for all pushed products
 - Products table shows separate "Zoho Stock" column for pushed products
 
+## Activity Log
+- New `activity_logs` DB table tracks all significant events
+- Logged events: Shopify auto-sync, Shopify import, Zoho push, Zoho inventory sync, contact invite/revoke/delete, product delete, restock requests
+- Admin page at `/admin/logs` with search, type filter, and status filter
+- Auto-refreshes every 30 seconds
+- `GET /api/activity-logs` endpoint returns up to 500 most recent entries
+
 ## User Roles
 - First authenticated user is Admin
 - Users whose email matches a contact record become Clients

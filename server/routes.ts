@@ -128,6 +128,7 @@ export async function registerRoutes(
         email: contact.email,
         companyName: contact.companyName,
       });
+      await storage.createActivityLog({ type: "contact_invite", status: "success", message: `Invite sent to ${contact.name} (${contact.email})` });
       res.json({ message: "Invite resent", contactId: contact.id });
     } catch (error) {
       console.error("Error resending invite:", error);
@@ -143,6 +144,7 @@ export async function registerRoutes(
         userId: null,
         status: "revoked",
       });
+      await storage.createActivityLog({ type: "contact_revoke", status: "success", message: `Access revoked for ${contact.name} (${contact.email})` });
       res.json({ message: "Access revoked", contact: updated });
     } catch (error) {
       console.error("Error revoking access:", error);
@@ -155,6 +157,7 @@ export async function registerRoutes(
       const contact = await storage.getContact(Number(req.params.id));
       if (!contact) return res.status(404).json({ message: "Contact not found" });
       await storage.deleteContact(contact.id);
+      await storage.createActivityLog({ type: "contact_delete", status: "success", message: `Contact "${contact.name}" (${contact.email}) deleted` });
       res.json({ message: "Contact deleted" });
     } catch (error) {
       console.error("Error deleting contact:", error);
@@ -310,6 +313,7 @@ export async function registerRoutes(
       const msg = errors.length > 0
         ? `${updated.length} products pushed (${errors.length} with errors)`
         : `${updated.length} products pushed to Zoho`;
+      await storage.createActivityLog({ type: "zoho_push", status: errors.length > 0 ? "error" : "success", message: msg, metadata: errors.length > 0 ? JSON.stringify({ errors }) : undefined });
       res.json({ message: msg, products: updated, errors });
     } catch (error) {
       console.error("Error pushing to Zoho:", error);
@@ -477,6 +481,7 @@ export async function registerRoutes(
         else created++;
       }
 
+      await storage.createActivityLog({ type: "shopify_import", status: "success", message: `Shopify import from ${integration.storeUrl}: ${created} new, ${updated} updated` });
       res.json({
         message: `${created} new products imported, ${updated} updated from ${integration.storeUrl}`,
         imported: created,
@@ -773,6 +778,7 @@ export async function registerRoutes(
       const product = await storage.getProduct(Number(req.params.id));
       if (!product) return res.status(404).json({ message: "Product not found" });
       await storage.deleteProduct(product.id);
+      await storage.createActivityLog({ type: "product_delete", status: "success", message: `Product "${product.name}" (SKU: ${product.sku || "—"}) deleted` });
       res.json({ message: "Product deleted" });
     } catch (error: any) {
       console.error("Delete product error:", error);
@@ -785,6 +791,7 @@ export async function registerRoutes(
       const { ids } = req.body as { ids: number[] };
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No product IDs provided" });
       await Promise.all(ids.map((id) => storage.deleteProduct(id)));
+      await storage.createActivityLog({ type: "product_delete", status: "success", message: `Bulk deleted ${ids.length} product${ids.length !== 1 ? "s" : ""}` });
       res.json({ message: `Deleted ${ids.length} products` });
     } catch (error: any) {
       console.error("Bulk delete products error:", error);
@@ -810,8 +817,10 @@ export async function registerRoutes(
         zohoInventoryQuantity: zohoStock ?? 0,
         lastSyncedAt: new Date(),
       });
+      await storage.createActivityLog({ type: "zoho_push", status: "success", message: `Product "${product.name}" pushed to Zoho Inventory (ID: ${item_id})` });
       res.json({ message: "Pushed to Zoho", zohoItemId: item_id });
     } catch (error: any) {
+      await storage.createActivityLog({ type: "zoho_push", status: "error", message: `Failed to push product to Zoho: ${error.message}` }).catch(() => {});
       console.error("Push to Zoho error:", error);
       res.status(500).json({ message: error.message || "Push failed" });
     }
@@ -840,8 +849,10 @@ export async function registerRoutes(
         }
       }
 
+      await storage.createActivityLog({ type: "zoho_inventory_sync", status: "success", message: `Zoho inventory sync: updated stock for ${updated} product${updated !== 1 ? "s" : ""}` });
       res.json({ message: `Updated inventory for ${updated} products from Zoho`, updated });
     } catch (error: any) {
+      await storage.createActivityLog({ type: "zoho_inventory_sync", status: "error", message: `Zoho inventory sync failed: ${error.message}` }).catch(() => {});
       console.error("Zoho inventory sync error:", error);
       res.status(500).json({ message: error.message || "Failed to sync Zoho inventory" });
     }
@@ -972,10 +983,21 @@ export async function registerRoutes(
         zohoSalesOrderRef: `SO-REF-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
       });
 
+      await storage.createActivityLog({ type: "restock_request", status: "info", message: `Restock request submitted for "${product.name}" — ${requestedQuantity} unit${requestedQuantity !== 1 ? "s" : ""}` });
       res.status(201).json(request);
     } catch (error) {
       console.error("Error creating restock request:", error);
       res.status(500).json({ message: "Failed to create restock request" });
+    }
+  });
+
+  app.get("/api/activity-logs", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const logs = await storage.getActivityLogs();
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching activity logs:", error);
+      res.status(500).json({ message: "Failed to fetch activity logs" });
     }
   });
 

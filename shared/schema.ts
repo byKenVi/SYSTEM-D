@@ -109,3 +109,16 @@ export const adminSettings = pgTable("admin_settings", {
 export const insertAdminSettingsSchema = createInsertSchema(adminSettings).omit({ id: true, createdAt: true });
 export type InsertAdminSettings = z.infer<typeof insertAdminSettingsSchema>;
 export type AdminSettings = typeof adminSettings.$inferSelect;
+
+export const activityLogs = pgTable("activity_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  type: text("type").notNull(),
+  status: text("status").notNull().default("info"),
+  message: text("message").notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, createdAt: true });
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type ActivityLog = typeof activityLogs.$inferSelect;

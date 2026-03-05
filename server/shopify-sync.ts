@@ -76,8 +76,10 @@ export function startShopifySyncScheduler() {
 
           await storage.updateShopifyIntegration(integration.id, { lastAutoSyncAt: new Date() } as any);
           log(`Auto-synced ${updated} products for integration ${integration.id} (${integration.storeUrl})`, "sync");
+          await storage.createActivityLog({ type: "shopify_auto_sync", status: "success", message: `Auto-sync: updated ${updated} product${updated !== 1 ? "s" : ""} from ${integration.storeUrl}` });
         } catch (err: any) {
           log(`Auto-sync error for integration ${integration.id}: ${err.message}`, "sync");
+          await storage.createActivityLog({ type: "shopify_auto_sync", status: "error", message: `Auto-sync failed for ${integration.storeUrl}: ${err.message}` });
         }
       }
     } catch (err: any) {

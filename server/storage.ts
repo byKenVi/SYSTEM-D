@@ -4,6 +4,7 @@ import {
   restockRequests, type RestockRequest, type InsertRestockRequest,
   shopifyIntegrations, type ShopifyIntegration, type InsertShopifyIntegration,
   adminSettings, type AdminSettings, type InsertAdminSettings,
+  activityLogs, type ActivityLog, type InsertActivityLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, gt, sql, or, isNull } from "drizzle-orm";
@@ -39,6 +40,9 @@ export interface IStorage {
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
+
+  createActivityLog(data: InsertActivityLog): Promise<ActivityLog>;
+  getActivityLogs(limit?: number): Promise<ActivityLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -190,6 +194,15 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(adminSettings).values(data).returning();
     return created;
+  }
+
+  async createActivityLog(data: InsertActivityLog): Promise<ActivityLog> {
+    const [entry] = await db.insert(activityLogs).values(data).returning();
+    return entry;
+  }
+
+  async getActivityLogs(limit = 500): Promise<ActivityLog[]> {
+    return db.select().from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(limit);
   }
 }
 
