@@ -25,26 +25,37 @@ import {
 import {
   ShoppingBag,
   Package,
-  Settings,
   Link as LinkIcon,
   Download,
   CheckCircle2,
+  ExternalLink,
+  Plug,
+  PlugZap,
+  Globe,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { SiShopify } from "react-icons/si";
+
+const ZOHO_REGIONS = [
+  { value: "us", label: "United States (zoho.com)" },
+  { value: "eu", label: "Europe (zoho.eu)" },
+  { value: "in", label: "India (zoho.in)" },
+  { value: "au", label: "Australia (zoho.com.au)" },
+  { value: "jp", label: "Japan (zoho.jp)" },
+  { value: "ca", label: "Canada (zohocloud.ca)" },
+];
 
 export default function AdminSettingsPage() {
   const { toast } = useToast();
+  const [location] = useLocation();
   const [shopifyOpen, setShopifyOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
   const [shopifyApiKey, setShopifyApiKey] = useState("");
   const [shopifyApiSecret, setShopifyApiSecret] = useState("");
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
-
-  const [zohoClientId, setZohoClientId] = useState("");
-  const [zohoClientSecret, setZohoClientSecret] = useState("");
-  const [zohoRefreshToken, setZohoRefreshToken] = useState("");
-  const [zohoOrgId, setZohoOrgId] = useState("");
+  const [zohoRegion, setZohoRegion] = useState("us");
+  const [orgSelectOpen, setOrgSelectOpen] = useState(false);
 
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
@@ -57,6 +68,33 @@ export default function AdminSettingsPage() {
   const { data: adminSettings, isLoading: settingsLoading } = useQuery<AdminSettings>({
     queryKey: ["/api/admin-settings"],
   });
+
+  const { data: pendingOrgs } = useQuery<{ organizations: any[] }>({
+    queryKey: ["/api/auth/zoho/pending-organizations"],
+    enabled: orgSelectOpen,
+  });
+
+  // Handle redirect back from Zoho OAuth
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("zoho_connected") === "true") {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      toast({ title: "Zoho Inventory connected", description: "Your account has been linked successfully." });
+      window.history.replaceState({}, "", "/admin/settings");
+    } else if (params.get("zoho_select_org") === "true") {
+      setOrgSelectOpen(true);
+      window.history.replaceState({}, "", "/admin/settings");
+    } else if (params.get("zoho_error")) {
+      toast({
+        title: "Zoho connection failed",
+        description: decodeURIComponent(params.get("zoho_error") || "Unknown error"),
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/admin/settings");
+    }
+  }, []);
+
+  const isZohoConnected = !!adminSettings?.zohoInventoryRefreshToken;
 
   const connectedClientIds = new Set(integrations?.map((i) => i.contactId) || []);
   const availableClients = contacts?.filter((c) => !connectedClientIds.has(c.id)) || [];
@@ -99,21 +137,44 @@ export default function AdminSettingsPage() {
     },
   });
 
-  const saveZohoMutation = useMutation({
+  const connectZohoMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/admin-settings", {
-        zohoInventoryClientId: zohoClientId,
-        zohoInventoryClientSecret: zohoClientSecret,
-        zohoInventoryRefreshToken: zohoRefreshToken,
-        zohoInventoryOrgId: zohoOrgId,
+      const res = await apiRequest("POST", "/api/auth/zoho/connect", { region: zohoRegion });
+      return res.authUrl as string;
+    },
+    onSuccess: (authUrl) => {
+      window.location.href = authUrl;
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to start Zoho connection",
+        variant: "destructive",
       });
     },
+  });
+
+  const disconnectZohoMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", "/api/auth/zoho/disconnect"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
-      toast({ title: "Saved", description: "Zoho Inventory credentials saved." });
+      toast({ title: "Disconnected", description: "Zoho Inventory has been disconnected." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to save credentials.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to disconnect.", variant: "destructive" });
+    },
+  });
+
+  const selectOrgMutation = useMutation({
+    mutationFn: async (organizationId: string) =>
+      apiRequest("POST", "/api/auth/zoho/select-organization", { organizationId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      setOrgSelectOpen(false);
+      toast({ title: "Organization selected", description: "Zoho Inventory connected." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to select organization.", variant: "destructive" });
     },
   });
 
@@ -125,6 +186,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Shopify Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
             <div className="flex items-center gap-3">
@@ -254,79 +316,124 @@ export default function AdminSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Zoho Inventory Card */}
         <Card>
           <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-4">
             <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Package className="h-5 w-5 text-primary" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h3 className="font-semibold">Zoho Inventory</h3>
-              <p className="text-sm text-muted-foreground">Connect your Zoho Inventory account</p>
+              <p className="text-sm text-muted-foreground">
+                {isZohoConnected
+                  ? adminSettings?.zohoInventoryOrgName || "Connected"
+                  : "Connect via OAuth 2.0"}
+              </p>
             </div>
-            {adminSettings?.zohoInventoryClientId && (
-              <Badge variant="default" className="ml-auto">Connected</Badge>
+            {isZohoConnected && (
+              <Badge variant="default" className="ml-auto bg-emerald-600">Connected</Badge>
             )}
           </CardHeader>
           <CardContent>
             {settingsLoading ? (
               <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-9 w-full" />
-                ))}
+                {[1, 2].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
+              </div>
+            ) : isZohoConnected ? (
+              <div className="space-y-4">
+                <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-emerald-800 dark:text-emerald-300">Connected</p>
+                    {adminSettings?.zohoInventoryOrgName && (
+                      <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
+                        Organization: {adminSettings.zohoInventoryOrgName}
+                      </p>
+                    )}
+                    {adminSettings?.zohoInventoryOrgId && (
+                      <p className="text-emerald-600 dark:text-emerald-500 text-xs">
+                        Org ID: {adminSettings.zohoInventoryOrgId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => disconnectZohoMutation.mutate()}
+                  disabled={disconnectZohoMutation.isPending}
+                  data-testid="button-disconnect-zoho"
+                >
+                  {disconnectZohoMutation.isPending ? "Disconnecting..." : "Disconnect Zoho Inventory"}
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Client ID</Label>
-                  <Input
-                    value={zohoClientId || adminSettings?.zohoInventoryClientId || ""}
-                    onChange={(e) => setZohoClientId(e.target.value)}
-                    placeholder="Zoho Client ID"
-                    data-testid="input-zoho-client-id"
-                  />
+                <div className="rounded-md bg-muted/50 border p-3 text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Setup required</p>
+                  <p>You'll be redirected to Zoho to authorize access. Make sure your Zoho API Console app has this redirect URI set:</p>
+                  <code className="block mt-1 text-xs bg-muted rounded px-2 py-1 break-all">
+                    {window.location.origin}/api/auth/zoho/callback
+                  </code>
                 </div>
                 <div className="space-y-2">
-                  <Label>Client Secret</Label>
-                  <Input
-                    type="password"
-                    value={zohoClientSecret || adminSettings?.zohoInventoryClientSecret || ""}
-                    onChange={(e) => setZohoClientSecret(e.target.value)}
-                    placeholder="Zoho Client Secret"
-                    data-testid="input-zoho-client-secret"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Refresh Token</Label>
-                  <Input
-                    type="password"
-                    value={zohoRefreshToken || adminSettings?.zohoInventoryRefreshToken || ""}
-                    onChange={(e) => setZohoRefreshToken(e.target.value)}
-                    placeholder="Zoho Refresh Token"
-                    data-testid="input-zoho-refresh-token"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Organization ID</Label>
-                  <Input
-                    value={zohoOrgId || adminSettings?.zohoInventoryOrgId || ""}
-                    onChange={(e) => setZohoOrgId(e.target.value)}
-                    placeholder="Zoho Organization ID"
-                    data-testid="input-zoho-org-id"
-                  />
+                  <Label className="flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Data Center Region
+                  </Label>
+                  <Select value={zohoRegion} onValueChange={setZohoRegion}>
+                    <SelectTrigger data-testid="select-zoho-region">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ZOHO_REGIONS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
                   className="w-full"
-                  onClick={() => saveZohoMutation.mutate()}
-                  disabled={saveZohoMutation.isPending}
-                  data-testid="button-save-zoho"
+                  onClick={() => connectZohoMutation.mutate()}
+                  disabled={connectZohoMutation.isPending}
+                  data-testid="button-connect-zoho"
                 >
-                  {saveZohoMutation.isPending ? "Saving..." : "Save Credentials"}
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  {connectZohoMutation.isPending ? "Redirecting..." : "Connect with Zoho"}
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Multiple org selection dialog */}
+      <Dialog open={orgSelectOpen} onOpenChange={setOrgSelectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Zoho Organization</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Multiple organizations found. Choose which one to connect:</p>
+          <div className="space-y-2 mt-2">
+            {pendingOrgs?.organizations?.map((org: any) => (
+              <Button
+                key={org.organization_id}
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => selectOrgMutation.mutate(org.organization_id)}
+                disabled={selectOrgMutation.isPending}
+                data-testid={`button-select-org-${org.organization_id}`}
+              >
+                <Package className="h-4 w-4 mr-2" />
+                {org.name}
+                <span className="ml-auto text-xs text-muted-foreground">{org.organization_id}</span>
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

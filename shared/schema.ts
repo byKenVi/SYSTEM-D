@@ -82,6 +82,10 @@ export const adminSettings = pgTable("admin_settings", {
   zohoInventoryClientSecret: text("zoho_inventory_client_secret"),
   zohoInventoryRefreshToken: text("zoho_inventory_refresh_token"),
   zohoInventoryOrgId: text("zoho_inventory_org_id"),
+  zohoInventoryOrgName: text("zoho_inventory_org_name"),
+  zohoAccessToken: text("zoho_access_token"),
+  zohoTokenExpiresAt: timestamp("zoho_token_expires_at"),
+  zohoRegion: text("zoho_region").default("us"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

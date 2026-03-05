@@ -35,6 +35,9 @@ server/
   storage.ts           - Database storage layer
   db.ts                - Database connection
   seed.ts              - Seed data
+  resend.ts            - Email sending via Resend integration
+  zoho-auth.ts         - Zoho OAuth 2.0 flow (auth URL, token exchange, refresh)
+  zoho-api.ts          - Zoho Inventory API calls (items, contacts, sales orders)
   replit_integrations/auth/ - Replit Auth integration
 
 shared/
@@ -46,12 +49,24 @@ shared/
 - `/api/auth/user` - Get authenticated user
 - `/api/auth/role` - Get user role (admin/client)
 - `/api/contacts` - CRUD contacts
-- `/api/webhooks/zoho-crm` - Inbound webhook for contact creation
+- `/api/webhooks/zoho-crm` - Inbound webhook for contact creation (auto-sends invite email)
 - `/api/products` - Products management
-- `/api/products/push-to-zoho` - Push products to Zoho
 - `/api/shopify-integrations` - Shopify store connections
-- `/api/admin-settings` - Zoho Inventory credentials
+- `/api/admin-settings` - Admin settings (Zoho org info)
+- `/api/auth/zoho/connect` - Start Zoho OAuth flow (returns redirect URL)
+- `/api/auth/zoho/callback` - OAuth callback from Zoho (stores tokens)
+- `/api/auth/zoho/disconnect` - Disconnect Zoho Inventory
+- `/api/auth/zoho/test` - Test Zoho connection
+- `/api/zoho/sync-items/:contactId` - Sync Zoho items into app for a contact
+- `/api/zoho/push-item/:productId` - Push a product to Zoho Inventory
 - `/api/portal/*` - Client-specific endpoints
+
+## Zoho Inventory Integration
+- Uses OAuth 2.0 Authorization Code flow with regional domain support (US/EU/IN/AU/JP/CA)
+- `ZOHO_CLIENT_ID` and `ZOHO_CLIENT_SECRET` stored as Replit secrets
+- Refresh token, access token, org ID stored in `admin_settings` DB table
+- Auto-refreshes access token before every API call
+- Redirect URI: `https://{domain}/api/auth/zoho/callback`
 
 ## User Roles
 - First authenticated user is Admin

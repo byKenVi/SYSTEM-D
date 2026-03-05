@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
 import { sendInviteEmail } from "./resend";
+import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho } from "./zoho-api";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -355,6 +357,175 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error saving settings:", error);
       res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ====== ZOHO INVENTORY OAUTH ======
+
+  // Step 1: Generate OAuth URL and redirect user
+  app.post("/api/auth/zoho/connect", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const region = req.body.region || "us";
+      const authUrl = buildAuthUrl(region);
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("Zoho connect error:", error);
+      res.status(500).json({ message: error.message || "Failed to build auth URL" });
+    }
+  });
+
+  // Step 2: OAuth callback — exchange code for tokens, fetch orgs
+  app.get("/api/auth/zoho/callback", async (req, res) => {
+    try {
+      const { code, state, error } = req.query as Record<string, string>;
+      if (error) {
+        return res.redirect(`/admin/settings?zoho_error=${encodeURIComponent(error)}`);
+      }
+      if (!code) {
+        return res.redirect("/admin/settings?zoho_error=no_code");
+      }
+
+      // Extract region from state: "region:{region}:{timestamp}"
+      const region = state?.split(":")?.[1] || "us";
+
+      const tokens = await exchangeCodeForTokens(code, region);
+      const apiDomain = (tokens.api_domain || "www.zohoapis.com").replace(/^https?:\/\//, "");
+
+      // Fetch organizations
+      const orgs = await fetchZohoOrganizations(tokens.access_token, apiDomain);
+      if (!orgs || orgs.length === 0) {
+        return res.redirect("/admin/settings?zoho_error=no_organizations");
+      }
+
+      // Auto-pick if only one org
+      const org = orgs[0];
+      const expiresAt = new Date(Date.now() + (tokens.expires_in - 60) * 1000);
+
+      const existing = await storage.getAdminSettings();
+      await storage.upsertAdminSettings({
+        ...(existing || {}),
+        zohoInventoryRefreshToken: tokens.refresh_token,
+        zohoInventoryOrgId: org.organization_id,
+        zohoInventoryOrgName: org.name,
+        zohoAccessToken: tokens.access_token,
+        zohoTokenExpiresAt: expiresAt,
+        zohoRegion: region,
+      });
+
+      if (orgs.length > 1) {
+        // Store pending orgs in memory for selection step
+        (global as any).__zoho_pending_orgs = orgs;
+        (global as any).__zoho_pending_tokens = { ...tokens, region, apiDomain };
+        return res.redirect("/admin/settings?zoho_select_org=true");
+      }
+
+      res.redirect("/admin/settings?zoho_connected=true");
+    } catch (error: any) {
+      console.error("Zoho callback error:", error);
+      res.redirect(`/admin/settings?zoho_error=${encodeURIComponent(error.message || "callback_failed")}`);
+    }
+  });
+
+  // Get pending organizations (multiple org selection)
+  app.get("/api/auth/zoho/pending-organizations", isAuthenticated, isAdmin, async (req, res) => {
+    const orgs = (global as any).__zoho_pending_orgs || [];
+    res.json({ organizations: orgs });
+  });
+
+  // Select organization when multiple exist
+  app.post("/api/auth/zoho/select-organization", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { organizationId } = req.body;
+      const orgs: any[] = (global as any).__zoho_pending_orgs || [];
+      const tokens = (global as any).__zoho_pending_tokens;
+      if (!tokens || !orgs.length) {
+        return res.status(400).json({ message: "No pending organization selection" });
+      }
+      const org = orgs.find((o: any) => o.organization_id === organizationId);
+      if (!org) return res.status(404).json({ message: "Organization not found" });
+
+      const expiresAt = new Date(Date.now() + (tokens.expires_in - 60) * 1000);
+      const existing = await storage.getAdminSettings();
+      await storage.upsertAdminSettings({
+        ...(existing || {}),
+        zohoInventoryRefreshToken: tokens.refresh_token,
+        zohoInventoryOrgId: org.organization_id,
+        zohoInventoryOrgName: org.name,
+        zohoAccessToken: tokens.access_token,
+        zohoTokenExpiresAt: expiresAt,
+        zohoRegion: tokens.region,
+      });
+
+      delete (global as any).__zoho_pending_orgs;
+      delete (global as any).__zoho_pending_tokens;
+      res.json({ message: "Organization selected", org });
+    } catch (error: any) {
+      console.error("Org select error:", error);
+      res.status(500).json({ message: error.message || "Failed to select organization" });
+    }
+  });
+
+  // Disconnect Zoho Inventory
+  app.post("/api/auth/zoho/disconnect", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const existing = await storage.getAdminSettings();
+      await storage.upsertAdminSettings({
+        ...(existing || {}),
+        zohoInventoryRefreshToken: null,
+        zohoInventoryOrgId: null,
+        zohoInventoryOrgName: null,
+        zohoAccessToken: null,
+        zohoTokenExpiresAt: null,
+        zohoRegion: "us",
+      });
+      res.json({ message: "Disconnected" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Test Zoho connection
+  app.get("/api/auth/zoho/test", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const result = await testZohoConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  // Sync items from Zoho Inventory into the app for a contact
+  app.post("/api/zoho/sync-items/:contactId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const result = await syncZohoItemsForContact(contactId);
+      res.json({ message: `Synced: ${result.added} added, ${result.updated} updated`, ...result });
+    } catch (error: any) {
+      console.error("Zoho sync error:", error);
+      res.status(500).json({ message: error.message || "Sync failed" });
+    }
+  });
+
+  // Push a product to Zoho Inventory
+  app.post("/api/zoho/push-item/:productId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const product = await storage.getProduct(Number(req.params.productId));
+      if (!product) return res.status(404).json({ message: "Product not found" });
+      const { item_id } = await pushItemToZoho({
+        name: product.name,
+        sku: product.sku,
+        description: product.description,
+        rate: product.price ? Number(product.price) : undefined,
+      });
+      await storage.updateProduct(product.id, {
+        zohoItemId: item_id,
+        pushedToZoho: true,
+        lastSyncedAt: new Date(),
+      });
+      res.json({ message: "Pushed to Zoho", zohoItemId: item_id });
+    } catch (error: any) {
+      console.error("Push to Zoho error:", error);
+      res.status(500).json({ message: error.message || "Push failed" });
     }
   });
 
