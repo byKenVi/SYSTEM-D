@@ -137,7 +137,8 @@ export default function AdminContacts() {
       </div>
 
       <Card>
-        <CardContent className="p-0 overflow-x-auto scrollbar-hide">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto scrollbar-hide">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -258,6 +259,7 @@ export default function AdminContacts() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
