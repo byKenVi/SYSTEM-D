@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, Contact } from "@shared/schema";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -375,73 +375,75 @@ export default function AdminProducts() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 space-y-0 pb-4">
-          <div className="flex items-center gap-3 flex-1 flex-wrap w-full sm:w-auto">
-            <div className="relative flex-1 min-w-0 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search products, SKU, barcode..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-                data-testid="input-search-products"
-              />
-            </div>
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-client-filter">
-                <SelectValue placeholder="All Clients" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {contacts?.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.companyName || c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 flex-wrap w-full sm:w-auto">
+          <div className="relative flex-1 min-w-0 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search products, SKU, barcode..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-products"
+            />
           </div>
-          <div className="flex items-center gap-2">
-            {filtered && filtered.length > 0 && (
+          <Select value={clientFilter} onValueChange={setClientFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-client-filter">
+              <SelectValue placeholder="All Clients" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Clients</SelectItem>
+              {contacts?.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.companyName || c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {filtered && filtered.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleAll}
+              data-testid="button-select-all-global"
+            >
+              <div className={`h-4 w-4 mr-1.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${filtered.every((p) => selected.has(p.id)) ? "bg-primary border-primary text-primary-foreground" : "border-input"}`}>
+                {filtered.every((p) => selected.has(p.id)) && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6 9 17l-5-5"/></svg>
+                )}
+              </div>
+              {filtered.every((p) => selected.has(p.id)) ? "Deselect All" : "Select All"}
+            </Button>
+          )}
+          {selected.size > 0 && (
+            <>
               <Button
-                variant="outline"
+                variant="destructive"
                 size="sm"
-                onClick={toggleAll}
-                data-testid="button-select-all-global"
+                onClick={() => setBulkDeleteConfirm(true)}
+                disabled={bulkDeleteMutation.isPending}
+                data-testid="button-bulk-delete"
               >
-                <div className={`h-4 w-4 mr-1.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${filtered.every((p) => selected.has(p.id)) ? "bg-primary border-primary text-primary-foreground" : "border-input"}`}>
-                  {filtered.every((p) => selected.has(p.id)) && (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6 9 17l-5-5"/></svg>
-                  )}
-                </div>
-                {filtered.every((p) => selected.has(p.id)) ? "Deselect All" : "Select All"}
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Delete {selected.size}
               </Button>
-            )}
-            {selected.size > 0 && (
-              <>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setBulkDeleteConfirm(true)}
-                  disabled={bulkDeleteMutation.isPending}
-                  data-testid="button-bulk-delete"
-                >
-                  <Trash2 className="h-4 w-4 mr-1.5" />
-                  Delete {selected.size}
-                </Button>
-                <Button
-                  onClick={() => pushToZohoMutation.mutate(Array.from(selected))}
-                  disabled={pushToZohoMutation.isPending}
-                  data-testid="button-bulk-push-zoho"
-                >
-                  <Upload className="h-4 w-4 mr-1.5" />
-                  Push {selected.size} to Zoho
-                </Button>
-              </>
-            )}
-          </div>
-        </CardHeader>
+              <Button
+                size="sm"
+                onClick={() => pushToZohoMutation.mutate(Array.from(selected))}
+                disabled={pushToZohoMutation.isPending}
+                data-testid="button-bulk-push-zoho"
+              >
+                <Upload className="h-4 w-4 mr-1.5" />
+                Push {selected.size} to Zoho
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6 space-y-3">
