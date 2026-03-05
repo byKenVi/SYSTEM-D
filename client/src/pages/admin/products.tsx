@@ -15,6 +15,8 @@ import {
   BarChart3,
   Layers,
   Users,
+  ShoppingBag,
+  ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -208,6 +210,7 @@ export default function AdminProducts() {
                   <TableHead>Product</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>SKU</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead className="text-right">Price</TableHead>
                   <TableHead className="text-right">Stock</TableHead>
                   <TableHead>Zoho</TableHead>
@@ -250,6 +253,25 @@ export default function AdminProducts() {
                       </TableCell>
                       <TableCell className="text-muted-foreground font-mono text-sm">
                         {product.sku || "—"}
+                      </TableCell>
+                      <TableCell>
+                        {product.shopifyStoreUrl ? (
+                          <div className="flex items-center gap-1.5">
+                            <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                            <a
+                              href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[120px]"
+                              title={`Shopify ID: ${product.shopifyProductId}`}
+                              data-testid={`link-shopify-store-${product.id}`}
+                            >
+                              {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Manual</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono">
                         {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}

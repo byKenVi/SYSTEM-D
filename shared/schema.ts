@@ -43,6 +43,8 @@ export const products = pgTable("products", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   contactId: integer("contact_id").notNull(),
   shopifyProductId: text("shopify_product_id"),
+  shopifyVariantId: text("shopify_variant_id"),
+  shopifyStoreUrl: text("shopify_store_url"),
   name: text("name").notNull(),
   sku: text("sku"),
   description: text("description"),

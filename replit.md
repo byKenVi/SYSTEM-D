@@ -68,6 +68,14 @@ shared/
 - Auto-refreshes access token before every API call
 - Redirect URI: `https://{domain}/api/auth/zoho/callback`
 
+## Shopify Integration
+- Real Shopify Admin REST API (v2024-10) via `server/shopify-api.ts`
+- Connection validates API key by calling `/admin/api/{version}/shop.json`
+- Products imported from Shopify are stored with `shopifyProductId`, `shopifyVariantId`, `shopifyStoreUrl`
+- Each variant is a separate product row; upserted by `(contactId, shopifyVariantId)` to avoid duplicates
+- Pagination handled via Link header for stores with 250+ products
+- Products table shows "Source" column with Shopify store link when imported from Shopify
+
 ## User Roles
 - First authenticated user is Admin
 - Users whose email matches a contact record become Clients

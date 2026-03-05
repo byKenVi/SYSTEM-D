@@ -102,15 +102,16 @@ export default function AdminSettingsPage() {
 
   const connectShopifyMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/shopify-integrations", {
+      const res = await apiRequest("POST", "/api/shopify-integrations", {
         contactId: Number(selectedClient),
         apiKey: shopifyApiKey,
         apiSecret: shopifyApiSecret,
         storeUrl: shopifyStoreUrl,
         isActive: true,
       });
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setShopifyOpen(false);
@@ -118,23 +119,40 @@ export default function AdminSettingsPage() {
       setShopifyApiKey("");
       setShopifyApiSecret("");
       setShopifyStoreUrl("");
-      toast({ title: "Connected", description: "Shopify store connected successfully." });
+      toast({
+        title: "Connected",
+        description: data.shopName
+          ? `Connected to "${data.shopName}" successfully.`
+          : "Shopify store connected successfully.",
+      });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to connect Shopify store.", variant: "destructive" });
+    onError: (error: any) => {
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect Shopify store. Check your API key and store URL.",
+        variant: "destructive",
+      });
     },
   });
 
   const importProductsMutation = useMutation({
     mutationFn: async (integrationId: number) => {
-      await apiRequest("POST", `/api/shopify-integrations/${integrationId}/import`);
+      const res = await apiRequest("POST", `/api/shopify-integrations/${integrationId}/import`);
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Imported", description: "Products imported from Shopify." });
+      toast({
+        title: "Import Complete",
+        description: data.message || `${data.imported} new, ${data.updated} updated (${data.total} total)`,
+      });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to import products.", variant: "destructive" });
+    onError: (error: any) => {
+      toast({
+        title: "Import Failed",
+        description: error.message || "Failed to import products from Shopify.",
+        variant: "destructive",
+      });
     },
   });
 

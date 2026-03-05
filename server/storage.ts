@@ -22,6 +22,7 @@ export interface IStorage {
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(data: InsertProduct): Promise<Product>;
   updateProduct(id: number, data: Partial<InsertProduct>): Promise<Product | undefined>;
+  upsertProductByShopifyVariant(contactId: number, shopifyVariantId: string, data: InsertProduct): Promise<Product>;
 
   getRestockRequests(): Promise<RestockRequest[]>;
   getRestockRequestsByContactId(contactId: number): Promise<RestockRequest[]>;
@@ -92,6 +93,19 @@ export class DatabaseStorage implements IStorage {
   async updateProduct(id: number, data: Partial<InsertProduct>): Promise<Product | undefined> {
     const [product] = await db.update(products).set(data).where(eq(products.id, id)).returning();
     return product;
+  }
+
+  async upsertProductByShopifyVariant(contactId: number, shopifyVariantId: string, data: InsertProduct): Promise<Product> {
+    const [existing] = await db.select().from(products)
+      .where(and(eq(products.contactId, contactId), eq(products.shopifyVariantId, shopifyVariantId)));
+    if (existing) {
+      const { id, createdAt, ...updateData } = data as any;
+      const [updated] = await db.update(products).set({ ...updateData, lastSyncedAt: new Date() })
+        .where(eq(products.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(products).values({ ...data, lastSyncedAt: new Date() }).returning();
+    return created;
   }
 
   async getRestockRequests(): Promise<RestockRequest[]> {

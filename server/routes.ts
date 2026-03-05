@@ -6,6 +6,7 @@ import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shar
 import { sendInviteEmail } from "./resend";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho } from "./zoho-api";
+import { fetchAllProducts, normalizeProducts, testShopifyConnection } from "./shopify-api";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -294,9 +295,17 @@ export async function registerRoutes(
   app.post("/api/shopify-integrations", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const parsed = insertShopifyIntegrationSchema.parse(req.body);
+
+      const connectionTest = await testShopifyConnection(parsed.storeUrl, parsed.apiKey);
+      if (!connectionTest.success) {
+        return res.status(400).json({
+          message: `Failed to connect to Shopify store: ${connectionTest.error}`,
+        });
+      }
+
       const integration = await storage.createShopifyIntegration(parsed);
       await storage.updateContact(parsed.contactId, { shopifyConnected: true });
-      res.status(201).json(integration);
+      res.status(201).json({ ...integration, shopName: connectionTest.shopName });
     } catch (error) {
       console.error("Error creating integration:", error);
       res.status(500).json({ message: "Failed to create integration" });
@@ -318,34 +327,46 @@ export async function registerRoutes(
       const integration = await storage.getShopifyIntegration(Number(req.params.id));
       if (!integration) return res.status(404).json({ message: "Integration not found" });
 
-      const sampleProducts = [
-        { name: "Premium Widget A", sku: "WID-A-001", price: "29.99", inventoryQuantity: 150 },
-        { name: "Deluxe Gadget B", sku: "GAD-B-002", price: "49.99", inventoryQuantity: 75 },
-        { name: "Standard Part C", sku: "PRT-C-003", price: "12.50", inventoryQuantity: 5 },
-      ];
+      const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.apiKey);
+      const normalized = normalizeProducts(shopifyProducts);
 
-      const created = [];
-      for (const p of sampleProducts) {
-        const product = await storage.createProduct({
+      const existingProducts = await storage.getProductsByContactId(integration.contactId);
+      const existingByVariant = new Map(
+        existingProducts.filter((p) => p.shopifyVariantId).map((p) => [p.shopifyVariantId, p])
+      );
+
+      let created = 0;
+      let updated = 0;
+      for (const p of normalized) {
+        await storage.upsertProductByShopifyVariant(integration.contactId, p.shopifyVariantId, {
           contactId: integration.contactId,
-          shopifyProductId: `shopify-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          shopifyProductId: p.shopifyProductId,
+          shopifyVariantId: p.shopifyVariantId,
+          shopifyStoreUrl: integration.storeUrl,
           name: p.name,
           sku: p.sku,
-          description: `Imported from ${integration.storeUrl}`,
-          imageUrl: null,
+          description: p.description,
+          imageUrl: p.imageUrl,
           price: p.price,
           inventoryQuantity: p.inventoryQuantity,
           pushedToZoho: false,
           zohoItemId: null,
           lastSyncedAt: null,
         });
-        created.push(product);
+
+        if (existingByVariant.has(p.shopifyVariantId)) updated++;
+        else created++;
       }
 
-      res.json({ message: `${created.length} products imported`, products: created });
-    } catch (error) {
+      res.json({
+        message: `${created} new products imported, ${updated} updated from ${integration.storeUrl}`,
+        imported: created,
+        updated,
+        total: normalized.length,
+      });
+    } catch (error: any) {
       console.error("Error importing products:", error);
-      res.status(500).json({ message: "Failed to import products" });
+      res.status(500).json({ message: error.message || "Failed to import products from Shopify" });
     }
   });
 
