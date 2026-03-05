@@ -50,6 +50,7 @@ export function startShopifySyncScheduler() {
               contactId: integration.contactId,
               shopifyProductId: p.shopifyProductId,
               shopifyVariantId: p.shopifyVariantId,
+              shopifyInventoryItemId: p.shopifyInventoryItemId,
               shopifyStoreUrl: integration.storeUrl,
               name: p.name,
               sku: p.sku,

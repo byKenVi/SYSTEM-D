@@ -79,11 +79,13 @@ const TYPE_LABELS: Record<string, string> = {
   contact_delete: "Contact Deleted",
   product_delete: "Product Deleted",
   restock_request: "Restock Request",
+  shopify_writeback: "Shopify Writeback",
 };
 
 const TYPE_COLORS: Record<string, string> = {
   shopify_auto_sync: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   shopify_import: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  shopify_writeback: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
   zoho_push: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
   zoho_inventory_sync: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
   contact_invite: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
@@ -282,6 +284,19 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const updateShopifyWritebackFrequencyMutation = useMutation({
+    mutationFn: async (shopifyWritebackFrequencyMinutes: number) => {
+      await apiRequest("PATCH", "/api/admin-settings", { shopifyWritebackFrequencyMinutes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      toast({ title: "Updated", description: "Shopify writeback frequency updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update Shopify writeback frequency.", variant: "destructive" });
+    },
+  });
+
   const connectZohoMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/auth/zoho/connect", {
@@ -391,7 +406,7 @@ export default function AdminSettingsPage() {
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1.5 text-sm">
                         <Clock className="h-3.5 w-3.5" />
-                        Auto-sync Frequency
+                        Zoho → App Sync Frequency
                       </Label>
                       <Select
                         value={String(adminSettings?.zohoSyncFrequencyMinutes ?? 0)}
@@ -399,6 +414,29 @@ export default function AdminSettingsPage() {
                         disabled={updateZohoSyncFrequencyMutation.isPending}
                       >
                         <SelectTrigger data-testid="select-zoho-sync-frequency">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SYNC_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5 text-sm">
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Zoho → Shopify Writeback Frequency
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Pushes Zoho inventory levels back to connected Shopify stores
+                      </p>
+                      <Select
+                        value={String(adminSettings?.shopifyWritebackFrequencyMinutes ?? 0)}
+                        onValueChange={(v) => updateShopifyWritebackFrequencyMutation.mutate(Number(v))}
+                        disabled={updateShopifyWritebackFrequencyMutation.isPending}
+                      >
+                        <SelectTrigger data-testid="select-shopify-writeback-frequency">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

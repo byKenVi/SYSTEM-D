@@ -101,10 +101,23 @@ shared/
 - `zohoLastAutoSyncAt` tracked in `admin_settings` to determine sync cadence
 - Auto-sync frequency configurable in Settings → Zoho Inventory card (shown when connected)
 
+## Shopify Inventory Writeback (Zoho → Shopify)
+- After Zoho inventory syncs to the app, those stock levels can be pushed back to Shopify
+- Uses `shopifyInventoryItemId` stored per product (captured during Shopify import)
+- Shopify API: `POST inventory_levels/set.json` with inventory_item_id, location_id, available
+- Location ID cached per store (fetched once from `GET locations.json`)
+- Background scheduler (`server/shopify-writeback.ts`) checks every 60s
+- `shopifyWritebackFrequencyMinutes` stored in `admin_settings` (0=disabled, 15/30/60/360/720/1440 min)
+- `shopifyWritebackLastSyncAt` tracked in `admin_settings`
+- Only writes back products that are pushed to Zoho AND have a `shopifyInventoryItemId`
+- Frequency configurable in Settings → Zoho Inventory card (shown when connected)
+- Shopify OAuth scopes now include `write_inventory` for new connections
+- Activity logs recorded as type `shopify_writeback`
+
 ## Activity Log
-- New `activity_logs` DB table tracks all significant events
-- Logged events: Shopify auto-sync, Shopify import, Zoho push, Zoho inventory sync, contact invite/revoke/delete, product delete, restock requests
-- Admin page at `/admin/logs` with search, type filter, and status filter
+- `activity_logs` DB table tracks all significant events
+- Logged events: Shopify auto-sync, Shopify import, Shopify writeback, Zoho push, Zoho inventory sync, contact invite/revoke/delete, product delete, restock requests
+- Visible in Settings → Activity Log tab with search, type filter, and status filter
 - Auto-refreshes every 30 seconds
 - `GET /api/activity-logs` endpoint returns up to 500 most recent entries
 

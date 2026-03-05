@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { seedDatabase } from "./seed";
 import { startShopifySyncScheduler } from "./shopify-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
+import { startShopifyWritebackScheduler } from "./shopify-writeback";
 
 const app = express();
 const httpServer = createServer(app);
@@ -104,6 +105,7 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
       startShopifySyncScheduler();
       startZohoSyncScheduler();
+      startShopifyWritebackScheduler();
     },
   );
 })();

@@ -6,6 +6,7 @@ const SHOPIFY_API_VERSION = "2024-10";
 const SHOPIFY_SCOPES = [
   "read_products",
   "read_inventory",
+  "write_inventory",
 ].join(",");
 
 function normalizeDomain(storeUrl: string): string {
@@ -231,6 +232,7 @@ function parseLinkHeaderNext(linkHeader: string | null): string | null {
 export interface NormalizedProduct {
   shopifyProductId: string;
   shopifyVariantId: string;
+  shopifyInventoryItemId: string;
   name: string;
   sku: string | null;
   barcode: string | null;
@@ -267,6 +269,7 @@ export function normalizeProducts(shopifyProducts: ShopifyProduct[]): Normalized
       results.push({
         shopifyProductId: String(product.id),
         shopifyVariantId: String(variant.id),
+        shopifyInventoryItemId: String(variant.inventory_item_id),
         name,
         sku: variant.sku || null,
         barcode: variant.barcode || null,
@@ -289,4 +292,42 @@ export function normalizeProducts(shopifyProducts: ShopifyProduct[]): Normalized
   }
 
   return results;
+}
+
+export async function fetchShopifyLocations(
+  storeUrl: string,
+  accessToken: string
+): Promise<{ id: number; name: string }[]> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const res = await fetch(`${baseUrl}/locations.json`, {
+    headers: buildHeaders(accessToken),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch Shopify locations: ${res.status}`);
+  }
+  const data = await res.json();
+  return (data.locations || []).map((loc: any) => ({ id: loc.id, name: loc.name }));
+}
+
+export async function setShopifyInventoryLevel(
+  storeUrl: string,
+  accessToken: string,
+  inventoryItemId: string,
+  locationId: number,
+  available: number
+): Promise<void> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const res = await fetch(`${baseUrl}/inventory_levels/set.json`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({
+      inventory_item_id: Number(inventoryItemId),
+      location_id: locationId,
+      available,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to set Shopify inventory: ${res.status} ${text}`);
+  }
 }

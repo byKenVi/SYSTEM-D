@@ -64,6 +64,7 @@ export const products = pgTable("products", {
   zohoInventoryQuantity: integer("zoho_inventory_quantity"),
   shopifyStatus: text("shopify_status"),
   shopifyHandle: text("shopify_handle"),
+  shopifyInventoryItemId: text("shopify_inventory_item_id"),
   pushedToZoho: boolean("pushed_to_zoho").notNull().default(false),
   zohoItemId: text("zoho_item_id"),
   lastSyncedAt: timestamp("last_synced_at"),
@@ -105,6 +106,8 @@ export const adminSettings = pgTable("admin_settings", {
   zohoRegion: text("zoho_region").default("us"),
   zohoSyncFrequencyMinutes: integer("zoho_sync_frequency_minutes").notNull().default(0),
   zohoLastAutoSyncAt: timestamp("zoho_last_auto_sync_at"),
+  shopifyWritebackFrequencyMinutes: integer("shopify_writeback_frequency_minutes").notNull().default(0),
+  shopifyWritebackLastSyncAt: timestamp("shopify_writeback_last_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
