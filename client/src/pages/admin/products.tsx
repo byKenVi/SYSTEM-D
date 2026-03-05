@@ -320,7 +320,7 @@ export default function AdminProducts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products & Inventory</h1>
           <p className="text-muted-foreground mt-1">Manage products across all client accounts</p>
@@ -328,6 +328,7 @@ export default function AdminProducts() {
         <Button
           variant="outline"
           size="sm"
+          className="self-start"
           onClick={() => syncZohoInventoryMutation.mutate()}
           disabled={syncZohoInventoryMutation.isPending}
           data-testid="button-sync-zoho-inventory"
@@ -385,9 +386,9 @@ export default function AdminProducts() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4 flex-wrap">
-          <div className="flex items-center gap-3 flex-1 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 space-y-0 pb-4">
+          <div className="flex items-center gap-3 flex-1 flex-wrap w-full sm:w-auto">
+            <div className="relative flex-1 min-w-0 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search products, SKU, barcode..."
@@ -398,7 +399,7 @@ export default function AdminProducts() {
               />
             </div>
             <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-[180px]" data-testid="select-client-filter">
+              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-client-filter">
                 <SelectValue placeholder="All Clients" />
               </SelectTrigger>
               <SelectContent>
@@ -419,10 +420,11 @@ export default function AdminProducts() {
                 onClick={toggleAll}
                 data-testid="button-select-all-global"
               >
-                <Checkbox
-                  checked={filtered.length > 0 && filtered.every((p) => selected.has(p.id))}
-                  className="mr-1.5 pointer-events-none"
-                />
+                <div className={`h-4 w-4 mr-1.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${filtered.every((p) => selected.has(p.id)) ? "bg-primary border-primary text-primary-foreground" : "border-input"}`}>
+                  {filtered.every((p) => selected.has(p.id)) && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6 9 17l-5-5"/></svg>
+                  )}
+                </div>
                 {filtered.every((p) => selected.has(p.id)) ? "Deselect All" : "Select All"}
               </Button>
             )}
@@ -488,7 +490,8 @@ export default function AdminProducts() {
                       </div>
                     </button>
                     {!isCollapsed && (
-                    <Table>
+                    <div className="overflow-x-auto">
+                    <Table className="min-w-[800px] w-full">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-10">
@@ -617,6 +620,7 @@ export default function AdminProducts() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                     )}
                   </div>
                 );
