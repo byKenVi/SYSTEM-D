@@ -9,7 +9,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Eye, ArrowLeft } from "lucide-react";
+import { Eye, ArrowLeft, ShieldAlert } from "lucide-react";
 import type { Contact } from "@shared/schema";
 import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
@@ -114,9 +114,37 @@ function ViewAsBanner({ contactId }: { contactId: number }) {
   );
 }
 
+function AccessDenied() {
+  const { logout } = useAuth();
+
+  return (
+    <div className="flex items-center justify-center h-screen" data-testid="access-denied-screen">
+      <div className="max-w-md text-center space-y-4 px-6">
+        <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+          <ShieldAlert className="h-7 w-7 text-destructive" />
+        </div>
+        <h1 className="text-2xl font-bold" data-testid="text-access-denied-title">Access Denied</h1>
+        <p className="text-muted-foreground">
+          Your email address is not associated with an invited account. Only users who have received an invitation can access this platform.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          If you believe this is a mistake, please contact your account administrator.
+        </p>
+        <Button variant="outline" onClick={() => logout()} data-testid="button-sign-out-denied">
+          Sign Out
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AuthenticatedApp() {
-  const { data: userRole, isLoading: roleLoading } = useQuery<UserRole>({
+  const { data: userRole, isLoading: roleLoading, isError, error } = useQuery<UserRole>({
     queryKey: ["/api/auth/role"],
+    retry: (failureCount, err) => {
+      if (err instanceof Error && err.message.startsWith("401:")) return false;
+      return failureCount < 2;
+    },
   });
   const [location] = useLocation();
 
@@ -131,7 +159,29 @@ function AuthenticatedApp() {
     );
   }
 
-  const role = userRole?.role || "client";
+  if (isError) {
+    const is401 = error instanceof Error && error.message.startsWith("401:");
+    if (is401) {
+      return <AccessDenied />;
+    }
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="max-w-md text-center space-y-4 px-6">
+          <h1 className="text-xl font-bold">Something went wrong</h1>
+          <p className="text-muted-foreground">Unable to load your account. Please try again.</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userRole) {
+    return <AccessDenied />;
+  }
+
+  const role = userRole.role;
 
   if (location === "/" || location === "") {
     return <Redirect to={role === "admin" ? "/admin/contacts" : "/portal/profile"} />;

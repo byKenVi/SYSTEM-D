@@ -46,41 +46,29 @@ export async function registerRoutes(
 
     const contact = await storage.getContactByUserId(userId);
     if (contact) {
+      if (contact.status === "revoked") {
+        return null;
+      }
       return { role: "client" as const, contactId: contact.id };
     }
 
     if (email) {
       const contactByEmail = await storage.getContactByEmail(email);
-      if (contactByEmail && !contactByEmail.userId) {
-        await storage.updateContact(contactByEmail.id, {
-          userId,
-          status: "active",
-        });
-        return { role: "client" as const, contactId: contactByEmail.id };
-      }
       if (contactByEmail) {
+        if (contactByEmail.status === "revoked") {
+          return null;
+        }
+        if (!contactByEmail.userId) {
+          await storage.updateContact(contactByEmail.id, {
+            userId,
+            status: "active",
+          });
+        }
         return { role: "client" as const, contactId: contactByEmail.id };
       }
     }
 
-    // No matching contact found — auto-create one from Replit auth data
-    const firstName = req.user?.claims?.first_name || "";
-    const lastName = req.user?.claims?.last_name || "";
-    const fullName = `${firstName} ${lastName}`.trim() || email || "Unknown User";
-    const autoContact = await storage.createContact({
-      name: fullName,
-      email: email || "",
-      phone: null,
-      companyName: null,
-      companyAddress: null,
-      status: "active",
-      shopifyConnected: false,
-      zohoInventoryPushed: false,
-      userId,
-      zohoCrmContactId: null,
-      zohoCrmAccountId: null,
-    });
-    return { role: "client" as const, contactId: autoContact.id };
+    return null;
   }
 
   const isAdmin: RequestHandler = async (req: any, res, next) => {
@@ -121,6 +109,9 @@ export async function registerRoutes(
     try {
       const contact = await storage.getContact(Number(req.params.id));
       if (!contact) return res.status(404).json({ message: "Contact not found" });
+      if (contact.status === "revoked") {
+        await storage.updateContact(contact.id, { status: "invited", userId: null });
+      }
       await sendInviteEmail({
         name: contact.name,
         email: contact.email,
@@ -139,7 +130,7 @@ export async function registerRoutes(
       if (!contact) return res.status(404).json({ message: "Contact not found" });
       const updated = await storage.updateContact(contact.id, {
         userId: null,
-        status: "invited",
+        status: "revoked",
       });
       res.json({ message: "Access revoked", contact: updated });
     } catch (error) {

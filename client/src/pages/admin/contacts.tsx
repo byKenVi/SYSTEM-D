@@ -178,10 +178,10 @@ export default function AdminContacts() {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={contact.status === "active" ? "default" : "secondary"}
+                        variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
                         data-testid={`badge-status-${contact.id}`}
                       >
-                        {contact.status === "active" ? "Active" : "Invited"}
+                        {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -211,7 +211,7 @@ export default function AdminContacts() {
                               View as client
                             </DropdownMenuItem>
                           </Link>
-                          {contact.status === "invited" && (
+                          {(contact.status === "invited" || contact.status === "revoked") && (
                             <DropdownMenuItem
                               onClick={() => resendInviteMutation.mutate(contact.id)}
                               disabled={resendInviteMutation.isPending}
