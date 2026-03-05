@@ -768,6 +768,18 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/products/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const product = await storage.getProduct(Number(req.params.id));
+      if (!product) return res.status(404).json({ message: "Product not found" });
+      await storage.deleteProduct(product.id);
+      res.json({ message: "Product deleted" });
+    } catch (error: any) {
+      console.error("Delete product error:", error);
+      res.status(500).json({ message: error.message || "Failed to delete product" });
+    }
+  });
+
   // Push a product to Zoho Inventory
   app.post("/api/zoho/push-item/:productId", isAuthenticated, isAdmin, async (req, res) => {
     try {

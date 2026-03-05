@@ -22,6 +22,7 @@ import {
   ExternalLink,
   ChevronDown,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,6 +44,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -223,6 +226,7 @@ export default function AdminProducts() {
   const [clientFilter, setClientFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
 
   const toggleCollapse = (contactId: number) => {
@@ -269,6 +273,28 @@ export default function AdminProducts() {
       toast({ title: "Error", description: "Failed to sync Zoho inventory.", variant: "destructive" });
     },
   });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (productId: number) => {
+      await apiRequest("DELETE", `/api/products/${productId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setDeleteTarget(null);
+      toast({ title: "Deleted", description: "Product has been deleted." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete product.", variant: "destructive" });
+    },
+  });
+
+  const handleDeleteClick = (product: Product) => {
+    if (product.shopifyStoreUrl) {
+      setDeleteTarget(product);
+    } else {
+      deleteProductMutation.mutate(product.id);
+    }
+  };
 
   const contactMap = new Map(contacts?.map((c) => [c.id, c]) || []);
 
@@ -550,18 +576,30 @@ export default function AdminProducts() {
                                 )}
                               </TableCell>
                               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                {!product.pushedToZoho && (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {!product.pushedToZoho && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => pushToZohoMutation.mutate([product.id])}
+                                      disabled={pushToZohoMutation.isPending}
+                                      data-testid={`button-push-zoho-${product.id}`}
+                                    >
+                                      <Upload className="h-3.5 w-3.5 mr-1" />
+                                      Push
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
-                                    variant="outline"
-                                    onClick={() => pushToZohoMutation.mutate([product.id])}
-                                    disabled={pushToZohoMutation.isPending}
-                                    data-testid={`button-push-zoho-${product.id}`}
+                                    variant="ghost"
+                                    className="text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleDeleteClick(product)}
+                                    disabled={deleteProductMutation.isPending}
+                                    data-testid={`button-delete-product-${product.id}`}
                                   >
-                                    <Upload className="h-3.5 w-3.5 mr-1" />
-                                    Push
+                                    <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
-                                )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -594,6 +632,30 @@ export default function AdminProducts() {
           onClose={() => setSelectedProduct(null)}
         />
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Shopify product?</DialogTitle>
+            <DialogDescription>
+              "{deleteTarget?.name}" was imported from Shopify ({deleteTarget?.shopifyStoreUrl?.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}). Deleting it here will not remove it from Shopify, but it will no longer appear in your inventory and may be re-imported on the next sync.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} data-testid="button-cancel-delete">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && deleteProductMutation.mutate(deleteTarget.id)}
+              disabled={deleteProductMutation.isPending}
+              data-testid="button-confirm-delete-product"
+            >
+              Delete Product
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
