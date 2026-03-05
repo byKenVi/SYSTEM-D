@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   Search,
   Upload,
-  Layers,
   Users,
   ShoppingBag,
   X,
@@ -296,10 +295,6 @@ export default function AdminProducts() {
     }));
   })();
 
-  const totalProducts = products?.length || 0;
-  const totalStock = products?.reduce((sum, p) => sum + p.inventoryQuantity, 0) || 0;
-  const lowStockCount = products?.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length || 0;
-  const uniqueClients = new Set(products?.map((p) => p.contactId)).size;
 
   const toggleSelect = (id: number) => {
     const next = new Set(selected);
@@ -336,53 +331,6 @@ export default function AdminProducts() {
           <RefreshCw className={`h-4 w-4 mr-1.5 ${syncZohoInventoryMutation.isPending ? "animate-spin" : ""}`} />
           {syncZohoInventoryMutation.isPending ? "Syncing..." : "Sync Zoho Inventory"}
         </Button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Clients</p>
-              <p className="text-2xl font-bold" data-testid="text-total-clients">{uniqueClients}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-accent flex items-center justify-center flex-shrink-0">
-              <Package className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Products</p>
-              <p className="text-2xl font-bold" data-testid="text-total-products">{totalProducts}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <Layers className="h-5 w-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">In Stock</p>
-              <p className="text-2xl font-bold" data-testid="text-total-stock">{totalStock.toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Low Stock</p>
-              <p className="text-2xl font-bold" data-testid="text-low-stock">{lowStockCount}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
