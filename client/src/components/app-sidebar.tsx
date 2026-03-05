@@ -34,7 +34,6 @@ import {
   Warehouse,
   LogOut,
   Eye,
-  ScrollText,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -46,7 +45,6 @@ const adminItems = [
   { title: "Contacts", url: "/admin/contacts", icon: Users },
   { title: "Products & Inventory", url: "/admin/products", icon: Package },
   { title: "Restock Requests", url: "/admin/restock-requests", icon: RefreshCw },
-  { title: "Activity Log", url: "/admin/logs", icon: ScrollText },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
