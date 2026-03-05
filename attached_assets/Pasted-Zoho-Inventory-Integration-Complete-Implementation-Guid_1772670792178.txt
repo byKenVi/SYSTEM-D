@@ -1,0 +1,138 @@
+Zoho Inventory Integration - Complete Implementation Guide
+Overview
+This integration connects to Zoho Inventory using OAuth 2.0 Authorization Code flow with support for 6 regional data centers. It handles products, warehouses, sales orders, invoices, payments, credit notes, sales returns, shipments, and contacts.
+
+1. Prerequisites (Environment Variables)
+You need three secrets from the Zoho API Console:
+
+Secret	Description
+ZOHO_CLIENT_ID	OAuth Client ID from a "Server-based Application" in Zoho API Console
+ZOHO_CLIENT_SECRET	OAuth Client Secret
+ZOHO_ORGANIZATION_ID	(Optional) Fallback org ID if not stored per-user
+When registering the app in Zoho API Console, set the Authorized Redirect URI to: https://your-domain.com/api/auth/zoho/callback
+
+The OAuth scope used is: ZohoInventory.FullAccess.all
+
+2. Regional Support
+Zoho has different domains per region. You must route auth and API calls to the correct domain based on the user's data center:
+
+us → accounts.zoho.com / www.zohoapis.com
+eu → accounts.zoho.eu / www.zohoapis.eu  
+in → accounts.zoho.in / www.zohoapis.in
+au → accounts.zoho.com.au / www.zohoapis.com.au
+jp → accounts.zoho.jp / www.zohoapis.jp
+ca → accounts.zohocloud.ca / www.zohoapis.ca
+The accounts domain is for OAuth (auth URL, token exchange, token refresh). The api domain is for all data API calls.
+
+3. OAuth Flow (3 steps)
+Step A - Generate Auth URL (backend route: POST /api/connections/zoho/connect)
+
+User picks their region (US, EU, IN, etc.) on the frontend
+Backend builds the auth URL:
+https://{accounts_domain}/oauth/v2/auth?
+  scope=ZohoInventory.FullAccess.all
+  &client_id={ZOHO_CLIENT_ID}
+  &response_type=code
+  &redirect_uri={your_callback_url}
+  &access_type=offline     ← this gives you a refresh_token
+  &prompt=consent           ← forces consent screen every time
+  &state=region:{region}:{timestamp}   ← encode region in state for the callback
+Frontend redirects the user's browser to this URL
+Step B - Handle Callback (backend route: GET /api/auth/zoho/callback)
+
+Zoho redirects back with ?code=...&state=...
+Extract the region from the state parameter
+Exchange the code for tokens via POST to https://{accounts_domain}/oauth/v2/token with:
+grant_type=authorization_code
+client_id={ZOHO_CLIENT_ID}
+client_secret={ZOHO_CLIENT_SECRET}
+redirect_uri={same_redirect_uri}
+code={the_code}
+Response gives you: access_token, refresh_token, expires_in (seconds), api_domain
+Then fetch organizations: GET https://{api_domain}/inventory/v1/organizations with header Authorization: Zoho-oauthtoken {access_token}
+If 1 organization: save everything and redirect to connections page with ?success=zoho_connected
+If multiple organizations: store tokens temporarily in memory, redirect to ?select_org=true, and let user pick
+Step C - Organization Selection (if multiple orgs)
+
+GET /api/auth/zoho/pending-organizations returns the list
+POST /api/auth/zoho/select-organization with { organizationId } finalizes the connection
+4. Database Schema for Connection
+export const zohoConnections = pgTable("zoho_connections", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  organizationId: text("organization_id"),
+  organizationName: text("organization_name"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  apiDomain: text("api_domain"),          // e.g. "www.zohoapis.com"
+  status: text("status").default("disconnected"), // "connected" | "disconnected" | "error"
+  lastSyncAt: timestamp("last_sync_at"),
+});
+5. Token Refresh (Automatic)
+Before every API call, run getValidAccessToken(userId):
+
+Load the connection from DB
+Check if tokenExpiresAt is within 5 minutes of expiring
+If still valid, return the current token
+If expired, call POST https://{accounts_domain}/oauth/v2/token with:
+grant_type=refresh_token
+client_id={ZOHO_CLIENT_ID}
+client_secret={ZOHO_CLIENT_SECRET}
+refresh_token={stored_refresh_token}
+Save the new access_token and tokenExpiresAt to DB
+Return the fresh token
+Important: The refresh token itself does not expire and is never rotated by Zoho. You only get it on the first authorization (because of access_type=offline).
+
+6. Making API Calls
+Every Zoho Inventory API call follows this pattern:
+
+GET/POST/PUT https://{apiDomain}/inventory/v1/{endpoint}?organization_id={orgId}
+Headers:
+  Authorization: Zoho-oauthtoken {access_token}
+  Content-Type: application/json  (for POST/PUT)
+Always strip https:// from the stored apiDomain before building the URL (it may be stored with or without protocol).
+
+Pagination: Zoho returns page_context: { page, per_page, has_more_page, total }. Loop with page=1,2,3... and per_page=200 (max) until has_more_page is false.
+
+7. Key API Endpoints Used
+What	Method	Endpoint	Notes
+Test connection	GET	/inventory/v1/items?per_page=1	Quick connectivity check
+List items	GET	/inventory/v1/items	Returns SKU, stock, rate, warehouse stocks
+Create item	POST	/inventory/v1/items	name, sku, rate, description
+List item groups (variants)	GET	/inventory/v1/itemgroups	Each group has child items with attributes
+List composite items (bundles)	GET	/inventory/v1/compositeitems	Bundles with mapped sub-items
+List warehouses	GET	/inventory/v1/settings/warehouses	warehouse_id, name, is_primary
+Stock adjustment	POST	/inventory/v1/inventoryadjustments	Best practice over direct stock set
+Search contacts	GET	/inventory/v1/contacts?email={email}	Find existing customer
+Create contact	POST	/inventory/v1/contacts	Set tax_preference: "taxable" to avoid errors
+Update contact	PUT	/inventory/v1/contacts/{id}	Update tax preference on existing contacts
+Create sales order	POST	/inventory/v1/salesorders	customer_id, line_items with item_id/qty/rate
+Confirm sales order	POST	/inventory/v1/salesorders/{id}/status/confirmed	Moves from draft to open
+Close sales order	POST	/inventory/v1/salesorders/{id}/status/closed	Mark as fulfilled
+Create invoice from order	POST	/inventory/v1/invoices/fromsalesorder?salesorder_id={id}	Auto-generates invoice
+Record payment	POST	/inventory/v1/customerpayments	Mark invoice as paid
+Create package	POST	/inventory/v1/packages	For shipment fulfillment
+Create shipment	POST	/inventory/v1/shipmentorders	Link tracking to package
+Update shipment tracking	PUT	/inventory/v1/shipmentorders/{id}	tracking_number, delivery_method
+Mark shipped as delivered	POST	/inventory/v1/shipmentorders/{id}/delivered	With delivery date
+Create credit note	POST	/inventory/v1/creditnotes/frominvoice?invoice_id={id}	For cancellations
+Create sales return	POST	/inventory/v1/salesreturns	For post-shipping returns
+Issue refund	POST	/inventory/v1/creditnotes/{id}/refunds	Refund from credit note
+8. Key Implementation Details
+Contact Deduplication: Always search by email first. If found, update the contact's tax_preference to "taxable" - Zoho will reject sales orders for contacts without this set.
+
+Stock Adjustments: Use /inventoryadjustments (not direct stock set) for audit trail. Send quantity_adjusted as a delta (positive to add, negative to subtract), along with warehouse_id.
+
+Sales Order Line Items: Each line needs item_id (Zoho's internal ID), quantity, and rate. Optionally include tax_id per line item for tax mapping.
+
+Redirect URI Detection: In a Replit environment, detect production vs development dynamically using REPLIT_DEPLOYMENT, REPLIT_DEV_DOMAIN, or REPLIT_DOMAINS environment variables to build the correct callback URL.
+
+9. Files to Reference
+File	Purpose
+server/zoho-auth.ts	OAuth flow: auth URL, token exchange, token refresh, region support
+server/zoho-api.ts	All Zoho Inventory API calls (items, orders, contacts, shipments, etc.)
+server/routes.ts (lines ~3203-3430)	Express routes for connect, callback, org selection, disconnect
+shared/schema.ts (lines ~36-51)	Database schema for zoho_connections table
+client/src/pages/connections.tsx	Frontend UI for the OAuth flow and connection management
+This should give another agent everything needed to replicate the Zoho Inventory integration in a different app. The core pattern is: OAuth connect with region support, store tokens in DB, auto-refresh before every call, and use the standard REST endpoints with organization_id and Zoho-oauthtoken header.

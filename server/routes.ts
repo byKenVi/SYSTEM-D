@@ -60,7 +60,24 @@ export async function registerRoutes(
       }
     }
 
-    return { role: "client" as const };
+    // No matching contact found — auto-create one from Replit auth data
+    const firstName = req.user?.claims?.first_name || "";
+    const lastName = req.user?.claims?.last_name || "";
+    const fullName = `${firstName} ${lastName}`.trim() || email || "Unknown User";
+    const autoContact = await storage.createContact({
+      name: fullName,
+      email: email || "",
+      phone: null,
+      companyName: null,
+      companyAddress: null,
+      status: "active",
+      shopifyConnected: false,
+      zohoInventoryPushed: false,
+      userId,
+      zohoCrmContactId: null,
+      zohoCrmAccountId: null,
+    });
+    return { role: "client" as const, contactId: autoContact.id };
   }
 
   const isAdmin: RequestHandler = async (req: any, res, next) => {

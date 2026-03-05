@@ -30,12 +30,13 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
 
   useEffect(() => {
     if (contact) {
-      setName(contact.name || "");
+      const authName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
+      setName(contact.name || authName);
       setPhone(contact.phone || "");
       setCompanyName(contact.companyName || "");
       setCompanyAddress(contact.companyAddress || "");
     }
-  }, [contact]);
+  }, [contact, user]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
