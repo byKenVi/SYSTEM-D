@@ -388,7 +388,15 @@ export async function registerRoutes(
       // Extract region from state: "region:{region}:{timestamp}"
       const region = state?.split(":")?.[1] || "us";
 
-      const tokens = await exchangeCodeForTokens(code, region);
+      const tokens = await exchangeCodeForTokens(code, region).catch((err) => {
+        const msg = err.message || "";
+        if (msg.includes("invalid_code")) {
+          throw new Error(
+            `invalid_code — the authorization code was rejected. This usually means the region you selected (${region.toUpperCase()}) does not match the datacenter your Zoho API Console app was created on. Please go back to Settings and select the correct region.`
+          );
+        }
+        throw err;
+      });
       const apiDomain = (tokens.api_domain || "www.zohoapis.com").replace(/^https?:\/\//, "");
 
       // Fetch organizations
