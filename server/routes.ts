@@ -780,6 +780,18 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/products", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { ids } = req.body as { ids: number[] };
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No product IDs provided" });
+      await Promise.all(ids.map((id) => storage.deleteProduct(id)));
+      res.json({ message: `Deleted ${ids.length} products` });
+    } catch (error: any) {
+      console.error("Bulk delete products error:", error);
+      res.status(500).json({ message: error.message || "Failed to delete products" });
+    }
+  });
+
   // Push a product to Zoho Inventory
   app.post("/api/zoho/push-item/:productId", isAuthenticated, isAdmin, async (req, res) => {
     try {

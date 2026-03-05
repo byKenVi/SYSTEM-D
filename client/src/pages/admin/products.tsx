@@ -227,6 +227,7 @@ export default function AdminProducts() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
 
   const toggleCollapse = (contactId: number) => {
@@ -285,6 +286,21 @@ export default function AdminProducts() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete product.", variant: "destructive" });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await apiRequest("DELETE", "/api/products", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setSelected(new Set());
+      setBulkDeleteConfirm(false);
+      toast({ title: "Deleted", description: `${selected.size} product${selected.size !== 1 ? "s" : ""} deleted.` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete products.", variant: "destructive" });
     },
   });
 
@@ -403,14 +419,26 @@ export default function AdminProducts() {
               </Button>
             )}
             {selected.size > 0 && (
-              <Button
-                onClick={() => pushToZohoMutation.mutate(Array.from(selected))}
-                disabled={pushToZohoMutation.isPending}
-                data-testid="button-bulk-push-zoho"
-              >
-                <Upload className="h-4 w-4 mr-1.5" />
-                Push {selected.size} to Zoho
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBulkDeleteConfirm(true)}
+                  disabled={bulkDeleteMutation.isPending}
+                  data-testid="button-bulk-delete"
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Delete {selected.size}
+                </Button>
+                <Button
+                  onClick={() => pushToZohoMutation.mutate(Array.from(selected))}
+                  disabled={pushToZohoMutation.isPending}
+                  data-testid="button-bulk-push-zoho"
+                >
+                  <Upload className="h-4 w-4 mr-1.5" />
+                  Push {selected.size} to Zoho
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>
@@ -632,6 +660,30 @@ export default function AdminProducts() {
           onClose={() => setSelectedProduct(null)}
         />
       )}
+
+      <Dialog open={bulkDeleteConfirm} onOpenChange={(open) => !open && setBulkDeleteConfirm(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selected.size} product{selected.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove {selected.size} selected product{selected.size !== 1 ? "s" : ""} from your inventory. Any Shopify-sourced products will not be deleted from Shopify but may be re-imported on the next sync.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)} data-testid="button-cancel-bulk-delete">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selected))}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              Delete {selected.size} product{selected.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
