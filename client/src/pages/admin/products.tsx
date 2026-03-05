@@ -68,90 +68,127 @@ function ProductDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-product-detail">
-        <DialogHeader>
-          <DialogTitle className="text-xl" data-testid="text-detail-product-name">{product.name}</DialogTitle>
-        </DialogHeader>
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide p-0 gap-0"
+        data-testid="dialog-product-detail"
+      >
+        {/* Header bar */}
+        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4 border-b">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Product Detail</p>
+            <h2 className="text-lg font-bold leading-tight" data-testid="text-detail-product-name">
+              {product.name}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+            {product.pushedToZoho ? (
+              <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">
+                Zoho Synced
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground">Not in Zoho</Badge>
+            )}
+            {product.shopifyStatus && (
+              <Badge
+                variant={product.shopifyStatus === "active" ? "default" : "secondary"}
+                className="text-xs capitalize"
+                data-testid="text-detail-status"
+              >
+                {product.shopifyStatus}
+              </Badge>
+            )}
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-          <div className="space-y-4">
+        <div className="flex flex-col md:flex-row">
+          {/* Left: image + shopify link */}
+          <div className="md:w-56 flex-shrink-0 p-5 flex flex-col gap-4 border-b md:border-b-0 md:border-r">
             {product.imageUrl ? (
               <img
                 src={product.imageUrl}
                 alt={product.name}
-                className="w-full rounded-lg object-contain bg-muted aspect-square"
+                className="w-full rounded-xl object-contain bg-muted aspect-square"
                 data-testid="img-product-detail"
               />
             ) : (
-              <div className="w-full rounded-lg bg-muted flex items-center justify-center aspect-square">
-                <Package className="h-16 w-16 text-muted-foreground/40" />
+              <div className="w-full rounded-xl bg-muted flex items-center justify-center aspect-square">
+                <Package className="h-14 w-14 text-muted-foreground/30" />
               </div>
             )}
+
+            {/* Stat pills */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-muted/60 px-3 py-2.5 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Price</p>
+                <p className="text-sm font-bold" data-testid="text-detail-price">
+                  {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
+                </p>
+              </div>
+              <div className={`rounded-lg px-3 py-2.5 text-center ${isLow ? "bg-amber-50 dark:bg-amber-950/30" : "bg-muted/60"}`}>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Stock</p>
+                <p
+                  className={`text-sm font-bold ${isLow ? "text-amber-600 dark:text-amber-400" : ""}`}
+                  data-testid="text-detail-stock"
+                >
+                  {product.inventoryQuantity}
+                </p>
+              </div>
+              {product.pushedToZoho && product.zohoInventoryQuantity != null && (
+                <div className="col-span-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 px-3 py-2.5 text-center">
+                  <p className="text-[10px] text-violet-500 uppercase tracking-wide mb-0.5">Zoho Stock</p>
+                  <p className="text-sm font-bold text-violet-700 dark:text-violet-400" data-testid="text-detail-zoho-stock">
+                    {product.zohoInventoryQuantity}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {product.shopifyStoreUrl && (
               <a
                 href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}/products/${product.shopifyHandle || ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-primary hover:underline"
+                className="flex items-center justify-center gap-1.5 text-xs text-primary hover:underline border rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors"
                 data-testid="link-view-on-shopify"
               >
-                <ShoppingBag className="h-4 w-4" />
+                <ShoppingBag className="h-3.5 w-3.5" />
                 View on Shopify
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <DetailField label="SKU" value={product.sku} icon={<Tag className="h-3.5 w-3.5" />} testId="text-detail-sku" />
-              <DetailField label="Barcode" value={product.barcode} icon={<Barcode className="h-3.5 w-3.5" />} testId="text-detail-barcode" />
-              <DetailField label="Price" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} testId="text-detail-price" />
-              <DetailField
-                label="Compare at"
-                value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null}
-                testId="text-detail-compare-price"
-              />
-              <DetailField
-                label="Stock"
-                value={String(product.inventoryQuantity)}
-                className={isLow ? "text-amber-600 dark:text-amber-400 font-semibold" : "font-semibold"}
-                testId="text-detail-stock"
-              />
-              {product.pushedToZoho && product.zohoInventoryQuantity != null && (
-                <DetailField
-                  label="Zoho Inventory"
-                  value={String(product.zohoInventoryQuantity)}
-                  className="text-primary font-semibold"
-                  testId="text-detail-zoho-stock"
-                />
-              )}
-              <DetailField label="Client" value={contact?.companyName || contact?.name} testId="text-detail-client" />
+          {/* Right: details */}
+          <div className="flex-1 min-w-0 p-5 space-y-5">
+            {/* Identifiers */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <MetaRow label="SKU" value={product.sku} testId="text-detail-sku" />
+              <MetaRow label="Barcode" value={product.barcode} testId="text-detail-barcode" />
+              <MetaRow label="Compare at" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} testId="text-detail-compare-price" />
+              <MetaRow label="Client" value={contact?.companyName || contact?.name} testId="text-detail-client" />
             </div>
 
-            <Separator />
+            <div className="h-px bg-border" />
 
-            <div className="grid grid-cols-2 gap-3">
-              <DetailField label="Vendor" value={product.vendor} testId="text-detail-vendor" />
-              <DetailField label="Type" value={product.productType} testId="text-detail-type" />
-              <DetailField
+            {/* Catalog info */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <MetaRow label="Vendor" value={product.vendor} testId="text-detail-vendor" />
+              <MetaRow label="Type" value={product.productType} testId="text-detail-type" />
+              <MetaRow
                 label="Weight"
                 value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null}
-                icon={<Weight className="h-3.5 w-3.5" />}
                 testId="text-detail-weight"
               />
-              <DetailField label="Status" value={product.shopifyStatus} testId="text-detail-status" />
             </div>
 
             {product.tags && (
               <>
-                <Separator />
+                <div className="h-px bg-border" />
                 <div>
-                  <p className="text-xs text-muted-foreground mb-2">Tags</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Tags</p>
                   <div className="flex flex-wrap gap-1.5" data-testid="container-detail-tags">
                     {product.tags.split(",").map((tag, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">
+                      <Badge key={i} variant="secondary" className="text-xs font-normal">
                         {tag.trim()}
                       </Badge>
                     ))}
@@ -162,30 +199,24 @@ function ProductDetailDialog({
 
             {product.description && (
               <>
-                <Separator />
+                <div className="h-px bg-border" />
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Description</p>
-                  <p className="text-sm leading-relaxed" data-testid="text-detail-description">{product.description}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-detail-description">
+                    {product.description}
+                  </p>
                 </div>
               </>
             )}
 
-            <Separator />
+            <div className="h-px bg-border" />
 
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-3 w-3" />
-                <span data-testid="text-detail-synced">
-                  {product.lastSyncedAt
-                    ? `Last synced: ${new Date(product.lastSyncedAt).toLocaleString()}`
-                    : "Never synced"}
-                </span>
-              </div>
-              {product.pushedToZoho ? (
-                <Badge variant="default" className="text-xs">Zoho Synced</Badge>
-              ) : (
-                <Badge variant="secondary" className="text-xs">Not pushed</Badge>
-              )}
+            {/* Footer */}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="text-detail-synced">
+              <Clock className="h-3 w-3" />
+              {product.lastSyncedAt
+                ? `Last synced ${new Date(product.lastSyncedAt).toLocaleString()}`
+                : "Never synced"}
             </div>
           </div>
         </div>
@@ -194,28 +225,19 @@ function ProductDetailDialog({
   );
 }
 
-function DetailField({
+function MetaRow({
   label,
   value,
-  icon,
-  className,
   testId,
 }: {
   label: string;
   value?: string | null;
-  icon?: React.ReactNode;
-  className?: string;
   testId?: string;
 }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
-        {icon}
-        {label}
-      </p>
-      <p className={`text-sm font-medium ${className || ""}`} data-testid={testId}>
-        {value || "—"}
-      </p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
+      <p className="text-sm font-medium truncate" data-testid={testId}>{value || "—"}</p>
     </div>
   );
 }
