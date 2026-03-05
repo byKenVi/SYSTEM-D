@@ -61,6 +61,7 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }),
   compareAtPrice: decimal("compare_at_price", { precision: 10, scale: 2 }),
   inventoryQuantity: integer("inventory_quantity").notNull().default(0),
+  zohoInventoryQuantity: integer("zoho_inventory_quantity"),
   shopifyStatus: text("shopify_status"),
   shopifyHandle: text("shopify_handle"),
   pushedToZoho: boolean("pushed_to_zoho").notNull().default(false),

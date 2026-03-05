@@ -60,6 +60,7 @@ shared/
 - `/api/auth/zoho/test` - Test Zoho connection
 - `/api/zoho/sync-items/:contactId` - Sync Zoho items into app for a contact
 - `/api/zoho/push-item/:productId` - Push a product to Zoho Inventory
+- `/api/zoho/sync-inventory` - Sync Zoho inventory levels for all pushed products
 - `/api/portal/*` - Client-specific endpoints
 
 ## Zoho Inventory Integration
@@ -85,7 +86,16 @@ shared/
 - Auto-sync: per-integration `syncFrequencyMinutes` (0=disabled, 15/30/60/360/720/1440 minutes)
 - Background scheduler (`server/shopify-sync.ts`) checks every 60s for integrations due for sync
 - Auto-sync only updates products that were previously imported (not all Shopify products)
+- Auto-sync preserves Zoho state (pushedToZoho, zohoItemId, zohoInventoryQuantity) and uses Zoho inventory as source of truth when available
 - `lastAutoSyncAt` tracked per integration
+
+## Inventory Source of Truth
+- `inventoryQuantity` = Shopify/local stock count
+- `zohoInventoryQuantity` = Zoho Inventory stock (nullable, only set for pushed products)
+- When a product is pushed to Zoho, Zoho becomes source of truth for inventory
+- During Shopify sync/import, if product has Zoho inventory, Zoho quantity is used instead of Shopify's
+- "Sync Zoho Inventory" button on Products page fetches latest stock from Zoho for all pushed products
+- Products table shows separate "Zoho Stock" column for pushed products
 
 ## User Roles
 - First authenticated user is Admin

@@ -213,6 +213,31 @@ export async function createZohoSalesOrder(params: {
   };
 }
 
+export async function getZohoItemStock(zohoItemId: string): Promise<number | null> {
+  try {
+    const region = await getZohoRegion();
+    const data = await zohoRequest("GET", `/items/${zohoItemId}`, undefined, region);
+    if (data.item) {
+      return data.item.stock_on_hand != null ? Math.round(data.item.stock_on_hand) : 0;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchZohoItemsMap(): Promise<Map<string, { stock: number; rate: number | null }>> {
+  const items = await fetchZohoItems();
+  const map = new Map<string, { stock: number; rate: number | null }>();
+  for (const item of items) {
+    map.set(item.item_id, {
+      stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
+      rate: item.rate != null ? item.rate : null,
+    });
+  }
+  return map;
+}
+
 // Test that the connection works
 export async function testZohoConnection(): Promise<{ ok: boolean; orgName?: string }> {
   try {

@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
 import { sendInviteEmail } from "./resend";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
-import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho } from "./zoho-api";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, getZohoItemStock, fetchZohoItemsMap } from "./zoho-api";
 import {
   fetchAllProducts,
   normalizeProducts,
@@ -257,17 +257,60 @@ export async function registerRoutes(
       const { productIds } = req.body;
       if (!Array.isArray(productIds)) return res.status(400).json({ message: "productIds must be an array" });
 
+      const settings = await storage.getAdminSettings();
+      const isZohoConnected = !!settings?.zohoInventoryRefreshToken;
+
       const updated = [];
+      const errors: string[] = [];
+
       for (const id of productIds) {
-        const product = await storage.updateProduct(id, {
-          pushedToZoho: true,
-          zohoItemId: `ZOHO-${id}-${Date.now()}`,
-          lastSyncedAt: new Date(),
-        });
-        if (product) updated.push(product);
+        const product = await storage.getProduct(id);
+        if (!product) continue;
+
+        if (product.pushedToZoho && product.zohoItemId) {
+          updated.push(product);
+          continue;
+        }
+
+        if (isZohoConnected) {
+          try {
+            const { item_id } = await pushItemToZoho({
+              name: product.name,
+              sku: product.sku,
+              description: product.description,
+              rate: product.price ? Number(product.price) : undefined,
+            });
+            const zohoStock = await getZohoItemStock(item_id);
+            const updatedProduct = await storage.updateProduct(id, {
+              pushedToZoho: true,
+              zohoItemId: item_id,
+              zohoInventoryQuantity: zohoStock ?? 0,
+              lastSyncedAt: new Date(),
+            });
+            if (updatedProduct) updated.push(updatedProduct);
+          } catch (err: any) {
+            errors.push(`${product.name}: ${err.message}`);
+            const updatedProduct = await storage.updateProduct(id, {
+              pushedToZoho: true,
+              zohoItemId: `pending-${id}`,
+              lastSyncedAt: new Date(),
+            });
+            if (updatedProduct) updated.push(updatedProduct);
+          }
+        } else {
+          const updatedProduct = await storage.updateProduct(id, {
+            pushedToZoho: true,
+            zohoItemId: `pending-${id}`,
+            lastSyncedAt: new Date(),
+          });
+          if (updatedProduct) updated.push(updatedProduct);
+        }
       }
 
-      res.json({ message: `${updated.length} products pushed to Zoho`, products: updated });
+      const msg = errors.length > 0
+        ? `${updated.length} products pushed (${errors.length} with errors)`
+        : `${updated.length} products pushed to Zoho`;
+      res.json({ message: msg, products: updated, errors });
     } catch (error) {
       console.error("Error pushing to Zoho:", error);
       res.status(500).json({ message: "Failed to push products" });
@@ -401,6 +444,9 @@ export async function registerRoutes(
       let created = 0;
       let updated = 0;
       for (const p of normalized) {
+        const existing = existingByVariant.get(p.shopifyVariantId);
+        const useZohoInventory = existing?.pushedToZoho && existing.zohoInventoryQuantity != null;
+
         await storage.upsertProductByShopifyVariant(integration.contactId, p.shopifyVariantId, {
           contactId: integration.contactId,
           shopifyProductId: p.shopifyProductId,
@@ -418,11 +464,12 @@ export async function registerRoutes(
           weightUnit: p.weightUnit,
           price: p.price,
           compareAtPrice: p.compareAtPrice,
-          inventoryQuantity: p.inventoryQuantity,
+          inventoryQuantity: useZohoInventory ? existing.zohoInventoryQuantity! : p.inventoryQuantity,
+          zohoInventoryQuantity: existing?.zohoInventoryQuantity ?? null,
           shopifyStatus: p.shopifyStatus,
           shopifyHandle: p.shopifyHandle,
-          pushedToZoho: false,
-          zohoItemId: null,
+          pushedToZoho: existing?.pushedToZoho ?? false,
+          zohoItemId: existing?.zohoItemId ?? null,
           lastSyncedAt: new Date(),
         });
 
@@ -732,15 +779,47 @@ export async function registerRoutes(
         description: product.description,
         rate: product.price ? Number(product.price) : undefined,
       });
+      const zohoStock = await getZohoItemStock(item_id);
       await storage.updateProduct(product.id, {
         zohoItemId: item_id,
         pushedToZoho: true,
+        zohoInventoryQuantity: zohoStock ?? 0,
         lastSyncedAt: new Date(),
       });
       res.json({ message: "Pushed to Zoho", zohoItemId: item_id });
     } catch (error: any) {
       console.error("Push to Zoho error:", error);
       res.status(500).json({ message: error.message || "Push failed" });
+    }
+  });
+
+  app.post("/api/zoho/sync-inventory", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const allProducts = await storage.getProducts();
+      const pushedProducts = allProducts.filter((p) => p.pushedToZoho && p.zohoItemId && !p.zohoItemId.startsWith("pending-"));
+
+      if (pushedProducts.length === 0) {
+        return res.json({ message: "No products synced with Zoho", updated: 0 });
+      }
+
+      const zohoItems = await fetchZohoItemsMap();
+      let updated = 0;
+
+      for (const product of pushedProducts) {
+        const zohoData = zohoItems.get(product.zohoItemId!);
+        if (zohoData) {
+          await storage.updateProduct(product.id, {
+            zohoInventoryQuantity: zohoData.stock,
+            lastSyncedAt: new Date(),
+          });
+          updated++;
+        }
+      }
+
+      res.json({ message: `Updated inventory for ${updated} products from Zoho`, updated });
+    } catch (error: any) {
+      console.error("Zoho inventory sync error:", error);
+      res.status(500).json({ message: error.message || "Failed to sync Zoho inventory" });
     }
   });
 

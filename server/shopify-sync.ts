@@ -35,9 +35,16 @@ export function startShopifySyncScheduler() {
           const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
           const normalized = normalizeProducts(shopifyProducts);
 
+          const existingByVariant = new Map(
+            existingProducts.filter((p) => p.shopifyVariantId).map((p) => [p.shopifyVariantId!, p])
+          );
+
           let updated = 0;
           for (const p of normalized) {
             if (!importedVariantIds.has(p.shopifyVariantId)) continue;
+
+            const existing = existingByVariant.get(p.shopifyVariantId);
+            const useZohoInventory = existing?.pushedToZoho && existing.zohoInventoryQuantity != null;
 
             await storage.upsertProductByShopifyVariant(integration.contactId, p.shopifyVariantId, {
               contactId: integration.contactId,
@@ -56,11 +63,12 @@ export function startShopifySyncScheduler() {
               weightUnit: p.weightUnit,
               price: p.price,
               compareAtPrice: p.compareAtPrice,
-              inventoryQuantity: p.inventoryQuantity,
+              inventoryQuantity: useZohoInventory ? existing.zohoInventoryQuantity! : p.inventoryQuantity,
+              zohoInventoryQuantity: existing?.zohoInventoryQuantity ?? null,
               shopifyStatus: p.shopifyStatus,
               shopifyHandle: p.shopifyHandle,
-              pushedToZoho: false,
-              zohoItemId: null,
+              pushedToZoho: existing?.pushedToZoho ?? false,
+              zohoItemId: existing?.zohoItemId ?? null,
               lastSyncedAt: new Date(),
             });
             updated++;

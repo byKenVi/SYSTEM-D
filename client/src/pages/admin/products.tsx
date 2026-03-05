@@ -22,6 +22,7 @@ import {
   Clock,
   ExternalLink,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -116,6 +117,14 @@ function ProductDetailDialog({
                 className={isLow ? "text-amber-600 dark:text-amber-400 font-semibold" : "font-semibold"}
                 testId="text-detail-stock"
               />
+              {product.pushedToZoho && product.zohoInventoryQuantity != null && (
+                <DetailField
+                  label="Zoho Inventory"
+                  value={String(product.zohoInventoryQuantity)}
+                  className="text-primary font-semibold"
+                  testId="text-detail-zoho-stock"
+                />
+              )}
               <DetailField label="Client" value={contact?.companyName || contact?.name} testId="text-detail-client" />
             </div>
 
@@ -248,6 +257,20 @@ export default function AdminProducts() {
     },
   });
 
+  const syncZohoInventoryMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/zoho/sync-inventory");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({ title: "Zoho Inventory Synced", description: data.message });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to sync Zoho inventory.", variant: "destructive" });
+    },
+  });
+
   const contactMap = new Map(contacts?.map((c) => [c.id, c]) || []);
 
   const filtered = products?.filter((p) => {
@@ -297,9 +320,21 @@ export default function AdminProducts() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products & Inventory</h1>
-        <p className="text-muted-foreground mt-1">Manage products across all client accounts</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products & Inventory</h1>
+          <p className="text-muted-foreground mt-1">Manage products across all client accounts</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => syncZohoInventoryMutation.mutate()}
+          disabled={syncZohoInventoryMutation.isPending}
+          data-testid="button-sync-zoho-inventory"
+        >
+          <RefreshCw className={`h-4 w-4 mr-1.5 ${syncZohoInventoryMutation.isPending ? "animate-spin" : ""}`} />
+          {syncZohoInventoryMutation.isPending ? "Syncing..." : "Sync Zoho Inventory"}
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -376,16 +411,32 @@ export default function AdminProducts() {
               </SelectContent>
             </Select>
           </div>
-          {selected.size > 0 && (
-            <Button
-              onClick={() => pushToZohoMutation.mutate(Array.from(selected))}
-              disabled={pushToZohoMutation.isPending}
-              data-testid="button-bulk-push-zoho"
-            >
-              <Upload className="h-4 w-4 mr-1.5" />
-              Push {selected.size} to Zoho
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {filtered && filtered.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleAll}
+                data-testid="button-select-all-global"
+              >
+                <Checkbox
+                  checked={filtered.length > 0 && filtered.every((p) => selected.has(p.id))}
+                  className="mr-1.5 pointer-events-none"
+                />
+                {filtered.every((p) => selected.has(p.id)) ? "Deselect All" : "Select All"}
+              </Button>
+            )}
+            {selected.size > 0 && (
+              <Button
+                onClick={() => pushToZohoMutation.mutate(Array.from(selected))}
+                disabled={pushToZohoMutation.isPending}
+                data-testid="button-bulk-push-zoho"
+              >
+                <Upload className="h-4 w-4 mr-1.5" />
+                Push {selected.size} to Zoho
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -460,6 +511,7 @@ export default function AdminProducts() {
                           <TableHead>Source</TableHead>
                           <TableHead className="text-right">Price</TableHead>
                           <TableHead className="text-right">Stock</TableHead>
+                          <TableHead className="text-right">Zoho Stock</TableHead>
                           <TableHead>Zoho</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -531,6 +583,13 @@ export default function AdminProducts() {
                                     {product.inventoryQuantity}
                                   </span>
                                 </div>
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-sm" data-testid={`text-zoho-stock-${product.id}`}>
+                                {product.pushedToZoho && product.zohoInventoryQuantity != null ? (
+                                  <span className="text-primary">{product.zohoInventoryQuantity}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {product.pushedToZoho ? (
