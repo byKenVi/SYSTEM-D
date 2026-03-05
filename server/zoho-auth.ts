@@ -42,10 +42,14 @@ export function buildAuthUrl(region: string = "us"): string {
 }
 
 export async function exchangeCodeForTokens(code: string, region: string = "us") {
-  const { accounts } = getZohoDomains(region);
   const clientId = process.env.ZOHO_CLIENT_ID;
   const clientSecret = process.env.ZOHO_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("Zoho credentials not configured");
+
+  // For Multi-DC apps, always use accounts.zoho.com for token exchange.
+  // Zoho routes the request to the correct datacenter internally.
+  // The region-specific endpoint is only used for the auth URL (login page).
+  const tokenEndpoint = "https://accounts.zoho.com/oauth/v2/token";
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -55,7 +59,7 @@ export async function exchangeCodeForTokens(code: string, region: string = "us")
     code,
   });
 
-  const res = await fetch(`https://${accounts}/oauth/v2/token`, {
+  const res = await fetch(tokenEndpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -75,7 +79,6 @@ export async function refreshAccessToken(region: string = "us"): Promise<string>
   const settings = await storage.getAdminSettings();
   if (!settings?.zohoInventoryRefreshToken) throw new Error("No Zoho refresh token stored");
 
-  const { accounts } = getZohoDomains(region);
   const clientId = process.env.ZOHO_CLIENT_ID;
   const clientSecret = process.env.ZOHO_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("Zoho credentials not configured");
@@ -87,7 +90,8 @@ export async function refreshAccessToken(region: string = "us"): Promise<string>
     refresh_token: settings.zohoInventoryRefreshToken,
   });
 
-  const res = await fetch(`https://${accounts}/oauth/v2/token`, {
+  // Always use the global endpoint for Multi-DC compatibility
+  const res = await fetch("https://accounts.zoho.com/oauth/v2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
