@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
 import { sendInviteEmail } from "./resend";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
-import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, getZohoItemStock, fetchZohoItemsMap } from "./zoho-api";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, fetchZohoItemsMap } from "./zoho-api";
 import {
   fetchAllProducts,
   normalizeProducts,
@@ -282,12 +282,12 @@ export async function registerRoutes(
               sku: product.sku,
               description: product.description,
               rate: product.price ? Number(product.price) : undefined,
+              opening_stock: product.inventoryQuantity,
             });
-            const zohoStock = await getZohoItemStock(item_id);
             const updatedProduct = await storage.updateProduct(id, {
               pushedToZoho: true,
               zohoItemId: item_id,
-              zohoInventoryQuantity: zohoStock ?? 0,
+              zohoInventoryQuantity: product.inventoryQuantity,
               lastSyncedAt: new Date(),
             });
             if (updatedProduct) updated.push(updatedProduct);
@@ -809,12 +809,12 @@ export async function registerRoutes(
         sku: product.sku,
         description: product.description,
         rate: product.price ? Number(product.price) : undefined,
+        opening_stock: product.inventoryQuantity,
       });
-      const zohoStock = await getZohoItemStock(item_id);
       await storage.updateProduct(product.id, {
         zohoItemId: item_id,
         pushedToZoho: true,
-        zohoInventoryQuantity: zohoStock ?? 0,
+        zohoInventoryQuantity: product.inventoryQuantity,
         lastSyncedAt: new Date(),
       });
       await storage.createActivityLog({ type: "zoho_push", status: "success", message: `Product "${product.name}" pushed to Zoho Inventory (ID: ${item_id})` });

@@ -72,20 +72,21 @@ export async function pushItemToZoho(item: {
   sku?: string | null;
   description?: string | null;
   rate?: number;
+  opening_stock?: number;
 }): Promise<{ item_id: string }> {
   const region = await getZohoRegion();
-  const data = await zohoRequest(
-    "POST",
-    "/items",
-    {
-      name: item.name,
-      sku: item.sku || undefined,
-      description: item.description || undefined,
-      rate: item.rate || 0,
-      product_type: "goods",
-    },
-    region
-  );
+  const body: Record<string, any> = {
+    name: item.name,
+    sku: item.sku || undefined,
+    description: item.description || undefined,
+    rate: item.rate || 0,
+    product_type: "goods",
+  };
+  if (item.opening_stock != null && item.opening_stock > 0) {
+    body.opening_stock = item.opening_stock;
+    body.opening_stock_rate_per_unit = item.rate || 0;
+  }
+  const data = await zohoRequest("POST", "/items", body, region);
   return { item_id: data.item?.item_id };
 }
 
