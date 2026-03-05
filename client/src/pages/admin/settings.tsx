@@ -194,6 +194,98 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Zoho Inventory Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-4">
+            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold">Zoho Inventory</h3>
+              <p className="text-sm text-muted-foreground">
+                {isZohoConnected
+                  ? adminSettings?.zohoInventoryOrgName || "Connected"
+                  : "Connect via OAuth 2.0"}
+              </p>
+            </div>
+            {isZohoConnected && (
+              <Badge variant="default" className="ml-auto bg-emerald-600">Connected</Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            {settingsLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
+              </div>
+            ) : isZohoConnected ? (
+              <div className="space-y-4">
+                <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-emerald-800 dark:text-emerald-300">Connected</p>
+                    {adminSettings?.zohoInventoryOrgName && (
+                      <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
+                        Organization: {adminSettings.zohoInventoryOrgName}
+                      </p>
+                    )}
+                    {adminSettings?.zohoInventoryOrgId && (
+                      <p className="text-emerald-600 dark:text-emerald-500 text-xs">
+                        Org ID: {adminSettings.zohoInventoryOrgId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => disconnectZohoMutation.mutate()}
+                  disabled={disconnectZohoMutation.isPending}
+                  data-testid="button-disconnect-zoho"
+                >
+                  {disconnectZohoMutation.isPending ? "Disconnecting..." : "Disconnect Zoho Inventory"}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-md bg-muted/50 border p-3 text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Setup required</p>
+                  <p>You'll be redirected to Zoho to authorize access. Make sure your Zoho API Console app has this redirect URI set:</p>
+                  <code className="block mt-1 text-xs bg-muted rounded px-2 py-1 break-all">
+                    {window.location.origin}/api/auth/zoho/callback
+                  </code>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Data Center Region
+                  </Label>
+                  <Select value={zohoRegion} onValueChange={setZohoRegion}>
+                    <SelectTrigger data-testid="select-zoho-region">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ZOHO_REGIONS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => connectZohoMutation.mutate()}
+                  disabled={connectZohoMutation.isPending}
+                  data-testid="button-connect-zoho"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  {connectZohoMutation.isPending ? "Redirecting..." : "Connect with Zoho"}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Shopify Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
@@ -319,98 +411,6 @@ export default function AdminSettingsPage() {
               <div className="text-center py-6">
                 <ShoppingBag className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                 <p className="text-sm text-muted-foreground">No Shopify stores connected yet</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Zoho Inventory Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-4">
-            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Package className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold">Zoho Inventory</h3>
-              <p className="text-sm text-muted-foreground">
-                {isZohoConnected
-                  ? adminSettings?.zohoInventoryOrgName || "Connected"
-                  : "Connect via OAuth 2.0"}
-              </p>
-            </div>
-            {isZohoConnected && (
-              <Badge variant="default" className="ml-auto bg-emerald-600">Connected</Badge>
-            )}
-          </CardHeader>
-          <CardContent>
-            {settingsLoading ? (
-              <div className="space-y-3">
-                {[1, 2].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
-              </div>
-            ) : isZohoConnected ? (
-              <div className="space-y-4">
-                <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-medium text-emerald-800 dark:text-emerald-300">Connected</p>
-                    {adminSettings?.zohoInventoryOrgName && (
-                      <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
-                        Organization: {adminSettings.zohoInventoryOrgName}
-                      </p>
-                    )}
-                    {adminSettings?.zohoInventoryOrgId && (
-                      <p className="text-emerald-600 dark:text-emerald-500 text-xs">
-                        Org ID: {adminSettings.zohoInventoryOrgId}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
-                  onClick={() => disconnectZohoMutation.mutate()}
-                  disabled={disconnectZohoMutation.isPending}
-                  data-testid="button-disconnect-zoho"
-                >
-                  {disconnectZohoMutation.isPending ? "Disconnecting..." : "Disconnect Zoho Inventory"}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="rounded-md bg-muted/50 border p-3 text-sm text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Setup required</p>
-                  <p>You'll be redirected to Zoho to authorize access. Make sure your Zoho API Console app has this redirect URI set:</p>
-                  <code className="block mt-1 text-xs bg-muted rounded px-2 py-1 break-all">
-                    {window.location.origin}/api/auth/zoho/callback
-                  </code>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1.5">
-                    <Globe className="h-3.5 w-3.5" />
-                    Data Center Region
-                  </Label>
-                  <Select value={zohoRegion} onValueChange={setZohoRegion}>
-                    <SelectTrigger data-testid="select-zoho-region">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ZOHO_REGIONS.map((r) => (
-                        <SelectItem key={r.value} value={r.value}>
-                          {r.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={() => connectZohoMutation.mutate()}
-                  disabled={connectZohoMutation.isPending}
-                  data-testid="button-connect-zoho"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  {connectZohoMutation.isPending ? "Redirecting..." : "Connect with Zoho"}
-                </Button>
               </div>
             )}
           </CardContent>
