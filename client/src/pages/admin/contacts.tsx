@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Users, Mail, Search, Eye, ShieldOff, Trash2, Send, MoreHorizontal, Link2, Link2Off } from "lucide-react";
+import { Users, Search, Eye, ShieldOff, Trash2, Send, MoreHorizontal, Link2, Link2Off } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -84,50 +84,13 @@ export default function AdminContacts() {
       (c.companyName || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const activeCount = contacts?.filter((c) => c.status === "active").length || 0;
-  const invitedCount = contacts?.filter((c) => c.status === "invited").length || 0;
+
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Contacts</h1>
         <p className="text-muted-foreground mt-1">Manage client contacts and invitations</p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="border-2">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Users className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total</p>
-              <p className="text-xl font-bold" data-testid="text-total-contacts">{contacts?.length || 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-2">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Active</p>
-              <p className="text-xl font-bold" data-testid="text-active-contacts">{activeCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-2">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-              <Mail className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Invited</p>
-              <p className="text-xl font-bold" data-testid="text-invited-contacts">{invitedCount}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
