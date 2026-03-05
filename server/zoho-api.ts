@@ -37,6 +37,53 @@ async function zohoRequest(
   return res.json();
 }
 
+async function zohoUploadImage(
+  itemId: string,
+  imageUrl: string,
+  region: string = "us"
+): Promise<void> {
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error(`Failed to download image: ${imgRes.status}`);
+
+  const arrayBuffer = await imgRes.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+  const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+
+  const token = await getValidAccessToken(region);
+  const settings = await storage.getAdminSettings();
+  const orgId = settings?.zohoInventoryOrgId;
+  if (!orgId) throw new Error("Zoho Organization ID not configured");
+
+  const { api } = getZohoDomains(region);
+  const url = `https://${api}/inventory/v1/items/${itemId}/image?organization_id=${orgId}`;
+
+  const boundary = `----FormBoundary${Date.now()}`;
+  const fieldName = "image";
+  const fileName = `product.${ext}`;
+
+  const header = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="${fieldName}"; filename="${fileName}"\r\nContent-Type: ${contentType}\r\n\r\n`
+  );
+  const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const multipartBody = Buffer.concat([header, buffer, footer]);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Zoho-oauthtoken ${token}`,
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    },
+    body: multipartBody,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Zoho image upload failed: ${res.status} ${text}`);
+  }
+}
+
 export async function getZohoRegion(): Promise<string> {
   const settings = await storage.getAdminSettings();
   return settings?.zohoRegion || "us";
@@ -73,6 +120,7 @@ export async function pushItemToZoho(item: {
   description?: string | null;
   rate?: number;
   opening_stock?: number;
+  imageUrl?: string | null;
 }): Promise<{ item_id: string }> {
   const region = await getZohoRegion();
   const body: Record<string, any> = {
@@ -87,7 +135,17 @@ export async function pushItemToZoho(item: {
     body.opening_stock_rate_per_unit = item.rate || 0;
   }
   const data = await zohoRequest("POST", "/items", body, region);
-  return { item_id: data.item?.item_id };
+  const itemId = data.item?.item_id;
+
+  if (itemId && item.imageUrl) {
+    try {
+      await zohoUploadImage(itemId, item.imageUrl, region);
+    } catch (err: any) {
+      console.error(`Failed to upload image for Zoho item ${itemId}: ${err.message}`);
+    }
+  }
+
+  return { item_id: itemId };
 }
 
 // Sync items from Zoho into the app (for a specific contact)

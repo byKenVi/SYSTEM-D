@@ -283,6 +283,7 @@ export async function registerRoutes(
               description: product.description,
               rate: product.price ? Number(product.price) : undefined,
               opening_stock: product.inventoryQuantity,
+              imageUrl: product.imageUrl,
             });
             const updatedProduct = await storage.updateProduct(id, {
               pushedToZoho: true,
@@ -812,6 +813,7 @@ export async function registerRoutes(
         description: product.description,
         rate: product.price ? Number(product.price) : undefined,
         opening_stock: product.inventoryQuantity,
+        imageUrl: product.imageUrl,
       });
       await storage.updateProduct(product.id, {
         zohoItemId: item_id,
