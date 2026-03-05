@@ -139,8 +139,15 @@ export default function AdminSettingsPage() {
 
   const connectZohoMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/zoho/connect", { region: zohoRegion });
+      const res = await fetch("/api/auth/zoho/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: zohoRegion }),
+        credentials: "include",
+      });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to start Zoho connection");
+      if (!data.authUrl) throw new Error("No auth URL returned from server");
       return data.authUrl as string;
     },
     onSuccess: (authUrl) => {
