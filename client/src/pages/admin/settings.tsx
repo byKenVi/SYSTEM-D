@@ -140,7 +140,8 @@ export default function AdminSettingsPage() {
   const connectZohoMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/auth/zoho/connect", { region: zohoRegion });
-      return res.authUrl as string;
+      const data = await res.json();
+      return data.authUrl as string;
     },
     onSuccess: (authUrl) => {
       window.location.href = authUrl;
