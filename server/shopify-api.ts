@@ -118,7 +118,8 @@ interface ShopifyProduct {
   product_type: string;
   handle: string;
   status: string;
-  images: { id: number; src: string }[];
+  tags: string;
+  images: { id: number; src: string; variant_ids: number[] }[];
   variants: ShopifyVariant[];
 }
 
@@ -127,10 +128,15 @@ interface ShopifyVariant {
   product_id: number;
   title: string;
   price: string;
+  compare_at_price: string | null;
   sku: string | null;
+  barcode: string | null;
+  weight: number;
+  weight_unit: string;
   inventory_quantity: number;
   inventory_item_id: number;
   inventory_management: string | null;
+  image_id: number | null;
 }
 
 interface ShopifyProductsResponse {
@@ -227,10 +233,19 @@ export interface NormalizedProduct {
   shopifyVariantId: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
   description: string | null;
   imageUrl: string | null;
+  vendor: string | null;
+  productType: string | null;
+  tags: string | null;
+  weight: string | null;
+  weightUnit: string | null;
   price: string;
+  compareAtPrice: string | null;
   inventoryQuantity: number;
+  shopifyStatus: string;
+  shopifyHandle: string;
 }
 
 export function normalizeProducts(shopifyProducts: ShopifyProduct[]): NormalizedProduct[] {
@@ -243,17 +258,32 @@ export function normalizeProducts(shopifyProducts: ShopifyProduct[]): Normalized
           ? product.title
           : `${product.title} - ${variant.title}`;
 
+      let imageUrl = product.images?.[0]?.src || null;
+      if (variant.image_id) {
+        const variantImage = product.images.find((img) => img.id === variant.image_id);
+        if (variantImage) imageUrl = variantImage.src;
+      }
+
       results.push({
         shopifyProductId: String(product.id),
         shopifyVariantId: String(variant.id),
         name,
         sku: variant.sku || null,
+        barcode: variant.barcode || null,
         description: product.body_html
-          ? product.body_html.replace(/<[^>]*>/g, "").slice(0, 500)
+          ? product.body_html.replace(/<[^>]*>/g, "").slice(0, 2000)
           : null,
-        imageUrl: product.images?.[0]?.src || null,
+        imageUrl,
+        vendor: product.vendor || null,
+        productType: product.product_type || null,
+        tags: product.tags || null,
+        weight: variant.weight ? String(variant.weight) : null,
+        weightUnit: variant.weight_unit || null,
         price: variant.price,
+        compareAtPrice: variant.compare_at_price || null,
         inventoryQuantity: variant.inventory_quantity ?? 0,
+        shopifyStatus: product.status,
+        shopifyHandle: product.handle,
       });
     }
   }

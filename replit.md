@@ -38,6 +38,7 @@ server/
   resend.ts            - Email sending via Resend integration
   zoho-auth.ts         - Zoho OAuth 2.0 flow (auth URL, token exchange, refresh)
   zoho-api.ts          - Zoho Inventory API calls (items, contacts, sales orders)
+  shopify-sync.ts      - Background auto-sync scheduler for Shopify products
   replit_integrations/auth/ - Replit Auth integration
 
 shared/
@@ -76,10 +77,15 @@ shared/
 - OAuth routes: `/api/auth/shopify/connect` (initiate), `/api/auth/shopify/callback` (exchange code for token)
 - Redirect URI: `https://{domain}/api/auth/shopify/callback`
 - Access tokens stored in `shopify_integrations` table per client (`accessToken`, `storeUrl`, `shopName`, `scope`)
-- Products imported from Shopify are stored with `shopifyProductId`, `shopifyVariantId`, `shopifyStoreUrl`
+- Products capture full details: name, SKU, barcode, description, image, vendor, product type, tags, weight, price, compare-at price, status, handle
 - Each variant is a separate product row; upserted by `(contactId, shopifyVariantId)` to avoid duplicates
+- Variant-specific images are used when available
 - Pagination handled via Link header for stores with 250+ products
-- Products table shows "Source" column with Shopify store link when imported from Shopify
+- Products table shows "Source" column; clicking a product row opens detail dialog with image and all fields
+- Auto-sync: per-integration `syncFrequencyMinutes` (0=disabled, 15/30/60/360/720/1440 minutes)
+- Background scheduler (`server/shopify-sync.ts`) checks every 60s for integrations due for sync
+- Auto-sync only updates products that were previously imported (not all Shopify products)
+- `lastAutoSyncAt` tracked per integration
 
 ## User Roles
 - First authenticated user is Admin

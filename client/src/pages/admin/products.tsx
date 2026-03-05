@@ -12,10 +12,14 @@ import {
   AlertTriangle,
   Search,
   Upload,
-  BarChart3,
   Layers,
   Users,
   ShoppingBag,
+  X,
+  Tag,
+  Weight,
+  Barcode,
+  Clock,
   ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -35,14 +39,181 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 const LOW_STOCK_THRESHOLD = 10;
+
+function ProductDetailDialog({
+  product,
+  contact,
+  open,
+  onClose,
+}: {
+  product: Product;
+  contact?: Contact;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-product-detail">
+        <DialogHeader>
+          <DialogTitle className="text-xl" data-testid="text-detail-product-name">{product.name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+          <div className="space-y-4">
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full rounded-lg object-contain bg-muted aspect-square"
+                data-testid="img-product-detail"
+              />
+            ) : (
+              <div className="w-full rounded-lg bg-muted flex items-center justify-center aspect-square">
+                <Package className="h-16 w-16 text-muted-foreground/40" />
+              </div>
+            )}
+
+            {product.shopifyStoreUrl && (
+              <a
+                href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}/products/${product.shopifyHandle || ""}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+                data-testid="link-view-on-shopify"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                View on Shopify
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <DetailField label="SKU" value={product.sku} icon={<Tag className="h-3.5 w-3.5" />} testId="text-detail-sku" />
+              <DetailField label="Barcode" value={product.barcode} icon={<Barcode className="h-3.5 w-3.5" />} testId="text-detail-barcode" />
+              <DetailField label="Price" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} testId="text-detail-price" />
+              <DetailField
+                label="Compare at"
+                value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null}
+                testId="text-detail-compare-price"
+              />
+              <DetailField
+                label="Stock"
+                value={String(product.inventoryQuantity)}
+                className={isLow ? "text-amber-600 dark:text-amber-400 font-semibold" : "font-semibold"}
+                testId="text-detail-stock"
+              />
+              <DetailField label="Client" value={contact?.companyName || contact?.name} testId="text-detail-client" />
+            </div>
+
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-3">
+              <DetailField label="Vendor" value={product.vendor} testId="text-detail-vendor" />
+              <DetailField label="Type" value={product.productType} testId="text-detail-type" />
+              <DetailField
+                label="Weight"
+                value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null}
+                icon={<Weight className="h-3.5 w-3.5" />}
+                testId="text-detail-weight"
+              />
+              <DetailField label="Status" value={product.shopifyStatus} testId="text-detail-status" />
+            </div>
+
+            {product.tags && (
+              <>
+                <Separator />
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Tags</p>
+                  <div className="flex flex-wrap gap-1.5" data-testid="container-detail-tags">
+                    {product.tags.split(",").map((tag, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">
+                        {tag.trim()}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {product.description && (
+              <>
+                <Separator />
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Description</p>
+                  <p className="text-sm leading-relaxed" data-testid="text-detail-description">{product.description}</p>
+                </div>
+              </>
+            )}
+
+            <Separator />
+
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-3 w-3" />
+                <span data-testid="text-detail-synced">
+                  {product.lastSyncedAt
+                    ? `Last synced: ${new Date(product.lastSyncedAt).toLocaleString()}`
+                    : "Never synced"}
+                </span>
+              </div>
+              {product.pushedToZoho ? (
+                <Badge variant="default" className="text-xs">Zoho Synced</Badge>
+              ) : (
+                <Badge variant="secondary" className="text-xs">Not pushed</Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+  icon,
+  className,
+  testId,
+}: {
+  label: string;
+  value?: string | null;
+  icon?: React.ReactNode;
+  className?: string;
+  testId?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1">
+        {icon}
+        {label}
+      </p>
+      <p className={`text-sm font-medium ${className || ""}`} data-testid={testId}>
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
 
 export default function AdminProducts() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -71,7 +242,8 @@ export default function AdminProducts() {
   const filtered = products?.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku || "").toLowerCase().includes(search.toLowerCase());
+      (p.sku || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.barcode || "").toLowerCase().includes(search.toLowerCase());
     const matchesClient = clientFilter === "all" || p.contactId === Number(clientFilter);
     return matchesSearch && matchesClient;
   });
@@ -157,7 +329,7 @@ export default function AdminProducts() {
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search products..."
+                placeholder="Search products, SKU, barcode..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -222,8 +394,13 @@ export default function AdminProducts() {
                   const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
                   const contact = contactMap.get(product.contactId);
                   return (
-                    <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
-                      <TableCell>
+                    <TableRow
+                      key={product.id}
+                      data-testid={`row-product-${product.id}`}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selected.has(product.id)}
                           onCheckedChange={() => toggleSelect(product.id)}
@@ -254,7 +431,7 @@ export default function AdminProducts() {
                       <TableCell className="text-muted-foreground font-mono text-sm">
                         {product.sku || "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {product.shopifyStoreUrl ? (
                           <div className="flex items-center gap-1.5">
                             <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
@@ -291,7 +468,7 @@ export default function AdminProducts() {
                           <Badge variant="secondary" className="text-xs">Not pushed</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         {!product.pushedToZoho && (
                           <Button
                             size="sm"
@@ -321,6 +498,15 @@ export default function AdminProducts() {
           )}
         </CardContent>
       </Card>
+
+      {selectedProduct && (
+        <ProductDetailDialog
+          product={selectedProduct}
+          contact={contactMap.get(selectedProduct.contactId)}
+          open={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import {
   adminSettings, type AdminSettings, type InsertAdminSettings,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gt, sql, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getContacts(): Promise<Contact[]>;
@@ -32,7 +32,9 @@ export interface IStorage {
   getShopifyIntegrations(): Promise<ShopifyIntegration[]>;
   getShopifyIntegration(id: number): Promise<ShopifyIntegration | undefined>;
   createShopifyIntegration(data: InsertShopifyIntegration): Promise<ShopifyIntegration>;
+  updateShopifyIntegration(id: number, data: Partial<InsertShopifyIntegration>): Promise<ShopifyIntegration | undefined>;
   deleteShopifyIntegration(id: number): Promise<void>;
+  getShopifyIntegrationsDueForSync(): Promise<ShopifyIntegration[]>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
@@ -140,6 +142,11 @@ export class DatabaseStorage implements IStorage {
     return integration;
   }
 
+  async updateShopifyIntegration(id: number, data: Partial<InsertShopifyIntegration>): Promise<ShopifyIntegration | undefined> {
+    const [updated] = await db.update(shopifyIntegrations).set(data).where(eq(shopifyIntegrations.id, id)).returning();
+    return updated;
+  }
+
   async deleteShopifyIntegration(id: number): Promise<void> {
     const [integration] = await db.select().from(shopifyIntegrations).where(eq(shopifyIntegrations.id, id));
     if (integration) {
@@ -149,6 +156,19 @@ export class DatabaseStorage implements IStorage {
         await db.update(contacts).set({ shopifyConnected: false }).where(eq(contacts.id, integration.contactId));
       }
     }
+  }
+
+  async getShopifyIntegrationsDueForSync(): Promise<ShopifyIntegration[]> {
+    return db.select().from(shopifyIntegrations).where(
+      and(
+        eq(shopifyIntegrations.isActive, true),
+        gt(shopifyIntegrations.syncFrequencyMinutes, 0),
+        or(
+          isNull(shopifyIntegrations.lastAutoSyncAt),
+          sql`${shopifyIntegrations.lastAutoSyncAt} < NOW() - (${shopifyIntegrations.syncFrequencyMinutes} || ' minutes')::interval`
+        )
+      )
+    );
   }
 
   async getAdminSettings(): Promise<AdminSettings | undefined> {

@@ -33,6 +33,8 @@ import {
   PlugZap,
   Globe,
   Trash2,
+  RefreshCw,
+  Clock,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -188,6 +190,19 @@ export default function AdminSettingsPage() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to disconnect store.", variant: "destructive" });
+    },
+  });
+
+  const updateSyncFrequencyMutation = useMutation({
+    mutationFn: async ({ id, syncFrequencyMinutes }: { id: number; syncFrequencyMinutes: number }) => {
+      await apiRequest("PATCH", `/api/shopify-integrations/${id}/sync-frequency`, { syncFrequencyMinutes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
+      toast({ title: "Updated", description: "Sync frequency updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update sync frequency.", variant: "destructive" });
     },
   });
 
@@ -481,45 +496,85 @@ export default function AdminSettingsPage() {
                   return (
                     <div
                       key={integration.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-md bg-muted/50"
+                      className="p-4 rounded-md bg-muted/50 space-y-3"
                       data-testid={`shopify-integration-${integration.id}`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate">
-                            {contact?.companyName || contact?.name || "Client"}
-                            {integration.shopName && (
-                              <span className="text-muted-foreground font-normal"> — {integration.shopName}</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {integration.storeUrl}
-                          </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              {contact?.companyName || contact?.name || "Client"}
+                              {integration.shopName && (
+                                <span className="text-muted-foreground font-normal"> — {integration.shopName}</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {integration.storeUrl}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => importProductsMutation.mutate(integration.id)}
+                            disabled={importProductsMutation.isPending}
+                            data-testid={`button-import-products-${integration.id}`}
+                          >
+                            <Download className="h-3.5 w-3.5 mr-1" />
+                            Import
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={() => disconnectShopifyMutation.mutate(integration.id)}
+                            disabled={disconnectShopifyMutation.isPending}
+                            data-testid={`button-disconnect-shopify-${integration.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Disconnect
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => importProductsMutation.mutate(integration.id)}
-                          disabled={importProductsMutation.isPending}
-                          data-testid={`button-import-products-${integration.id}`}
+
+                      <div className="flex items-center gap-3 pt-1 border-t border-border/50">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <RefreshCw className="h-3 w-3" />
+                          <span>Auto-sync:</span>
+                        </div>
+                        <Select
+                          value={String(integration.syncFrequencyMinutes || 0)}
+                          onValueChange={(val) =>
+                            updateSyncFrequencyMutation.mutate({
+                              id: integration.id,
+                              syncFrequencyMinutes: Number(val),
+                            })
+                          }
                         >
-                          <Download className="h-3.5 w-3.5 mr-1" />
-                          Import
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                          onClick={() => disconnectShopifyMutation.mutate(integration.id)}
-                          disabled={disconnectShopifyMutation.isPending}
-                          data-testid={`button-disconnect-shopify-${integration.id}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />
-                          Disconnect
-                        </Button>
+                          <SelectTrigger
+                            className="h-7 w-[160px] text-xs"
+                            data-testid={`select-sync-frequency-${integration.id}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Disabled</SelectItem>
+                            <SelectItem value="15">Every 15 minutes</SelectItem>
+                            <SelectItem value="30">Every 30 minutes</SelectItem>
+                            <SelectItem value="60">Every hour</SelectItem>
+                            <SelectItem value="360">Every 6 hours</SelectItem>
+                            <SelectItem value="720">Every 12 hours</SelectItem>
+                            <SelectItem value="1440">Every 24 hours</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {integration.lastAutoSyncAt && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Last: {new Date(integration.lastAutoSyncAt).toLocaleString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

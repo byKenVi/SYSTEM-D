@@ -408,13 +408,22 @@ export async function registerRoutes(
           shopifyStoreUrl: integration.storeUrl,
           name: p.name,
           sku: p.sku,
+          barcode: p.barcode,
           description: p.description,
           imageUrl: p.imageUrl,
+          vendor: p.vendor,
+          productType: p.productType,
+          tags: p.tags,
+          weight: p.weight,
+          weightUnit: p.weightUnit,
           price: p.price,
+          compareAtPrice: p.compareAtPrice,
           inventoryQuantity: p.inventoryQuantity,
+          shopifyStatus: p.shopifyStatus,
+          shopifyHandle: p.shopifyHandle,
           pushedToZoho: false,
           zohoItemId: null,
-          lastSyncedAt: null,
+          lastSyncedAt: new Date(),
         });
 
         if (existingByVariant.has(p.shopifyVariantId)) updated++;
@@ -430,6 +439,96 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error importing products:", error);
       res.status(500).json({ message: error.message || "Failed to import products from Shopify" });
+    }
+  });
+
+  app.patch("/api/shopify-integrations/:id/sync-frequency", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { syncFrequencyMinutes } = req.body;
+      if (typeof syncFrequencyMinutes !== "number" || syncFrequencyMinutes < 0) {
+        return res.status(400).json({ message: "Invalid sync frequency" });
+      }
+      const updated = await storage.updateShopifyIntegration(Number(req.params.id), {
+        syncFrequencyMinutes,
+      });
+      if (!updated) return res.status(404).json({ message: "Integration not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating sync frequency:", error);
+      res.status(500).json({ message: "Failed to update sync frequency" });
+    }
+  });
+
+  app.post("/api/shopify-sync/run", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const integrations = await storage.getShopifyIntegrationsDueForSync();
+      if (integrations.length === 0) {
+        return res.json({ message: "No integrations due for sync", synced: 0 });
+      }
+
+      let totalUpdated = 0;
+      const results: { integrationId: number; updated: number; error?: string }[] = [];
+
+      for (const integration of integrations) {
+        try {
+          const existingProducts = await storage.getProductsByContactId(integration.contactId);
+          const importedVariantIds = new Set(
+            existingProducts.filter((p) => p.shopifyVariantId).map((p) => p.shopifyVariantId!)
+          );
+
+          if (importedVariantIds.size === 0) {
+            await storage.updateShopifyIntegration(integration.id, { lastAutoSyncAt: new Date() } as any);
+            results.push({ integrationId: integration.id, updated: 0 });
+            continue;
+          }
+
+          const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
+          const normalized = normalizeProducts(shopifyProducts);
+
+          let updated = 0;
+          for (const p of normalized) {
+            if (!importedVariantIds.has(p.shopifyVariantId)) continue;
+
+            await storage.upsertProductByShopifyVariant(integration.contactId, p.shopifyVariantId, {
+              contactId: integration.contactId,
+              shopifyProductId: p.shopifyProductId,
+              shopifyVariantId: p.shopifyVariantId,
+              shopifyStoreUrl: integration.storeUrl,
+              name: p.name,
+              sku: p.sku,
+              barcode: p.barcode,
+              description: p.description,
+              imageUrl: p.imageUrl,
+              vendor: p.vendor,
+              productType: p.productType,
+              tags: p.tags,
+              weight: p.weight,
+              weightUnit: p.weightUnit,
+              price: p.price,
+              compareAtPrice: p.compareAtPrice,
+              inventoryQuantity: p.inventoryQuantity,
+              shopifyStatus: p.shopifyStatus,
+              shopifyHandle: p.shopifyHandle,
+              pushedToZoho: false,
+              zohoItemId: null,
+              lastSyncedAt: new Date(),
+            });
+            updated++;
+          }
+
+          await storage.updateShopifyIntegration(integration.id, { lastAutoSyncAt: new Date() } as any);
+          totalUpdated += updated;
+          results.push({ integrationId: integration.id, updated });
+        } catch (err: any) {
+          console.error(`Sync error for integration ${integration.id}:`, err);
+          results.push({ integrationId: integration.id, updated: 0, error: err.message });
+        }
+      }
+
+      res.json({ message: `Synced ${totalUpdated} products across ${integrations.length} integrations`, synced: totalUpdated, results });
+    } catch (error: any) {
+      console.error("Error running auto-sync:", error);
+      res.status(500).json({ message: "Failed to run auto-sync" });
     }
   });
 
