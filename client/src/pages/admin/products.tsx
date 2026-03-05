@@ -125,7 +125,7 @@ function ProductDetailDialog({
                 </p>
               </div>
               <div className={`rounded-lg px-3 py-2.5 text-center ${isLow ? "bg-amber-50 dark:bg-amber-950/30" : "bg-muted/60"}`}>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Stock</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Shopify Stock</p>
                 <p
                   className={`text-sm font-bold ${isLow ? "text-amber-600 dark:text-amber-400" : ""}`}
                   data-testid="text-detail-stock"
