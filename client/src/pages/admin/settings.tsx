@@ -652,6 +652,23 @@ export default function AdminSettingsPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
+                              <Select
+                                value={String(integration.syncFrequencyMinutes ?? 0)}
+                                onValueChange={(v) =>
+                                  updateSyncFrequencyMutation.mutate({ id: integration.id, syncFrequencyMinutes: Number(v) })
+                                }
+                                disabled={updateSyncFrequencyMutation.isPending}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-sync-frequency-${integration.id}`}>
+                                  <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SYNC_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -673,25 +690,6 @@ export default function AdminSettingsPage() {
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <Select
-                              value={String(integration.syncFrequencyMinutes ?? 0)}
-                              onValueChange={(v) =>
-                                updateSyncFrequencyMutation.mutate({ id: integration.id, syncFrequencyMinutes: Number(v) })
-                              }
-                              disabled={updateSyncFrequencyMutation.isPending}
-                            >
-                              <SelectTrigger className="h-7 text-xs" data-testid={`select-sync-frequency-${integration.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {SYNC_OPTIONS.map((o) => (
-                                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
                           </div>
                           {integration.lastAutoSyncAt && (
                             <p className="text-xs text-muted-foreground">
