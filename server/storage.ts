@@ -133,7 +133,8 @@ export class DatabaseStorage implements IStorage {
   async upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings> {
     const existing = await this.getAdminSettings();
     if (existing) {
-      const [updated] = await db.update(adminSettings).set(data).where(eq(adminSettings.id, existing.id)).returning();
+      const { id, createdAt, ...updateData } = data as any;
+      const [updated] = await db.update(adminSettings).set(updateData).where(eq(adminSettings.id, existing.id)).returning();
       return updated;
     }
     const [created] = await db.insert(adminSettings).values(data).returning();
