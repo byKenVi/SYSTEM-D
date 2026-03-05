@@ -248,6 +248,20 @@ export default function AdminProducts() {
     return matchesSearch && matchesClient;
   });
 
+  const groupedByClient = (() => {
+    if (!filtered) return [];
+    const groups = new Map<number, Product[]>();
+    for (const p of filtered) {
+      if (!groups.has(p.contactId)) groups.set(p.contactId, []);
+      groups.get(p.contactId)!.push(p);
+    }
+    return Array.from(groups.entries()).map(([contactId, items]) => ({
+      contactId,
+      contact: contactMap.get(contactId),
+      products: items,
+    }));
+  })();
+
   const totalProducts = products?.length || 0;
   const totalStock = products?.reduce((sum, p) => sum + p.inventoryQuantity, 0) || 0;
   const lowStockCount = products?.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length || 0;
@@ -262,7 +276,8 @@ export default function AdminProducts() {
 
   const toggleAll = () => {
     if (!filtered) return;
-    if (selected.size === filtered.length) {
+    const allFilteredSelected = filtered.every((p) => selected.has(p.id));
+    if (allFilteredSelected) {
       setSelected(new Set());
     } else {
       setSelected(new Set(filtered.map((p) => p.id)));
@@ -368,125 +383,163 @@ export default function AdminProducts() {
                 <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
-          ) : filtered && filtered.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={filtered.length > 0 && selected.size === filtered.length}
-                      onCheckedChange={toggleAll}
-                      data-testid="checkbox-select-all"
-                    />
-                  </TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead>Zoho</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((product) => {
-                  const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
-                  const contact = contactMap.get(product.contactId);
-                  return (
-                    <TableRow
-                      key={product.id}
-                      data-testid={`row-product-${product.id}`}
-                      className="cursor-pointer"
-                      onClick={() => setSelectedProduct(product)}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selected.has(product.id)}
-                          onCheckedChange={() => toggleSelect(product.id)}
-                          data-testid={`checkbox-product-${product.id}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.name}
-                              className="h-9 w-9 rounded-md object-cover flex-shrink-0"
+          ) : groupedByClient.length > 0 ? (
+            <div className="divide-y">
+              {groupedByClient.map((group) => {
+                const clientName = group.contact?.companyName || group.contact?.name || group.contact?.email || "Unknown Client";
+                const groupProductCount = group.products.length;
+                const groupStock = group.products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
+                const groupLow = group.products.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length;
+
+                return (
+                  <div key={group.contactId} data-testid={`group-client-${group.contactId}`}>
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30 border-b">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Users className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <span className="font-semibold text-sm" data-testid={`text-group-client-name-${group.contactId}`}>
+                          {clientName}
+                        </span>
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {groupProductCount} {groupProductCount === 1 ? "product" : "products"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>{groupStock.toLocaleString()} in stock</span>
+                        {groupLow > 0 && (
+                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            {groupLow} low
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={group.products.every((p) => selected.has(p.id))}
+                              onCheckedChange={() => {
+                                const allSelected = group.products.every((p) => selected.has(p.id));
+                                const next = new Set(selected);
+                                group.products.forEach((p) => {
+                                  if (allSelected) next.delete(p.id);
+                                  else next.add(p.id);
+                                });
+                                setSelected(next);
+                              }}
+                              data-testid={`checkbox-select-all-${group.contactId}`}
                             />
-                          ) : (
-                            <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                              <Package className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )}
-                          <span className="font-medium" data-testid={`text-product-name-${product.id}`}>
-                            {product.name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {contact?.companyName || contact?.name || "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground font-mono text-sm">
-                        {product.sku || "—"}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {product.shopifyStoreUrl ? (
-                          <div className="flex items-center gap-1.5">
-                            <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                            <a
-                              href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[120px]"
-                              title={`Shopify ID: ${product.shopifyProductId}`}
-                              data-testid={`link-shopify-store-${product.id}`}
+                          </TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead>SKU</TableHead>
+                          <TableHead>Source</TableHead>
+                          <TableHead className="text-right">Price</TableHead>
+                          <TableHead className="text-right">Stock</TableHead>
+                          <TableHead>Zoho</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.products.map((product) => {
+                          const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
+                          return (
+                            <TableRow
+                              key={product.id}
+                              data-testid={`row-product-${product.id}`}
+                              className="cursor-pointer"
+                              onClick={() => setSelectedProduct(product)}
                             >
-                              {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
-                            </a>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Manual</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
-                          <span className={isLow ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
-                            {product.inventoryQuantity}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {product.pushedToZoho ? (
-                          <Badge variant="default" className="text-xs">Synced</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">Not pushed</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        {!product.pushedToZoho && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => pushToZohoMutation.mutate([product.id])}
-                            disabled={pushToZohoMutation.isPending}
-                            data-testid={`button-push-zoho-${product.id}`}
-                          >
-                            <Upload className="h-3.5 w-3.5 mr-1" />
-                            Push
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selected.has(product.id)}
+                                  onCheckedChange={() => toggleSelect(product.id)}
+                                  data-testid={`checkbox-product-${product.id}`}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  {product.imageUrl ? (
+                                    <img
+                                      src={product.imageUrl}
+                                      alt={product.name}
+                                      className="h-9 w-9 rounded-md object-cover flex-shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                                      <Package className="h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                  <span className="font-medium" data-testid={`text-product-name-${product.id}`}>
+                                    {product.name}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground font-mono text-sm">
+                                {product.sku || "—"}
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                {product.shopifyStoreUrl ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                    <a
+                                      href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[120px]"
+                                      title={`Shopify ID: ${product.shopifyProductId}`}
+                                      data-testid={`link-shopify-store-${product.id}`}
+                                    >
+                                      {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Manual</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                                  <span className={isLow ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+                                    {product.inventoryQuantity}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {product.pushedToZoho ? (
+                                  <Badge variant="default" className="text-xs">Synced</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-xs">Not pushed</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                {!product.pushedToZoho && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => pushToZohoMutation.mutate([product.id])}
+                                    disabled={pushToZohoMutation.isPending}
+                                    data-testid={`button-push-zoho-${product.id}`}
+                                  >
+                                    <Upload className="h-3.5 w-3.5 mr-1" />
+                                    Push
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="p-12 text-center">
               <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
