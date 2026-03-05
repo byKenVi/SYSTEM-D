@@ -21,6 +21,7 @@ import {
   Barcode,
   Clock,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -214,6 +215,16 @@ export default function AdminProducts() {
   const [clientFilter, setClientFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+
+  const toggleCollapse = (contactId: number) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactId)) next.delete(contactId);
+      else next.add(contactId);
+      return next;
+    });
+  };
 
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -391,10 +402,20 @@ export default function AdminProducts() {
                 const groupStock = group.products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
                 const groupLow = group.products.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length;
 
+                const isCollapsed = collapsedGroups.has(group.contactId);
+
                 return (
                   <div key={group.contactId} data-testid={`group-client-${group.contactId}`}>
-                    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30 border-b">
+                    <button
+                      type="button"
+                      className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30 border-b w-full text-left hover:bg-muted/50 transition-colors"
+                      onClick={() => toggleCollapse(group.contactId)}
+                      data-testid={`button-toggle-group-${group.contactId}`}
+                    >
                       <div className="flex items-center gap-2.5">
+                        <ChevronDown
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                        />
                         <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <Users className="h-3.5 w-3.5 text-primary" />
                         </div>
@@ -414,7 +435,8 @@ export default function AdminProducts() {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </button>
+                    {!isCollapsed && (
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -536,6 +558,7 @@ export default function AdminProducts() {
                         })}
                       </TableBody>
                     </Table>
+                    )}
                   </div>
                 );
               })}
