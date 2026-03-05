@@ -112,6 +112,7 @@ export default function AdminContacts() {
       else if (sortKey === "email") { aVal = a.email; bVal = b.email; }
       else if (sortKey === "status") { aVal = a.status; bVal = b.status; }
       else if (sortKey === "zoho") { aVal = a.zohoCrmContactId ? "1" : "0"; bVal = b.zohoCrmContactId ? "1" : "0"; }
+      else if (sortKey === "created") { aVal = a.createdAt ?? ""; bVal = b.createdAt ?? ""; }
       const cmp = aVal.localeCompare(bVal);
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -142,7 +143,7 @@ export default function AdminContacts() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                {(["name", "company", "email", "status", "zoho"] as const).map((col) => (
+                {(["name", "company", "email", "status", "zoho", "created"] as const).map((col) => (
                   <TableHead key={col}>
                     <button
                       type="button"
@@ -150,7 +151,7 @@ export default function AdminContacts() {
                       onClick={() => handleSort(col)}
                       data-testid={`sort-${col}`}
                     >
-                      {col === "name" ? "Name" : col === "company" ? "Company" : col === "email" ? "Email" : col === "status" ? "Status" : "Zoho CRM"}
+                      {col === "name" ? "Name" : col === "company" ? "Company" : col === "email" ? "Email" : col === "status" ? "Status" : col === "zoho" ? "Zoho CRM" : "Created"}
                       <SortIcon col={col} />
                     </button>
                   </TableHead>
@@ -162,7 +163,7 @@ export default function AdminContacts() {
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                     ))}
                   </TableRow>
@@ -199,6 +200,9 @@ export default function AdminContacts() {
                           None
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap" data-testid={`text-contact-created-${contact.id}`}>
+                      {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="opacity-40">—</span>}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -250,7 +254,7 @@ export default function AdminContacts() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-36 text-center">
+                  <TableCell colSpan={7} className="h-36 text-center">
                     <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                     <p className="text-sm text-muted-foreground">No contacts found</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">Contacts are created when Zoho CRM sends a webhook</p>
