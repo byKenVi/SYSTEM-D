@@ -44,33 +44,31 @@ function AdminLayout() {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar role="admin" />
-        <div className="flex flex-col flex-1 min-w-0">
-          <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-6">
-            <Switch>
-              <Route path="/admin/dashboard" component={AdminDashboard} />
-              <Route path="/admin/contacts/:id" component={AdminContactDetail} />
-              <Route path="/admin/contacts" component={AdminContacts} />
-              <Route path="/admin/products/:id" component={AdminProductDetail} />
-              <Route path="/admin/products" component={AdminProducts} />
-              <Route path="/admin/orders" component={AdminOrders} />
-              <Route path="/admin/restock-requests" component={AdminRestockRequests} />
-              <Route path="/admin/forms/:id/edit">
-                {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
-              </Route>
-              <Route path="/admin/forms/:id">
-                {(params) => <AdminFormDetail id={Number(params?.id)} />}
-              </Route>
-              <Route path="/admin/forms" component={AdminForms} />
-              <Route path="/admin/settings" component={AdminSettingsPage} />
-              <Route path="/admin">
-                <Redirect to="/admin/dashboard" />
-              </Route>
-              <Route component={NotFound} />
-            </Switch>
-          </main>
-        </div>
+      <AppSidebar role="admin" />
+      <div className="flex flex-col flex-1 min-w-0 h-screen">
+        <main className="flex-1 overflow-y-auto scrollbar-hide p-4">
+          <Switch>
+            <Route path="/admin/dashboard" component={AdminDashboard} />
+            <Route path="/admin/contacts/:id" component={AdminContactDetail} />
+            <Route path="/admin/contacts" component={AdminContacts} />
+            <Route path="/admin/products/:id" component={AdminProductDetail} />
+            <Route path="/admin/products" component={AdminProducts} />
+            <Route path="/admin/orders" component={AdminOrders} />
+            <Route path="/admin/restock-requests" component={AdminRestockRequests} />
+            <Route path="/admin/forms/:id/edit">
+              {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
+            </Route>
+            <Route path="/admin/forms/:id">
+              {(params) => <AdminFormDetail id={Number(params?.id)} />}
+            </Route>
+            <Route path="/admin/forms" component={AdminForms} />
+            <Route path="/admin/settings" component={AdminSettingsPage} />
+            <Route path="/admin">
+              <Redirect to="/admin/dashboard" />
+            </Route>
+            <Route component={NotFound} />
+          </Switch>
+        </main>
       </div>
     </SidebarProvider>
   );
@@ -84,37 +82,35 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar role="client" viewAsContactId={viewAsContactId} />
-        <div className="flex flex-col flex-1 min-w-0">
-          {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-6">
-            <Switch>
-              <Route path="/portal/dashboard">
-                <PortalDashboard viewAsContactId={viewAsContactId} />
-              </Route>
-              <Route path="/portal/profile">
-                <PortalProfile viewAsContactId={viewAsContactId} />
-              </Route>
-              <Route path="/portal/products/:id">
-                <PortalProductDetail viewAsContactId={viewAsContactId} />
-              </Route>
-              <Route path="/portal/products">
-                <PortalProducts viewAsContactId={viewAsContactId} />
-              </Route>
-              <Route path="/portal/restock">
-                <PortalRestock viewAsContactId={viewAsContactId} />
-              </Route>
-              <Route path="/portal/forms/:id?">
-                <PortalForms viewAsContactId={viewAsContactId} />
-              </Route>
-              <Route path="/portal">
-                <Redirect to={`/portal/dashboard${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
-              </Route>
-              <Route component={NotFound} />
-            </Switch>
-          </main>
-        </div>
+      <AppSidebar role="client" viewAsContactId={viewAsContactId} />
+      <div className="flex flex-col flex-1 min-w-0 h-screen">
+        {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
+        <main className="flex-1 overflow-y-auto scrollbar-hide p-4">
+          <Switch>
+            <Route path="/portal/dashboard">
+              <PortalDashboard viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/profile">
+              <PortalProfile viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/products/:id">
+              <PortalProductDetail viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/products">
+              <PortalProducts viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/restock">
+              <PortalRestock viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/forms/:id?">
+              <PortalForms viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal">
+              <Redirect to={`/portal/dashboard${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
+            </Route>
+            <Route component={NotFound} />
+          </Switch>
+        </main>
       </div>
     </SidebarProvider>
   );
