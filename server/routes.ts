@@ -412,6 +412,17 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/products/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const product = await storage.getProduct(Number(req.params.id));
+      if (!product) return res.status(404).json({ message: "Product not found" });
+      res.json(product);
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
   app.post("/api/products/push-to-zoho", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const { productIds } = req.body;

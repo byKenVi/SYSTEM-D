@@ -14,12 +14,6 @@ import {
   Upload,
   Users,
   ShoppingBag,
-  X,
-  Tag,
-  Weight,
-  Barcode,
-  Clock,
-  ExternalLink,
   ChevronDown,
   Trash2,
   LayoutGrid,
@@ -33,7 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useMemo } from "react";
+import { useState } from "react";
+import { useLocation } from "wouter";
 import {
   Table,
   TableBody,
@@ -50,205 +45,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 
 const LOW_STOCK_THRESHOLD = 10;
 
-function ProductDetailDialog({
-  product,
-  contact,
-  open,
-  onClose,
-}: {
-  product: Product;
-  contact?: Contact;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide p-0 gap-0"
-        data-testid="dialog-product-detail"
-      >
-        {/* Header bar */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4 border-b">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Product Detail</p>
-            <h2 className="text-lg font-bold leading-tight" data-testid="text-detail-product-name">
-              {product.name}
-            </h2>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
-            {product.pushedToZoho ? (
-              <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">
-                Zoho Synced
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-xs text-muted-foreground">Not in Zoho</Badge>
-            )}
-            {product.shopifyStatus && (
-              <Badge
-                variant={product.shopifyStatus === "active" ? "default" : "secondary"}
-                className="text-xs capitalize"
-                data-testid="text-detail-status"
-              >
-                {product.shopifyStatus}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row">
-          {/* Left: image + shopify link */}
-          <div className="md:w-56 flex-shrink-0 p-5 flex flex-col gap-4 border-b md:border-b-0 md:border-r">
-            {product.imageUrl ? (
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-full rounded-xl object-contain bg-muted aspect-square"
-                data-testid="img-product-detail"
-              />
-            ) : (
-              <div className="w-full rounded-xl bg-muted flex items-center justify-center aspect-square">
-                <Package className="h-14 w-14 text-muted-foreground/30" />
-              </div>
-            )}
-
-            {/* Stat pills */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-muted/60 px-3 py-2.5 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Price</p>
-                <p className="text-sm font-bold" data-testid="text-detail-price">
-                  {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
-                </p>
-              </div>
-              <div className={`rounded-lg px-3 py-2.5 text-center ${isLow ? "bg-amber-50 dark:bg-amber-950/30" : "bg-muted/60"}`}>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Shopify Stock</p>
-                <p
-                  className={`text-sm font-bold ${isLow ? "text-amber-600 dark:text-amber-400" : ""}`}
-                  data-testid="text-detail-stock"
-                >
-                  {product.inventoryQuantity}
-                </p>
-              </div>
-              {product.pushedToZoho && product.zohoInventoryQuantity != null && (
-                <div className="col-span-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 px-3 py-2.5 text-center">
-                  <p className="text-[10px] text-violet-500 uppercase tracking-wide mb-0.5">Zoho Stock</p>
-                  <p className="text-sm font-bold text-violet-700 dark:text-violet-400" data-testid="text-detail-zoho-stock">
-                    {product.zohoInventoryQuantity}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {product.shopifyStoreUrl && (
-              <a
-                href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}/products/${product.shopifyHandle || ""}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 text-xs text-primary hover:underline border rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors"
-                data-testid="link-view-on-shopify"
-              >
-                <ShoppingBag className="h-3.5 w-3.5" />
-                View on Shopify
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </div>
-
-          {/* Right: details */}
-          <div className="flex-1 min-w-0 p-5 space-y-5">
-            {/* Identifiers */}
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              <MetaRow label="SKU" value={product.sku} testId="text-detail-sku" />
-              <MetaRow label="Barcode" value={product.barcode} testId="text-detail-barcode" />
-              <MetaRow label="Compare at" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} testId="text-detail-compare-price" />
-              <MetaRow label="Client" value={contact?.companyName || contact?.name} testId="text-detail-client" />
-            </div>
-
-            <div className="h-px bg-border" />
-
-            {/* Catalog info */}
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              <MetaRow label="Vendor" value={product.vendor} testId="text-detail-vendor" />
-              <MetaRow label="Type" value={product.productType} testId="text-detail-type" />
-              <MetaRow
-                label="Weight"
-                value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null}
-                testId="text-detail-weight"
-              />
-            </div>
-
-            {product.tags && (
-              <>
-                <div className="h-px bg-border" />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Tags</p>
-                  <div className="flex flex-wrap gap-1.5" data-testid="container-detail-tags">
-                    {product.tags.split(",").map((tag, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs font-normal">
-                        {tag.trim()}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {product.description && (
-              <>
-                <div className="h-px bg-border" />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
-                  <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-detail-description">
-                    {product.description}
-                  </p>
-                </div>
-              </>
-            )}
-
-            <div className="h-px bg-border" />
-
-            {/* Footer */}
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="text-detail-synced">
-              <Clock className="h-3 w-3" />
-              {product.lastSyncedAt
-                ? `Last synced ${new Date(product.lastSyncedAt).toLocaleString()}`
-                : "Never synced"}
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function MetaRow({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value?: string | null;
-  testId?: string;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
-      <p className="text-sm font-medium truncate" data-testid={testId}>{value || "—"}</p>
-    </div>
-  );
-}
-
 export default function AdminProducts() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
@@ -539,7 +344,7 @@ export default function AdminProducts() {
                               {group.products.map((product) => {
                                 const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
                                 return (
-                                  <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => setSelectedProduct(product)}>
+                                  <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => navigate(`/admin/products/${product.id}`)}>
                                     <TableCell onClick={(e) => e.stopPropagation()}>
                                       <Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} />
                                     </TableCell>
@@ -663,7 +468,7 @@ export default function AdminProducts() {
                               key={product.id}
                               data-testid={`card-product-${product.id}`}
                               className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`}
-                              onClick={() => setSelectedProduct(product)}
+                              onClick={() => navigate(`/admin/products/${product.id}`)}
                             >
                               {/* Select checkbox */}
                               <div
@@ -747,15 +552,6 @@ export default function AdminProducts() {
             </div>
           )}
         </div>
-      )}
-
-      {selectedProduct && (
-        <ProductDetailDialog
-          product={selectedProduct}
-          contact={contactMap.get(selectedProduct.contactId)}
-          open={!!selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-        />
       )}
 
       <Dialog open={bulkDeleteConfirm} onOpenChange={(open) => !open && setBulkDeleteConfirm(false)}>
