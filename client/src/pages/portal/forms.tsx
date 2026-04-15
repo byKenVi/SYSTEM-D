@@ -22,11 +22,11 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Brouillon",
-  submitted: "Soumis",
-  in_review: "En révision",
-  approved: "Approuvé",
-  completed: "Complété",
+  draft: "Draft",
+  submitted: "Submitted",
+  in_review: "In Review",
+  approved: "Approved",
+  completed: "Completed",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -38,10 +38,10 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const FORM_TYPES = [
-  { value: "tri", label: "Tri (Sorting)", desc: "Demande de service de tri" },
-  { value: "entreposage", label: "Entreposage", desc: "Demande d'entreposage" },
-  { value: "copacking", label: "Co-packing", desc: "Bon de travail co-packing" },
-  { value: "livraison", label: "Livraison", desc: "Demande de livraison" },
+  { value: "tri", label: "Tri (Sorting)", desc: "Sorting service request" },
+  { value: "entreposage", label: "Entreposage", desc: "Warehousing request" },
+  { value: "copacking", label: "Co-packing", desc: "Co-packing work order" },
+  { value: "livraison", label: "Livraison", desc: "Delivery request" },
 ];
 
 export default function PortalForms({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -88,13 +88,13 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Mes formulaires</h1>
-          <p className="text-muted-foreground mt-1">Soumettez et suivez vos demandes de service</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">My Forms</h1>
+          <p className="text-muted-foreground mt-1">Submit and track your service requests</p>
         </div>
         {!isViewAs && (
           <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form-portal">
             <Plus className="h-4 w-4 mr-1.5" />
-            Nouveau formulaire
+            New form
           </Button>
         )}
       </div>
@@ -106,11 +106,11 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
       ) : !forms || forms.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>Aucun formulaire soumis</p>
+          <p>No forms submitted yet</p>
           {!isViewAs && (
             <Button className="mt-4" onClick={() => setNewFormOpen(true)} data-testid="button-new-form-empty">
               <Plus className="h-4 w-4 mr-1.5" />
-              Créer un formulaire
+              Create a form
             </Button>
           )}
         </div>
@@ -149,7 +149,7 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Choisissez un type de service</DialogTitle>
+            <DialogTitle>Choose a service type</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             {FORM_TYPES.map((t) => (

@@ -29,11 +29,11 @@ const FORM_TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Brouillon",
-  submitted: "Soumis",
-  in_review: "En révision",
-  approved: "Approuvé",
-  completed: "Complété",
+  draft: "Draft",
+  submitted: "Submitted",
+  in_review: "In Review",
+  approved: "Approved",
+  completed: "Completed",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -112,15 +112,15 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   }, [formId]);
 
   function validateBeforeSubmit(): string | null {
-    if (!formData) return "Aucune donnée à soumettre.";
+    if (!formData) return "No data to submit.";
     if (form?.formType === "tri") {
-      if (!formData.client?.trim()) return "Le champ Client est obligatoire.";
-      if (!formData.nomProjet?.trim()) return "Le champ Nom du projet est obligatoire.";
-      if (!formData.codePiece?.trim()) return "Le champ Code pièce est obligatoire.";
+      if (!formData.client?.trim()) return "The Client field is required.";
+      if (!formData.nomProjet?.trim()) return "The Project Name field is required.";
+      if (!formData.codePiece?.trim()) return "The Part Code field is required.";
     }
     if (form?.formType === "inspection") {
-      if (!formData.customer?.trim()) return "Le champ Client est obligatoire.";
-      if (!formData.partNumber?.trim()) return "Le champ Numéro de pièce est obligatoire.";
+      if (!formData.customer?.trim()) return "The Client field is required.";
+      if (!formData.partNumber?.trim()) return "The Part Number field is required.";
     }
     return null;
   }
@@ -132,17 +132,17 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       await apiRequest("PUT", `/api/forms/${formId}`, {
         data: formData,
         status: "submitted",
-        revisionDescription: revisionDesc || "Soumission initiale",
+        revisionDescription: revisionDesc || "Initial submission",
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
       setSubmitDialogOpen(false);
-      toast({ title: "Formulaire soumis", description: "Le formulaire a été soumis avec succès." });
+      toast({ title: "Form submitted", description: "The form has been submitted successfully." });
     },
     onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message || "La soumission a échoué.", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Submission failed.", variant: "destructive" });
     },
   });
 
@@ -152,7 +152,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-      toast({ title: "Brouillon sauvegardé" });
+      toast({ title: "Draft saved" });
     },
   });
 
@@ -163,7 +163,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-      toast({ title: "Statut mis à jour" });
+      toast({ title: "Status updated" });
     },
   });
 
@@ -175,10 +175,10 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     onSuccess: (livForm: FormSubmission) => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-      toast({ title: "Formulaire de livraison créé", description: `${livForm.formNumber} lié à ce bon de travail.` });
+      toast({ title: "Delivery form created", description: `${livForm.formNumber} linked to this work order.` });
     },
     onError: (err: Error) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -216,15 +216,15 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {isDraft && saveStatus === "saving" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Sauvegarde...</span>}
-          {isDraft && saveStatus === "saved" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Cloud className="h-3 w-3" />Sauvegardé</span>}
-          {isDraft && saveStatus === "error" && <span className="text-xs text-destructive flex items-center gap-1"><CloudOff className="h-3 w-3" />Erreur</span>}
+          {isDraft && saveStatus === "saving" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Saving...</span>}
+          {isDraft && saveStatus === "saved" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Cloud className="h-3 w-3" />Saved</span>}
+          {isDraft && saveStatus === "error" && <span className="text-xs text-destructive flex items-center gap-1"><CloudOff className="h-3 w-3" />Save error</span>}
 
           {role === "admin" && !isDraft && (() => {
             const adminTransitions: Record<string, { value: string; label: string }[]> = {
-              submitted: [{ value: "in_review", label: "En révision" }],
-              in_review: [{ value: "approved", label: "Approuvé" }, { value: "submitted", label: "Soumis" }],
-              approved: [{ value: "completed", label: "Complété" }, { value: "in_review", label: "En révision" }],
+              submitted: [{ value: "in_review", label: "In Review" }],
+              in_review: [{ value: "approved", label: "Approved" }, { value: "submitted", label: "Submitted" }],
+              approved: [{ value: "completed", label: "Completed" }, { value: "in_review", label: "In Review" }],
               completed: [],
             };
             const options = adminTransitions[form.status] || [];
@@ -232,7 +232,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             return (
               <Select value="" onValueChange={(v) => statusMutation.mutate(v)} disabled={statusMutation.isPending}>
                 <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-form-status">
-                  <SelectValue placeholder="Changer statut..." />
+                  <SelectValue placeholder="Change status..." />
                 </SelectTrigger>
                 <SelectContent>
                   {options.map((o) => (
@@ -247,26 +247,26 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             <>
               <Button variant="outline" size="sm" onClick={() => saveDraftMutation.mutate()} disabled={saveDraftMutation.isPending} data-testid="button-save-draft">
                 <Save className="h-3.5 w-3.5 mr-1" />
-                {saveDraftMutation.isPending ? "..." : "Sauvegarder"}
+                {saveDraftMutation.isPending ? "..." : "Save"}
               </Button>
               <Button size="sm" onClick={() => setSubmitDialogOpen(true)} data-testid="button-submit-form">
                 <Send className="h-3.5 w-3.5 mr-1" />
-                Soumettre
+                Submit
               </Button>
             </>
           )}
 
           {role === "admin" && !isDraft && (
             <Button variant="outline" size="sm" onClick={() => {
-              apiRequest("PUT", `/api/forms/${formId}`, { data: formData, revisionDescription: "Modification admin" })
+              apiRequest("PUT", `/api/forms/${formId}`, { data: formData, revisionDescription: "Admin edit" })
                 .then(() => {
                   queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-                  toast({ title: "Modifications sauvegardées" });
+                  toast({ title: "Changes saved" });
                 })
-                .catch(() => toast({ title: "Erreur", variant: "destructive" }));
+                .catch(() => toast({ title: "Error", variant: "destructive" }));
             }} data-testid="button-admin-save">
               <Save className="h-3.5 w-3.5 mr-1" />
-              Sauvegarder
+              Save
             </Button>
           )}
 
@@ -290,11 +290,11 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
         <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <LinkIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span className="text-sm text-blue-700 dark:text-blue-300">
-            Formulaire lié :
+            Linked form:
           </span>
           <Link href={`${backUrl.includes("admin") ? "/admin" : "/portal"}/forms/${form.linkedFormId}`}>
             <Button variant="ghost" size="sm" className="text-blue-600 p-0 h-auto underline" data-testid="link-linked-form">
-              Voir le formulaire lié
+              View linked form
             </Button>
           </Link>
         </div>
@@ -304,7 +304,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
         <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
           <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <span className="text-sm text-amber-700 dark:text-amber-300">
-            Créer un formulaire de livraison lié à ce bon de travail
+            Create a delivery form linked to this work order
           </span>
           <Button
             variant="outline"
@@ -314,7 +314,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             data-testid="button-create-linked-livraison"
           >
             <Truck className="h-3.5 w-3.5 mr-1" />
-            {createLinkedLivraisonMutation.isPending ? "Création..." : "Créer livraison"}
+            {createLinkedLivraisonMutation.isPending ? "Creating..." : "Create delivery"}
           </Button>
         </div>
       )}
@@ -342,26 +342,26 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Soumettre le formulaire</DialogTitle>
+            <DialogTitle>Submit form</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Une fois soumis, vous ne pourrez plus modifier ce formulaire. L'équipe Système-D le révisera.
+              Once submitted, you will no longer be able to edit this form. The Système-D team will review it.
             </p>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Note de soumission (optionnel)</label>
+              <label className="text-sm font-medium">Submission note (optional)</label>
               <Input
                 value={revisionDesc}
                 onChange={(e) => setRevisionDesc(e.target.value)}
-                placeholder="Décrivez ce qui a changé..."
+                placeholder="Describe what changed..."
                 data-testid="input-revision-desc"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSubmitDialogOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setSubmitDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending} data-testid="button-confirm-submit">
-              {submitMutation.isPending ? "Soumission..." : "Confirmer la soumission"}
+              {submitMutation.isPending ? "Submitting..." : "Confirm submission"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,11 +22,11 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Brouillon",
-  submitted: "Soumis",
-  in_review: "En révision",
-  approved: "Approuvé",
-  completed: "Complété",
+  draft: "Draft",
+  submitted: "Submitted",
+  in_review: "In Review",
+  approved: "Approved",
+  completed: "Completed",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -89,7 +89,7 @@ export default function AdminForms() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
-      toast({ title: "Formulaire supprimé" });
+      toast({ title: "Form deleted" });
     },
   });
 
@@ -110,12 +110,12 @@ export default function AdminForms() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Formulaires</h1>
-          <p className="text-muted-foreground mt-1">Gérer les soumissions de formulaires</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Forms</h1>
+          <p className="text-muted-foreground mt-1">Manage form submissions</p>
         </div>
         <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form">
           <Plus className="h-4 w-4 mr-1.5" />
-          Nouveau formulaire
+          New form
         </Button>
       </div>
 
@@ -125,7 +125,7 @@ export default function AdminForms() {
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tous les types</SelectItem>
+            <SelectItem value="all">All types</SelectItem>
             {Object.entries(TYPE_LABELS).map(([k, v]) => (
               <SelectItem key={k} value={k}>{v}</SelectItem>
             ))}
@@ -133,10 +133,10 @@ export default function AdminForms() {
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px]" data-testid="select-filter-status">
-            <SelectValue placeholder="Statut" />
+            <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             {Object.entries(STATUS_LABELS).map(([k, v]) => (
               <SelectItem key={k} value={k}>{v}</SelectItem>
             ))}
@@ -147,7 +147,7 @@ export default function AdminForms() {
             <SelectValue placeholder="Client" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tous les clients</SelectItem>
+            <SelectItem value="all">All clients</SelectItem>
             {contacts?.map((c) => (
               <SelectItem key={c.id} value={String(c.id)}>
                 {c.name}{c.companyName ? ` (${c.companyName})` : ""}
@@ -164,7 +164,7 @@ export default function AdminForms() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>Aucun formulaire trouvé</p>
+          <p>No forms found</p>
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -172,10 +172,10 @@ export default function AdminForms() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Numéro</TableHead>
+                  <TableHead>Number</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Client</TableHead>
-                  <TableHead>Statut</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
@@ -224,14 +224,14 @@ export default function AdminForms() {
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nouveau formulaire</DialogTitle>
+            <DialogTitle>New form</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Type de formulaire *</label>
+              <label className="text-sm font-medium">Form type *</label>
               <Select value={selectedType} onValueChange={setSelectedType}>
                 <SelectTrigger data-testid="select-new-form-type">
-                  <SelectValue placeholder="Sélectionnez un type" />
+                  <SelectValue placeholder="Select a type" />
                 </SelectTrigger>
                 <SelectContent>
                   {FORM_TYPES.map((t) => (
@@ -244,7 +244,7 @@ export default function AdminForms() {
               <label className="text-sm font-medium">Client *</label>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
                 <SelectTrigger data-testid="select-new-form-client">
-                  <SelectValue placeholder="Sélectionnez un client" />
+                  <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
                 <SelectContent>
                   {contacts?.map((c) => (
@@ -259,7 +259,7 @@ export default function AdminForms() {
               disabled={!selectedType || !selectedClient || createFormMutation.isPending}
               data-testid="button-create-form"
             >
-              {createFormMutation.isPending ? "Création..." : "Créer le formulaire"}
+              {createFormMutation.isPending ? "Creating..." : "Create form"}
             </Button>
           </div>
         </DialogContent>
