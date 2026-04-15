@@ -142,7 +142,13 @@ export default function ContactDetail() {
   const { toast } = useToast();
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [hideEmptyRelated, setHideEmptyRelated] = useState(false);
+  const [hideEmptyRelated, setHideEmptyRelatedState] = useState(
+    () => localStorage.getItem("contact_detail_hide_empty") === "true"
+  );
+  const setHideEmptyRelated = (val: boolean) => {
+    localStorage.setItem("contact_detail_hide_empty", String(val));
+    setHideEmptyRelatedState(val);
+  };
 
   const { data: contact, isLoading: contactLoading } = useQuery<Contact>({
     queryKey: ["/api/contacts", contactId],
