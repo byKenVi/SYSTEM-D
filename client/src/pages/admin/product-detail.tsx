@@ -206,7 +206,7 @@ export default function AdminProductDetail() {
 
               {/* Last synced */}
               {product.lastSyncedAt && (
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1" data-testid="text-synced">
+                <p className="text-[11px] text-muted-foreground flex items-center justify-center gap-1" data-testid="text-synced">
                   <Clock className="h-3 w-3 flex-shrink-0" />
                   Last synced {new Date(product.lastSyncedAt).toLocaleString()}
                 </p>
