@@ -27,12 +27,7 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  RefreshCw,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { SiShopify } from "react-icons/si";
 
 interface ShopifyOrder {
@@ -92,7 +87,6 @@ function FulfillmentBadge({ status }: { status: string | null }) {
 }
 
 export default function AdminOrders() {
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
@@ -102,20 +96,6 @@ export default function AdminOrders() {
     queryKey: ["/api/admin/orders"],
     queryFn: () => fetch("/api/admin/orders", { credentials: "include" }).then((r) => r.json()),
     staleTime: 60 * 1000,
-  });
-
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/admin/orders/sync");
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
-      toast({ title: "Orders synced", description: data.message || `${data.synced} orders updated.` });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to sync orders.", variant: "destructive" });
-    },
   });
 
   const orders = data?.orders ?? [];
@@ -163,21 +143,9 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Orders</h1>
-          <p className="text-muted-foreground mt-1">All orders across connected Shopify stores</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-          data-testid="button-sync-orders"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-          {syncMutation.isPending ? "Syncing…" : "Sync Now"}
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Orders</h1>
+        <p className="text-muted-foreground mt-1">All orders across connected Shopify stores</p>
       </div>
 
       {/* Stats */}
