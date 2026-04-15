@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   Package,
-  AlertTriangle,
   Search,
   Upload,
   Users,
@@ -45,8 +44,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const LOW_STOCK_THRESHOLD = 10;
 
 export default function AdminProducts() {
   const { toast } = useToast();
@@ -336,7 +333,6 @@ export default function AdminProducts() {
                             </TableHeader>
                             <TableBody>
                               {group.products.map((product) => {
-                                const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
                                 return (
                                   <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => navigate(`/admin/products/${product.id}`)}>
                                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -372,12 +368,7 @@ export default function AdminProducts() {
                                       )}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</TableCell>
-                                    <TableCell className="text-right">
-                                      <div className="flex items-center justify-end gap-1.5">
-                                        {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
-                                        <span className={isLow ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>{product.inventoryQuantity}</span>
-                                      </div>
-                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-sm">{product.inventoryQuantity}</TableCell>
                                     <TableCell className="text-right font-mono text-sm" data-testid={`text-zoho-stock-${product.id}`}>
                                       {product.pushedToZoho && product.zohoInventoryQuantity != null ? (
                                         <span className="text-primary">{product.zohoInventoryQuantity}</span>
@@ -453,7 +444,6 @@ export default function AdminProducts() {
                     {!isCollapsed && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                         {group.products.map((product) => {
-                          const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
                           const isSelected = selected.has(product.id);
                           return (
                             <div
@@ -504,8 +494,7 @@ export default function AdminProducts() {
                                   <span className="text-xs font-medium">
                                     {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
                                   </span>
-                                  <span className={`text-xs font-semibold flex items-center gap-1 ${isLow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                                    {isLow && <AlertTriangle className="h-3 w-3" />}
+                                  <span className="text-xs font-semibold text-muted-foreground">
                                     {product.inventoryQuantity} units
                                   </span>
                                 </div>
