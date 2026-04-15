@@ -363,12 +363,16 @@ export default function AdminProducts() {
                                     <TableCell className="text-muted-foreground font-mono text-sm">{product.sku || "—"}</TableCell>
                                     <TableCell onClick={(e) => e.stopPropagation()}>
                                       {product.shopifyStoreUrl ? (
-                                        <div className="flex items-center gap-1.5">
+                                        <a
+                                          href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}/products/${product.shopifyHandle || ""}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 w-fit"
+                                          data-testid={`link-shopify-store-${product.id}`}
+                                        >
                                           <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                          <a href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[120px]" data-testid={`link-shopify-store-${product.id}`}>
-                                            {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
-                                          </a>
-                                        </div>
+                                          <span className="text-xs text-green-700 dark:text-green-400 hover:underline font-medium">Shopify</span>
+                                        </a>
                                       ) : (
                                         <span className="text-xs text-muted-foreground">Manual</span>
                                       )}
