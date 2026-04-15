@@ -115,7 +115,7 @@ export default function AdminProductDetail() {
               {product.pushedToZoho ? (
                 <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">Zoho Synced</Badge>
               ) : (
-                <Badge className="text-xs bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100">Not in Zoho</Badge>
+                <Badge className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 hover:bg-orange-100 border-orange-200 dark:border-orange-800">Not in Zoho</Badge>
               )}
               {product.shopifyStatus && (
                 <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
