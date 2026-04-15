@@ -165,6 +165,7 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                   <TableHead>Form #</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
                   <TableHead>Last updated</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
@@ -183,6 +184,9 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                       <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>
                         {STATUS_LABELS[form.status] || form.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {form.createdAt ? new Date(form.createdAt).toLocaleDateString("fr-CA") : "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
