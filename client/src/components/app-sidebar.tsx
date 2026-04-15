@@ -51,7 +51,7 @@ const adminItems = [
   { title: "Products", url: "/admin/products", icon: Package },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
   { title: "Service Requests", url: "/admin/forms", icon: ClipboardList },
-  { title: "Work Orders", url: "/admin/restock-requests", icon: RefreshCw },
+  { title: "Inventory Requests", url: "/admin/restock-requests", icon: RefreshCw },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
@@ -60,7 +60,7 @@ const clientItems = [
   { title: "Profile", url: "/portal/profile", icon: User },
   { title: "Products", url: "/portal/products", icon: Package },
   { title: "Service Requests", url: "/portal/forms", icon: ClipboardList },
-  { title: "Work Orders", url: "/portal/restock", icon: RefreshCw },
+  { title: "Inventory Requests", url: "/portal/restock", icon: RefreshCw },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
