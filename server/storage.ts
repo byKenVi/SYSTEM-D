@@ -3,6 +3,7 @@ import {
   products, type Product, type InsertProduct,
   restockRequests, type RestockRequest, type InsertRestockRequest,
   shopifyIntegrations, type ShopifyIntegration, type InsertShopifyIntegration,
+  shopifyOrders, type ShopifyOrder, type InsertShopifyOrder,
   adminSettings, type AdminSettings, type InsertAdminSettings,
   activityLogs, type ActivityLog, type InsertActivityLog,
   formSubmissions, type FormSubmission, type InsertFormSubmission,
@@ -39,6 +40,10 @@ export interface IStorage {
   updateShopifyIntegration(id: number, data: Partial<InsertShopifyIntegration>): Promise<ShopifyIntegration | undefined>;
   deleteShopifyIntegration(id: number): Promise<void>;
   getShopifyIntegrationsDueForSync(): Promise<ShopifyIntegration[]>;
+  getShopifyIntegrationsDueForOrderSync(): Promise<ShopifyIntegration[]>;
+
+  getShopifyOrders(filters?: { contactId?: number }): Promise<ShopifyOrder[]>;
+  upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
@@ -193,6 +198,54 @@ export class DatabaseStorage implements IStorage {
         )
       )
     );
+  }
+
+  async getShopifyIntegrationsDueForOrderSync(): Promise<ShopifyIntegration[]> {
+    return db.select().from(shopifyIntegrations).where(
+      and(
+        eq(shopifyIntegrations.isActive, true),
+        gt(shopifyIntegrations.orderSyncFrequencyMinutes, 0),
+        or(
+          isNull(shopifyIntegrations.lastOrderSyncAt),
+          sql`${shopifyIntegrations.lastOrderSyncAt} < NOW() - (${shopifyIntegrations.orderSyncFrequencyMinutes} || ' minutes')::interval`
+        )
+      )
+    );
+  }
+
+  async getShopifyOrders(filters?: { contactId?: number }): Promise<ShopifyOrder[]> {
+    if (filters?.contactId) {
+      return db.select().from(shopifyOrders)
+        .where(eq(shopifyOrders.contactId, filters.contactId))
+        .orderBy(desc(shopifyOrders.shopifyCreatedAt));
+    }
+    return db.select().from(shopifyOrders).orderBy(desc(shopifyOrders.shopifyCreatedAt));
+  }
+
+  async upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void> {
+    if (orders.length === 0) return;
+    for (const order of orders) {
+      await db.insert(shopifyOrders)
+        .values(order)
+        .onConflictDoUpdate({
+          target: [shopifyOrders.integrationId, shopifyOrders.shopifyOrderId],
+          set: {
+            name: order.name,
+            shopifyCreatedAt: order.shopifyCreatedAt,
+            financialStatus: order.financialStatus,
+            fulfillmentStatus: order.fulfillmentStatus,
+            totalPrice: order.totalPrice,
+            currency: order.currency,
+            email: order.email,
+            customerFirstName: order.customerFirstName,
+            customerLastName: order.customerLastName,
+            lineItems: order.lineItems,
+            shopName: order.shopName,
+            storeUrl: order.storeUrl,
+            syncedAt: new Date(),
+          },
+        });
+    }
   }
 
   async getAdminSettings(): Promise<AdminSettings | undefined> {

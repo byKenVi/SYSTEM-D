@@ -218,35 +218,69 @@ export async function registerRoutes(
   // All orders across all connected Shopify stores
   app.get("/api/admin/orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const integrations = await storage.getShopifyIntegrations();
-      const active = integrations.filter((i) => i.isActive);
-      const contacts = await storage.getContacts();
+      const allContacts = await storage.getContacts();
+      const cachedOrders = await storage.getShopifyOrders();
 
-      const results = await Promise.allSettled(
-        active.map(async (integration) => {
-          const contact = contacts.find((c) => c.id === integration.contactId);
-          const orders = await fetchShopifyOrders(integration.storeUrl, integration.accessToken, 250);
-          return orders.map((order: any) => ({
-            ...order,
-            contactId: integration.contactId,
-            contactName: contact?.name ?? null,
-            companyName: contact?.companyName ?? null,
-            shopName: integration.shopName,
-            storeUrl: integration.storeUrl,
-          }));
-        })
-      );
+      const enriched = cachedOrders.map((o) => {
+        const contact = allContacts.find((c) => c.id === o.contactId);
+        return {
+          id: Number(o.shopifyOrderId),
+          name: o.name,
+          created_at: o.shopifyCreatedAt ? o.shopifyCreatedAt.toISOString() : new Date(0).toISOString(),
+          financial_status: o.financialStatus,
+          fulfillment_status: o.fulfillmentStatus,
+          total_price: o.totalPrice,
+          currency: o.currency,
+          email: o.email,
+          customer: (o.customerFirstName || o.customerLastName)
+            ? { first_name: o.customerFirstName ?? "", last_name: o.customerLastName ?? "" }
+            : null,
+          line_items: (o.lineItems as any[]) ?? [],
+          contactId: o.contactId,
+          contactName: contact?.name ?? null,
+          companyName: contact?.companyName ?? null,
+          shopName: o.shopName,
+          storeUrl: o.storeUrl,
+        };
+      });
 
-      const allOrders: any[] = [];
-      for (const result of results) {
-        if (result.status === "fulfilled") allOrders.push(...result.value);
-      }
-      allOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      enriched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      res.json({ orders: allOrders, totalCount: allOrders.length });
+      res.json({ orders: enriched, totalCount: enriched.length });
     } catch (error: any) {
       console.error("Error fetching all orders:", error);
       res.status(500).json({ message: error.message || "Failed to fetch orders" });
+    }
+  });
+
+  app.post("/api/admin/orders/sync", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { syncOrdersForIntegration } = await import("./shopify-orders-sync");
+      const integrations = await storage.getShopifyIntegrations();
+      const active = integrations.filter((i) => i.isActive);
+      if (active.length === 0) return res.json({ message: "No active integrations", synced: 0 });
+
+      let total = 0;
+      const errors: string[] = [];
+      for (const integration of active) {
+        try {
+          const count = await syncOrdersForIntegration(integration);
+          total += count;
+        } catch (err: any) {
+          errors.push(`${integration.storeUrl}: ${err.message}`);
+        }
+      }
+
+      await storage.createActivityLog({
+        type: "shopify_orders_sync",
+        status: errors.length > 0 ? "error" : "success",
+        message: `Manual orders sync: ${total} order${total !== 1 ? "s" : ""} updated across ${active.length} store${active.length !== 1 ? "s" : ""}${errors.length > 0 ? ` (${errors.length} errors)` : ""}`,
+      });
+
+      res.json({ message: `${total} orders synced from ${active.length} store(s)`, synced: total, errors });
+    } catch (error: any) {
+      console.error("Error syncing orders:", error);
+      res.status(500).json({ message: error.message || "Failed to sync orders" });
     }
   });
 
@@ -564,6 +598,23 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error updating sync frequency:", error);
       res.status(500).json({ message: "Failed to update sync frequency" });
+    }
+  });
+
+  app.patch("/api/shopify-integrations/:id/order-sync-frequency", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { orderSyncFrequencyMinutes } = req.body;
+      if (typeof orderSyncFrequencyMinutes !== "number" || orderSyncFrequencyMinutes < 0) {
+        return res.status(400).json({ message: "Invalid order sync frequency" });
+      }
+      const updated = await storage.updateShopifyIntegration(Number(req.params.id), {
+        orderSyncFrequencyMinutes,
+      });
+      if (!updated) return res.status(404).json({ message: "Integration not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating order sync frequency:", error);
+      res.status(500).json({ message: "Failed to update order sync frequency" });
     }
   });
 

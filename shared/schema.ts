@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -34,13 +34,41 @@ export const shopifyIntegrations = pgTable("shopify_integrations", {
   scope: text("scope"),
   syncFrequencyMinutes: integer("sync_frequency_minutes").notNull().default(0),
   lastAutoSyncAt: timestamp("last_auto_sync_at"),
+  orderSyncFrequencyMinutes: integer("order_sync_frequency_minutes").notNull().default(0),
+  lastOrderSyncAt: timestamp("last_order_sync_at"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const shopifyOrders = pgTable("shopify_orders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  integrationId: integer("integration_id").notNull(),
+  contactId: integer("contact_id").notNull(),
+  shopifyOrderId: text("shopify_order_id").notNull(),
+  name: text("name").notNull(),
+  shopifyCreatedAt: timestamp("shopify_created_at"),
+  financialStatus: text("financial_status"),
+  fulfillmentStatus: text("fulfillment_status"),
+  totalPrice: text("total_price").notNull().default("0"),
+  currency: text("currency").notNull().default("CAD"),
+  email: text("email"),
+  customerFirstName: text("customer_first_name"),
+  customerLastName: text("customer_last_name"),
+  lineItems: jsonb("line_items").notNull().default([]),
+  shopName: text("shop_name"),
+  storeUrl: text("store_url").notNull(),
+  syncedAt: timestamp("synced_at").defaultNow(),
+}, (table) => ({
+  integrationOrderUnique: unique().on(table.integrationId, table.shopifyOrderId),
+}));
+
 export const insertShopifyIntegrationSchema = createInsertSchema(shopifyIntegrations).omit({ id: true, createdAt: true });
 export type InsertShopifyIntegration = z.infer<typeof insertShopifyIntegrationSchema>;
 export type ShopifyIntegration = typeof shopifyIntegrations.$inferSelect;
+
+export const insertShopifyOrderSchema = createInsertSchema(shopifyOrders).omit({ id: true, syncedAt: true });
+export type InsertShopifyOrder = z.infer<typeof insertShopifyOrderSchema>;
+export type ShopifyOrder = typeof shopifyOrders.$inferSelect;
 
 export const products = pgTable("products", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

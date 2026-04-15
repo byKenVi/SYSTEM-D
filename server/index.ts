@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seedDatabase } from "./seed";
 import { startShopifySyncScheduler } from "./shopify-sync";
+import { startShopifyOrdersSyncScheduler } from "./shopify-orders-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
 import { startShopifyWritebackScheduler } from "./shopify-writeback";
 
@@ -104,6 +105,7 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
       startShopifySyncScheduler();
+      startShopifyOrdersSyncScheduler();
       startZohoSyncScheduler();
       startShopifyWritebackScheduler();
     },

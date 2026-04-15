@@ -118,6 +118,16 @@ shared/
 - `zohoLastAutoSyncAt` tracked in `admin_settings` to determine sync cadence
 - Auto-sync frequency configurable in Settings → Zoho Inventory card (shown when connected)
 
+## Orders Sync (Shopify → DB)
+- Orders are cached in a local `shopify_orders` table (no live fetch on page load)
+- Background scheduler (`server/shopify-orders-sync.ts`) checks every 60s for integrations due for order sync
+- `orderSyncFrequencyMinutes` stored per integration in `shopify_integrations` (0=disabled, 15/30/60/360/720/1440 min)
+- `lastOrderSyncAt` tracked per integration
+- `GET /api/admin/orders` reads from local DB (fast, no Shopify API call)
+- `POST /api/admin/orders/sync` manual trigger (syncs all active integrations immediately)
+- "Sync Now" button on Orders page + order sync frequency dropdown per integration in Settings → Shopify Integration card
+- Activity logs recorded as type `shopify_orders_sync`
+
 ## Shopify Inventory Writeback (Zoho → Shopify)
 - After Zoho inventory syncs to the app, those stock levels can be pushed back to Shopify
 - Uses `shopifyInventoryItemId` stored per product (captured during Shopify import)
