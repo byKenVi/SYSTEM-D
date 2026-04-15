@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download } from "lucide-react";
+import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download, User, FileText } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData, type TriFormData } from "@/components/forms/tri-form";
@@ -195,93 +195,123 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const formFieldsDisabled = role === "client" && !isDraft;
   const revisionHistory = Array.isArray(form.revisionHistory) ? form.revisionHistory : (typeof form.revisionHistory === "string" ? JSON.parse(form.revisionHistory) : []);
 
+  const statusBorderColor: Record<string, string> = {
+    draft: "border-l-gray-400",
+    submitted: "border-l-blue-500",
+    in_review: "border-l-amber-500",
+    approved: "border-l-emerald-500",
+    completed: "border-l-purple-500",
+  };
+
+  const adminTransitions: Record<string, { value: string; label: string }[]> = {
+    submitted: [{ value: "in_review", label: "Move to In Review" }],
+    in_review: [{ value: "approved", label: "Approve" }, { value: "submitted", label: "Back to Submitted" }],
+    approved: [{ value: "completed", label: "Mark Completed" }, { value: "in_review", label: "Back to In Review" }],
+    completed: [],
+  };
+  const statusOptions = adminTransitions[form.status] || [];
+
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href={backUrl}>
-            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-back-forms">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold" data-testid="text-form-number">{form.formNumber}</h1>
-              <Badge className={STATUS_COLORS[form.status]}>{STATUS_LABELS[form.status] || form.status}</Badge>
+      {/* Header card */}
+      <div className={`rounded-xl border bg-card shadow-sm border-l-4 ${statusBorderColor[form.status] || "border-l-gray-300"}`}>
+        <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+
+          {/* Left: back + identity */}
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <Link href={backUrl}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 mt-0.5 flex-shrink-0" data-testid="button-back-forms">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold font-mono tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
+                <Badge className={`${STATUS_COLORS[form.status]} text-xs`}>{STATUS_LABELS[form.status] || form.status}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+                {FORM_TYPE_LABELS[form.formType] || form.formType}
+              </p>
+              {contact && (
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                  <User className="h-3 w-3 flex-shrink-0" />
+                  {contact.name}{contact.companyName ? ` · ${contact.companyName}` : ""}
+                </p>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">{FORM_TYPE_LABELS[form.formType] || form.formType}</p>
-            {contact && <p className="text-xs text-muted-foreground">Client: {contact.name}{contact.companyName ? ` (${contact.companyName})` : ""}</p>}
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {isDraft && saveStatus === "saving" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Saving...</span>}
-          {isDraft && saveStatus === "saved" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Cloud className="h-3 w-3" />Saved</span>}
-          {isDraft && saveStatus === "error" && <span className="text-xs text-destructive flex items-center gap-1"><CloudOff className="h-3 w-3" />Save error</span>}
+          {/* Right: actions */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
+            {/* Auto-save indicator */}
+            {isDraft && saveStatus === "saving" && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />Saving…
+              </span>
+            )}
+            {isDraft && saveStatus === "saved" && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Cloud className="h-3 w-3" />Saved
+              </span>
+            )}
+            {isDraft && saveStatus === "error" && (
+              <span className="text-xs text-destructive flex items-center gap-1">
+                <CloudOff className="h-3 w-3" />Save error
+              </span>
+            )}
 
-          {role === "admin" && !isDraft && (() => {
-            const adminTransitions: Record<string, { value: string; label: string }[]> = {
-              submitted: [{ value: "in_review", label: "In Review" }],
-              in_review: [{ value: "approved", label: "Approved" }, { value: "submitted", label: "Submitted" }],
-              approved: [{ value: "completed", label: "Completed" }, { value: "in_review", label: "In Review" }],
-              completed: [],
-            };
-            const options = adminTransitions[form.status] || [];
-            if (options.length === 0) return null;
-            return (
+            {/* Status change dropdown (admin, non-draft) */}
+            {role === "admin" && !isDraft && statusOptions.length > 0 && (
               <Select value="" onValueChange={(v) => statusMutation.mutate(v)} disabled={statusMutation.isPending}>
-                <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-form-status">
-                  <SelectValue placeholder="Change status..." />
+                <SelectTrigger className="w-[180px] h-8 text-xs" data-testid="select-form-status">
+                  <SelectValue placeholder="Change status…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {options.map((o) => (
+                  {statusOptions.map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            );
-          })()}
+            )}
 
-          {!isDisabled && isDraft && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => saveDraftMutation.mutate()} disabled={saveDraftMutation.isPending} data-testid="button-save-draft">
-                <Save className="h-3.5 w-3.5 mr-1" />
-                {saveDraftMutation.isPending ? "..." : "Save"}
+            {/* Draft actions */}
+            {!isDisabled && isDraft && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => saveDraftMutation.mutate()} disabled={saveDraftMutation.isPending} data-testid="button-save-draft">
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  {saveDraftMutation.isPending ? "Saving…" : "Save"}
+                </Button>
+                <Button size="sm" onClick={() => setSubmitDialogOpen(true)} data-testid="button-submit-form">
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                  Submit
+                </Button>
+              </>
+            )}
+
+            {/* Admin save (non-draft) */}
+            {role === "admin" && !isDraft && (
+              <Button variant="outline" size="sm" onClick={() => {
+                apiRequest("PUT", `/api/forms/${formId}`, { data: formData, revisionDescription: "Admin edit" })
+                  .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
+                    toast({ title: "Changes saved" });
+                  })
+                  .catch(() => toast({ title: "Error", variant: "destructive" }));
+              }} data-testid="button-admin-save">
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                Save
               </Button>
-              <Button size="sm" onClick={() => setSubmitDialogOpen(true)} data-testid="button-submit-form">
-                <Send className="h-3.5 w-3.5 mr-1" />
-                Submit
+            )}
+
+            {/* PDF export */}
+            {!isDraft && (
+              <Button variant="outline" size="sm" onClick={() => window.open(`/api/forms/${formId}/pdf`, "_blank")} data-testid="button-download-pdf">
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                PDF
               </Button>
-            </>
-          )}
-
-          {role === "admin" && !isDraft && (
-            <Button variant="outline" size="sm" onClick={() => {
-              apiRequest("PUT", `/api/forms/${formId}`, { data: formData, revisionDescription: "Admin edit" })
-                .then(() => {
-                  queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-                  toast({ title: "Changes saved" });
-                })
-                .catch(() => toast({ title: "Error", variant: "destructive" }));
-            }} data-testid="button-admin-save">
-              <Save className="h-3.5 w-3.5 mr-1" />
-              Save
-            </Button>
-          )}
-
-          {!isDraft && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                window.open(`/api/forms/${formId}/pdf`, "_blank");
-              }}
-              data-testid="button-download-pdf"
-            >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              PDF
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
