@@ -15,12 +15,14 @@ client/src/
   pages/
     landing.tsx         - Landing page for unauthenticated users
     admin/
+      dashboard.tsx     - Admin dashboard (stats, recent forms, status overview)
       contacts.tsx      - Admin contact management
       products.tsx      - Admin products & inventory
       restock-requests.tsx - Admin restock monitoring
       forms.tsx         - Admin forms dashboard (list, create, delete)
       settings.tsx      - Shopify & Zoho integration settings
     portal/
+      dashboard.tsx     - Client dashboard (stats, recent forms, quick actions)
       profile.tsx       - Client profile
       products.tsx      - Client products view
       restock.tsx       - Client restock requests

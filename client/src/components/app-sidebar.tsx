@@ -35,6 +35,7 @@ import {
   LogOut,
   Eye,
   ClipboardList,
+  LayoutDashboard,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -43,6 +44,7 @@ interface AppSidebarProps {
 }
 
 const adminItems = [
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Contacts", url: "/admin/contacts", icon: Users },
   { title: "Products & Inventory", url: "/admin/products", icon: Package },
   { title: "Restock Requests", url: "/admin/restock-requests", icon: RefreshCw },
@@ -51,6 +53,7 @@ const adminItems = [
 ];
 
 const clientItems = [
+  { title: "Dashboard", url: "/portal/dashboard", icon: LayoutDashboard },
   { title: "Profile", url: "/portal/profile", icon: User },
   { title: "Products & Inventory", url: "/portal/products", icon: Package },
   { title: "Restock Requests", url: "/portal/restock", icon: RefreshCw },

@@ -21,7 +21,9 @@ import PortalProfile from "@/pages/portal/profile";
 import PortalProducts from "@/pages/portal/products";
 import PortalRestock from "@/pages/portal/restock";
 import AdminForms from "@/pages/admin/forms";
+import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
+import PortalDashboard from "@/pages/portal/dashboard";
 
 interface UserRole {
   role: "admin" | "client";
@@ -41,13 +43,14 @@ function AdminLayout() {
         <div className="flex flex-col flex-1 min-w-0">
           <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-6">
             <Switch>
+              <Route path="/admin/dashboard" component={AdminDashboard} />
               <Route path="/admin/contacts" component={AdminContacts} />
               <Route path="/admin/products" component={AdminProducts} />
               <Route path="/admin/restock-requests" component={AdminRestockRequests} />
               <Route path="/admin/forms/:id?" component={AdminForms} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route path="/admin">
-                <Redirect to="/admin/contacts" />
+                <Redirect to="/admin/dashboard" />
               </Route>
               <Route component={NotFound} />
             </Switch>
@@ -72,6 +75,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
           {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
           <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-6">
             <Switch>
+              <Route path="/portal/dashboard">
+                <PortalDashboard viewAsContactId={viewAsContactId} />
+              </Route>
               <Route path="/portal/profile">
                 <PortalProfile viewAsContactId={viewAsContactId} />
               </Route>
@@ -85,7 +91,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
                 <PortalForms viewAsContactId={viewAsContactId} />
               </Route>
               <Route path="/portal">
-                <Redirect to={`/portal/profile${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
+                <Redirect to={`/portal/dashboard${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
               </Route>
               <Route component={NotFound} />
             </Switch>
@@ -190,7 +196,7 @@ function AuthenticatedApp() {
   const role = userRole.role;
 
   if (location === "/" || location === "") {
-    return <Redirect to={role === "admin" ? "/admin/contacts" : "/portal/profile"} />;
+    return <Redirect to={role === "admin" ? "/admin/dashboard" : "/portal/dashboard"} />;
   }
 
   if (location.startsWith("/admin")) {
@@ -205,7 +211,7 @@ function AuthenticatedApp() {
     return <ClientLayout viewAsContactId={viewAsContactId} />;
   }
 
-  return <Redirect to={role === "admin" ? "/admin/contacts" : "/portal/profile"} />;
+  return <Redirect to={role === "admin" ? "/admin/dashboard" : "/portal/dashboard"} />;
 }
 
 function Router() {
