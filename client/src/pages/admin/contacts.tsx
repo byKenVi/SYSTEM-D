@@ -38,7 +38,6 @@ import {
   Trash2,
   Send,
   MoreHorizontal,
-  Link2,
   ChevronsUpDown,
   ChevronUp,
   ChevronDown,
@@ -282,12 +281,6 @@ export default function AdminContacts() {
             >
               {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
             </Badge>
-            {contact.zohoCrmContactId && (
-              <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700 text-[10px] px-1.5 py-0 h-4" data-testid={`badge-zoho-synced-${contact.id}`}>
-                <Link2 className="h-2.5 w-2.5" />
-                Zoho
-              </Badge>
-            )}
             <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums" data-testid={`text-contact-created-${contact.id}`}>
               {contact.createdAt
                 ? new Date(contact.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
