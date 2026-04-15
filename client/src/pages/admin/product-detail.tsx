@@ -68,7 +68,7 @@ export default function AdminProductDetail() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-40" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Skeleton className="h-80 rounded-xl" />
@@ -97,7 +97,7 @@ export default function AdminProductDetail() {
   const clientName = contact?.companyName || contact?.name || `Client #${product.contactId}`;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
