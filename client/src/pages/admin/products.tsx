@@ -22,6 +22,8 @@ import {
   ExternalLink,
   ChevronDown,
   Trash2,
+  LayoutGrid,
+  LayoutList,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -250,6 +252,7 @@ export default function AdminProducts() {
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<"list" | "card">("list");
 
   const toggleCollapse = (contactId: number) => {
     setCollapsedGroups((prev) => {
@@ -397,6 +400,27 @@ export default function AdminProducts() {
               ))}
             </SelectContent>
           </Select>
+          {/* View toggle */}
+          <div className="flex items-center rounded-md border bg-muted/30 p-0.5 gap-0.5">
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode("list")}
+              data-testid="button-view-list"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "card" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode("card")}
+              data-testid="button-view-card"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {filtered && filtered.length > 0 && (
@@ -440,216 +464,290 @@ export default function AdminProducts() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
+      {/* ── LIST VIEW ── */}
+      {viewMode === "list" && (
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-14 w-full" />
+                ))}
+              </div>
+            ) : groupedByClient.length > 0 ? (
+              <div className="divide-y">
+                {groupedByClient.map((group) => {
+                  const clientName = group.contact?.companyName || group.contact?.name || group.contact?.email || "Unknown Client";
+                  const groupProductCount = group.products.length;
+                  const groupStock = group.products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
+                  const groupLow = group.products.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length;
+                  const isCollapsed = collapsedGroups.has(group.contactId);
+
+                  return (
+                    <div key={group.contactId} data-testid={`group-client-${group.contactId}`}>
+                      <button
+                        type="button"
+                        className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30 border-b w-full text-left hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleCollapse(group.contactId)}
+                        data-testid={`button-toggle-group-${group.contactId}`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Users className="h-3.5 w-3.5 text-primary" />
+                          </div>
+                          <span className="font-semibold text-sm" data-testid={`text-group-client-name-${group.contactId}`}>{clientName}</span>
+                          <Badge variant="secondary" className="text-xs font-normal">{groupProductCount} {groupProductCount === 1 ? "product" : "products"}</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>{groupStock.toLocaleString()} in stock</span>
+                          {groupLow > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />{groupLow} low
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="overflow-x-auto scrollbar-hide">
+                          <Table className="min-w-[800px] w-full">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-10">
+                                  <Checkbox
+                                    checked={group.products.every((p) => selected.has(p.id))}
+                                    onCheckedChange={() => {
+                                      const allSelected = group.products.every((p) => selected.has(p.id));
+                                      const next = new Set(selected);
+                                      group.products.forEach((p) => { if (allSelected) next.delete(p.id); else next.add(p.id); });
+                                      setSelected(next);
+                                    }}
+                                    data-testid={`checkbox-select-all-${group.contactId}`}
+                                  />
+                                </TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>SKU</TableHead>
+                                <TableHead>Source</TableHead>
+                                <TableHead className="text-right">Price</TableHead>
+                                <TableHead className="text-right">Shopify Stock</TableHead>
+                                <TableHead className="text-right">Zoho Stock</TableHead>
+                                <TableHead>Zoho</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {group.products.map((product) => {
+                                const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
+                                return (
+                                  <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => setSelectedProduct(product)}>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                      <Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} />
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-3">
+                                        {product.imageUrl ? (
+                                          <img src={product.imageUrl} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" />
+                                        ) : (
+                                          <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                                            <Package className="h-4 w-4 text-muted-foreground" />
+                                          </div>
+                                        )}
+                                        <span className="font-medium" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground font-mono text-sm">{product.sku || "—"}</TableCell>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                      {product.shopifyStoreUrl ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                          <a href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[120px]" data-testid={`link-shopify-store-${product.id}`}>
+                                            {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
+                                          </a>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">Manual</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</TableCell>
+                                    <TableCell className="text-right">
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                                        <span className={isLow ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>{product.inventoryQuantity}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-sm" data-testid={`text-zoho-stock-${product.id}`}>
+                                      {product.pushedToZoho && product.zohoInventoryQuantity != null ? (
+                                        <span className="text-primary">{product.zohoInventoryQuantity}</span>
+                                      ) : <span className="text-muted-foreground">—</span>}
+                                    </TableCell>
+                                    <TableCell>
+                                      {product.pushedToZoho ? <Badge variant="default" className="text-xs">Synced</Badge> : <Badge variant="secondary" className="text-xs">Not pushed</Badge>}
+                                    </TableCell>
+                                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        {!product.pushedToZoho && (
+                                          <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}>
+                                            <Upload className="h-3.5 w-3.5 mr-1" />Push
+                                          </Button>
+                                        )}
+                                        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}>
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-12 text-center">
+                <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground font-medium">No products found</p>
+                <p className="text-sm text-muted-foreground mt-1">Import products from client Shopify stores in Settings.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── CARD VIEW ── */}
+      {viewMode === "card" && (
+        <div>
           {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-14 w-full" />
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
             </div>
           ) : groupedByClient.length > 0 ? (
-            <div className="divide-y">
+            <div className="space-y-6">
               {groupedByClient.map((group) => {
                 const clientName = group.contact?.companyName || group.contact?.name || group.contact?.email || "Unknown Client";
-                const groupProductCount = group.products.length;
-                const groupStock = group.products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
                 const groupLow = group.products.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length;
-
                 const isCollapsed = collapsedGroups.has(group.contactId);
 
                 return (
-                  <div key={group.contactId} data-testid={`group-client-${group.contactId}`}>
+                  <div key={group.contactId} data-testid={`group-client-card-${group.contactId}`}>
+                    {/* Client group header */}
                     <button
                       type="button"
-                      className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30 border-b w-full text-left hover:bg-muted/50 transition-colors"
+                      className="flex items-center gap-2.5 mb-3 w-full text-left group"
                       onClick={() => toggleCollapse(group.contactId)}
-                      data-testid={`button-toggle-group-${group.contactId}`}
+                      data-testid={`button-toggle-group-card-${group.contactId}`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <ChevronDown
-                          className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
-                        />
-                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Users className="h-3.5 w-3.5 text-primary" />
-                        </div>
-                        <span className="font-semibold text-sm" data-testid={`text-group-client-name-${group.contactId}`}>
-                          {clientName}
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Users className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="font-semibold text-sm">{clientName}</span>
+                      <Badge variant="secondary" className="text-xs font-normal">{group.products.length}</Badge>
+                      {groupLow > 0 && (
+                        <span className="text-amber-600 dark:text-amber-400 text-xs flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />{groupLow} low
                         </span>
-                        <Badge variant="secondary" className="text-xs font-normal">
-                          {groupProductCount} {groupProductCount === 1 ? "product" : "products"}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>{groupStock.toLocaleString()} in stock</span>
-                        {groupLow > 0 && (
-                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            {groupLow} low
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </button>
+
                     {!isCollapsed && (
-                    <div className="overflow-x-auto scrollbar-hide">
-                    <Table className="min-w-[800px] w-full">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10">
-                            <Checkbox
-                              checked={group.products.every((p) => selected.has(p.id))}
-                              onCheckedChange={() => {
-                                const allSelected = group.products.every((p) => selected.has(p.id));
-                                const next = new Set(selected);
-                                group.products.forEach((p) => {
-                                  if (allSelected) next.delete(p.id);
-                                  else next.add(p.id);
-                                });
-                                setSelected(next);
-                              }}
-                              data-testid={`checkbox-select-all-${group.contactId}`}
-                            />
-                          </TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>SKU</TableHead>
-                          <TableHead>Source</TableHead>
-                          <TableHead className="text-right">Price</TableHead>
-                          <TableHead className="text-right">Shopify Stock</TableHead>
-                          <TableHead className="text-right">Zoho Stock</TableHead>
-                          <TableHead>Zoho</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                         {group.products.map((product) => {
                           const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
+                          const isSelected = selected.has(product.id);
                           return (
-                            <TableRow
+                            <div
                               key={product.id}
-                              data-testid={`row-product-${product.id}`}
-                              className="cursor-pointer"
+                              data-testid={`card-product-${product.id}`}
+                              className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`}
                               onClick={() => setSelectedProduct(product)}
                             >
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  checked={selected.has(product.id)}
-                                  onCheckedChange={() => toggleSelect(product.id)}
-                                  data-testid={`checkbox-product-${product.id}`}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-3">
-                                  {product.imageUrl ? (
-                                    <img
-                                      src={product.imageUrl}
-                                      alt={product.name}
-                                      className="h-9 w-9 rounded-md object-cover flex-shrink-0"
-                                    />
-                                  ) : (
-                                    <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                                      <Package className="h-4 w-4 text-muted-foreground" />
-                                    </div>
+                              {/* Select checkbox */}
+                              <div
+                                className="absolute top-2 left-2 z-10"
+                                onClick={(e) => { e.stopPropagation(); toggleSelect(product.id); }}
+                              >
+                                <div className={`h-5 w-5 rounded border-2 flex items-center justify-center bg-background transition-colors ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary"}`}>
+                                  {isSelected && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-primary-foreground"><path d="M20 6 9 17l-5-5"/></svg>
                                   )}
-                                  <span className="font-medium" data-testid={`text-product-name-${product.id}`}>
-                                    {product.name}
-                                  </span>
                                 </div>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground font-mono text-sm">
-                                {product.sku || "—"}
-                              </TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                {product.shopifyStoreUrl ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                    <a
-                                      href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[120px]"
-                                      title={`Shopify ID: ${product.shopifyProductId}`}
-                                      data-testid={`link-shopify-store-${product.id}`}
-                                    >
-                                      {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
-                                    </a>
+                              </div>
+
+                              {/* Zoho badge */}
+                              {product.pushedToZoho && (
+                                <div className="absolute top-2 right-2 z-10">
+                                  <span className="inline-flex items-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[9px] font-semibold px-1.5 py-0.5">Zoho</span>
+                                </div>
+                              )}
+
+                              {/* Image */}
+                              <div className="aspect-square w-full overflow-hidden rounded-t-xl bg-muted">
+                                {product.imageUrl ? (
+                                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Package className="h-10 w-10 text-muted-foreground/30" />
                                   </div>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">Manual</span>
                                 )}
-                              </TableCell>
-                              <TableCell className="text-right font-mono">
-                                {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
-                                  <span className={isLow ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
-                                    {product.inventoryQuantity}
+                              </div>
+
+                              {/* Info */}
+                              <div className="p-3 space-y-1.5">
+                                <p className="text-sm font-semibold leading-tight line-clamp-2" data-testid={`text-card-product-name-${product.id}`}>
+                                  {product.name}
+                                </p>
+                                {product.sku && (
+                                  <p className="text-[11px] font-mono text-muted-foreground truncate">{product.sku}</p>
+                                )}
+                                <div className="flex items-center justify-between pt-0.5">
+                                  <span className="text-xs font-medium">
+                                    {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
+                                  </span>
+                                  <span className={`text-xs font-semibold flex items-center gap-1 ${isLow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                                    {isLow && <AlertTriangle className="h-3 w-3" />}
+                                    {product.inventoryQuantity} units
                                   </span>
                                 </div>
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm" data-testid={`text-zoho-stock-${product.id}`}>
-                                {product.pushedToZoho && product.zohoInventoryQuantity != null ? (
-                                  <span className="text-primary">{product.zohoInventoryQuantity}</span>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
+                                {product.pushedToZoho && product.zohoInventoryQuantity != null && (
+                                  <p className="text-[11px] text-violet-600 dark:text-violet-400 font-medium">
+                                    Zoho: {product.zohoInventoryQuantity} units
+                                  </p>
                                 )}
-                              </TableCell>
-                              <TableCell>
-                                {product.pushedToZoho ? (
-                                  <Badge variant="default" className="text-xs">Synced</Badge>
-                                ) : (
-                                  <Badge variant="secondary" className="text-xs">Not pushed</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-end gap-1.5">
-                                  {!product.pushedToZoho && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => pushToZohoMutation.mutate([product.id])}
-                                      disabled={pushToZohoMutation.isPending}
-                                      data-testid={`button-push-zoho-${product.id}`}
-                                    >
-                                      <Upload className="h-3.5 w-3.5 mr-1" />
-                                      Push
-                                    </Button>
-                                  )}
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-muted-foreground hover:text-destructive"
-                                    onClick={() => handleDeleteClick(product)}
-                                    disabled={deleteProductMutation.isPending}
-                                    data-testid={`button-delete-product-${product.id}`}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
+                              </div>
+
+                              {/* Actions */}
+                              <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                {!product.pushedToZoho && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}>
+                                    <Upload className="h-3 w-3 mr-1" />Push
                                   </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
+                                )}
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
                           );
                         })}
-                      </TableBody>
-                    </Table>
-                    </div>
+                      </div>
                     )}
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="p-12 text-center">
+            <div className="p-12 text-center border rounded-xl bg-card">
               <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
               <p className="text-muted-foreground font-medium">No products found</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Import products from client Shopify stores in Settings.
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">Import products from client Shopify stores in Settings.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {selectedProduct && (
         <ProductDetailDialog
