@@ -80,15 +80,15 @@ export { defaultInspectionData };
 export type { InspectionFormData };
 
 const PPE_OPTIONS = [
-  "Safety glasses",
-  "Steel toe boots/shoes",
-  "Gloves",
-  "Hearing protection",
-  "Hard hat",
-  "Other",
+  "Lunettes de sécurité",
+  "Chaussures à embout d'acier",
+  "Gants",
+  "Protection auditive",
+  "Casque de sécurité",
+  "Autre",
 ];
 
-const CONTROL_METHODS = ["Visual", "Electrical", "Dimensional", "Other"];
+const CONTROL_METHODS = ["Visuel", "Électrique", "Dimensionnel", "Autre"];
 
 export function InspectionForm({ data, onChange, disabled, revisionHistory = [], onFileAdded }: InspectionFormProps) {
   const d = { ...defaultInspectionData, ...data };
@@ -136,27 +136,27 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label># Work Instruction</Label>
+              <Label># Instruction de travail</Label>
               <Input value={d.workInstruction} disabled className="opacity-60" data-testid="input-ins-work-instruction" />
             </div>
             <div className="space-y-2">
-              <Label>Customer</Label>
+              <Label>Client</Label>
               <Input value={d.customer} disabled className="opacity-60" data-testid="input-ins-customer" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Part Number</Label>
+              <Label>Numéro de pièce</Label>
               <Input value={d.partNumber} disabled className="opacity-60" data-testid="input-ins-part-number" />
             </div>
             <div className="space-y-2">
-              <Label>Part Name</Label>
+              <Label>Nom de la pièce</Label>
               <Input value={d.partName} onChange={(e) => update({ partName: e.target.value })} disabled={disabled} data-testid="input-ins-part-name" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Control Sample</Label>
+              <Label>Échantillon de contrôle</Label>
               <Select value={d.controlSample} onValueChange={(v) => update({ controlSample: v })} disabled={disabled}>
                 <SelectTrigger data-testid="select-ins-control-sample">
                   <SelectValue />
@@ -166,19 +166,19 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
                   <SelectItem value="50%">50%</SelectItem>
                   <SelectItem value="25%">25%</SelectItem>
                   <SelectItem value="10%">10%</SelectItem>
-                  <SelectItem value="Custom">Custom</SelectItem>
+                  <SelectItem value="Personnalisé">Personnalisé</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {d.controlSample === "Custom" && (
+            {d.controlSample === "Personnalisé" && (
               <div className="space-y-2">
-                <Label>Custom %</Label>
+                <Label>Pourcentage personnalisé</Label>
                 <Input type="number" value={d.customSamplePercent} onChange={(e) => update({ customSamplePercent: e.target.value })} disabled={disabled} placeholder="%" data-testid="input-ins-custom-sample" />
               </div>
             )}
           </div>
           <div className="space-y-2">
-            <Label>Measuring / Control Method</Label>
+            <Label>Méthode de mesure / contrôle</Label>
             <div className="flex flex-wrap gap-2">
               {CONTROL_METHODS.map((method) => (
                 <Button
@@ -196,7 +196,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Rework Tool</Label>
+            <Label>Outil de reprise</Label>
             <Input value={d.reworkTool} onChange={(e) => update({ reworkTool: e.target.value })} disabled={disabled} placeholder="N/A ou liste d'outils" data-testid="input-ins-rework-tool" />
           </div>
         </CardContent>
@@ -212,7 +212,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
             <Textarea value={d.inspectionDescription} onChange={(e) => update({ inspectionDescription: e.target.value })} disabled={disabled} rows={3} data-testid="input-ins-description" />
           </div>
           <div className="space-y-2">
-            <Label>Description du rework</Label>
+            <Label>Description de la reprise</Label>
             <Textarea value={d.reworkDescription} onChange={(e) => update({ reworkDescription: e.target.value })} disabled={disabled} rows={2} placeholder="N/A" data-testid="input-ins-rework-description" />
           </div>
         </CardContent>
@@ -247,7 +247,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
               </Button>
             ))}
           </div>
-          {d.ppe.includes("Other") && (
+          {d.ppe.includes("Autre") && (
             <Input value={d.ppeOther} onChange={(e) => update({ ppeOther: e.target.value })} disabled={disabled} placeholder="Spécifier..." data-testid="input-ins-ppe-other" />
           )}
         </CardContent>
@@ -255,7 +255,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
 
       <Card>
         <CardHeader className="pb-3">
-          <h3 className="font-semibold text-lg">E. Référence documentation</h3>
+          <h3 className="font-semibold text-lg">E. Référence de documentation</h3>
         </CardHeader>
         <CardContent>
           <Input value={d.documentationReference} onChange={(e) => update({ documentationReference: e.target.value })} disabled={disabled} placeholder="Ex: Inspection report F006-4" data-testid="input-ins-doc-ref" />
@@ -287,6 +287,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5">
                     <Label className="text-xs">Actif</Label>
+
                     <Switch checked={c.active} onCheckedChange={(v) => updateCriteria(i, { active: v })} disabled={disabled} data-testid={`switch-criteria-active-${i}`} />
                   </div>
                   {!disabled && (

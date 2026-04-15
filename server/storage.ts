@@ -56,6 +56,7 @@ export interface IStorage {
 
   createFormUpload(data: InsertFormUpload): Promise<FormUpload>;
   getFormUploadsBySubmission(formSubmissionId: number): Promise<FormUpload[]>;
+  getUploadByFilename(filename: string): Promise<FormUpload | undefined>;
   deleteFormUpload(id: number): Promise<void>;
 }
 
@@ -279,6 +280,12 @@ export class DatabaseStorage implements IStorage {
 
   async getFormUploadsBySubmission(formSubmissionId: number): Promise<FormUpload[]> {
     return db.select().from(formUploads).where(eq(formUploads.formSubmissionId, formSubmissionId));
+  }
+
+  async getUploadByFilename(filename: string): Promise<FormUpload | undefined> {
+    const fileUrl = `/api/uploads/${filename}`;
+    const [upload] = await db.select().from(formUploads).where(eq(formUploads.fileUrl, fileUrl));
+    return upload;
   }
 
   async deleteFormUpload(id: number): Promise<void> {

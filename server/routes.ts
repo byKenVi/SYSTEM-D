@@ -1059,11 +1059,31 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/uploads/:filename", isAuthenticated, (req, res) => {
-    const sanitized = path.basename(req.params.filename);
-    const filePath = path.join(uploadsDir, sanitized);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found" });
-    res.sendFile(filePath);
+  app.get("/api/uploads/:filename", isAuthenticated, async (req: any, res) => {
+    try {
+      const sanitized = path.basename(req.params.filename);
+      const filePath = path.join(uploadsDir, sanitized);
+      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found" });
+
+      const role = await getUserRole(req);
+      if (role === "admin") return res.sendFile(filePath);
+
+      const upload = await storage.getUploadByFilename(sanitized);
+      if (!upload) return res.status(404).json({ message: "File not found" });
+
+      const form = await storage.getForm(upload.formSubmissionId);
+      if (!form) return res.status(404).json({ message: "File not found" });
+
+      const contact = await storage.getContactByEmail(req.user.claims.email);
+      if (!contact || form.contactId !== contact.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      res.sendFile(filePath);
+    } catch (error: any) {
+      console.error("Error serving upload:", error);
+      res.status(500).json({ message: "Error serving file" });
+    }
   });
 
   app.get("/api/forms", isAuthenticated, async (req: any, res) => {
@@ -1193,7 +1213,8 @@ export async function registerRoutes(
 
           if (form.formType === "tri") {
             const insFormNumber = await storage.getNextFormNumber("inspection");
-            const formData = (form.data || {}) as Record<string, string>;
+            const effectiveData = data !== undefined ? data : form.data;
+            const formData = (effectiveData || {}) as Record<string, string>;
             const insData = {
               customer: formData.client || "",
               partNumber: formData.codePiece || "",
