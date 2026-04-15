@@ -1570,7 +1570,11 @@ export async function registerRoutes(
       res.json({ salesOrderId, salesOrderNumber, zohoSalesOrderUrl });
     } catch (error: any) {
       console.error(`[zoho] Failed to create SO:`, error.message);
-      res.status(500).json({ message: error.message || "Failed to create Zoho sales order" });
+      const msg = error.message || "";
+      if (msg.includes("invalid_code") || msg.includes("refresh error") || msg.includes("Token refresh failed")) {
+        return res.status(401).json({ message: "Votre connexion Zoho a expiré. Reconnectez Zoho dans Paramètres → Zoho Inventory.", code: "ZOHO_TOKEN_EXPIRED" });
+      }
+      res.status(500).json({ message: msg || "Failed to create Zoho sales order" });
     }
   });
 

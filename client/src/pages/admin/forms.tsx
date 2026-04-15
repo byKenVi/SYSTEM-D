@@ -902,7 +902,16 @@ export function AdminFormDetail({ id }: { id: number }) {
       toast({ title: "Bon de travail Zoho créé avec succès" });
     },
     onError: (err: any) => {
-      toast({ title: "Erreur Zoho", description: err.message || "Impossible de créer le bon de travail.", variant: "destructive" });
+      let description = "Impossible de créer le bon de travail.";
+      try {
+        const raw = err.message || "";
+        const jsonStr = raw.includes("{") ? raw.slice(raw.indexOf("{")) : null;
+        if (jsonStr) {
+          const parsed = JSON.parse(jsonStr);
+          description = parsed.message || description;
+        }
+      } catch {}
+      toast({ title: "Erreur Zoho", description, variant: "destructive" });
     },
   });
 
