@@ -62,6 +62,7 @@ export default function AdminDashboard() {
   });
 
   const activeContacts = contacts?.filter((c) => c.status === "active")?.length ?? 0;
+  const companiesCount = new Set(contacts?.filter((c) => c.companyName).map((c) => c.companyName)).size;
   const pendingRestocks = restockRequests?.filter((r) => r.status === "Processing")?.length ?? 0;
   const openForms = forms?.filter((f) => f.status !== "completed" && f.status !== "draft")?.length ?? 0;
   const submittedForms = forms?.filter((f) => f.status !== "draft") ?? [];
@@ -102,9 +103,13 @@ export default function AdminDashboard() {
                 {loadingContacts ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-contacts">{activeContacts}</p>
+                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-contacts">{contacts?.length ?? 0}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">{contacts?.length ?? 0} total</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-muted-foreground">{activeContacts} active</p>
+                  <span className="text-muted-foreground/30 text-xs">·</span>
+                  <p className="text-xs text-muted-foreground" data-testid="stat-value-companies">{companiesCount} {companiesCount === 1 ? "company" : "companies"}</p>
+                </div>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Users className="h-5 w-5 text-primary" />
