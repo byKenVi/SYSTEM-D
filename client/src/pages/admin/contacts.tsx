@@ -189,45 +189,45 @@ export default function AdminContacts() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Contacts</h1>
-        <p className="text-muted-foreground mt-1">Manage client contacts and invitations</p>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-            data-testid="input-search-contacts"
-          />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Contacts</h1>
+          <p className="text-muted-foreground mt-1">Manage client contacts and invitations</p>
         </div>
 
-        {/* View toggle */}
-        <div className="flex items-center border rounded-md overflow-hidden">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`rounded-none h-9 px-3 ${viewMode === "table" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-            onClick={() => setViewMode("table")}
-            data-testid="button-view-table"
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-5 bg-border" />
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`rounded-none h-9 px-3 ${viewMode === "card" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-            onClick={() => setViewMode("card")}
-            data-testid="button-view-card"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search contacts..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 w-56"
+              data-testid="input-search-contacts"
+            />
+          </div>
+
+          <div className="flex items-center border rounded-md overflow-hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`rounded-none h-9 px-3 ${viewMode === "table" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              onClick={() => setViewMode("table")}
+              data-testid="button-view-table"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <div className="w-px h-5 bg-border" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`rounded-none h-9 px-3 ${viewMode === "card" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              onClick={() => setViewMode("card")}
+              data-testid="button-view-card"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
