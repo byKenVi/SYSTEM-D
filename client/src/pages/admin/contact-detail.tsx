@@ -417,7 +417,7 @@ export default function ContactDetail() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Shopify Orders</CardTitle>
+            <CardTitle className="text-base">Orders</CardTitle>
             {ordersData?.orders && <Badge variant="secondary" className="ml-auto">{ordersData.orders.length}</Badge>}
             {ordersData?.shopName && (
               <span className="text-xs text-muted-foreground ml-1">from {ordersData.shopName}</span>
