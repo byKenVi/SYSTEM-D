@@ -519,7 +519,7 @@ export default function ContactDetail() {
             </Card>
           )}
 
-          {/* Products table */}
+          {/* Products table — always visible */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -592,6 +592,7 @@ export default function ContactDetail() {
           </Card>
 
           {/* Service Requests */}
+          {!(hideEmptyRelated && !formsLoading && (!contactForms || contactForms.length === 0)) && (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -683,6 +684,7 @@ export default function ContactDetail() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Orders table */}
           {!(hideEmptyRelated && (!contact.shopifyConnected || (!ordersLoading && (ordersData?.orders?.length ?? 0) === 0))) && (
