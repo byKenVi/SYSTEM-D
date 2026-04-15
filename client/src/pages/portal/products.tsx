@@ -208,23 +208,25 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                       <TableCell className="text-right">
                         {product.inventoryQuantity}
                       </TableCell>
-                      {!isViewAs && (
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRestockProduct(product);
-                              setRestockQty("");
-                            }}
-                            data-testid={`button-request-restock-${product.id}`}
-                          >
-                            <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                            Work Order
-                          </Button>
-                        </TableCell>
-                      )}
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isViewAs) {
+                              toast({ title: "Preview mode", description: "Clients see this button to submit a work order." });
+                              return;
+                            }
+                            setRestockProduct(product);
+                            setRestockQty("");
+                          }}
+                          data-testid={`button-request-restock-${product.id}`}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                          Work Order
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}

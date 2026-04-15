@@ -91,12 +91,19 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">My Service Requests</h1>
           <p className="text-muted-foreground mt-1">Submit and track your service requests</p>
         </div>
-        {!isViewAs && (
-          <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form-portal">
-            <Plus className="h-4 w-4 mr-1.5" />
-            New form
-          </Button>
-        )}
+        <Button
+          onClick={() => {
+            if (isViewAs) {
+              toast({ title: "Preview mode", description: "Clients see this button to create new service requests." });
+              return;
+            }
+            setNewFormOpen(true);
+          }}
+          data-testid="button-new-form-portal"
+        >
+          <Plus className="h-4 w-4 mr-1.5" />
+          New form
+        </Button>
       </div>
 
       {isLoading ? (
@@ -107,12 +114,20 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
         <div className="text-center py-16 text-muted-foreground">
           <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
           <p>No forms submitted yet</p>
-          {!isViewAs && (
-            <Button className="mt-4" onClick={() => setNewFormOpen(true)} data-testid="button-new-form-empty">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Create a form
-            </Button>
-          )}
+          <Button
+            className="mt-4"
+            onClick={() => {
+              if (isViewAs) {
+                toast({ title: "Preview mode", description: "Clients see this button to create new service requests." });
+                return;
+              }
+              setNewFormOpen(true);
+            }}
+            data-testid="button-new-form-empty"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Create a form
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
