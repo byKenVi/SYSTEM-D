@@ -21,8 +21,9 @@ import AdminSettingsPage from "@/pages/admin/settings";
 import PortalProfile from "@/pages/portal/profile";
 import PortalProducts from "@/pages/portal/products";
 import PortalRestock from "@/pages/portal/restock";
-import AdminForms from "@/pages/admin/forms";
+import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
 import AdminOrders from "@/pages/admin/orders";
+import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
 import PortalDashboard from "@/pages/portal/dashboard";
@@ -51,7 +52,13 @@ function AdminLayout() {
               <Route path="/admin/products" component={AdminProducts} />
               <Route path="/admin/orders" component={AdminOrders} />
               <Route path="/admin/restock-requests" component={AdminRestockRequests} />
-              <Route path="/admin/forms/:id?" component={AdminForms} />
+              <Route path="/admin/forms/:id/edit">
+                {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
+              </Route>
+              <Route path="/admin/forms/:id">
+                {(params) => <AdminFormDetail id={Number(params?.id)} />}
+              </Route>
+              <Route path="/admin/forms" component={AdminForms} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route path="/admin">
                 <Redirect to="/admin/dashboard" />
