@@ -36,6 +36,7 @@ import {
   Eye,
   ClipboardList,
   LayoutDashboard,
+  ShoppingCart,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -47,6 +48,7 @@ const adminItems = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Contacts", url: "/admin/contacts", icon: Users },
   { title: "Products", url: "/admin/products", icon: Package },
+  { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
   { title: "Restock Requests", url: "/admin/restock-requests", icon: RefreshCw },
   { title: "Forms", url: "/admin/forms", icon: ClipboardList },
   { title: "Settings", url: "/admin/settings", icon: Settings },

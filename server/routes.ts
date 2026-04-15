@@ -215,6 +215,41 @@ export async function registerRoutes(
     }
   });
 
+  // All orders across all connected Shopify stores
+  app.get("/api/admin/orders", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const integrations = await storage.getShopifyIntegrations();
+      const active = integrations.filter((i) => i.isActive);
+      const contacts = await storage.getContacts();
+
+      const results = await Promise.allSettled(
+        active.map(async (integration) => {
+          const contact = contacts.find((c) => c.id === integration.contactId);
+          const orders = await fetchShopifyOrders(integration.storeUrl, integration.accessToken, 250);
+          return orders.map((order: any) => ({
+            ...order,
+            contactId: integration.contactId,
+            contactName: contact?.name ?? null,
+            companyName: contact?.companyName ?? null,
+            shopName: integration.shopName,
+            storeUrl: integration.storeUrl,
+          }));
+        })
+      );
+
+      const allOrders: any[] = [];
+      for (const result of results) {
+        if (result.status === "fulfilled") allOrders.push(...result.value);
+      }
+      allOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      res.json({ orders: allOrders, totalCount: allOrders.length });
+    } catch (error: any) {
+      console.error("Error fetching all orders:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch orders" });
+    }
+  });
+
   app.get("/api/contacts/:id/shopify-orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.id);

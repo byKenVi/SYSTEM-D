@@ -18,6 +18,7 @@ client/src/
       dashboard.tsx     - Admin dashboard (stats, recent forms, status overview)
       contacts.tsx      - Admin contact management
       products.tsx      - Admin products & inventory
+      orders.tsx        - Admin orders view (all orders across all Shopify stores)
       restock-requests.tsx - Admin restock monitoring
       forms.tsx         - Admin forms dashboard (list, create, delete)
       settings.tsx      - Shopify & Zoho integration settings
@@ -63,6 +64,7 @@ shared/
 - `/api/contacts` - CRUD contacts
 - `/api/webhooks/zoho-crm` - Inbound webhook for contact creation (auto-sends invite email)
 - `/api/products` - Products management
+- `/api/admin/orders` - GET all orders across all active Shopify integrations (aggregated, sorted by date desc)
 - `/api/shopify-integrations` - Shopify store connections
 - `/api/admin-settings` - Admin settings (Zoho org info)
 - `/api/auth/zoho/connect` - Start Zoho OAuth flow (returns redirect URL)

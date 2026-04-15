@@ -22,6 +22,7 @@ import PortalProfile from "@/pages/portal/profile";
 import PortalProducts from "@/pages/portal/products";
 import PortalRestock from "@/pages/portal/restock";
 import AdminForms from "@/pages/admin/forms";
+import AdminOrders from "@/pages/admin/orders";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
 import PortalDashboard from "@/pages/portal/dashboard";
@@ -48,6 +49,7 @@ function AdminLayout() {
               <Route path="/admin/contacts/:id" component={AdminContactDetail} />
               <Route path="/admin/contacts" component={AdminContacts} />
               <Route path="/admin/products" component={AdminProducts} />
+              <Route path="/admin/orders" component={AdminOrders} />
               <Route path="/admin/restock-requests" component={AdminRestockRequests} />
               <Route path="/admin/forms/:id?" component={AdminForms} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
