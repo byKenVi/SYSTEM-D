@@ -179,7 +179,7 @@ export default function AdminProducts() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products</h1>
