@@ -83,16 +83,6 @@ export default function AdminCommandes() {
     });
   }, [forms, search, typeFilter, statusFilter, contactFilter, contactMap]);
 
-  const stats = useMemo(() => {
-    if (!forms) return { total: 0, approved: 0, completed: 0, revenue: 0 };
-    return {
-      total: forms.length,
-      approved: forms.filter((f) => f.status === "approved").length,
-      completed: forms.filter((f) => f.status === "completed").length,
-      revenue: forms.reduce((sum, f) => sum + (f.price ? Number(f.price) : 0), 0),
-    };
-  }, [forms]);
-
   return (
     <div className="space-y-6">
       <div>
@@ -102,54 +92,6 @@ export default function AdminCommandes() {
         <p className="text-muted-foreground mt-1">
           Services approuvés et complétés — catalogue de référence pour les clients
         </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total</p>
-            {isLoading ? (
-              <Skeleton className="h-8 w-16 mt-1" />
-            ) : (
-              <p className="text-2xl font-bold mt-1">{stats.total}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Approuvés</p>
-            {isLoading ? (
-              <Skeleton className="h-8 w-16 mt-1" />
-            ) : (
-              <p className="text-2xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">{stats.approved}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Terminés</p>
-            {isLoading ? (
-              <Skeleton className="h-8 w-16 mt-1" />
-            ) : (
-              <p className="text-2xl font-bold mt-1 text-purple-600 dark:text-purple-400">{stats.completed}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Valeur totale</p>
-            {isLoading ? (
-              <Skeleton className="h-8 w-24 mt-1" />
-            ) : (
-              <p className="text-2xl font-bold mt-1">
-                {stats.revenue > 0
-                  ? `$${stats.revenue.toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : "—"}
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
