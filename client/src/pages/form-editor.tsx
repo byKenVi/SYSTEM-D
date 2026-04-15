@@ -104,8 +104,8 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       if (!formData.codePiece?.trim()) return "Le champ Code pièce est obligatoire.";
     }
     if (form?.formType === "inspection") {
-      if (!formData.customer?.trim()) return "Le champ Customer est obligatoire.";
-      if (!formData.partNumber?.trim()) return "Le champ Part Number est obligatoire.";
+      if (!formData.customer?.trim()) return "Le champ Client est obligatoire.";
+      if (!formData.partNumber?.trim()) return "Le champ Numéro de pièce est obligatoire.";
     }
     return null;
   }
