@@ -285,7 +285,6 @@ export default function AdminProducts() {
                   const clientName = group.contact?.companyName || group.contact?.name || group.contact?.email || "Unknown Client";
                   const groupProductCount = group.products.length;
                   const groupStock = group.products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
-                  const groupLow = group.products.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length;
                   const isCollapsed = collapsedGroups.has(group.contactId);
 
                   return (
@@ -306,11 +305,6 @@ export default function AdminProducts() {
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>{groupStock.toLocaleString()} in stock</span>
-                          {groupLow > 0 && (
-                            <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                              <AlertTriangle className="h-3 w-3" />{groupLow} low
-                            </span>
-                          )}
                         </div>
                       </button>
                       {!isCollapsed && (
@@ -437,7 +431,6 @@ export default function AdminProducts() {
             <div className="space-y-6">
               {groupedByClient.map((group) => {
                 const clientName = group.contact?.companyName || group.contact?.name || group.contact?.email || "Unknown Client";
-                const groupLow = group.products.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length;
                 const isCollapsed = collapsedGroups.has(group.contactId);
 
                 return (
@@ -455,11 +448,6 @@ export default function AdminProducts() {
                       </div>
                       <span className="font-semibold text-sm">{clientName}</span>
                       <Badge variant="secondary" className="text-xs font-normal">{group.products.length}</Badge>
-                      {groupLow > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400 text-xs flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" />{groupLow} low
-                        </span>
-                      )}
                     </button>
 
                     {!isCollapsed && (
