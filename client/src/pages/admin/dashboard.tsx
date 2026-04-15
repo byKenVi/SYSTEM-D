@@ -67,8 +67,7 @@ export default function AdminDashboard() {
   const companiesCount = new Set(contacts?.filter((c) => c.companyName).map((c) => c.companyName)).size;
   const pendingRestocks = restockRequests?.filter((r) => r.status === "Processing")?.length ?? 0;
   const openForms = forms?.filter((f) => f.status !== "completed" && f.status !== "draft")?.length ?? 0;
-  const submittedForms = forms?.filter((f) => f.status !== "draft") ?? [];
-  const recentForms = submittedForms.slice(0, 5);
+  const recentForms = (forms ?? []).slice(0, 5);
 
   const formStatusCounts = forms?.reduce(
     (acc, f) => {
@@ -212,7 +211,7 @@ export default function AdminDashboard() {
                 </div>
               ) : recentForms.length === 0 ? (
                 <div className="px-6 pb-6 text-center text-muted-foreground text-sm py-8">
-                  No submitted forms yet
+                  No service requests yet
                 </div>
               ) : (
                 <div className="divide-y divide-border">
