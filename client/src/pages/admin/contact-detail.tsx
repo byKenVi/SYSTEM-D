@@ -221,7 +221,7 @@ export default function ContactDetail() {
 
   if (contactLoading) {
     return (
-      <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <div className="flex gap-6">
           <Skeleton className="w-72 h-96 rounded-xl flex-shrink-0" />
@@ -250,7 +250,7 @@ export default function ContactDetail() {
   const statusLabel = contact.status === "active" ? "Actif" : contact.status === "revoked" ? "Révoqué" : "Invité";
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className="space-y-5">
 
       {/* ── Top nav bar ── */}
       <div className="flex items-center justify-between gap-2">
