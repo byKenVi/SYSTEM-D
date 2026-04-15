@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -45,31 +45,29 @@ function AdminLayout() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="admin" />
-      <div className="flex flex-col flex-1 min-w-0 h-screen">
-        <main className="flex-1 overflow-y-auto scrollbar-hide p-4">
-          <Switch>
-            <Route path="/admin/dashboard" component={AdminDashboard} />
-            <Route path="/admin/contacts/:id" component={AdminContactDetail} />
-            <Route path="/admin/contacts" component={AdminContacts} />
-            <Route path="/admin/products/:id" component={AdminProductDetail} />
-            <Route path="/admin/products" component={AdminProducts} />
-            <Route path="/admin/orders" component={AdminOrders} />
-            <Route path="/admin/restock-requests" component={AdminRestockRequests} />
-            <Route path="/admin/forms/:id/edit">
-              {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
-            </Route>
-            <Route path="/admin/forms/:id">
-              {(params) => <AdminFormDetail id={Number(params?.id)} />}
-            </Route>
-            <Route path="/admin/forms" component={AdminForms} />
-            <Route path="/admin/settings" component={AdminSettingsPage} />
-            <Route path="/admin">
-              <Redirect to="/admin/dashboard" />
-            </Route>
-            <Route component={NotFound} />
-          </Switch>
-        </main>
-      </div>
+      <SidebarInset className="overflow-y-auto scrollbar-hide p-4">
+        <Switch>
+          <Route path="/admin/dashboard" component={AdminDashboard} />
+          <Route path="/admin/contacts/:id" component={AdminContactDetail} />
+          <Route path="/admin/contacts" component={AdminContacts} />
+          <Route path="/admin/products/:id" component={AdminProductDetail} />
+          <Route path="/admin/products" component={AdminProducts} />
+          <Route path="/admin/orders" component={AdminOrders} />
+          <Route path="/admin/restock-requests" component={AdminRestockRequests} />
+          <Route path="/admin/forms/:id/edit">
+            {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
+          </Route>
+          <Route path="/admin/forms/:id">
+            {(params) => <AdminFormDetail id={Number(params?.id)} />}
+          </Route>
+          <Route path="/admin/forms" component={AdminForms} />
+          <Route path="/admin/settings" component={AdminSettingsPage} />
+          <Route path="/admin">
+            <Redirect to="/admin/dashboard" />
+          </Route>
+          <Route component={NotFound} />
+        </Switch>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
@@ -83,9 +81,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
-      <div className="flex flex-col flex-1 min-w-0 h-screen">
+      <SidebarInset className="overflow-hidden">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
-        <main className="flex-1 overflow-y-auto scrollbar-hide p-4">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-4">
           <Switch>
             <Route path="/portal/dashboard">
               <PortalDashboard viewAsContactId={viewAsContactId} />
@@ -110,8 +108,8 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
             </Route>
             <Route component={NotFound} />
           </Switch>
-        </main>
-      </div>
+        </div>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
