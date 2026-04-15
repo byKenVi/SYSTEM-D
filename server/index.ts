@@ -7,6 +7,7 @@ import { startShopifySyncScheduler } from "./shopify-sync";
 import { startShopifyOrdersSyncScheduler } from "./shopify-orders-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
 import { startShopifyWritebackScheduler } from "./shopify-writeback";
+import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +66,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await pool.query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS additional_admin_emails TEXT`);
+
   await registerRoutes(httpServer, app);
   await seedDatabase();
 

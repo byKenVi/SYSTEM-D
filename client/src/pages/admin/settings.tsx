@@ -44,6 +44,9 @@ import {
   ScrollText,
   XCircle,
   Info,
+  ShieldCheck,
+  Plus,
+  X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -114,6 +117,7 @@ export default function AdminSettingsPage() {
   const [logSearch, setLogSearch] = useState("");
   const [logTypeFilter, setLogTypeFilter] = useState("all");
   const [logStatusFilter, setLogStatusFilter] = useState("all");
+  const [adminEmailInput, setAdminEmailInput] = useState("");
 
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
@@ -345,6 +349,40 @@ export default function AdminSettingsPage() {
       toast({ title: "Erreur", description: "Échec de la sélection de l'organisation.", variant: "destructive" });
     },
   });
+
+  const additionalAdminEmails = adminSettings?.additionalAdminEmails
+    ? adminSettings.additionalAdminEmails.split(",").map((e) => e.trim()).filter(Boolean)
+    : [];
+
+  const updateAdminEmailsMutation = useMutation({
+    mutationFn: async (emails: string[]) => {
+      const res = await apiRequest("PATCH", "/api/admin-settings", {
+        additionalAdminEmails: emails.join(","),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      toast({ title: "Administrateurs mis à jour" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de mettre à jour les administrateurs.", variant: "destructive" });
+    },
+  });
+
+  const addAdminEmail = () => {
+    const email = adminEmailInput.trim().toLowerCase();
+    if (!email || additionalAdminEmails.includes(email)) {
+      setAdminEmailInput("");
+      return;
+    }
+    updateAdminEmailsMutation.mutate([...additionalAdminEmails, email]);
+    setAdminEmailInput("");
+  };
+
+  const removeAdminEmail = (email: string) => {
+    updateAdminEmailsMutation.mutate(additionalAdminEmails.filter((e) => e !== email));
+  };
 
   return (
     <div className="space-y-6">
@@ -703,6 +741,63 @@ export default function AdminSettingsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Admin Emails Card */}
+          <Card className="mt-6">
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-4">
+              <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold">Accès administrateurs</h3>
+                <p className="text-sm text-muted-foreground">Adresses e-mail avec accès administrateur complet</p>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="nouveau@example.com"
+                  value={adminEmailInput}
+                  onChange={(e) => setAdminEmailInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addAdminEmail()}
+                  data-testid="input-admin-email"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={addAdminEmail}
+                  disabled={!adminEmailInput.trim() || updateAdminEmailsMutation.isPending}
+                  data-testid="button-add-admin-email"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {additionalAdminEmails.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {additionalAdminEmails.map((email) => (
+                    <Badge
+                      key={email}
+                      variant="secondary"
+                      className="flex items-center gap-1.5 pl-3 pr-2 py-1"
+                      data-testid={`badge-admin-email-${email}`}
+                    >
+                      {email}
+                      <button
+                        onClick={() => removeAdminEmail(email)}
+                        className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                        data-testid={`button-remove-admin-email-${email}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Aucun administrateur supplémentaire configuré</p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Org Select Dialog */}
           <Dialog open={orgSelectOpen} onOpenChange={setOrgSelectOpen}>

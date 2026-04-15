@@ -136,6 +136,7 @@ export const adminSettings = pgTable("admin_settings", {
   zohoLastAutoSyncAt: timestamp("zoho_last_auto_sync_at"),
   shopifyWritebackFrequencyMinutes: integer("shopify_writeback_frequency_minutes").notNull().default(0),
   shopifyWritebackLastSyncAt: timestamp("shopify_writeback_last_sync_at"),
+  additionalAdminEmails: text("additional_admin_emails"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

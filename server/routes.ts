@@ -57,6 +57,16 @@ export async function registerRoutes(
       return { role: "admin" as const };
     }
 
+    if (email) {
+      const settings = await storage.getAdminSettings();
+      const extraAdmins = settings?.additionalAdminEmails
+        ? settings.additionalAdminEmails.split(",").map((e) => e.trim().toLowerCase())
+        : [];
+      if (extraAdmins.includes(email.toLowerCase())) {
+        return { role: "admin" as const };
+      }
+    }
+
     const contact = await storage.getContactByUserId(userId);
     if (contact) {
       if (contact.status === "revoked") {
