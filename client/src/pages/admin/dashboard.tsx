@@ -254,34 +254,6 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Quick Links</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/admin/contacts">
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-contacts">
-                  <Users className="h-3.5 w-3.5" /> Manage Clients
-                </Button>
-              </Link>
-              <Link href="/admin/products">
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-products">
-                  <Package className="h-3.5 w-3.5" /> View Products
-                </Button>
-              </Link>
-              <Link href="/admin/restock-requests">
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-restock">
-                  <RefreshCw className="h-3.5 w-3.5" /> Restock Requests
-                </Button>
-              </Link>
-              <Link href="/admin/forms">
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-forms">
-                  <ClipboardList className="h-3.5 w-3.5" /> All Forms
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
