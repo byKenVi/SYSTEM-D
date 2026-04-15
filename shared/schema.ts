@@ -157,6 +157,9 @@ export const formSubmissions = pgTable("form_submissions", {
   revisionHistory: jsonb("revision_history").default([]),
   price: decimal("price", { precision: 10, scale: 2 }),
   approvedQuantity: decimal("approved_quantity", { precision: 10, scale: 2 }),
+  zohoSalesOrderId: text("zoho_sales_order_id"),
+  zohoSalesOrderNumber: text("zoho_sales_order_number"),
+  zohoSalesOrderUrl: text("zoho_sales_order_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

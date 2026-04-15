@@ -307,3 +307,111 @@ export async function testZohoConnection(): Promise<{ ok: boolean; orgName?: str
     return { ok: false };
   }
 }
+
+const FORM_TYPE_LABELS: Record<string, string> = {
+  entreposage: "Entreposage",
+  tri: "Tri",
+  inspection: "Inspection",
+  copacking: "Co-packing",
+  livraison: "Livraison",
+};
+
+const ZOHO_WEB_DOMAINS: Record<string, string> = {
+  us: "inventory.zoho.com",
+  eu: "inventory.zoho.eu",
+  in: "inventory.zoho.in",
+  au: "inventory.zoho.com.au",
+  jp: "inventory.zoho.jp",
+  ca: "inventory.zohocloud.ca",
+};
+
+export function getZohoSOUrl(region: string, salesOrderId: string): string {
+  const domain = ZOHO_WEB_DOMAINS[region] || ZOHO_WEB_DOMAINS.us;
+  return `https://${domain}/app#/salesorders/${salesOrderId}`;
+}
+
+function buildFormDescription(formType: string, formData: any): string {
+  const d = formData || {};
+  switch (formType) {
+    case "entreposage": {
+      const parts: string[] = [];
+      if (d.natureProduit) parts.push(`Produit: ${d.natureProduit}`);
+      if (d.typeEmballage) parts.push(`Emballage: ${d.typeEmballage}`);
+      if (d.hasBinRack) parts.push("Bin/Rack requis");
+      if (d.hasKitting) parts.push("Kitting");
+      if (d.hasConditionnement) parts.push("Conditionnement");
+      return parts.length ? parts.join(" | ") : "Entreposage";
+    }
+    case "tri": {
+      const nc = Array.isArray(d.ncItems) ? d.ncItems.length : 0;
+      return `Tri et inspection${nc ? ` - ${nc} article(s) NC` : ""}`;
+    }
+    case "inspection": {
+      const crit = Array.isArray(d.criteria) ? d.criteria.length : 0;
+      return `Inspection${crit ? ` - ${crit} critère(s)` : ""}`;
+    }
+    case "copacking": {
+      const parts: string[] = ["Co-packing"];
+      if (d.paletteNb) parts.push(`${d.paletteNb} palette(s)`);
+      return parts.join(" - ");
+    }
+    case "livraison": {
+      const dist = d.destinationType === "longue_distance" ? "Longue distance" : "Local";
+      return `Livraison ${dist}`;
+    }
+    default:
+      return formType;
+  }
+}
+
+// Create a service item + sales order in Zoho Inventory for an approved service request form
+export async function createFormSalesOrder(params: {
+  formNumber: string;
+  formType: string;
+  formData: any;
+  quantity: number;
+  rate: number;
+  contact: { name: string; email: string; companyName?: string | null };
+}): Promise<{ salesOrderId: string; salesOrderNumber: string }> {
+  const region = await getZohoRegion();
+
+  // 1. Ensure customer exists in Zoho
+  const customerId = await ensureZohoContact(params.contact);
+
+  // 2. Create a service-type item for this form
+  const itemName = `${params.formNumber} - ${FORM_TYPE_LABELS[params.formType] || params.formType}`;
+  const description = buildFormDescription(params.formType, params.formData);
+
+  const itemData = await zohoRequest("POST", "/items", {
+    name: itemName,
+    description,
+    rate: params.rate,
+    product_type: "service",
+    item_type: "sales",
+    unit: "qty",
+  }, region);
+
+  const itemId = itemData.item?.item_id;
+  if (!itemId) throw new Error("Failed to create Zoho service item");
+
+  // 3. Create the sales order
+  const soData = await zohoRequest("POST", "/salesorders", {
+    customer_id: customerId,
+    line_items: [{
+      item_id: itemId,
+      name: itemName,
+      description,
+      quantity: params.quantity,
+      rate: params.rate,
+    }],
+    notes: `Demande de service ${params.formNumber} approuvée via Système D`,
+  }, region);
+
+  const so = soData.salesorder;
+  if (!so) throw new Error("Failed to create Zoho sales order");
+
+  return {
+    salesOrderId: so.salesorder_id,
+    salesOrderNumber: so.salesorder_number,
+  };
+}

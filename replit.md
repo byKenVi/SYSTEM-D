@@ -148,6 +148,18 @@ shared/
 - Auto-refreshes every 30 seconds
 - `GET /api/activity-logs` endpoint returns up to 500 most recent entries
 
+## Service Request Approval & Zoho Work Orders
+- When admin approves a form (in_review → approved), a dialog collects price (CAD) + quantity
+- Quantity label adapts per form type: palettes/boîtes/bins/sacs/colis based on `typeEmballage`
+- On approval, server automatically:
+  1. Creates/finds the client contact in Zoho Inventory (`ensureZohoContact`)
+  2. Creates a service-type Zoho Inventory item named `{formNumber} - {Type}`
+  3. Creates a Sales Order with quantity/rate from the dialog
+  4. Stores `zohoSalesOrderId`, `zohoSalesOrderNumber`, `zohoSalesOrderUrl` on the form
+- `price` and `approvedQuantity` stored as admin-only decimals on `form_submissions`
+- Admin form detail shows: orange price card + green Work Order card with "Voir dans Zoho" link
+- Clients never see price, quantity, or Zoho SO info
+
 ## Forms System
 - 5 form types: `entreposage` (ENT-xxx), `tri` (TRI-xxx), `inspection` (INS-xxx), `copacking` (F015-xxx), `livraison` (LIV-xxx)
 - `form_submissions` table: formType, formNumber, contactId, status, data (JSON text), revision, linkedFormId, revisionHistory

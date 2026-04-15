@@ -11,7 +11,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
-import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, fetchZohoItemsMap } from "./zoho-api";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion } from "./zoho-api";
 import { generateFormPdf } from "./pdf-generator";
 import {
   fetchAllProducts,
@@ -1457,6 +1457,31 @@ export async function registerRoutes(
             status: "success",
             message: `Form ${form.formNumber} submitted by ${userName}`,
           });
+        }
+
+        if (status === "approved" && form.status === "in_review") {
+          try {
+            const contact = await storage.getContact(form.contactId);
+            if (contact) {
+              const qty = updateData.approvedQuantity != null ? Number(updateData.approvedQuantity) : 1;
+              const rate = updateData.price != null ? Number(updateData.price) : 0;
+              const { salesOrderId, salesOrderNumber } = await createFormSalesOrder({
+                formNumber: form.formNumber,
+                formType: form.formType,
+                formData: form.data,
+                quantity: qty,
+                rate,
+                contact: { name: contact.name, email: contact.email, companyName: contact.companyName },
+              });
+              const region = await getZohoRegion();
+              updateData.zohoSalesOrderId = salesOrderId;
+              updateData.zohoSalesOrderNumber = salesOrderNumber;
+              updateData.zohoSalesOrderUrl = getZohoSOUrl(region, salesOrderId);
+              console.log(`[zoho] Created SO ${salesOrderNumber} for form ${form.formNumber}`);
+            }
+          } catch (err: any) {
+            console.error(`[zoho] Failed to create SO for ${form.formNumber}: ${err.message}`);
+          }
         }
 
         if (status !== form.status && status !== "draft" && form.status !== "draft") {

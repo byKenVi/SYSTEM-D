@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign } from "lucide-react";
+import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign, ExternalLink, ClipboardList } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -1070,6 +1070,38 @@ export function AdminFormDetail({ id }: { id: number }) {
             >
               Modifier
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Work Order (Zoho Sales Order) */}
+      {form.zohoSalesOrderId && (
+        <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                <ClipboardList className="h-4 w-4 text-green-700 dark:text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bon de travail Zoho</p>
+                <p className="text-base font-bold text-green-700 dark:text-green-400" data-testid="text-zoho-so-number">
+                  {form.zohoSalesOrderNumber}
+                </p>
+              </div>
+              {form.zohoSalesOrderUrl && (
+                <a
+                  href={form.zohoSalesOrderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="link-zoho-so"
+                >
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Voir dans Zoho
+                  </Button>
+                </a>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
