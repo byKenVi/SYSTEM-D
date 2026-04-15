@@ -14,6 +14,9 @@ import { useState, useEffect, useCallback } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData } from "@/components/forms/tri-form";
 import { InspectionForm, defaultInspectionData } from "@/components/forms/inspection-form";
+import { EntreposageForm, defaultEntreposageData } from "@/components/forms/entreposage-form";
+import { CopackingForm, defaultCopackingData } from "@/components/forms/copacking-form";
+import { LivraisonForm, defaultLivraisonData } from "@/components/forms/livraison-form";
 
 const FORM_TYPE_LABELS: Record<string, string> = {
   entreposage: "Entreposage",
@@ -67,12 +70,22 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   useEffect(() => {
     if (form) {
-      const d = form.data;
-      if (typeof d === "string") {
-        try { setFormData(JSON.parse(d)); } catch { setFormData({}); }
+      let d: any;
+      if (typeof form.data === "string") {
+        try { d = JSON.parse(form.data); } catch { d = {}; }
       } else {
-        setFormData(d || {});
+        d = form.data || {};
       }
+      const defaults: Record<string, any> = {
+        tri: defaultTriData,
+        inspection: defaultInspectionData,
+        entreposage: defaultEntreposageData,
+        copacking: defaultCopackingData,
+        livraison: defaultLivraisonData,
+      };
+      const typeDefault = defaults[form.formType] || {};
+      const merged = { ...typeDefault, ...d };
+      setFormData(merged);
     }
   }, [form]);
 
@@ -263,10 +276,14 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
           {form.formType === "inspection" && (
             <InspectionForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
           )}
-          {!["tri", "inspection"].includes(form.formType) && (
-            <div className="text-center py-12 text-muted-foreground">
-              Ce type de formulaire sera disponible prochainement.
-            </div>
+          {form.formType === "entreposage" && (
+            <EntreposageForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
+          )}
+          {form.formType === "copacking" && (
+            <CopackingForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
+          )}
+          {form.formType === "livraison" && (
+            <LivraisonForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
           )}
         </>
       )}
