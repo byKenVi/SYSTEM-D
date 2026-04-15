@@ -1845,5 +1845,72 @@ export async function registerRoutes(
     }
   });
 
+  // ── Commandes (approved/completed form submissions) ──────────────────────
+
+  app.get("/api/admin/commandes", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
+      const forms = await storage.getCommandeForms(contactId);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching commandes:", error);
+      res.status(500).json({ message: "Failed to fetch commandes" });
+    }
+  });
+
+  app.get("/api/portal/commandes", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+      if (role.role === "admin") {
+        const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
+        const forms = await storage.getCommandeForms(contactId);
+        return res.json(forms);
+      }
+      if (!role.contactId) return res.json([]);
+      const forms = await storage.getCommandeForms(role.contactId);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching portal commandes:", error);
+      res.status(500).json({ message: "Failed to fetch commandes" });
+    }
+  });
+
+  app.post("/api/forms/:id/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      const original = await storage.getFormSubmission(Number(req.params.id));
+      if (!original) return res.status(404).json({ message: "Form not found" });
+
+      if (role.role === "client" && original.contactId !== role.contactId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const contactId = role.role === "admin" ? original.contactId : role.contactId!;
+      const formNumber = await storage.getNextFormNumber(original.formType);
+      const userId = req.user?.claims?.sub;
+      const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
+
+      const newForm = await storage.createFormSubmission({
+        formType: original.formType,
+        formNumber,
+        contactId,
+        submittedBy: userId,
+        submittedByName: userName,
+        status: "draft",
+        data: original.data || {},
+        revision: 1,
+        revisionHistory: [],
+      });
+
+      res.status(201).json(newForm);
+    } catch (error: any) {
+      console.error("Error reordering form:", error);
+      res.status(500).json({ message: error.message || "Failed to reorder" });
+    }
+  });
+
   return httpServer;
 }

@@ -17,10 +17,12 @@ import AdminContacts from "@/pages/admin/contacts";
 import AdminContactDetail from "@/pages/admin/contact-detail";
 import AdminProductDetail from "@/pages/admin/product-detail";
 import AdminRestockRequests from "@/pages/admin/restock-requests";
+import AdminCommandes from "@/pages/admin/commandes";
 import AdminSettingsPage from "@/pages/admin/settings";
 import PortalProfile from "@/pages/portal/profile";
 import PortalProductDetail from "@/pages/portal/product-detail";
 import PortalRestock from "@/pages/portal/restock";
+import PortalCommandes from "@/pages/portal/commandes";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
 import AdminBoutique from "@/pages/admin/boutique";
 import AdminInventaire from "@/pages/admin/inventaire";
@@ -53,9 +55,10 @@ function AdminLayout() {
           <Route path="/admin/products/:id" component={AdminProductDetail} />
           <Route path="/admin/boutique" component={AdminBoutique} />
           <Route path="/admin/inventaire" component={AdminInventaire} />
+          <Route path="/admin/commandes" component={AdminCommandes} />
           <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
           <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
-          <Route path="/admin/restock-requests" component={AdminRestockRequests} />
+          <Route path="/admin/restock-requests"><Redirect to="/admin/commandes" /></Route>
           <Route path="/admin/forms/:id/edit">
             {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
           </Route>
@@ -103,7 +106,10 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
               <Redirect to={`/portal/boutique${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
             </Route>
             <Route path="/portal/restock">
-              <PortalRestock viewAsContactId={viewAsContactId} />
+              <Redirect to={`/portal/commandes${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
+            </Route>
+            <Route path="/portal/commandes">
+              <PortalCommandes viewAsContactId={viewAsContactId} />
             </Route>
             <Route path="/portal/forms/:id?">
               <PortalForms viewAsContactId={viewAsContactId} />

@@ -56,6 +56,7 @@ export interface IStorage {
   getFormSubmission(id: number): Promise<FormSubmission | undefined>;
   getFormSubmissions(filters?: { formType?: string; status?: string; contactId?: number }): Promise<FormSubmission[]>;
   getFormSubmissionsByContact(contactId: number): Promise<FormSubmission[]>;
+  getCommandeForms(contactId?: number): Promise<FormSubmission[]>;
   updateFormSubmission(id: number, data: Partial<InsertFormSubmission>): Promise<FormSubmission | undefined>;
   deleteFormSubmission(id: number): Promise<void>;
   bulkDeleteFormSubmissions(ids: number[]): Promise<void>;
@@ -304,6 +305,12 @@ export class DatabaseStorage implements IStorage {
 
   async getFormSubmissionsByContact(contactId: number): Promise<FormSubmission[]> {
     return db.select().from(formSubmissions).where(eq(formSubmissions.contactId, contactId)).orderBy(desc(formSubmissions.updatedAt));
+  }
+
+  async getCommandeForms(contactId?: number): Promise<FormSubmission[]> {
+    const conditions: any[] = [inArray(formSubmissions.status, ["approved", "completed"])];
+    if (contactId) conditions.push(eq(formSubmissions.contactId, contactId));
+    return db.select().from(formSubmissions).where(and(...conditions)).orderBy(desc(formSubmissions.updatedAt));
   }
 
   async updateFormSubmission(id: number, data: Partial<InsertFormSubmission>): Promise<FormSubmission | undefined> {

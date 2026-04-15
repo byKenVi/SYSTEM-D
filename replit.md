@@ -82,6 +82,9 @@ shared/
 - `/api/uploads/:filename` - GET serve uploaded file
 - `/api/portal/forms` - Client forms list
 - `/api/portal/*` - Other client-specific endpoints
+- `/api/admin/commandes` - GET approved/completed forms across all clients (admin)
+- `/api/portal/commandes` - GET approved/completed forms for the client (portal)
+- `/api/forms/:id/reorder` - POST create a new draft form based on an existing approved form
 
 ## Zoho Inventory Integration
 - Uses OAuth 2.0 Authorization Code flow with regional domain support (US/EU/IN/AU/JP/CA)

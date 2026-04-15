@@ -28,7 +28,6 @@ import {
 import {
   Users,
   Package,
-  RefreshCw,
   Settings,
   User,
   Warehouse,
@@ -38,6 +37,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   BoxIcon,
+  PackageCheck,
 } from "lucide-react";
 import logoSrc from "@assets/logo_no_bg.png";
 
@@ -52,7 +52,7 @@ const adminItems = [
   { title: "Boutique", url: "/admin/boutique", icon: ShoppingCart },
   { title: "Inventaire", url: "/admin/inventaire", icon: BoxIcon },
   { title: "Soumissions", url: "/admin/forms", icon: ClipboardList },
-  { title: "Demandes de réapprovisionnement", url: "/admin/restock-requests", icon: RefreshCw },
+  { title: "Commandes", url: "/admin/commandes", icon: PackageCheck },
   { title: "Paramètres", url: "/admin/settings", icon: Settings },
 ];
 
@@ -61,7 +61,7 @@ const clientItems = [
   { title: "Profil", url: "/portal/profile", icon: User },
   { title: "Boutique", url: "/portal/boutique", icon: ShoppingCart },
   { title: "Demandes de service", url: "/portal/forms", icon: ClipboardList },
-  { title: "Demandes de réapprovisionnement", url: "/portal/restock", icon: RefreshCw },
+  { title: "Commandes", url: "/portal/commandes", icon: PackageCheck },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
