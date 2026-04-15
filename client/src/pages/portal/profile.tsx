@@ -2,14 +2,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contact } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Phone, Building2, MapPin, Save } from "lucide-react";
+import { User, Mail, Phone, Building2, MapPin, Save, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -21,6 +21,13 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
     queryKey: viewAsContactId
       ? ["/api/admin/view-as", viewAsContactId, "profile"]
       : ["/api/portal/profile"],
+  });
+
+  const { data: relatedContacts = [] } = useQuery<Contact[]>({
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "related-contacts"]
+      : ["/api/portal/related-contacts"],
+    enabled: !!contact,
   });
 
   const [name, setName] = useState("");
@@ -184,6 +191,45 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
           </CardContent>
         </Card>
       </div>
+
+      {/* Related Contacts */}
+      {relatedContacts.length > 0 && (
+        <Card data-testid="card-related-contacts">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Team Members at {contact?.companyName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y divide-border">
+              {relatedContacts.map((rc) => {
+                const rcInitials = (rc.name || rc.email || "C")
+                  .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                return (
+                  <div key={rc.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" data-testid={`row-related-contact-${rc.id}`}>
+                    <Avatar className="h-8 w-8 flex-shrink-0">
+                      <AvatarFallback className="text-xs">{rcInitials}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" data-testid={`text-related-name-${rc.id}`}>{rc.name || rc.email}</p>
+                      {rc.email && rc.name && (
+                        <p className="text-xs text-muted-foreground truncate" data-testid={`text-related-email-${rc.id}`}>{rc.email}</p>
+                      )}
+                    </div>
+                    {rc.phone && (
+                      <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0">
+                        <Phone className="h-3 w-3" />
+                        <span data-testid={`text-related-phone-${rc.id}`}>{rc.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

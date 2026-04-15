@@ -1070,6 +1070,39 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/portal/related-contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) return res.json([]);
+      const contact = await storage.getContact(role.contactId);
+      if (!contact || !contact.companyName) return res.json([]);
+      const all = await storage.getContacts();
+      const related = all.filter(
+        (c) => c.id !== role.contactId && c.companyName && c.companyName.toLowerCase() === contact.companyName!.toLowerCase()
+      );
+      res.json(related);
+    } catch (error) {
+      console.error("Error fetching related contacts:", error);
+      res.status(500).json({ message: "Failed to fetch related contacts" });
+    }
+  });
+
+  app.get("/api/admin/view-as/:contactId/related-contacts", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const contact = await storage.getContact(contactId);
+      if (!contact || !contact.companyName) return res.json([]);
+      const all = await storage.getContacts();
+      const related = all.filter(
+        (c) => c.id !== contactId && c.companyName && c.companyName.toLowerCase() === contact.companyName!.toLowerCase()
+      );
+      res.json(related);
+    } catch (error) {
+      console.error("Error fetching related contacts:", error);
+      res.status(500).json({ message: "Failed to fetch related contacts" });
+    }
+  });
+
   app.get("/api/portal/products", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
