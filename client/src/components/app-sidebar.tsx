@@ -123,7 +123,11 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                   location.startsWith(item.url.split("?")[0] + "/");
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      className={isActive ? "bg-primary/15 text-primary font-semibold hover:bg-primary/20 hover:text-primary" : ""}
+                    >
                       <Link
                         href={item.url}
                         data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
