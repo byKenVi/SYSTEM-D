@@ -328,8 +328,8 @@ export default function AdminForms() {
                             <TableCell>
                               <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
                             </TableCell>
                             <TableCell>
                               {form.status === "draft" && (
@@ -363,8 +363,8 @@ export default function AdminForms() {
                         <TableCell>
                           <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
                         </TableCell>
                         <TableCell>
                           {form.status === "draft" && (
