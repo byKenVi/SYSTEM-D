@@ -52,6 +52,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { SiShopify, SiZoho } from "react-icons/si";
 import { useState } from "react";
@@ -167,6 +168,12 @@ export default function ContactDetail() {
   const { data: relatedContacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts", contactId, "related"],
     queryFn: () => fetch(`/api/contacts/${contactId}/related`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!contact,
+  });
+
+  const { data: contactForms, isLoading: formsLoading } = useQuery<any[]>({
+    queryKey: ["/api/forms", { contactId }],
+    queryFn: () => fetch(`/api/forms?contactId=${contactId}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!contact,
   });
 
@@ -568,6 +575,99 @@ export default function ContactDetail() {
                           <div className="flex flex-col items-center gap-1">
                             <Package className="h-5 w-5 text-muted-foreground/30" />
                             <p className="text-sm text-muted-foreground">No products imported yet</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Service Requests */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-base">Service Requests</CardTitle>
+                {contactForms && (
+                  <Badge variant="secondary" className="ml-auto">{contactForms.length}</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Number</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Submitted by</TableHead>
+                      <TableHead className="text-right">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {formsLoading ? (
+                      Array.from({ length: 3 }).map((_, i) => (
+                        <TableRow key={i}>
+                          {Array.from({ length: 5 }).map((_, j) => (
+                            <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : contactForms && contactForms.length > 0 ? (
+                      contactForms.map((form) => {
+                        const typeConfig: Record<string, { label: string; className: string }> = {
+                          entreposage: { label: "ENT", className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" },
+                          tri:         { label: "TRI", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800" },
+                          inspection:  { label: "INS", className: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800" },
+                          copacking:   { label: "F015", className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" },
+                          livraison:   { label: "LIV", className: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800" },
+                        };
+                        const statusConfig: Record<string, { label: string; className: string }> = {
+                          draft:      { label: "Draft",     className: "bg-muted text-muted-foreground border-border" },
+                          submitted:  { label: "Submitted", className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" },
+                          in_review:  { label: "In Review", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800" },
+                          approved:   { label: "Approved",  className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" },
+                          completed:  { label: "Completed", className: "bg-muted text-muted-foreground border-border" },
+                        };
+                        const type = typeConfig[form.formType] ?? { label: form.formType, className: "" };
+                        const status = statusConfig[form.status] ?? { label: form.status, className: "" };
+                        return (
+                          <TableRow
+                            key={form.id}
+                            className="cursor-pointer"
+                            onClick={() => navigate(`/admin/forms/${form.id}`)}
+                            data-testid={`row-service-request-${form.id}`}
+                          >
+                            <TableCell className="font-mono text-sm font-medium">{form.formNumber}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-semibold ${type.className}`}>
+                                {type.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${status.className}`}>
+                                {status.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground truncate max-w-[140px]">
+                              {form.submittedByName || <span className="opacity-40">—</span>}
+                            </TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
+                              {new Date(form.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-20 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <FileText className="h-5 w-5 text-muted-foreground/30" />
+                            <p className="text-sm text-muted-foreground">No service requests yet</p>
                           </div>
                         </TableCell>
                       </TableRow>
