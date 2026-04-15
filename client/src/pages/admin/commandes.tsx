@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -15,6 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,7 +29,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, ShoppingCart, ExternalLink, FileText, CheckCircle2, Package } from "lucide-react";
+import {
+  Search,
+  ShoppingCart,
+  ExternalLink,
+  FileText,
+  DollarSign,
+  Package,
+  User,
+  Calendar,
+  ArrowUpRight,
+  Hash,
+} from "lucide-react";
 
 const TYPE_LABELS: Record<string, string> = {
   entreposage: "Entreposage",
@@ -50,12 +68,63 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
 };
 
+// Human-readable labels for common form data fields
+const FIELD_LABELS: Record<string, string> = {
+  nomClient: "Nom du client",
+  raisonSociale: "Raison sociale",
+  descriptionMarchandise: "Description marchandise",
+  nomProduit: "Nom du produit",
+  quantiteUnites: "Quantité (unités)",
+  quantite: "Quantité",
+  typeEmballage: "Type d'emballage",
+  dateReception: "Date de réception",
+  dateDebut: "Date de début",
+  dateFin: "Date de fin",
+  adresseEntreposage: "Adresse d'entreposage",
+  description: "Description",
+  objetDemande: "Objet de la demande",
+  objetInspection: "Objet de l'inspection",
+  paletteNb: "Nombre de palettes",
+  adresseDest: "Adresse de destination",
+  adresseDestination: "Adresse de destination",
+  instructions: "Instructions",
+  noteSpeciale: "Note spéciale",
+  transporteur: "Transporteur",
+  telephone: "Téléphone",
+  courriel: "Courriel",
+  numeroBon: "N° de bon",
+};
+
+// Fields to never display (internal/noise)
+const HIDDEN_FIELDS = new Set([
+  "id", "createdAt", "updatedAt", "revision", "linkedFormId",
+  "submittedBy", "submittedByName", "contactId", "formType", "formNumber",
+  "status", "data", "revisionHistory", "uploads",
+]);
+
+function extractFormFields(data: unknown): Array<{ label: string; value: string }> {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+  const result: Array<{ label: string; value: string }> = [];
+  for (const [key, val] of Object.entries(data as Record<string, unknown>)) {
+    if (HIDDEN_FIELDS.has(key)) continue;
+    if (val === null || val === undefined || val === "" || val === false) continue;
+    if (Array.isArray(val) && val.length === 0) continue;
+    if (typeof val === "object" && !Array.isArray(val)) continue; // skip nested objects
+    const label = FIELD_LABELS[key] || key;
+    const value = Array.isArray(val) ? val.join(", ") : String(val);
+    if (value.trim()) result.push({ label, value });
+    if (result.length >= 10) break; // cap at 10 fields
+  }
+  return result;
+}
+
 export default function AdminCommandes() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
+  const [selected, setSelected] = useState<FormSubmission | null>(null);
 
   const { data: forms, isLoading } = useQuery<FormSubmission[]>({
     queryKey: ["/api/admin/commandes"],
@@ -82,6 +151,9 @@ export default function AdminCommandes() {
       return matchesSearch && matchesType && matchesStatus && matchesContact;
     });
   }, [forms, search, typeFilter, statusFilter, contactFilter, contactMap]);
+
+  const selectedContact = selected ? contactMap.get(selected.contactId) : null;
+  const selectedFields = selected ? extractFormFields(selected.data) : [];
 
   return (
     <div className="space-y-6">
@@ -161,7 +233,7 @@ export default function AdminCommandes() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Numéro</TableHead>
@@ -171,27 +243,26 @@ export default function AdminCommandes() {
                     <TableHead>Statut</TableHead>
                     <TableHead className="text-right">Prix (CAD)</TableHead>
                     <TableHead className="text-right">Qté</TableHead>
-                    <TableHead>Bon de travail Zoho</TableHead>
-                    <TableHead className="w-16" />
+                    <TableHead>Zoho SO</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((form) => {
                     const contact = contactMap.get(form.contactId);
+                    const isSelected = selected?.id === form.id;
                     return (
                       <TableRow
                         key={form.id}
                         data-testid={`row-commande-${form.id}`}
                         className="cursor-pointer"
-                        onClick={() => navigate(`/admin/forms/${form.id}`)}
+                        data-state={isSelected ? "selected" : undefined}
+                        onClick={() => setSelected(form)}
                       >
                         <TableCell className="font-mono font-semibold text-sm">
                           {form.formNumber}
                         </TableCell>
                         <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[form.formType] || "bg-gray-100 text-gray-700"}`}
-                          >
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[form.formType] || "bg-gray-100 text-gray-700"}`}>
                             {TYPE_LABELS[form.formType] || form.formType}
                           </span>
                         </TableCell>
@@ -199,26 +270,18 @@ export default function AdminCommandes() {
                           {contact?.companyName || contact?.name || "—"}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          {form.updatedAt
-                            ? new Date(form.updatedAt).toLocaleDateString("fr-CA")
-                            : "—"}
+                          {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
                         </TableCell>
                         <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[form.status] || ""}`}
-                          >
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[form.status] || ""}`}>
                             {STATUS_LABELS[form.status] || form.status}
                           </span>
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {form.price
-                            ? `$${Number(form.price).toFixed(2)}`
-                            : <span className="text-muted-foreground">—</span>}
+                          {form.price ? `$${Number(form.price).toFixed(2)}` : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {form.approvedQuantity
-                            ? Number(form.approvedQuantity).toLocaleString("fr-CA")
-                            : <span className="text-muted-foreground">—</span>}
+                          {form.approvedQuantity ? Number(form.approvedQuantity).toLocaleString("fr-CA") : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>
                           {form.zohoSalesOrderUrl ? (
@@ -237,21 +300,6 @@ export default function AdminCommandes() {
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs gap-1 px-2"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/admin/forms/${form.id}`);
-                            }}
-                            data-testid={`button-view-commande-${form.id}`}
-                          >
-                            <FileText className="h-3 w-3" />
-                            Voir
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -261,6 +309,163 @@ export default function AdminCommandes() {
           )}
         </CardContent>
       </Card>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto" data-testid="sheet-commande-detail">
+          {selected && (
+            <>
+              <SheetHeader className="pb-2">
+                <div className="flex items-start gap-3 flex-wrap">
+                  <SheetTitle className="font-mono text-xl">{selected.formNumber}</SheetTitle>
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[selected.formType] || ""}`}>
+                      {TYPE_LABELS[selected.formType] || selected.formType}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[selected.status] || ""}`}>
+                      {STATUS_LABELS[selected.status] || selected.status}
+                    </span>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <div className="space-y-5 mt-4">
+
+                {/* Client */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Client</p>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">{selectedContact?.companyName || selectedContact?.name || "—"}</p>
+                      {selectedContact?.email && (
+                        <p className="text-sm text-muted-foreground">{selectedContact.email}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Order details */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Détails de la commande</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Prix (CAD)
+                      </div>
+                      <p className="text-xl font-bold font-mono">
+                        {selected.price ? `$${Number(selected.price).toFixed(2)}` : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Package className="h-3.5 w-3.5" />
+                        Quantité
+                      </div>
+                      <p className="text-xl font-bold font-mono">
+                        {selected.approvedQuantity
+                          ? Number(selected.approvedQuantity).toLocaleString("fr-CA")
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm text-muted-foreground">
+                      {selected.updatedAt
+                        ? new Date(selected.updatedAt).toLocaleString("fr-CA", {
+                            timeZone: "America/New_York",
+                            dateStyle: "long",
+                            timeStyle: "short",
+                          })
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Zoho Sales Order */}
+                {selected.zohoSalesOrderNumber && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bon de travail Zoho</p>
+                      <div className="flex items-center gap-2">
+                        <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-mono font-medium">{selected.zohoSalesOrderNumber}</span>
+                        {selected.zohoSalesOrderUrl && (
+                          <a
+                            href={selected.zohoSalesOrderUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline ml-auto"
+                          >
+                            Ouvrir dans Zoho
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                {/* Soumission details */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Soumission liée</p>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-mono font-semibold text-sm">{selected.formNumber}</span>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TYPE_COLORS[selected.formType] || ""}`}>
+                          {TYPE_LABELS[selected.formType] || selected.formType}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs gap-1 px-2"
+                        onClick={() => { setSelected(null); navigate(`/admin/forms/${selected.id}`); }}
+                        data-testid="button-open-soumission"
+                      >
+                        Ouvrir
+                        <ArrowUpRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    {selectedFields.length > 0 && (
+                      <div className="space-y-1.5 border-t border-border/50 pt-2.5">
+                        {selectedFields.map(({ label, value }) => (
+                          <div key={label} className="flex items-start gap-2 text-sm">
+                            <span className="text-muted-foreground min-w-[120px] flex-shrink-0 text-xs pt-0.5">{label}</span>
+                            <span className="font-medium text-xs leading-relaxed break-words">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Full form button */}
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => { setSelected(null); navigate(`/admin/forms/${selected.id}`); }}
+                  data-testid="button-view-full-soumission"
+                >
+                  <FileText className="h-4 w-4" />
+                  Voir la soumission complète
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
