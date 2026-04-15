@@ -143,7 +143,7 @@ export default function AdminProductDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
 
         {/* ── LEFT: image + stats ── */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="space-y-4">
           <Card>
             <CardContent className="p-4 space-y-4">
               {/* Image */}
@@ -212,7 +212,7 @@ export default function AdminProductDetail() {
         </div>
 
         {/* ── RIGHT: metadata ── */}
-        <div className="space-y-4">
+        <div className="lg:col-span-3 space-y-4">
 
           {/* Identifiers */}
           <Card>
