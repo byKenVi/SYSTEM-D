@@ -577,6 +577,7 @@ export default function ContactDetail() {
           </Card>
 
           {/* Orders table */}
+          {!(hideEmptyRelated && (!contact.shopifyConnected || (!ordersLoading && (ordersData?.orders?.length ?? 0) === 0))) && (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -657,6 +658,7 @@ export default function ContactDetail() {
               )}
             </CardContent>
           </Card>
+          )}
         </div>
       </div>
 
