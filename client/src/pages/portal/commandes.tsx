@@ -34,7 +34,7 @@ import {
   Truck,
   ClipboardCheck,
   CheckCircle2,
-  ChevronRight,
+  DollarSign,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -95,23 +95,59 @@ const STATUS_COLORS: Record<string, string> = {
 function getFormDescription(form: FormSubmission): string {
   const data = form.data as Record<string, any> | null;
   if (!data) return "";
+  if (form.formType === "entreposage") return data.descriptionMarchandise || data.nomProduit || "";
+  if (form.formType === "tri") return data.description || data.objetDemande || "";
+  if (form.formType === "copacking") return data.description || data.objetDemande || "";
+  if (form.formType === "livraison") return data.description || data.adresseDest || "";
+  if (form.formType === "inspection") return data.description || data.objetInspection || "";
+  return "";
+}
+
+function getFormPreviewTags(form: FormSubmission): { label: string; value: string }[] {
+  const data = form.data as Record<string, any> | null;
+  if (!data) return [];
+  const tag = (label: string, value: any) =>
+    value ? { label, value: String(value) } : null;
+
   if (form.formType === "entreposage") {
-    const desc = data.descriptionMarchandise || data.nomProduit || "";
-    return desc;
+    return [
+      tag("Client", data.client || data.nomClient),
+      tag("Produit", data.nomProduit || data.descriptionMarchandise),
+      tag("Palettes", data.nbPalettes),
+      tag("Arrivée", data.dateArrivee),
+    ].filter(Boolean) as { label: string; value: string }[];
   }
   if (form.formType === "tri") {
-    return data.description || data.objetDemande || "";
-  }
-  if (form.formType === "copacking") {
-    return data.description || data.objetDemande || "";
-  }
-  if (form.formType === "livraison") {
-    return data.description || data.adresseDest || "";
+    return [
+      tag("Client", data.client),
+      tag("Projet", data.nomProjet),
+      tag("Code pièce", data.codePiece),
+      tag("Qté", data.qteTotal),
+    ].filter(Boolean) as { label: string; value: string }[];
   }
   if (form.formType === "inspection") {
-    return data.description || data.objetInspection || "";
+    return [
+      tag("Client", data.customer),
+      tag("Pièce", data.partNumber),
+      tag("Poste", data.posteTravail),
+    ].filter(Boolean) as { label: string; value: string }[];
   }
-  return "";
+  if (form.formType === "copacking") {
+    return [
+      tag("Client", data.client),
+      tag("Projet", data.projet),
+      tag("Référence", data.reference),
+      tag("Date BT", data.dateBonTravail),
+    ].filter(Boolean) as { label: string; value: string }[];
+  }
+  if (form.formType === "livraison") {
+    return [
+      tag("Destinataire", data.nomDest || data.clientName),
+      tag("Adresse", data.adresseDest),
+      tag("Ville", data.villeDest),
+    ].filter(Boolean) as { label: string; value: string }[];
+  }
+  return [];
 }
 
 export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -264,6 +300,9 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
               light: "bg-gray-50",
             };
             const description = getFormDescription(form);
+            const previewTags = getFormPreviewTags(form);
+            const hasPrice = form.price != null && Number(form.price) > 0;
+            const hasQty = form.approvedQuantity != null && Number(form.approvedQuantity) > 0;
             return (
               <Card
                 key={form.id}
@@ -290,11 +329,31 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
                           <CheckCircle2 className="h-3 w-3 mr-1" />
                           {STATUS_LABELS[form.status] || form.status}
                         </span>
+                        {hasPrice && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" data-testid={`text-price-${form.id}`}>
+                            <DollarSign className="h-3 w-3" />
+                            {Number(form.price).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
+                            {hasQty && <span className="opacity-70">· {Number(form.approvedQuantity).toLocaleString("fr-CA")} unité{Number(form.approvedQuantity) !== 1 ? "s" : ""}</span>}
+                          </span>
+                        )}
                       </div>
+
                       {description && (
-                        <p className="text-sm text-muted-foreground mt-1 truncate">{description}</p>
+                        <p className="text-sm text-muted-foreground mt-1.5 truncate">{description}</p>
                       )}
-                      <p className="text-xs text-muted-foreground mt-1">
+
+                      {previewTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {previewTags.map((t) => (
+                            <span key={t.label} className="inline-flex items-center gap-1 text-xs bg-muted rounded px-1.5 py-0.5">
+                              <span className="text-muted-foreground">{t.label} :</span>
+                              <span className="font-medium truncate max-w-[120px]">{t.value}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground mt-2">
                         Approuvé le{" "}
                         {form.updatedAt
                           ? new Date(form.updatedAt).toLocaleDateString("fr-CA", {
