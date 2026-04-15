@@ -1306,7 +1306,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forms/:id/create-linked-livraison", isAuthenticated, isAdmin, async (req: Request, res) => {
+  app.post("/api/forms/:id/create-linked-livraison", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const form = await storage.getFormSubmission(Number(req.params.id));
       if (!form) return res.status(404).json({ message: "Form not found" });
@@ -1314,8 +1314,8 @@ export async function registerRoutes(
       if (form.linkedFormId) return res.status(400).json({ message: "This form already has a linked form" });
 
       const formData = (form.data && typeof form.data === "object") ? form.data as Record<string, unknown> : {};
-      const userId = (req as any).user?.claims?.sub;
-      const userName = `${(req as any).user?.claims?.first_name || ""} ${(req as any).user?.claims?.last_name || ""}`.trim() || "Unknown";
+      const userId = req.user?.claims?.sub;
+      const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
 
       const livFormNumber = await storage.getNextFormNumber("livraison");
       const livData = {

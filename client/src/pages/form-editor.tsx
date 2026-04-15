@@ -12,11 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
-import { TriForm, defaultTriData } from "@/components/forms/tri-form";
-import { InspectionForm, defaultInspectionData } from "@/components/forms/inspection-form";
-import { EntreposageForm, defaultEntreposageData } from "@/components/forms/entreposage-form";
-import { CopackingForm, defaultCopackingData } from "@/components/forms/copacking-form";
-import { LivraisonForm, defaultLivraisonData } from "@/components/forms/livraison-form";
+import { TriForm, defaultTriData, type TriFormData } from "@/components/forms/tri-form";
+import { InspectionForm, defaultInspectionData, type InspectionFormData } from "@/components/forms/inspection-form";
+import { EntreposageForm, defaultEntreposageData, type EntreposageFormData } from "@/components/forms/entreposage-form";
+import { CopackingForm, defaultCopackingData, type CopackingFormData } from "@/components/forms/copacking-form";
+import { LivraisonForm, defaultLivraisonData, type LivraisonFormData } from "@/components/forms/livraison-form";
+
+type FormData = TriFormData | InspectionFormData | EntreposageFormData | CopackingFormData | LivraisonFormData;
 
 const FORM_TYPE_LABELS: Record<string, string> = {
   entreposage: "Entreposage",
@@ -70,26 +72,26 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   useEffect(() => {
     if (form) {
-      let d: Record<string, unknown>;
+      let d: Partial<FormData>;
       if (typeof form.data === "string") {
         try { d = JSON.parse(form.data); } catch { d = {}; }
       } else {
-        d = (form.data as Record<string, unknown>) || {};
+        d = (form.data as Partial<FormData>) || {};
       }
-      const defaults: Record<string, Record<string, unknown>> = {
+      const defaults: Record<string, FormData> = {
         tri: defaultTriData,
         inspection: defaultInspectionData,
         entreposage: defaultEntreposageData,
         copacking: defaultCopackingData,
         livraison: defaultLivraisonData,
       };
-      const typeDefault = defaults[form.formType] || {};
-      const merged = { ...typeDefault, ...d };
+      const typeDefault = defaults[form.formType];
+      const merged = typeDefault ? { ...typeDefault, ...d } : d;
       setFormData(merged);
     }
   }, [form]);
 
-  const handleChange = useCallback((data: Record<string, unknown>) => {
+  const handleChange = useCallback((data: FormData) => {
     setFormData(data);
     setData(data);
   }, [setData]);
@@ -189,8 +191,9 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     );
   }
 
-  const isDisabled = role === "client" && form.status !== "draft";
   const isDraft = form.status === "draft";
+  const isDisabled = role === "client" && !isDraft;
+  const formFieldsDisabled = role === "client" && !isDraft;
   const revisionHistory = Array.isArray(form.revisionHistory) ? form.revisionHistory : (typeof form.revisionHistory === "string" ? JSON.parse(form.revisionHistory) : []);
 
   return (
@@ -305,19 +308,19 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       {formData !== null && (
         <>
           {form.formType === "tri" && (
-            <TriForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
+            <TriForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
           )}
           {form.formType === "inspection" && (
-            <InspectionForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
+            <InspectionForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
           )}
           {form.formType === "entreposage" && (
-            <EntreposageForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
+            <EntreposageForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
           )}
           {form.formType === "copacking" && (
-            <CopackingForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
+            <CopackingForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
           )}
           {form.formType === "livraison" && (
-            <LivraisonForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
+            <LivraisonForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
           )}
         </>
       )}
