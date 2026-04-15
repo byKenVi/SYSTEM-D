@@ -327,7 +327,6 @@ export default function AdminProducts() {
                                 <TableHead className="text-right">Price</TableHead>
                                 <TableHead className="text-right">Shopify Stock</TableHead>
                                 <TableHead className="text-right">Zoho Stock</TableHead>
-                                <TableHead>Zoho</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -373,9 +372,6 @@ export default function AdminProducts() {
                                       {product.pushedToZoho && product.zohoInventoryQuantity != null ? (
                                         <span className="text-primary">{product.zohoInventoryQuantity}</span>
                                       ) : <span className="text-muted-foreground">—</span>}
-                                    </TableCell>
-                                    <TableCell>
-                                      {product.pushedToZoho ? <Badge variant="default" className="text-xs">Synced</Badge> : <Badge variant="secondary" className="text-xs">Not pushed</Badge>}
                                     </TableCell>
                                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                       <div className="flex items-center justify-end gap-1.5">
