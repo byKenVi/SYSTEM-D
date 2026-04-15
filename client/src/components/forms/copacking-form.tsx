@@ -189,7 +189,9 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
   }
 
   const pickAvecTotal = d.picksAvecFacture.reduce((s, r) => s + (parseInt(r.nbPicks) || 0), 0);
+  const pickAvecItemsTotal = d.picksAvecFacture.reduce((s, r) => s + (parseInt(r.nbItems) || 0), 0);
   const pickSansTotal = d.picksSansFacture.reduce((s, r) => s + (parseInt(r.nbPicks) || 0), 0);
+  const pickSansItemsTotal = d.picksSansFacture.reduce((s, r) => s + (parseInt(r.nbItems) || 0), 0);
   const packerHoursTotal = d.packerRows.reduce((s, r) => s + (r.totalHeure || 0), 0);
   const packerMontagesTotal = d.packerRows.reduce((s, r) => s + (parseFloat(r.montages) || 0), 0);
   const packerRendementGlobal = packerHoursTotal > 0 ? Math.round((packerMontagesTotal / packerHoursTotal) * 100) / 100 : 0;
@@ -395,7 +397,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                     <tr className="border-t-2 bg-muted/50">
                       <td className="p-2 text-right font-medium">Total</td>
                       <td className="p-2 font-mono font-bold" data-testid="text-cop-pick-af-total">{pickAvecTotal}</td>
-                      <td></td>
+                      <td className="p-2 font-mono font-bold" data-testid="text-cop-pick-af-items-total">{pickAvecItemsTotal}</td>
                       {!disabled && <td></td>}
                     </tr>
                   </tfoot>
@@ -442,7 +444,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                     <tr className="border-t-2 bg-muted/50">
                       <td className="p-2 text-right font-medium">Total</td>
                       <td className="p-2 font-mono font-bold" data-testid="text-cop-pick-sf-total">{pickSansTotal}</td>
-                      <td></td>
+                      <td className="p-2 font-mono font-bold" data-testid="text-cop-pick-sf-items-total">{pickSansItemsTotal}</td>
                       {!disabled && <td></td>}
                     </tr>
                   </tfoot>
