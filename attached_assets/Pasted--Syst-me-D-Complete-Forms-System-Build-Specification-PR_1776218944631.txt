@@ -1,0 +1,683 @@
+# Système-D — Complete Forms System Build Specification
+
+## PROJECT CONTEXT
+
+We are building a client portal for **Système-D**, a warehousing, sorting (tri), and co-packing company based in Quebec, Canada. The portal allows clients to submit service requests through digital forms, and allows the Système-D internal team to manage operations.
+
+The app has these user types:
+- **Client (external)**: submits forms for service requests, views project status (view + questions only)
+- **Admin / Système-D team (internal)**: fills forms on behalf of clients, manages projects, modifies submitted forms, tracks time
+
+There are **5 forms** total. Each form must:
+1. Auto-generate a unique form number on creation
+2. Store all data persistently (database)
+3. Be accessible from the CRM (via direct link per client)
+4. Generate a PDF version of the completed form
+5. Support photo/video uploads where specified
+6. Be editable after submission (by team only, not by client)
+7. Be bilingual-ready (French primary, English secondary) — all labels in French
+
+---
+
+## FORM 1: FORMULAIRE D'ENTREPOSAGE (Storage Request)
+
+**Trigger**: Client selects "Entreposage" from service selection dropdown
+**Who fills it**: Client (on portal) or Admin (on behalf of prospect)
+**Form ID prefix**: `ENT-` + auto-increment number
+
+### Section A: Emplacement seul (Storage only)
+
+#### A1. Nature du produit
+| Field | Type | Options/Validation |
+|-------|------|--------------------|
+| Type de produit | Dropdown | (configurable list — admin can add types) |
+| Valeur | Currency input ($) | Number, 2 decimals |
+| Assurance | Radio | `Oui` / `Non` |
+
+#### A2. Format (dimensions)
+| Field | Type | Validation |
+|-------|------|------------|
+| Longueur | Number input | In inches or cm (unit selector) |
+| Largeur | Number input | In inches or cm |
+| Hauteur | Number input | In inches or cm |
+| Poids | Number input | In lbs or kg (unit selector) |
+| Quantité | Integer input | Min: 1 |
+
+#### A3. Type d'emballage
+| Field | Type | Details |
+|-------|------|---------|
+| Type d'emballage | Radio/Card selector | `Palettes` / `Boîte` / `Vrac` / `Sac` |
+
+**If "Palettes" is selected**, show sub-fields:
+| Field | Type | Options |
+|-------|------|---------|
+| Type de palette | Radio | `Blanche` / `CHEP` / `Standard (40x48x48 ou 48x48x48)` / `Autres` |
+| If "Autres": Longueur | Number | |
+| If "Autres": Largeur | Number | |
+| If "Autres": Hauteur | Number | |
+| If "Autres": Poids | Number | |
+
+**If "Boîte" is selected**, show:
+| Field | Type |
+|-------|------|
+| Longueur | Number |
+| Largeur | Number |
+| Hauteur | Number |
+| Poids | Number |
+
+**If "Vrac" is selected**, show:
+| Field | Type |
+|-------|------|
+| Longueur | Number |
+| Largeur | Number |
+| Hauteur | Number |
+| Poids | Number |
+
+**If "Sac" is selected**, show:
+| Field | Type |
+|-------|------|
+| Longueur | Number |
+| Largeur | Number |
+| Hauteur | Number |
+| Poids | Number |
+
+#### A4. Additional storage options
+| Field | Type | Options |
+|-------|------|---------|
+| Bin | Checkbox + field | If checked: `Grandeur maximum` (number) |
+| Rack | Checkbox + field | If checked: `Grandeur maximum` (number) |
+
+### Section B: Avec service de livraison (with delivery service)
+
+**This section appears as a toggle or separate tab. If the client needs delivery, they fill Section B IN ADDITION to Section A.**
+
+#### B1. Type de marchandise à livrer
+| Field | Type | Options |
+|-------|------|---------|
+| Type | Multi-select checkboxes | `Palettes` / `Boîte` / `Vrac` / `Sac` |
+
+#### B2. Destination
+| Field | Type | Options |
+|-------|------|---------|
+| Type de destination | Radio | `Résidentiel` / `Commercial` / `Standard` |
+| Tailgate requis? | Radio | `Oui` / `Non` (show only if destination = Résidentiel or non-standard) |
+
+#### B3. Rendez-vous
+| Field | Type | Details |
+|-------|------|---------|
+| Rendez-vous requis? | Radio | `Oui` / `Non` |
+| **If Oui:** | | |
+| Date de pick-up | Date picker | |
+| Heure de pick-up | Time picker | |
+| Date de livraison | Date picker | |
+| Heure de livraison | Time picker | |
+| Adresse de livraison | Text + address autocomplete | Full address |
+
+#### B4. Mode de facturation
+| Field | Type | Options |
+|-------|------|---------|
+| Mode de facturation | Radio | `Payer client (fournisseur type D)` / `Payer client et fournisseur client` / `Bloquer type D facturer client` / `Payer type D` |
+
+#### B5. Documentation
+| Field | Type | Options |
+|-------|------|---------|
+| Documentation requise | Checkboxes | `Connaissement (Bill of lading)` / `Facture commerciale` |
+| BOL fourni | Radio | `Oui` / `Non` |
+
+#### B6. Conditionnement (if applicable)
+| Field | Type | Options |
+|-------|------|---------|
+| Conditionnement requis? | Radio | `Oui` / `Non` |
+| **If Oui:** | | |
+| Type | Radio | `Carton` / `Pli` |
+| Dock à stock? | Checkbox | |
+| Catégorie | Text input | |
+
+#### B7. Kitting (if applicable)
+| Field | Type |
+|-------|------|
+| Kitting requis? | Radio `Oui` / `Non` |
+| If Oui: Description du kitting | Textarea |
+
+---
+
+## FORM 2: INFORMATIONS GLOBALES DU TRI (Sorting Information — REV4)
+
+**Trigger**: Client selects "Tri" from service selection dropdown
+**Who fills it**: Client (on portal) or Admin (Simon fills for prospects)
+**Form ID prefix**: `TRI-` + auto-increment number
+**On submit**: Auto-generates a linked Form 3 (Inspection Instructions) with the same project reference
+
+### Section A: Header / Identification
+
+| Field | Type | Validation / Notes |
+|-------|------|--------------------|
+| Client | Text input or linked from CRM account | Required |
+| Sous-traitant | Text input | Optional |
+| Nom du projet | Text input | Required |
+| Code pièce | Text input | Required |
+| Description | Text input | Short part description (e.g. "Gasket") |
+| Instructions fournies — Numéro | Auto-generated | Format: `WI REV[X]` — system generates this |
+
+### Section B: Type de tri
+
+| Field | Type | Options |
+|-------|------|---------|
+| Type | Radio with conditional logic | `Nouveau TRI` / `Nouveau critère sur tri existant` / `Ajustement d'un critère existant` |
+| If "Nouveau critère sur tri existant" | Checkbox group | Cocher le numéro NC ajouté (references existing NC items) |
+| If "Ajustement d'un critère existant" | Checkbox group | Cocher le NC modifié (references existing NC items) |
+
+### Section C: Lexique (Non-conformité items)
+
+**Repeating group — up to 10 items. Each item is:**
+
+| Field | Type |
+|-------|------|
+| NC [number] | Auto-labeled: NC 1, NC 2, NC 3... up to NC 10 |
+| Description | Text input (e.g. "Flash/intérieur", "Debris", "Flash/extérieur", "Autres") |
+
+The user should be able to add items one by one up to 10. Pre-populate NC 1 through NC 4 as empty fields. Allow adding NC 5–10 with an "Ajouter un critère NC" button.
+
+### Section D: Paramètres opérationnels
+
+| Field | Type | Validation |
+|-------|------|------------|
+| Méthode de tri | Textarea | Free text |
+| Outils | Text input | e.g. "N/A" or list of tools |
+| Unité par boîte | Integer | e.g. 240 |
+| Besoin quotidien | Integer | e.g. 960 |
+| Cycle de tri | Number + dropdown | Number field + Type selector (dropdown, values TBD by admin) |
+| Langue échangée | Dropdown | `Français` / `English` / `Español` / `Other` |
+
+### Section E: Contacts
+
+**Repeating group — at least 1, no max limit:**
+
+| Field | Type |
+|-------|------|
+| Nom du contact | Text input |
+| Email | Email input (validated) |
+| Rôle | Dropdown: `Client` / `Sous-traitant` / `Autre` |
+
+---
+
+## FORM 3: INSTRUCTIONS D'INSPECTION / TRI / REWORK
+
+**Trigger**: Auto-created when Form 2 (Tri) is submitted. Linked by form number.
+**Who fills it**: Client initially, then Système-D team can modify
+**Form ID prefix**: `INS-` + auto-increment (linked to parent TRI form number)
+**Key feature**: Repeating items with photo/video upload. Must support rich media.
+
+### Section A: Header
+
+| Field | Type | Notes |
+|-------|------|-------|
+| # Work Instruction | Auto-generated | Format: `YYYYMMDD-[PartNumber]` |
+| Customer | Pre-filled from linked TRI form | Read-only |
+| Part Number | Pre-filled from linked TRI form | Read-only |
+| Part Name | Text input | |
+| Revision | Auto-generated | Format: `YYYY-MM-DD V[X]` — increments on each save |
+| Control Sample | Dropdown | `100%` / `50%` / `25%` / `10%` / `Custom` |
+| If Custom: Sample % | Number input | |
+| Measuring / Control Method | Multi-select or text | e.g. `Visual` / `Electrical` / `Dimensional` / `Other` |
+| Rework Tool | Text input or textarea | e.g. "Refer to tools list below" or "N/A" |
+
+### Section B: Description
+
+| Field | Type |
+|-------|------|
+| Inspection description | Textarea | Rich text — describe what is being inspected |
+| Rework description | Textarea | e.g. "Not applicable" |
+
+### Section C: Tool List
+
+| Field | Type |
+|-------|------|
+| Tool list | Textarea or repeating text fields | List of required tools, or "N/A" |
+
+### Section D: Personal Protective Equipment (PPE)
+
+| Field | Type | Options |
+|-------|------|---------|
+| PPE required | Multi-select checkboxes | `Safety glasses` / `Steel toe boots/shoes` / `Gloves` / `Hearing protection` / `Hard hat` / `Other` |
+| If Other | Text input | Specify |
+
+### Section E: Documentation Reference
+
+| Field | Type |
+|-------|------|
+| Documentation reference | Text input | e.g. "Inspection report F006-4" |
+
+### Section F: Inspection Criteria Items — THIS IS THE CORE REPEATING SECTION
+
+**Each item is a card/block that the user can add repeatedly. There is no maximum. Each item contains:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| Item number | Auto-generated | "Criteria 1", "Criteria 2", etc. |
+| Process title | Text input | e.g. "Contamination", "Flash (pic 1) and Debris (pic 2)" |
+| Process description | Textarea (rich text) | Detailed description of what to inspect. e.g. "Presence of flashing on internal seal bed area." |
+| **Non-Compliant** | | |
+| Non-compliant description | Textarea | What makes the part non-compliant |
+| Non-compliant photo(s) | File upload (image) | Multiple images allowed. Accept JPG, PNG, HEIC |
+| Non-compliant video | File upload or URL (Loom embed) | Optional. Accept MP4 or Loom/YouTube URL |
+| **Compliant** | | |
+| Compliant description | Textarea | What a compliant part looks like. e.g. "Absence of flash" |
+| Compliant photo(s) | File upload (image) | Multiple images allowed |
+| Compliant video | File upload or URL | Optional |
+| **Status** | | |
+| Critère valide? | Toggle | `Actif` / `Non-valide` (allows disabling old criteria without deleting) |
+
+**Add item button**: "Ajouter un critère d'inspection" — adds a new empty criteria card.
+
+### Section G: Approval
+
+| Field | Type |
+|-------|------|
+| Système-D Approval — Name | Text (pre-fill with logged-in user) |
+| Système-D Approval — Date | Date picker (auto-fill current date) |
+| Customer Approval — Name | Text input |
+| Customer Approval — Date | Date picker |
+
+### Section H: Revision History
+
+**Auto-populated table. Each time the form is saved/updated, a row is added automatically:**
+
+| Column | Type |
+|--------|------|
+| Date | Auto (save date) |
+| Rev | Auto-increment (1, 2, 3...) |
+| Description | Text input — person saving writes what changed |
+| Modified by | Auto (logged-in user name) |
+
+---
+
+## FORM 4: F015 — BON DE TRAVAIL / FEUILLE DE TEMPS MONTAGE DÉTAILLÉ (Co-packing Work Order)
+
+**Trigger**: Client selects "Co-packing" from service selection dropdown
+**Who fills it**: Primarily the Système-D team (internal operational form). Client provides initial info.
+**Form ID prefix**: `F015-` + auto-increment
+**This form has 5 tabs/sub-sections that function as sub-forms within one master form.**
+
+### Tab 1: Détaillée (Detailed — Verification, Approval, Montage Prep)
+
+#### 1A. Header
+| Field | Type |
+|-------|------|
+| Date | Date picker |
+| Date de livraison | Date picker |
+| Code montage | Text input (or auto-generated) |
+| NO PROD | Text/Number input |
+| Nom du montage | Text input |
+| Quantité | Integer input |
+
+#### 1B. Vérification des écarts (Gap verification)
+**Repeating time-tracking rows:**
+
+| Column | Type |
+|--------|------|
+| Date | Date picker |
+| Code | Text input |
+| Début | Time picker |
+| Fin | Time picker |
+| Initiale | Text input (initials of person) |
+| Total heure | Auto-calculated (Fin - Début) |
+
+**Total d'heures**: Auto-sum of all rows in this section.
+**Add row button**: "Ajouter une ligne"
+
+#### 1C. Approbation des photos (Photo approval)
+**Repeating time-tracking rows:**
+
+| Column | Type |
+|--------|------|
+| Date | Date picker |
+| Début | Time picker |
+| Fin | Time picker |
+| Nb gens | Integer (number of people) |
+| Noms | Text input (names, comma-separated or multi-select from team list) |
+| Total heure | Auto-calculated (Fin - Début) × Nb gens |
+
+**Total d'heures**: Auto-sum.
+
+#### 1D. Préparation du montage (Montage preparation)
+**Same structure as 1C** — repeating rows with Date, Début, Fin, Nb gens, Noms, Total heure.
+
+#### 1E. Palette & Materials Info
+| Field | Type | Options |
+|-------|------|---------|
+| Poids | Number input + unit label "lbs" | |
+| Master boîte reçu? | Radio | `Oui` / `Non` |
+| Format (master boîte) | Text input | Dimensions or description |
+| Modèle reçu? | Radio | `Oui` / `Non` |
+| Photo de notre modèle envoyée? | Radio | `Oui` / `Non` |
+| Approuvé le | Date picker | |
+| Étiquettes identification master reçu? | Radio | `Oui` / `Non` |
+| Code (étiquettes) | Text input | |
+| Livraison | Radio | `Régulier` / `Xpress` |
+
+#### 1F. Performance Metrics
+| Field | Type | Unit |
+|-------|------|------|
+| Temps unitaire pour faire un modèle | Number | secondes |
+| C.V. (coefficient de variation) | Number | |
+| Temps pour faire 5 modèles | Number | secondes |
+| Après 1h de production, combien d'unités fait | Integer | |
+| Nb de personnes (for 1h production test) | Integer | |
+
+### Tab 2: Montage (Assembly)
+
+#### 2A. Header
+| Field | Type |
+|-------|------|
+| Date | Date picker |
+| Date de livraison | Date picker |
+| Code montage | Text (linked from Tab 1 or entered) |
+| NO PROD | Text/Number |
+| Nom du montage | Text |
+| Quantité | Integer |
+| OL (Order line) | Text |
+| Description du montage | Textarea |
+
+#### 2B. Montage Time Tracking
+**Repeating rows (up to ~25 rows visible):**
+
+| Column | Type |
+|--------|------|
+| Date | Date picker |
+| Début | Time picker |
+| Fin | Time picker |
+| Nb gens | Integer |
+| Noms | Text input |
+| Total heure | Auto-calculated |
+
+**Total d'heures**: Auto-sum.
+
+#### 2C. Footer
+| Field | Type |
+|-------|------|
+| Commentaire | Textarea |
+
+### Tab 3: Ajout au travail (Unplanned Work Addition)
+
+#### 3A. Header
+| Field | Type |
+|-------|------|
+| Code de montage | Text (linked from master form) |
+
+#### 3B. Unplanned Work Blocks
+**Repeating blocks. Each block has:**
+
+| Field | Type |
+|-------|------|
+| Détail du travail non planifié | Textarea (description of unplanned work) |
+
+**Then a time-tracking table within each block:**
+
+| Column | Type |
+|--------|------|
+| Date | Date picker |
+| Début | Time picker |
+| Fin | Time picker |
+| Nb de gens | Integer |
+| Total heure | Auto-calculated |
+| Qté | Integer (quantity processed) |
+| Noms | Text |
+| Agence | Text input (staffing agency name, if applicable) |
+
+**Allow adding multiple blocks** with "Ajouter un bloc de travail non planifié" button.
+
+### Tab 4: Express Global (Daily Pick Summary)
+
+#### 4A. Header
+| Field | Type |
+|-------|------|
+| DATE | Date picker |
+
+#### 4B. Compte Total — Two side-by-side sections:
+
+**Left: Avec facture (With invoice)**
+
+| Column | Type |
+|--------|------|
+| Code | Text input |
+| Régulier | Integer |
+| Multiple | Integer |
+| Quantité | Integer |
+
+Repeating rows (up to ~8). Auto-sum for TOTAL and QUANTITÉ and BOITES at bottom.
+
+**Right: Sans facture (Without invoice)**
+
+Same structure: Code, Régulier, Multiple, Quantité. Repeating rows with auto-sums.
+
+#### 4C. Additional pick sections
+Two more paired sections (same structure as 4B) for overflow or categorization.
+
+#### 4D. Emballeurs et Emballeuses (Packers tracking)
+
+| Column | Type |
+|--------|------|
+| Nom | Text input |
+| Entrée | Time picker |
+| Sortie | Time picker |
+| Nb d'heure | Auto-calculated |
+| Montages | Text (which montages they worked on) |
+| Agence | Text input |
+
+Repeating rows. Auto-sum TOTAL hours. Auto-calculate RENDEMENT (yield/performance) at bottom.
+
+### Tab 5: Express Individuel (Individual Pick Sheet)
+
+| Field | Type |
+|-------|------|
+| DATE | Date picker |
+| NOM | Text input (worker name) |
+| Entré | Time picker |
+| Sortie | Time picker |
+| Montages | Text/List (which montages worked on) |
+
+This is a simple per-person daily log sheet.
+
+---
+
+## FORM 5: FORMULAIRE DE LIVRAISON (Delivery — standalone)
+
+**Trigger**: Client selects "Livraison" from service selection, OR triggered as add-on from Form 2 (Tri) or Form 4 (Co-packing) when shipping is needed post-service.
+**Form ID prefix**: `LIV-` + auto-increment
+
+### Fields:
+
+| Field | Type | Options |
+|-------|------|---------|
+| Type de marchandise | Multi-select | `Palettes` / `Boîte` / `Vrac` / `Sac` |
+| Nombre d'unités | Integer | Per type selected |
+| Destination type | Radio | `Résidentiel` / `Commercial` |
+| Tailgate requis? | Radio (conditional) | Show if Résidentiel. `Oui` / `Non` |
+| Rendez-vous requis? | Radio | `Oui` / `Non` |
+| If Oui: Date de pick-up | Date picker | |
+| If Oui: Heure de pick-up | Time picker | |
+| If Oui: Date de livraison | Date picker | |
+| If Oui: Heure de livraison | Time picker | |
+| Adresse de livraison | Address input | Full address |
+| Nombre de destinations | Integer | If multiple, repeat address block |
+| Mode de facturation | Radio | `Payer client` / `Payer client et fournisseur` / `Bloquer type D facturer client` / `Payer type D` |
+| Documentation | Checkboxes | `Connaissement` / `Facture commerciale` |
+| BOL fourni? | Radio | `Oui` / `Non` |
+
+---
+
+## AUTOMATION FLOW (applies to all forms)
+
+When ANY form is submitted:
+
+```
+1. FORM SUBMITTED
+   ↓
+2. AUTO-GENERATE unique form number (prefix + increment)
+   ↓
+3. STORE in database with:
+   - form_id
+   - form_type (ENT/TRI/INS/F015/LIV)
+   - client_id (linked to CRM account)
+   - submitted_by (user ID)
+   - submitted_at (timestamp)
+   - status: "submitted" | "in_review" | "approved" | "completed"
+   - all form field data as JSON or relational tables
+   ↓
+4. CREATE PROJECT (Zoho Project integration — future)
+   - Project name = form type + form number
+   - Attach links to form(s)
+   - Give client view-only + questions access
+   ↓
+5. CREATE SERVICE in Zoho Books (future)
+   - Product/Service name = project name
+   - Create devis (estimate) with project number
+   - Add service as line item
+   ↓
+6. GENERATE PDF of completed form
+   - Attach to project
+   - Attach to devis email
+   ↓
+7. SEND EMAIL notification
+   - To client: "Your submission has been received"
+   - To admin team: "New [form type] submission from [client]"
+```
+
+**Special flow for TRI:**
+```
+Form 2 (TRI) submitted
+  ↓
+Auto-create Form 3 (Inspection Instructions) — linked by TRI form number
+  ↓
+Both forms attached to same Zoho Project
+  ↓
+Both PDFs attached to devis email
+```
+
+**Special flow for Co-packing (F015):**
+```
+Form 4 (F015) submitted
+  ↓
+Check: does client need shipping?
+  ↓ Yes
+Auto-trigger Form 5 (Livraison) questions within the form
+  ↓
+All data attached to same project
+```
+
+---
+
+## UI / UX REQUIREMENTS
+
+### Layout
+- **Left sidebar navigation** with menu items per form type
+- **Top header** with client name, form number, status badge
+- **Main content area** with the form
+- **Tab navigation** within Form 4 (F015) for its 5 sub-forms
+- Mobile responsive (field workers may use tablets)
+
+### Form behavior
+- **Auto-save** as draft every 30 seconds (or on field blur)
+- **Save as draft** button — form can be partially filled and resumed
+- **Submit** button — validates all required fields, changes status to "submitted"
+- **Conditional fields**: use show/hide logic (not separate pages) — fields appear/disappear based on selections
+- **Repeating sections**: "Add row" / "Add item" buttons. Each added item gets a remove (X) button. Items are draggable for reordering where it makes sense.
+
+### File uploads
+- Accept: JPG, PNG, HEIC, PDF, MP4, MOV
+- Max file size: 25MB per file
+- Show thumbnail preview after upload
+- For Loom videos: accept URL paste, show embedded preview
+- Store files with reference to form_id + field_id
+
+### Auto-calculations
+- All "Total heure" fields = `Fin - Début` (in hours, 2 decimal places)
+- When "Nb gens" is present: `Total heure = (Fin - Début) × Nb gens`
+- Section totals = SUM of all row totals in that section
+- RENDEMENT in Express Global = total quantity / total hours
+
+### PDF generation
+- Generate clean, professional PDF matching the original Excel/Word layouts
+- Include all uploaded images inline
+- Include form header with: company logo, form number, date, client name
+- Include footer with: revision number, page numbers
+
+### Permissions
+- **Client**: can create new forms, edit own drafts, submit, view submitted (read-only after submit)
+- **Admin**: can create forms for any client, edit any form at any stage, change status, view all forms
+- **Team member**: can edit forms assigned to their projects, log time entries
+
+### Data model considerations
+- Each form type should have its own database table (or collection)
+- Repeating sections (NC items, time tracking rows, criteria items) should be stored as arrays/sub-tables
+- File uploads stored with references (URLs/paths), not inline
+- Form revisions tracked: every save creates a version snapshot
+- Linked forms (TRI → Inspection) maintain foreign key relationships
+
+---
+
+## CONTACT ROLES (from client CRM mapping)
+
+Each client account should support multiple contacts with roles:
+
+**Client-side contacts:**
+- Contact principale
+- Achat (purchasing)
+- Comptabilité / compte recevable (AR)
+- Entrepôt / logistique
+- Responsable qualité
+
+**Fournisseur-side contacts (supplier/subcontractor):**
+- Contact principale
+- Service client / représentant
+- Comptabilité / compte payable (AP)
+- Entrepôt / logistique
+- Responsable qualité
+
+---
+
+## TECH STACK NOTES
+
+- Build each form as a reusable component
+- Use a form builder pattern: field definitions drive rendering (makes it easier to add/modify fields later without rewriting components)
+- All date/time fields should use ISO format internally, display in `DD/MM/YYYY` and `HH:MM` (24h) format
+- Currency in CAD ($) unless specified otherwise
+- All text labels in French as specified above
+- Support dark/light mode
+- API endpoints for each form: `GET /forms/{type}`, `POST /forms/{type}`, `PUT /forms/{type}/{id}`, `GET /forms/{type}/{id}/pdf`
+
+---
+
+## PRIORITY ORDER FOR BUILDING
+
+1. **Form 2 (TRI)** + **Form 3 (Inspection Instructions)** — these are the most urgent, used daily, and the TRI→Inspection link is the most complex flow
+2. **Form 4 (F015 Co-packing)** — 5 tabs, heavy time tracking, used by internal team
+3. **Form 1 (Entreposage)** — standard storage form with conditional logic
+4. **Form 5 (Livraison)** — simplest standalone form, also reused as sub-form
+5. **Automation flows** (PDF generation, email notifications, status management)
+
+---
+
+## EXAMPLE DATA FOR TESTING
+
+**Form 2 test data:**
+- Client: Bruss
+- Sous-traitant: Sogefi
+- Nom projet: Tri pour contamination et flash
+- Code pièce: L1406A
+- Description: Gasket
+- NC 1: Flash/intérieur
+- NC 2: Debris
+- NC 3: Flash/extérieur
+- NC 4: Autres
+- Unité par boîte: 240
+- Besoin quotidien: 960
+- Contact: rahul.rajasekar@bruss-group.com, othmane.sadrani@sogefigroup.com
+
+**Form 4 test data (Tab 1 - Montage):**
+- Code montage: 9701457
+- NO PROD: 15725
+- Nom du montage: URI Xémose Huile Lavante 1L A2025
+- Description: Apposition code UPC & apposition code prix
+- Quantité: 10380
