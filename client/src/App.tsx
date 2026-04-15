@@ -20,6 +20,8 @@ import AdminSettingsPage from "@/pages/admin/settings";
 import PortalProfile from "@/pages/portal/profile";
 import PortalProducts from "@/pages/portal/products";
 import PortalRestock from "@/pages/portal/restock";
+import AdminForms from "@/pages/admin/forms";
+import PortalForms from "@/pages/portal/forms";
 
 interface UserRole {
   role: "admin" | "client";
@@ -42,6 +44,7 @@ function AdminLayout() {
               <Route path="/admin/contacts" component={AdminContacts} />
               <Route path="/admin/products" component={AdminProducts} />
               <Route path="/admin/restock-requests" component={AdminRestockRequests} />
+              <Route path="/admin/forms/:id?" component={AdminForms} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route path="/admin">
                 <Redirect to="/admin/contacts" />
@@ -77,6 +80,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
               </Route>
               <Route path="/portal/restock">
                 <PortalRestock viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/forms/:id?">
+                <PortalForms viewAsContactId={viewAsContactId} />
               </Route>
               <Route path="/portal">
                 <Redirect to={`/portal/profile${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />

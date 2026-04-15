@@ -34,6 +34,7 @@ import {
   Warehouse,
   LogOut,
   Eye,
+  ClipboardList,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -45,6 +46,7 @@ const adminItems = [
   { title: "Contacts", url: "/admin/contacts", icon: Users },
   { title: "Products & Inventory", url: "/admin/products", icon: Package },
   { title: "Restock Requests", url: "/admin/restock-requests", icon: RefreshCw },
+  { title: "Forms", url: "/admin/forms", icon: ClipboardList },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
@@ -52,6 +54,7 @@ const clientItems = [
   { title: "Profile", url: "/portal/profile", icon: User },
   { title: "Products & Inventory", url: "/portal/products", icon: Package },
   { title: "Restock Requests", url: "/portal/restock", icon: RefreshCw },
+  { title: "Forms", url: "/portal/forms", icon: ClipboardList },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {

@@ -115,6 +115,41 @@ export const insertAdminSettingsSchema = createInsertSchema(adminSettings).omit(
 export type InsertAdminSettings = z.infer<typeof insertAdminSettingsSchema>;
 export type AdminSettings = typeof adminSettings.$inferSelect;
 
+export const formSubmissions = pgTable("form_submissions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  formType: text("form_type").notNull(),
+  formNumber: text("form_number").notNull().unique(),
+  contactId: integer("contact_id").notNull(),
+  submittedBy: text("submitted_by"),
+  submittedByName: text("submitted_by_name"),
+  status: text("status").notNull().default("draft"),
+  data: text("data").notNull().default("{}"),
+  revision: integer("revision").notNull().default(1),
+  linkedFormId: integer("linked_form_id"),
+  revisionHistory: text("revision_history").default("[]"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertFormSubmissionSchema = createInsertSchema(formSubmissions).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertFormSubmission = z.infer<typeof insertFormSubmissionSchema>;
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+
+export const formUploads = pgTable("form_uploads", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  formSubmissionId: integer("form_submission_id").notNull(),
+  fieldKey: text("field_key").notNull(),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFormUploadSchema = createInsertSchema(formUploads).omit({ id: true, createdAt: true });
+export type InsertFormUpload = z.infer<typeof insertFormUploadSchema>;
+export type FormUpload = typeof formUploads.$inferSelect;
+
 export const activityLogs = pgTable("activity_logs", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   type: text("type").notNull(),

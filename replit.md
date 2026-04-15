@@ -18,16 +18,25 @@ client/src/
       contacts.tsx      - Admin contact management
       products.tsx      - Admin products & inventory
       restock-requests.tsx - Admin restock monitoring
+      forms.tsx         - Admin forms dashboard (list, create, delete)
       settings.tsx      - Shopify & Zoho integration settings
     portal/
       profile.tsx       - Client profile
       products.tsx      - Client products view
       restock.tsx       - Client restock requests
+      forms.tsx         - Portal forms list (create, view)
+    form-editor.tsx     - Shared form editor (auto-save, submit, status changes)
   components/
     app-sidebar.tsx     - Sidebar navigation
     theme-provider.tsx  - Dark/light mode
     theme-toggle.tsx    - Theme toggle button
+    forms/
+      file-upload.tsx   - Drag & drop file upload component
+      tri-form.tsx      - TRI form (sorting request)
+      inspection-form.tsx - Inspection form (work instructions)
     ui/                 - shadcn components
+  hooks/
+    use-auto-save.ts    - Auto-save hook for form drafts
 
 server/
   index.ts             - Express server entry
@@ -42,7 +51,7 @@ server/
   replit_integrations/auth/ - Replit Auth integration
 
 shared/
-  schema.ts            - Drizzle schemas (contacts, products, restockRequests, shopifyIntegrations, adminSettings)
+  schema.ts            - Drizzle schemas (contacts, products, restockRequests, shopifyIntegrations, adminSettings, formSubmissions, formUploads)
   models/auth.ts       - Auth-related schemas (users, sessions)
 ```
 
@@ -61,7 +70,13 @@ shared/
 - `/api/zoho/sync-items/:contactId` - Sync Zoho items into app for a contact
 - `/api/zoho/push-item/:productId` - Push a product to Zoho Inventory
 - `/api/zoho/sync-inventory` - Sync Zoho inventory levels for all pushed products
-- `/api/portal/*` - Client-specific endpoints
+- `/api/forms` - GET (list forms with filters), POST (create form)
+- `/api/forms/:id` - GET/PUT/DELETE individual form
+- `/api/forms/upload` - POST file upload (multer, 25MB limit)
+- `/api/forms/:id/uploads` - POST create upload record
+- `/api/uploads/:filename` - GET serve uploaded file
+- `/api/portal/forms` - Client forms list
+- `/api/portal/*` - Other client-specific endpoints
 
 ## Zoho Inventory Integration
 - Uses OAuth 2.0 Authorization Code flow with regional domain support (US/EU/IN/AU/JP/CA)
@@ -120,6 +135,22 @@ shared/
 - Visible in Settings → Activity Log tab with search, type filter, and status filter
 - Auto-refreshes every 30 seconds
 - `GET /api/activity-logs` endpoint returns up to 500 most recent entries
+
+## Forms System
+- 5 form types: `entreposage` (ENT-xxx), `tri` (TRI-xxx), `inspection` (INS-xxx), `copacking` (F015-xxx), `livraison` (LIV-xxx)
+- `form_submissions` table: formType, formNumber, contactId, status, data (JSON text), revision, linkedFormId, revisionHistory
+- `form_uploads` table: formSubmissionId, fieldKey, fileName, fileUrl, fileType, fileSize
+- Status flow: draft → submitted → in_review → approved → completed
+- Clients can only edit drafts; admin can edit any status and change status
+- Auto-save: `useAutoSave` hook saves draft data every 30 seconds
+- File upload via multer to `uploads/` directory, max 25MB, supports jpg/png/heic/pdf/mp4/mov
+- **TRI → Inspection auto-link**: when TRI form is submitted, server auto-creates a linked Inspection form with pre-filled header data
+- Both forms get `linkedFormId` set pointing to each other
+- `formSubmissions.data` is stored as JSON **text** — always `JSON.stringify()` on write, `JSON.parse()` on read
+- Email notifications: submission confirmation + status change emails (French)
+- Activity log entry created on form submission
+- Admin Forms page: table view with type/status filters, create new form for any client
+- Portal Forms page: card list view, clients can create tri/entreposage/copacking/livraison forms
 
 ## User Roles
 - First authenticated user is Admin

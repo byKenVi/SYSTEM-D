@@ -3,7 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
-import { sendInviteEmail } from "./resend";
+import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail } from "./resend";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, fetchZohoItemsMap } from "./zoho-api";
 import {
@@ -113,6 +116,17 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching contacts:", error);
       res.status(500).json({ message: "Failed to fetch contacts" });
+    }
+  });
+
+  app.get("/api/contacts/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contact = await storage.getContact(Number(req.params.id));
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+      res.json(contact);
+    } catch (error) {
+      console.error("Error fetching contact:", error);
+      res.status(500).json({ message: "Failed to fetch contact" });
     }
   });
 
@@ -1002,6 +1016,298 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching activity logs:", error);
       res.status(500).json({ message: "Failed to fetch activity logs" });
+    }
+  });
+
+  // ====== FORMS SYSTEM ======
+
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: uploadsDir,
+      filename: (_req, file, cb) => {
+        const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        cb(null, `${unique}${path.extname(file.originalname)}`);
+      },
+    }),
+    limits: { fileSize: 25 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = [".jpg", ".jpeg", ".png", ".heic", ".pdf", ".mp4", ".mov"];
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, allowed.includes(ext));
+    },
+  });
+
+  app.post("/api/forms/upload", isAuthenticated, upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const fileUrl = `/api/uploads/${req.file.filename}`;
+      res.json({
+        fileName: req.file.originalname,
+        fileUrl,
+        fileType: req.file.mimetype,
+        fileSize: req.file.size,
+      });
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  app.get("/api/uploads/:filename", (req, res) => {
+    const filePath = path.join(uploadsDir, req.params.filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found" });
+    res.sendFile(filePath);
+  });
+
+  app.get("/api/forms", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      const filters: { formType?: string; status?: string; contactId?: number } = {};
+      if (req.query.formType) filters.formType = req.query.formType as string;
+      if (req.query.status) filters.status = req.query.status as string;
+
+      if (role.role === "admin") {
+        if (req.query.contactId) filters.contactId = Number(req.query.contactId);
+        const forms = await storage.getFormSubmissions(filters);
+        return res.json(forms);
+      }
+
+      filters.contactId = role.contactId;
+      const forms = await storage.getFormSubmissions(filters);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching forms:", error);
+      res.status(500).json({ message: "Failed to fetch forms" });
+    }
+  });
+
+  app.post("/api/forms", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      const { formType, contactId, data } = req.body;
+      if (!formType) return res.status(400).json({ message: "formType is required" });
+
+      const resolvedContactId = role.role === "admin" ? (contactId || 0) : role.contactId;
+      if (!resolvedContactId) return res.status(400).json({ message: "contactId is required" });
+
+      const formNumber = await storage.getNextFormNumber(formType);
+      const userId = req.user?.claims?.sub;
+      const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
+
+      const submission = await storage.createFormSubmission({
+        formType,
+        formNumber,
+        contactId: resolvedContactId,
+        submittedBy: userId,
+        submittedByName: userName,
+        status: "draft",
+        data: JSON.stringify(data || {}),
+        revision: 1,
+        revisionHistory: "[]",
+      });
+
+      res.status(201).json(submission);
+    } catch (error: any) {
+      console.error("Error creating form:", error);
+      res.status(500).json({ message: error.message || "Failed to create form" });
+    }
+  });
+
+  app.get("/api/forms/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Form not found" });
+
+      if (role.role === "client" && form.contactId !== role.contactId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const uploads = await storage.getFormUploadsBySubmission(form.id);
+      res.json({ ...form, uploads });
+    } catch (error) {
+      console.error("Error fetching form:", error);
+      res.status(500).json({ message: "Failed to fetch form" });
+    }
+  });
+
+  app.put("/api/forms/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Form not found" });
+
+      if (role.role === "client") {
+        if (form.contactId !== role.contactId) return res.status(403).json({ message: "Not authorized" });
+        if (form.status !== "draft") return res.status(403).json({ message: "Cannot edit submitted forms" });
+      }
+
+      const { data, status, revisionDescription } = req.body;
+      const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
+
+      const updateData: any = {};
+      if (data !== undefined) updateData.data = JSON.stringify(data);
+
+      if (status && status !== form.status) {
+        updateData.status = status;
+
+        if (status === "submitted" && form.status === "draft") {
+          const history = JSON.parse(form.revisionHistory || "[]");
+          history.push({
+            date: new Date().toISOString(),
+            rev: form.revision,
+            description: revisionDescription || "Initial submission",
+            modifiedBy: userName,
+          });
+          updateData.revisionHistory = JSON.stringify(history);
+
+          if (form.formType === "tri") {
+            const insFormNumber = await storage.getNextFormNumber("inspection");
+            const formData = JSON.parse(form.data || "{}");
+            const insData = {
+              customer: formData.client || "",
+              partNumber: formData.codePiece || "",
+              partName: formData.description || "",
+              workInstruction: `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${formData.codePiece || ""}`,
+            };
+            const insForm = await storage.createFormSubmission({
+              formType: "inspection",
+              formNumber: insFormNumber,
+              contactId: form.contactId,
+              submittedBy: form.submittedBy,
+              submittedByName: form.submittedByName,
+              status: "draft",
+              data: JSON.stringify(insData),
+              revision: 1,
+              linkedFormId: form.id,
+              revisionHistory: "[]",
+            });
+            updateData.linkedFormId = insForm.id;
+          }
+
+          const contact = await storage.getContact(form.contactId);
+          if (contact?.email) {
+            sendFormSubmissionEmail({
+              email: contact.email,
+              name: contact.name,
+              formType: form.formType,
+              formNumber: form.formNumber,
+            }).catch((err) => console.error("Form email error:", err));
+          }
+
+          await storage.createActivityLog({
+            type: "form_submission",
+            status: "success",
+            message: `Form ${form.formNumber} submitted by ${userName}`,
+          });
+        }
+
+        if (status !== form.status && status !== "draft") {
+          const contact = await storage.getContact(form.contactId);
+          if (contact?.email && form.status !== "draft") {
+            sendFormStatusEmail({
+              email: contact.email,
+              name: contact.name,
+              formNumber: form.formNumber,
+              newStatus: status,
+            }).catch((err) => console.error("Status email error:", err));
+          }
+        }
+      }
+
+      if (revisionDescription && status !== "submitted") {
+        const newRevision = form.revision + 1;
+        updateData.revision = newRevision;
+        const history = JSON.parse(form.revisionHistory || "[]");
+        history.push({
+          date: new Date().toISOString(),
+          rev: newRevision,
+          description: revisionDescription,
+          modifiedBy: userName,
+        });
+        updateData.revisionHistory = JSON.stringify(history);
+      }
+
+      const updated = await storage.updateFormSubmission(form.id, updateData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating form:", error);
+      res.status(500).json({ message: error.message || "Failed to update form" });
+    }
+  });
+
+  app.delete("/api/forms/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      await storage.deleteFormSubmission(Number(req.params.id));
+      res.json({ message: "Form deleted" });
+    } catch (error) {
+      console.error("Error deleting form:", error);
+      res.status(500).json({ message: "Failed to delete form" });
+    }
+  });
+
+  app.post("/api/forms/:id/uploads", isAuthenticated, async (req: any, res) => {
+    try {
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Form not found" });
+
+      const { fieldKey, fileName, fileUrl, fileType, fileSize } = req.body;
+      const upload = await storage.createFormUpload({
+        formSubmissionId: form.id,
+        fieldKey,
+        fileName,
+        fileUrl,
+        fileType,
+        fileSize,
+      });
+      res.status(201).json(upload);
+    } catch (error) {
+      console.error("Error creating upload record:", error);
+      res.status(500).json({ message: "Failed to create upload record" });
+    }
+  });
+
+  app.delete("/api/form-uploads/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteFormUpload(Number(req.params.id));
+      res.json({ message: "Upload deleted" });
+    } catch (error) {
+      console.error("Error deleting upload:", error);
+      res.status(500).json({ message: "Failed to delete upload" });
+    }
+  });
+
+  app.get("/api/admin/view-as/:contactId/forms", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const forms = await storage.getFormSubmissionsByContact(contactId);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching view-as forms:", error);
+      res.status(500).json({ message: "Failed to fetch forms" });
+    }
+  });
+
+  app.get("/api/portal/forms", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) return res.json([]);
+      const forms = await storage.getFormSubmissionsByContact(role.contactId);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching portal forms:", error);
+      res.status(500).json({ message: "Failed to fetch forms" });
     }
   });
 
