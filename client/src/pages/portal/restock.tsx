@@ -56,26 +56,6 @@ export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: n
         <p className="text-muted-foreground mt-1">Track your work order history and status</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {["Processing", "Confirmed", "Shipped", "Delivered"].map((status) => {
-          const count = requests?.filter((r) => r.status === status).length || 0;
-          const Icon = statusIcons[status];
-          return (
-            <Card key={status}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-md bg-accent flex items-center justify-center flex-shrink-0">
-                  <Icon className="h-5 w-5 text-accent-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{status}</p>
-                  <p className="text-2xl font-bold">{count}</p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
       <Card>
         <CardHeader className="pb-4">
           <h3 className="font-semibold">Request History</h3>
