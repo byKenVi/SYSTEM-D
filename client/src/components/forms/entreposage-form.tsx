@@ -7,7 +7,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ChevronDown } from "lucide-react";
+import { useState } from "react";
 
 interface EntreposageFormData {
   natureProduit: string;
@@ -161,12 +162,23 @@ export function EntreposageForm({ data, onChange, disabled }: EntreposageFormPro
     update({ adresses: d.adresses.filter((_, idx) => idx !== i) });
   }
 
+  const [openA, setOpenA] = useState(true);
+  const [openB, setOpenB] = useState(true);
+  const [openNotes, setOpenNotes] = useState(true);
+
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="pb-3">
-          <h3 className="font-semibold text-lg">A. Entreposage</h3>
+        <CardHeader
+          className="pb-3 cursor-pointer select-none"
+          onClick={() => setOpenA((v) => !v)}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-lg">A. Entreposage</h3>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${openA ? "" : "-rotate-90"}`} />
+          </div>
         </CardHeader>
+        {openA && (
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Nature du produit</Label>
@@ -338,19 +350,24 @@ export function EntreposageForm({ data, onChange, disabled }: EntreposageFormPro
             )}
           </div>
         </CardContent>
+        )}
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader
+          className="pb-3 cursor-pointer select-none"
+          onClick={() => setOpenB((v) => !v)}
+        >
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-lg">B. Service de livraison</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <Label className="text-sm">Activer</Label>
               <Switch checked={d.hasLivraison} onCheckedChange={(v) => update({ hasLivraison: v })} disabled={disabled} data-testid="switch-ent-livraison" />
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ml-1 ${openB ? "" : "-rotate-90"}`} />
             </div>
           </div>
         </CardHeader>
-        {d.hasLivraison && (
+        {openB && d.hasLivraison && (
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Type de marchandise</Label>
@@ -488,12 +505,20 @@ export function EntreposageForm({ data, onChange, disabled }: EntreposageFormPro
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <h3 className="font-semibold text-lg">Notes</h3>
+        <CardHeader
+          className="pb-3 cursor-pointer select-none"
+          onClick={() => setOpenNotes((v) => !v)}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-lg">Notes</h3>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${openNotes ? "" : "-rotate-90"}`} />
+          </div>
         </CardHeader>
-        <CardContent>
-          <Textarea value={d.notes} onChange={(e) => update({ notes: e.target.value })} disabled={disabled} rows={3} placeholder="Notes additionnelles..." data-testid="input-ent-notes" />
-        </CardContent>
+        {openNotes && (
+          <CardContent>
+            <Textarea value={d.notes} onChange={(e) => update({ notes: e.target.value })} disabled={disabled} rows={3} placeholder="Notes additionnelles..." data-testid="input-ent-notes" />
+          </CardContent>
+        )}
       </Card>
     </div>
   );
