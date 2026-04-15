@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers } from "lucide-react";
+import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -37,6 +37,14 @@ const STATUS_COLORS: Record<string, string> = {
   in_review: "bg-amber-400 text-amber-950 dark:bg-amber-500 border-transparent",
   approved: "bg-emerald-500 text-white dark:bg-emerald-600 border-transparent",
   completed: "bg-purple-500 text-white dark:bg-purple-600 border-transparent",
+};
+
+const STATUS_BORDER: Record<string, string> = {
+  draft: "border-l-gray-300 dark:border-l-gray-600",
+  submitted: "border-l-blue-500",
+  in_review: "border-l-amber-400",
+  approved: "border-l-emerald-500",
+  completed: "border-l-purple-500",
 };
 
 const FORM_TYPES = [
@@ -583,73 +591,67 @@ export function AdminFormDetail({ id }: { id: number }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-          <button
-            onClick={() => navigate("/admin/forms")}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2 transition-colors"
-            data-testid="button-back-to-list"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Service Requests
-          </button>
+      {/* Header card */}
+      <div className={`rounded-xl border-l-4 border border-border bg-card shadow-sm overflow-hidden ${STATUS_BORDER[form.status] || "border-l-gray-300"}`}>
+        <div className="px-5 pt-4 pb-5 space-y-3">
+          {/* Top row: back + actions */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              onClick={() => navigate("/admin/forms")}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-back-to-list"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Service Requests
+            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {form.status !== "draft" && (
+                <Button variant="outline" size="sm" onClick={() => window.open(`/api/forms/${id}/pdf`, "_blank")} data-testid="button-download-pdf">
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  PDF
+                </Button>
+              )}
+              {canAdvance && (
+                <Button variant="outline" size="sm" onClick={() => statusMutation.mutate(nextStatus!)} disabled={statusMutation.isPending} data-testid="button-advance-status">
+                  {ADVANCE_LABELS[form.status] || `→ ${STATUS_LABELS[nextStatus!]}`}
+                </Button>
+              )}
+              <Button size="sm" onClick={() => navigate(`/admin/forms/${id}/edit`)} data-testid="button-edit-form">
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                Edit
+              </Button>
+            </div>
+          </div>
+
+          {/* Form number + badge */}
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
+            <h1 className="text-2xl font-bold font-mono tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
             <Badge className={`text-xs ${STATUS_COLORS[form.status]}`} data-testid="badge-form-status">
               {STATUS_LABELS[form.status] || form.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground flex-wrap">
-            <span>{TYPE_LABELS[form.formType] || form.formType}</span>
-            {contact && (
-              <>
-                <span>·</span>
-                <Link href={`/admin/contacts/${contact.id}`}>
-                  <span className="hover:underline hover:text-foreground cursor-pointer transition-colors" data-testid="text-form-client">
-                    {contact.companyName || contact.name}
-                  </span>
-                </Link>
-              </>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Updated {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString() : "—"} · Rev. {form.revision}
-          </p>
-        </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          {form.status !== "draft" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(`/api/forms/${id}/pdf`, "_blank")}
-              data-testid="button-download-pdf"
-            >
-              <Download className="h-4 w-4 mr-1.5" />
-              PDF
-            </Button>
-          )}
-          {canAdvance && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => statusMutation.mutate(nextStatus!)}
-              disabled={statusMutation.isPending}
-              data-testid="button-advance-status"
-            >
-              {ADVANCE_LABELS[form.status] || `→ ${STATUS_LABELS[nextStatus!]}`}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            onClick={() => navigate(`/admin/forms/${id}/edit`)}
-            data-testid="button-edit-form"
-          >
-            <Pencil className="h-4 w-4 mr-1.5" />
-            Edit
-          </Button>
+          {/* Meta row: type + client + date */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+              {TYPE_LABELS[form.formType] || form.formType}
+            </span>
+            {contact && (
+              <Link href={`/admin/contacts/${contact.id}`}>
+                <span className="flex items-center gap-1.5 hover:text-foreground cursor-pointer transition-colors" data-testid="text-form-client">
+                  <User className="h-3.5 w-3.5 flex-shrink-0" />
+                  {contact.companyName || contact.name}
+                </span>
+              </Link>
+            )}
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+              Updated {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
+              <span className="text-muted-foreground/50">·</span>
+              Rev. {form.revision}
+            </span>
+          </div>
         </div>
       </div>
 
