@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contact } from "@shared/schema";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,15 +39,13 @@ import {
   Send,
   MoreHorizontal,
   Link2,
-  Link2Off,
   ChevronsUpDown,
   ChevronUp,
   ChevronDown,
   LayoutGrid,
   List,
-  Building2,
   Mail,
-  CalendarDays,
+  Phone,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
@@ -341,68 +340,82 @@ export default function AdminContacts() {
             </div>
           ) : filtered && filtered.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((contact) => (
-                <Card
-                  key={contact.id}
-                  className="flex flex-col cursor-pointer hover:border-primary/40 transition-colors"
-                  data-testid={`card-contact-${contact.id}`}
-                  onClick={() => navigate(`/admin/contacts/${contact.id}`)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm leading-tight truncate" data-testid={`text-contact-name-${contact.id}`}>
-                          {contact.name}
-                        </p>
-                        {contact.companyName && (
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1">
-                            <Building2 className="h-3 w-3 flex-shrink-0" />
-                            {contact.companyName}
+              {filtered.map((contact) => {
+                const initials = contact.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+                return (
+                  <Card
+                    key={contact.id}
+                    className="cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
+                    data-testid={`card-contact-${contact.id}`}
+                    onClick={() => navigate(`/admin/contacts/${contact.id}`)}
+                  >
+                    <CardContent className="p-4">
+                      {/* Top: avatar + name + actions */}
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-semibold text-primary">{initials}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <p className="font-semibold text-sm leading-tight truncate" data-testid={`text-contact-name-${contact.id}`}>
+                            {contact.name}
                           </p>
+                          {contact.companyName ? (
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{contact.companyName}</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground/30 mt-0.5 italic">No company</p>
+                          )}
+                        </div>
+                        <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                          <ContactActions contact={contact} />
+                        </span>
+                      </div>
+
+                      <Separator className="my-3" />
+
+                      {/* Contact info */}
+                      <div className="space-y-1.5 mb-3">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+                          <Mail className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{contact.email}</span>
+                        </div>
+                        {contact.phone ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3 flex-shrink-0" />
+                            <span>{contact.phone}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground/30">
+                            <Phone className="h-3 w-3 flex-shrink-0" />
+                            <span>No phone</span>
+                          </div>
                         )}
                       </div>
-                      <span onClick={(e) => e.stopPropagation()}>
-                        <ContactActions contact={contact} />
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 flex-1 space-y-3">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-                      <Mail className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{contact.email}</span>
-                    </div>
 
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <CalendarDays className="h-3 w-3 flex-shrink-0" />
-                      <span data-testid={`text-contact-created-${contact.id}`}>
-                        {contact.createdAt
-                          ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
-                          : "—"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1 flex-wrap">
-                      <Badge
-                        variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
-                        data-testid={`badge-status-${contact.id}`}
-                      >
-                        {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
-                      </Badge>
-                      {contact.zohoCrmContactId ? (
-                        <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700" data-testid={`badge-zoho-synced-${contact.id}`}>
-                          <Link2 className="h-3 w-3" />
-                          Zoho
+                      {/* Footer: status + zoho + date */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge
+                          variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
+                          className="text-[10px] px-1.5 py-0 h-4"
+                          data-testid={`badge-status-${contact.id}`}
+                        >
+                          {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
                         </Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1 text-muted-foreground" data-testid={`badge-zoho-unsynced-${contact.id}`}>
-                          <Link2Off className="h-3 w-3" />
-                          No Zoho
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        {contact.zohoCrmContactId && (
+                          <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700 text-[10px] px-1.5 py-0 h-4" data-testid={`badge-zoho-synced-${contact.id}`}>
+                            <Link2 className="h-2.5 w-2.5" />
+                            Zoho
+                          </Badge>
+                        )}
+                        <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums" data-testid={`text-contact-created-${contact.id}`}>
+                          {contact.createdAt
+                            ? new Date(contact.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                            : "—"}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-48 text-center">
