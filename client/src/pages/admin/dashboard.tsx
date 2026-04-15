@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -253,11 +254,12 @@ export default function AdminDashboard() {
             <CardContent className="space-y-3">
               {loadingForms ? (
                 <div className="space-y-3">
-                  {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
+                  {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
                 </div>
               ) : (
                 <>
                   {[
+                    { key: "draft", label: "Draft", icon: FileText, color: "text-muted-foreground" },
                     { key: "submitted", label: "Submitted", icon: Clock, color: "text-blue-500" },
                     { key: "in_review", label: "In Review", icon: AlertCircle, color: "text-amber-500" },
                     { key: "approved", label: "Approved", icon: CheckCircle2, color: "text-emerald-500" },
