@@ -180,7 +180,7 @@ export default function AdminProductDetail() {
                     Zoho Synced
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs text-muted-foreground">Not in Zoho</Badge>
+                  <Badge className="text-xs bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100">Not in Zoho</Badge>
                 )}
                 {product.shopifyStatus && (
                   <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
