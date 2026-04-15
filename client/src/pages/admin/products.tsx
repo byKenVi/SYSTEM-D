@@ -21,7 +21,6 @@ import {
   Clock,
   ExternalLink,
   ChevronDown,
-  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -283,19 +282,6 @@ export default function AdminProducts() {
     },
   });
 
-  const syncZohoInventoryMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/zoho/sync-inventory");
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Zoho Inventory Synced", description: data.message });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to sync Zoho inventory.", variant: "destructive" });
-    },
-  });
 
   const deleteProductMutation = useMutation({
     mutationFn: async (productId: number) => {
@@ -384,17 +370,6 @@ export default function AdminProducts() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products</h1>
           <p className="text-muted-foreground mt-1">Manage products across all client accounts</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => syncZohoInventoryMutation.mutate()}
-          disabled={syncZohoInventoryMutation.isPending}
-          data-testid="button-sync-zoho-inventory"
-        >
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${syncZohoInventoryMutation.isPending ? "animate-spin" : ""}`} />
-          {syncZohoInventoryMutation.isPending ? "Syncing..." : "Sync Zoho Inventory"}
-        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
