@@ -72,26 +72,6 @@ export default function AdminRestockRequests() {
         <p className="text-muted-foreground mt-1">Monitor work orders and Zoho sales order status</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {["Processing", "Confirmed", "Shipped", "Delivered"].map((status) => {
-          const count = requests?.filter((r) => r.status === status).length || 0;
-          const Icon = statusIcons[status];
-          return (
-            <Card key={status}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-md bg-accent flex items-center justify-center flex-shrink-0">
-                  <Icon className="h-5 w-5 text-accent-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{status}</p>
-                  <p className="text-2xl font-bold">{count}</p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
       <Card>
         <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
