@@ -1362,7 +1362,7 @@ export async function registerRoutes(
         if (form.status !== "draft") return res.status(403).json({ message: "Cannot edit submitted forms" });
       }
 
-      const { data, status, revisionDescription, price } = req.body;
+      const { data, status, revisionDescription, price, approvedQuantity } = req.body;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
 
       if (status && status !== form.status) {
@@ -1383,6 +1383,7 @@ export async function registerRoutes(
       const updateData: Record<string, unknown> = {};
       if (data !== undefined) updateData.data = data;
       if (price !== undefined && role.role === "admin") updateData.price = price === "" || price === null ? null : String(price);
+      if (approvedQuantity !== undefined && role.role === "admin") updateData.approvedQuantity = approvedQuantity === "" || approvedQuantity === null ? null : String(approvedQuantity);
 
       if (status && status !== form.status) {
         updateData.status = status;

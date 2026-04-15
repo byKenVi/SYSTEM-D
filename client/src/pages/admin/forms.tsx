@@ -816,10 +816,48 @@ function FormSummary({ form }: { form: FormSubmission }) {
   return <p className="text-sm text-muted-foreground">No summary available for this form type.</p>;
 }
 
+function getQuantityLabel(form: FormSubmission): string {
+  const d = form.data as any;
+  switch (form.formType) {
+    case "entreposage":
+      if (d?.hasBinRack) return "Quantité (bins/racks)";
+      switch (d?.typeEmballage) {
+        case "Palette": return "Quantité (palettes)";
+        case "Boîte": return "Quantité (boîtes)";
+        case "Sac": return "Quantité (sacs)";
+        case "Vrac": return "Quantité (unités vrac)";
+        default: return "Quantité";
+      }
+    case "tri": return "Quantité (articles)";
+    case "copacking": return "Quantité (palettes)";
+    case "livraison": return "Quantité (colis)";
+    case "inspection": return "Quantité (items)";
+    default: return "Quantité";
+  }
+}
+
+function getQuantityUnit(form: FormSubmission): string {
+  const d = form.data as any;
+  switch (form.formType) {
+    case "entreposage":
+      if (d?.hasBinRack) return "bin(s)";
+      switch (d?.typeEmballage) {
+        case "Palette": return "palette(s)";
+        case "Boîte": return "boîte(s)";
+        case "Sac": return "sac(s)";
+        case "Vrac": return "unité(s)";
+        default: return "";
+      }
+    case "copacking": return "palette(s)";
+    case "livraison": return "colis";
+    default: return "";
+  }
+}
+
 export function AdminFormDetail({ id }: { id: number }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const [priceDialog, setPriceDialog] = useState<{ open: boolean; priceInput: string }>({ open: false, priceInput: "" });
+  const [priceDialog, setPriceDialog] = useState<{ open: boolean; priceInput: string; quantityInput: string }>({ open: false, priceInput: "", quantityInput: "" });
 
   const { data: form, isLoading } = useQuery<FormSubmission>({
     queryKey: ["/api/forms", id],
@@ -829,9 +867,10 @@ export function AdminFormDetail({ id }: { id: number }) {
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
 
   const statusMutation = useMutation({
-    mutationFn: async ({ newStatus, price }: { newStatus: string; price?: string }) => {
+    mutationFn: async ({ newStatus, price, approvedQuantity }: { newStatus: string; price?: string; approvedQuantity?: string }) => {
       const body: Record<string, unknown> = { status: newStatus };
       if (price !== undefined) body.price = price;
+      if (approvedQuantity !== undefined) body.approvedQuantity = approvedQuantity;
       const res = await apiRequest("PUT", `/api/forms/${id}`, body);
       return res.json();
     },
@@ -839,7 +878,7 @@ export function AdminFormDetail({ id }: { id: number }) {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       toast({ title: "Status updated" });
-      setPriceDialog({ open: false, priceInput: "" });
+      setPriceDialog({ open: false, priceInput: "", quantityInput: "" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
@@ -903,7 +942,10 @@ export function AdminFormDetail({ id }: { id: number }) {
                   data-testid="button-advance-status"
                   onClick={() => {
                     if (nextStatus === "approved") {
-                      setPriceDialog({ open: true, priceInput: form.price ? String(form.price) : "" });
+                      const fd = form.data as any;
+                      let defaultQty = form.approvedQuantity ? String(form.approvedQuantity) : "";
+                      if (!defaultQty && form.formType === "copacking") defaultQty = fd?.paletteNb || "";
+                      setPriceDialog({ open: true, priceInput: form.price ? String(form.price) : "", quantityInput: defaultQty });
                     } else {
                       statusMutation.mutate({ newStatus: nextStatus! });
                     }
@@ -989,27 +1031,44 @@ export function AdminFormDetail({ id }: { id: number }) {
         </div>
       )}
 
-      {/* Admin-only price display */}
-      {form.price && (
+      {/* Admin-only price & quantity display */}
+      {(form.price || form.approvedQuantity) && (
         <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-4 flex items-center gap-4">
             <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Price (Admin Only)</p>
-              <p className="text-lg font-bold text-primary" data-testid="text-service-price">
-                {Number(form.price).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
-              </p>
+            <div className="flex gap-6 flex-wrap">
+              {form.price && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prix (Admin Only)</p>
+                  <p className="text-lg font-bold text-primary" data-testid="text-service-price">
+                    {Number(form.price).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
+                  </p>
+                </div>
+              )}
+              {form.approvedQuantity && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quantité approuvée</p>
+                  <p className="text-lg font-bold text-foreground" data-testid="text-approved-quantity">
+                    {Number(form.approvedQuantity).toLocaleString("fr-CA")} {getQuantityUnit(form)}
+                  </p>
+                </div>
+              )}
             </div>
             <Button
               variant="ghost"
               size="sm"
               className="ml-auto text-xs"
-              onClick={() => setPriceDialog({ open: true, priceInput: String(form.price) })}
+              onClick={() => {
+                const fd = form.data as any;
+                let defaultQty = form.approvedQuantity ? String(form.approvedQuantity) : "";
+                if (!defaultQty && form.formType === "copacking") defaultQty = fd?.paletteNb || "";
+                setPriceDialog({ open: true, priceInput: form.price ? String(form.price) : "", quantityInput: defaultQty });
+              }}
               data-testid="button-edit-price"
             >
-              Edit price
+              Modifier
             </Button>
           </CardContent>
         </Card>
@@ -1023,50 +1082,63 @@ export function AdminFormDetail({ id }: { id: number }) {
         </CardContent>
       </Card>
 
-      {/* Price dialog */}
+      {/* Price & quantity dialog */}
       <Dialog open={priceDialog.open} onOpenChange={(open) => setPriceDialog((p) => ({ ...p, open }))}>
         <DialogContent className="sm:max-w-sm" data-testid="dialog-price">
           <DialogHeader>
-            <DialogTitle>Set Service Price</DialogTitle>
+            <DialogTitle>Approbation du service</DialogTitle>
             <DialogDescription>
-              Enter the price for this service request. This is visible to admins only and will be used to create a work order in Zoho Inventory.
+              Entrez le prix et la quantité pour cette demande. Ces informations sont visibles uniquement par les administrateurs.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label htmlFor="price-input">Price (CAD)</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="price-input">Prix (CAD)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  id="price-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="pl-7"
+                  value={priceDialog.priceInput}
+                  onChange={(e) => setPriceDialog((p) => ({ ...p, priceInput: e.target.value }))}
+                  data-testid="input-service-price"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quantity-input">{getQuantityLabel(form)}</Label>
               <Input
-                id="price-input"
+                id="quantity-input"
                 type="number"
                 min="0"
-                step="0.01"
-                placeholder="0.00"
-                className="pl-7"
-                value={priceDialog.priceInput}
-                onChange={(e) => setPriceDialog((p) => ({ ...p, priceInput: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && priceDialog.priceInput) {
-                    const isApproving = form.status === "in_review";
-                    statusMutation.mutate({ newStatus: isApproving ? "approved" : form.status, price: priceDialog.priceInput });
-                  }
-                }}
-                data-testid="input-service-price"
-                autoFocus
+                step="1"
+                placeholder="0"
+                value={priceDialog.quantityInput}
+                onChange={(e) => setPriceDialog((p) => ({ ...p, quantityInput: e.target.value }))}
+                data-testid="input-approved-quantity"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPriceDialog({ open: false, priceInput: "" })}>Cancel</Button>
+            <Button variant="outline" onClick={() => setPriceDialog({ open: false, priceInput: "", quantityInput: "" })}>Annuler</Button>
             <Button
-              disabled={!priceDialog.priceInput || statusMutation.isPending}
+              disabled={(!priceDialog.priceInput && !priceDialog.quantityInput) || statusMutation.isPending}
               onClick={() => {
                 const isApproving = form.status === "in_review";
-                statusMutation.mutate({ newStatus: isApproving ? "approved" : form.status, price: priceDialog.priceInput });
+                statusMutation.mutate({
+                  newStatus: isApproving ? "approved" : form.status,
+                  price: priceDialog.priceInput || undefined,
+                  approvedQuantity: priceDialog.quantityInput || undefined,
+                });
               }}
               data-testid="button-confirm-price"
             >
-              {form.status === "in_review" ? "Approve & Set Price" : "Save Price"}
+              {form.status === "in_review" ? "Approuver" : "Enregistrer"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -156,6 +156,7 @@ export const formSubmissions = pgTable("form_submissions", {
   linkedFormId: integer("linked_form_id"),
   revisionHistory: jsonb("revision_history").default([]),
   price: decimal("price", { precision: 10, scale: 2 }),
+  approvedQuantity: decimal("approved_quantity", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
