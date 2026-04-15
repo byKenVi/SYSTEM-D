@@ -586,9 +586,7 @@ export default function ContactDetail() {
                   {ordersData?.shopName && (
                     <span className="text-xs text-muted-foreground">from {ordersData.shopName}</span>
                   )}
-                  {ordersData && (
-                    <Badge variant="secondary">{ordersData.orders?.length ?? 0}</Badge>
-                  )}
+                  <Badge variant="secondary">{ordersData?.orders?.length ?? 0}</Badge>
                 </div>
               </div>
             </CardHeader>
