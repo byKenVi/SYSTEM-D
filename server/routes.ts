@@ -1117,6 +1117,37 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/portal/products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const product = await storage.getProduct(Number(req.params.id));
+      if (!product || product.contactId !== role.contactId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+      res.json(product);
+    } catch (error) {
+      console.error("Error fetching portal product:", error);
+      res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
+  app.get("/api/admin/view-as/:contactId/products/:productId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const product = await storage.getProduct(Number(req.params.productId));
+      if (!product || product.contactId !== contactId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+      res.json(product);
+    } catch (error) {
+      console.error("Error fetching view-as product:", error);
+      res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
   app.get("/api/portal/restock-requests", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);

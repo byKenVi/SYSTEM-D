@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import type { Product } from "@shared/schema";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ import {
 
 export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
@@ -163,7 +165,17 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
               <TableBody>
                 {filtered.map((product) => {
                   return (
-                    <TableRow key={product.id} data-testid={`row-portal-product-${product.id}`}>
+                    <TableRow
+                      key={product.id}
+                      data-testid={`row-portal-product-${product.id}`}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        const path = viewAsContactId
+                          ? `/portal/products/${product.id}?viewAs=${viewAsContactId}`
+                          : `/portal/products/${product.id}`;
+                        navigate(path);
+                      }}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-3">
                           {product.imageUrl ? (
@@ -201,7 +213,8 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setRestockProduct(product);
                               setRestockQty("");
                             }}
