@@ -50,7 +50,7 @@ const adminItems = [
   { title: "Products", url: "/admin/products", icon: Package },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
   { title: "Restock Requests", url: "/admin/restock-requests", icon: RefreshCw },
-  { title: "Forms", url: "/admin/forms", icon: ClipboardList },
+  { title: "Service Requests", url: "/admin/forms", icon: ClipboardList },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
@@ -59,7 +59,7 @@ const clientItems = [
   { title: "Profile", url: "/portal/profile", icon: User },
   { title: "Products", url: "/portal/products", icon: Package },
   { title: "Restock Requests", url: "/portal/restock", icon: RefreshCw },
-  { title: "Forms", url: "/portal/forms", icon: ClipboardList },
+  { title: "Service Requests", url: "/portal/forms", icon: ClipboardList },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {

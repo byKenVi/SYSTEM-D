@@ -111,8 +111,8 @@ export default function AdminForms() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Forms</h1>
-          <p className="text-muted-foreground mt-1">Manage form submissions</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Service Requests</h1>
+          <p className="text-muted-foreground mt-1">Manage client service requests</p>
         </div>
         <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form">
           <Plus className="h-4 w-4 mr-1.5" />

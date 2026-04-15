@@ -160,7 +160,7 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Open Forms</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Open Requests</p>
                 {loadingForms ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
@@ -181,7 +181,7 @@ export default function AdminDashboard() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Recent Submissions</CardTitle>
+              <CardTitle className="text-base font-semibold">Recent Service Requests</CardTitle>
               <Link href="/admin/forms">
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
                   View all <ArrowRight className="h-3 w-3" />
@@ -232,7 +232,7 @@ export default function AdminDashboard() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Form Status</CardTitle>
+              <CardTitle className="text-base font-semibold">Request Status</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {loadingForms ? (

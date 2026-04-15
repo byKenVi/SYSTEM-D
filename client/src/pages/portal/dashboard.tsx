@@ -139,7 +139,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Active Forms</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Active Requests</p>
                 {loadingForms ? (
                   <Skeleton className="h-8 w-10 mt-1" />
                 ) : (
@@ -160,7 +160,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">My Forms</CardTitle>
+              <CardTitle className="text-base font-semibold">My Service Requests</CardTitle>
               <Link href={`/portal/forms${qs}`}>
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
                   View all <ArrowRight className="h-3 w-3" />
