@@ -16,9 +16,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Package, RefreshCw, Tag, Layers, ExternalLink } from "lucide-react";
+import { ArrowLeft, Package, RefreshCw, Tag, Layers, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { SiShopify } from "react-icons/si";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function PortalProductDetail({ viewAsContactId }: { viewAsContactId?: number }) {
   const { id } = useParams<{ id: string }>();
@@ -66,6 +66,32 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
     ? `/portal/products?viewAs=${viewAsContactId}`
     : "/portal/products";
 
+  // Fetch the full products list so we can derive prev/next neighbors
+  const { data: allProducts } = useQuery<Product[]>({
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "products"]
+      : ["/api/portal/products"],
+    queryFn: () => {
+      const url = viewAsContactId
+        ? `/api/admin/view-as/${viewAsContactId}/products`
+        : `/api/portal/products`;
+      return fetch(url, { credentials: "include" }).then((r) => r.json());
+    },
+  });
+
+  const { prevId, nextId } = useMemo(() => {
+    if (!allProducts || allProducts.length === 0) return { prevId: null, nextId: null };
+    const sorted = [...allProducts].sort((a, b) => a.name.localeCompare(b.name));
+    const idx = sorted.findIndex((p) => p.id === productId);
+    return {
+      prevId: idx > 0 ? sorted[idx - 1].id : null,
+      nextId: idx < sorted.length - 1 ? sorted[idx + 1].id : null,
+    };
+  }, [allProducts, productId]);
+
+  const makeProductHref = (pid: number) =>
+    viewAsContactId ? `/portal/products/${pid}?viewAs=${viewAsContactId}` : `/portal/products/${pid}`;
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -106,13 +132,37 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
 
   return (
     <div className="space-y-8">
-      {/* Back link */}
-      <Link href={backHref}>
-        <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Products
-        </button>
-      </Link>
+      {/* Back link + prev/next */}
+      <div className="flex items-center justify-between">
+        <Link href={backHref}>
+          <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Products
+          </button>
+        </Link>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            disabled={!prevId}
+            onClick={() => prevId && navigate(makeProductHref(prevId))}
+            data-testid="button-prev-product"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            disabled={!nextId}
+            onClick={() => nextId && navigate(makeProductHref(nextId))}
+            data-testid="button-next-product"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
       {/* Hero */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
