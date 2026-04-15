@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar } from "lucide-react";
+import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -817,6 +819,7 @@ function FormSummary({ form }: { form: FormSubmission }) {
 export function AdminFormDetail({ id }: { id: number }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [priceDialog, setPriceDialog] = useState<{ open: boolean; priceInput: string }>({ open: false, priceInput: "" });
 
   const { data: form, isLoading } = useQuery<FormSubmission>({
     queryKey: ["/api/forms", id],
@@ -826,14 +829,17 @@ export function AdminFormDetail({ id }: { id: number }) {
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
 
   const statusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      const res = await apiRequest("PUT", `/api/forms/${id}`, { status: newStatus });
+    mutationFn: async ({ newStatus, price }: { newStatus: string; price?: string }) => {
+      const body: Record<string, unknown> = { status: newStatus };
+      if (price !== undefined) body.price = price;
+      const res = await apiRequest("PUT", `/api/forms/${id}`, body);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       toast({ title: "Status updated" });
+      setPriceDialog({ open: false, priceInput: "" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
@@ -890,7 +896,19 @@ export function AdminFormDetail({ id }: { id: number }) {
                 </a>
               )}
               {canAdvance && (
-                <Button variant="outline" size="sm" onClick={() => statusMutation.mutate(nextStatus!)} disabled={statusMutation.isPending} data-testid="button-advance-status">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={statusMutation.isPending}
+                  data-testid="button-advance-status"
+                  onClick={() => {
+                    if (nextStatus === "approved") {
+                      setPriceDialog({ open: true, priceInput: form.price ? String(form.price) : "" });
+                    } else {
+                      statusMutation.mutate({ newStatus: nextStatus! });
+                    }
+                  }}
+                >
                   {ADVANCE_LABELS[form.status] || `→ ${STATUS_LABELS[nextStatus!]}`}
                 </Button>
               )}
@@ -971,6 +989,32 @@ export function AdminFormDetail({ id }: { id: number }) {
         </div>
       )}
 
+      {/* Admin-only price display */}
+      {form.price && (
+        <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <DollarSign className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Price (Admin Only)</p>
+              <p className="text-lg font-bold text-primary" data-testid="text-service-price">
+                {Number(form.price).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-xs"
+              onClick={() => setPriceDialog({ open: true, priceInput: String(form.price) })}
+              data-testid="button-edit-price"
+            >
+              Edit price
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Form data summary */}
       <Card>
         <CardContent className="p-6">
@@ -978,6 +1022,55 @@ export function AdminFormDetail({ id }: { id: number }) {
           <FormSummary form={form} />
         </CardContent>
       </Card>
+
+      {/* Price dialog */}
+      <Dialog open={priceDialog.open} onOpenChange={(open) => setPriceDialog((p) => ({ ...p, open }))}>
+        <DialogContent className="sm:max-w-sm" data-testid="dialog-price">
+          <DialogHeader>
+            <DialogTitle>Set Service Price</DialogTitle>
+            <DialogDescription>
+              Enter the price for this service request. This is visible to admins only and will be used to create a work order in Zoho Inventory.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="price-input">Price (CAD)</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+              <Input
+                id="price-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                className="pl-7"
+                value={priceDialog.priceInput}
+                onChange={(e) => setPriceDialog((p) => ({ ...p, priceInput: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && priceDialog.priceInput) {
+                    const isApproving = form.status === "in_review";
+                    statusMutation.mutate({ newStatus: isApproving ? "approved" : form.status, price: priceDialog.priceInput });
+                  }
+                }}
+                data-testid="input-service-price"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPriceDialog({ open: false, priceInput: "" })}>Cancel</Button>
+            <Button
+              disabled={!priceDialog.priceInput || statusMutation.isPending}
+              onClick={() => {
+                const isApproving = form.status === "in_review";
+                statusMutation.mutate({ newStatus: isApproving ? "approved" : form.status, price: priceDialog.priceInput });
+              }}
+              data-testid="button-confirm-price"
+            >
+              {form.status === "in_review" ? "Approve & Set Price" : "Save Price"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
