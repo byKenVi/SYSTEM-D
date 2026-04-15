@@ -205,7 +205,12 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
               className="h-8 w-8 mt-0.5 flex-shrink-0"
               data-testid="button-back-forms"
               onClick={async () => {
-                if (isDraft) await save();
+                if (isDraft) {
+                  await save();
+                  queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/forms"] });
+                }
                 navigate(backUrl);
               }}
             >
