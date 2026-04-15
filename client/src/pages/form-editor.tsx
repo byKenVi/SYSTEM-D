@@ -5,7 +5,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -155,17 +154,6 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     },
   });
 
-  const statusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      await apiRequest("PUT", `/api/forms/${formId}`, { status: newStatus });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-      toast({ title: "Status updated" });
-    },
-  });
-
   const createLinkedLivraisonMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/forms/${formId}/create-linked-livraison`);
@@ -202,14 +190,6 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     approved: "border-l-emerald-500",
     completed: "border-l-purple-500",
   };
-
-  const adminTransitions: Record<string, { value: string; label: string }[]> = {
-    submitted: [{ value: "in_review", label: "Move to In Review" }],
-    in_review: [{ value: "approved", label: "Approve" }, { value: "submitted", label: "Back to Submitted" }],
-    approved: [{ value: "completed", label: "Mark Completed" }, { value: "in_review", label: "Back to In Review" }],
-    completed: [],
-  };
-  const statusOptions = adminTransitions[form.status] || [];
 
   return (
     <div className="space-y-6">
@@ -259,20 +239,6 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
               <span className="text-xs text-destructive flex items-center gap-1">
                 <CloudOff className="h-3 w-3" />Save error
               </span>
-            )}
-
-            {/* Status change dropdown (admin, non-draft) */}
-            {role === "admin" && !isDraft && statusOptions.length > 0 && (
-              <Select value="" onValueChange={(v) => statusMutation.mutate(v)} disabled={statusMutation.isPending}>
-                <SelectTrigger className="w-[180px] h-8 text-xs" data-testid="select-form-status">
-                  <SelectValue placeholder="Change status…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             )}
 
             {/* Draft actions */}
