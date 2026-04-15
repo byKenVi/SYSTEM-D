@@ -109,8 +109,8 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                 )}
                 <p className="text-xs text-muted-foreground mt-1">in storage</p>
               </div>
-              <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                <Package className="h-5 w-5 text-blue-500" />
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Package className="h-5 w-5 text-primary" />
               </div>
             </div>
           </CardContent>
