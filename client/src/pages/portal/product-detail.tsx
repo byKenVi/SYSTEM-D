@@ -63,8 +63,8 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   });
 
   const backHref = viewAsContactId
-    ? `/portal/products?viewAs=${viewAsContactId}`
-    : "/portal/products";
+    ? `/portal/boutique?viewAs=${viewAsContactId}`
+    : "/portal/boutique";
 
   // Fetch the full products list so we can derive prev/next neighbors
   const { data: allProducts } = useQuery<Product[]>({

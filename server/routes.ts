@@ -1057,6 +1057,17 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/view-as/:contactId/orders", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const orders = await storage.getShopifyOrders({ contactId });
+      res.json({ orders });
+    } catch (error) {
+      console.error("Error fetching view-as orders:", error);
+      res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
   // ====== CLIENT PORTAL ENDPOINTS ======
   app.get("/api/portal/profile", isAuthenticated, async (req: any, res) => {
     try {
@@ -1167,6 +1178,20 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching view-as product:", error);
       res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
+  app.get("/api/portal/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) {
+        return res.json({ orders: [] });
+      }
+      const orders = await storage.getShopifyOrders({ contactId: role.contactId });
+      res.json({ orders });
+    } catch (error) {
+      console.error("Error fetching portal orders:", error);
+      res.status(500).json({ message: "Failed to fetch orders" });
     }
   });
 

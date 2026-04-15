@@ -226,7 +226,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                   </Button>
                 </Link>
               )}
-              <Link href={`/portal/products${qs}`}>
+              <Link href={`/portal/boutique${qs}`}>
                 <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-products">
                   <Package className="h-3.5 w-3.5" /> Voir les produits
                 </Button>

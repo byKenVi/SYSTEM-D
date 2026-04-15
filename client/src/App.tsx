@@ -19,7 +19,6 @@ import AdminProductDetail from "@/pages/admin/product-detail";
 import AdminRestockRequests from "@/pages/admin/restock-requests";
 import AdminSettingsPage from "@/pages/admin/settings";
 import PortalProfile from "@/pages/portal/profile";
-import PortalProducts from "@/pages/portal/products";
 import PortalProductDetail from "@/pages/portal/product-detail";
 import PortalRestock from "@/pages/portal/restock";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
@@ -27,6 +26,7 @@ import AdminBoutique from "@/pages/admin/boutique";
 import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
+import PortalBoutique from "@/pages/portal/boutique";
 import PortalDashboard from "@/pages/portal/dashboard";
 import FormPrintPage from "@/pages/form-print";
 
@@ -94,8 +94,11 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
             <Route path="/portal/products/:id">
               <PortalProductDetail viewAsContactId={viewAsContactId} />
             </Route>
+            <Route path="/portal/boutique">
+              <PortalBoutique viewAsContactId={viewAsContactId} />
+            </Route>
             <Route path="/portal/products">
-              <PortalProducts viewAsContactId={viewAsContactId} />
+              <Redirect to={`/portal/boutique${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
             </Route>
             <Route path="/portal/restock">
               <PortalRestock viewAsContactId={viewAsContactId} />

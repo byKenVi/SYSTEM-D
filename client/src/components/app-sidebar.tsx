@@ -57,7 +57,7 @@ const adminItems = [
 const clientItems = [
   { title: "Tableau de bord", url: "/portal/dashboard", icon: LayoutDashboard },
   { title: "Profil", url: "/portal/profile", icon: User },
-  { title: "Produits", url: "/portal/products", icon: Package },
+  { title: "Boutique", url: "/portal/boutique", icon: ShoppingCart },
   { title: "Demandes de service", url: "/portal/forms", icon: ClipboardList },
   { title: "Demandes de réapprovisionnement", url: "/portal/restock", icon: RefreshCw },
 ];
