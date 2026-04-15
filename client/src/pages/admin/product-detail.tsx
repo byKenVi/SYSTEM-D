@@ -148,12 +148,14 @@ export default function AdminProductDetail() {
             <CardContent className="p-4 space-y-4">
               {/* Image */}
               {product.imageUrl ? (
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="w-full rounded-xl object-contain bg-muted aspect-square"
-                  data-testid="img-product"
-                />
+                <div className="w-full rounded-xl bg-muted aspect-square flex items-center justify-center px-6 py-6">
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="w-full h-full object-contain rounded-lg"
+                    data-testid="img-product"
+                  />
+                </div>
               ) : (
                 <div className="w-full rounded-xl bg-muted flex items-center justify-center aspect-square">
                   <Package className="h-16 w-16 text-muted-foreground/20" />
