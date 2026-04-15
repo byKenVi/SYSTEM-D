@@ -118,12 +118,12 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
 
         {/* Image */}
-        <div className="rounded-2xl overflow-hidden border bg-muted/30 aspect-square flex items-center justify-center">
+        <div className="rounded-2xl border bg-muted/30 aspect-square flex items-center justify-center px-6 py-6">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain rounded-xl"
               data-testid="img-product"
             />
           ) : (
