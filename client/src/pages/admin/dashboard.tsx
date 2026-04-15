@@ -64,7 +64,8 @@ export default function AdminDashboard() {
   const activeContacts = contacts?.filter((c) => c.status === "active")?.length ?? 0;
   const pendingRestocks = restockRequests?.filter((r) => r.status === "Processing")?.length ?? 0;
   const openForms = forms?.filter((f) => f.status !== "completed" && f.status !== "draft")?.length ?? 0;
-  const recentForms = forms?.slice(0, 5) ?? [];
+  const submittedForms = forms?.filter((f) => f.status !== "draft") ?? [];
+  const recentForms = submittedForms.slice(0, 5);
 
   const formStatusCounts = forms?.reduce(
     (acc, f) => {
@@ -175,7 +176,7 @@ export default function AdminDashboard() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Recent Forms</CardTitle>
+              <CardTitle className="text-base font-semibold">Recent Submissions</CardTitle>
               <Link href="/admin/forms">
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
                   View all <ArrowRight className="h-3 w-3" />
@@ -189,7 +190,7 @@ export default function AdminDashboard() {
                 </div>
               ) : recentForms.length === 0 ? (
                 <div className="px-6 pb-6 text-center text-muted-foreground text-sm py-8">
-                  No forms yet
+                  No submitted forms yet
                 </div>
               ) : (
                 <div className="divide-y divide-border">
