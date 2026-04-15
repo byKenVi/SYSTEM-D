@@ -49,15 +49,24 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Fragment, useState, useMemo } from "react";
 
 type ViewMode = "table" | "card";
+type GroupBy = "none" | "company" | "status";
 
 export default function AdminContacts() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [revokeTarget, setRevokeTarget] = useState<Contact | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -138,6 +147,145 @@ export default function AdminContacts() {
       return sortDir === "asc" ? cmp : -cmp;
     });
 
+  const grouped = useMemo(() => {
+    if (!filtered || groupBy === "none") return null;
+    const map = new Map<string, Contact[]>();
+    for (const c of filtered) {
+      const key =
+        groupBy === "company"
+          ? c.companyName || ""
+          : groupBy === "status"
+          ? c.status
+          : "";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(c);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => {
+        if (a === "") return 1;
+        if (b === "") return -1;
+        return a.localeCompare(b);
+      });
+  }, [filtered, groupBy]);
+
+  const groupLabel = (key: string) => {
+    if (key === "") {
+      return groupBy === "company" ? "No Company" : "Unknown";
+    }
+    if (groupBy === "status") {
+      return key === "active" ? "Active" : key === "revoked" ? "Revoked" : "Invited";
+    }
+    return key;
+  };
+
+  function ContactRow({ contact }: { contact: Contact }) {
+    return (
+      <TableRow
+        key={contact.id}
+        data-testid={`row-contact-${contact.id}`}
+        className="cursor-pointer"
+        onClick={() => navigate(`/admin/contacts/${contact.id}`)}
+      >
+        <TableCell className="font-medium">
+          {contact.companyName || <span className="text-muted-foreground/40">—</span>}
+        </TableCell>
+        <TableCell className="text-muted-foreground" data-testid={`text-contact-name-${contact.id}`}>
+          {contact.name}
+        </TableCell>
+        <TableCell className="text-muted-foreground">
+          {contact.email}
+        </TableCell>
+        <TableCell>
+          <Badge
+            variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
+            data-testid={`badge-status-${contact.id}`}
+          >
+            {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
+          </Badge>
+        </TableCell>
+        <TableCell className="text-muted-foreground text-sm" data-testid={`text-contact-phone-${contact.id}`}>
+          {contact.phone || <span className="opacity-40">—</span>}
+        </TableCell>
+        <TableCell className="text-muted-foreground text-sm whitespace-nowrap" data-testid={`text-contact-created-${contact.id}`}>
+          {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="opacity-40">—</span>}
+        </TableCell>
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          <ContactActions contact={contact} />
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  function ContactCard({ contact }: { contact: Contact }) {
+    const initials = contact.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+    return (
+      <Card
+        className="cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
+        data-testid={`card-contact-${contact.id}`}
+        onClick={() => navigate(`/admin/contacts/${contact.id}`)}
+      >
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-semibold text-primary">{initials}</span>
+            </div>
+            <div className="flex-1 min-w-0 pt-0.5">
+              <p className="font-semibold text-sm leading-tight truncate" data-testid={`text-contact-name-${contact.id}`}>
+                {contact.name}
+              </p>
+              {contact.companyName ? (
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{contact.companyName}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground/30 mt-0.5 italic">No company</p>
+              )}
+            </div>
+            <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+              <ContactActions contact={contact} />
+            </span>
+          </div>
+          <Separator className="my-3" />
+          <div className="space-y-1.5 mb-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+              <Mail className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{contact.email}</span>
+            </div>
+            {contact.phone ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3 flex-shrink-0" />
+                <span>{contact.phone}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground/30">
+                <Phone className="h-3 w-3 flex-shrink-0" />
+                <span>No phone</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge
+              variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
+              className="text-[10px] px-1.5 py-0 h-4"
+              data-testid={`badge-status-${contact.id}`}
+            >
+              {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
+            </Badge>
+            {contact.zohoCrmContactId && (
+              <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700 text-[10px] px-1.5 py-0 h-4" data-testid={`badge-zoho-synced-${contact.id}`}>
+                <Link2 className="h-2.5 w-2.5" />
+                Zoho
+              </Badge>
+            )}
+            <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums" data-testid={`text-contact-created-${contact.id}`}>
+              {contact.createdAt
+                ? new Date(contact.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                : "—"}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   function ContactActions({ contact }: { contact: Contact }) {
     return (
       <DropdownMenu>
@@ -195,7 +343,7 @@ export default function AdminContacts() {
           <p className="text-muted-foreground mt-1">Manage client contacts and invitations</p>
         </div>
 
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -206,6 +354,17 @@ export default function AdminContacts() {
               data-testid="input-search-contacts"
             />
           </div>
+
+          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+            <SelectTrigger className="w-[150px]" data-testid="select-group-by">
+              <SelectValue placeholder="Group by…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No grouping</SelectItem>
+              <SelectItem value="company">Company</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+            </SelectContent>
+          </Select>
 
           <div className="flex items-center border rounded-md overflow-hidden">
             <Button
@@ -265,41 +424,27 @@ export default function AdminContacts() {
                       </TableRow>
                     ))
                   ) : filtered && filtered.length > 0 ? (
-                    filtered.map((contact) => (
-                      <TableRow
-                        key={contact.id}
-                        data-testid={`row-contact-${contact.id}`}
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/admin/contacts/${contact.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          {contact.companyName || <span className="text-muted-foreground/40">—</span>}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground" data-testid={`text-contact-name-${contact.id}`}>
-                          {contact.name}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {contact.email}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
-                            data-testid={`badge-status-${contact.id}`}
-                          >
-                            {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm" data-testid={`text-contact-phone-${contact.id}`}>
-                          {contact.phone || <span className="opacity-40">—</span>}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap" data-testid={`text-contact-created-${contact.id}`}>
-                          {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="opacity-40">—</span>}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <ContactActions contact={contact} />
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    grouped ? (
+                      grouped.map(([key, contacts]) => (
+                        <Fragment key={`group-${key}`}>
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={7} className="py-2 px-4 bg-muted/40 border-b">
+                              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                {groupLabel(key)}
+                              </span>
+                              <span className="ml-2 text-xs text-muted-foreground/50">{contacts.length}</span>
+                            </TableCell>
+                          </TableRow>
+                          {contacts.map((contact) => (
+                            <ContactRow key={contact.id} contact={contact} />
+                          ))}
+                        </Fragment>
+                      ))
+                    ) : (
+                      filtered.map((contact) => (
+                        <ContactRow key={contact.id} contact={contact} />
+                      ))
+                    )
                   ) : (
                     <TableRow>
                       <TableCell colSpan={7} className="h-36 text-center">
@@ -339,84 +484,26 @@ export default function AdminContacts() {
               ))}
             </div>
           ) : filtered && filtered.length > 0 ? (
+            grouped ? (
+              <div className="space-y-6">
+                {grouped.map(([key, contacts]) => (
+                  <div key={key || "__empty__"}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{groupLabel(key)}</span>
+                      <span className="text-xs text-muted-foreground/50">{contacts.length}</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {contacts.map((contact) => <ContactCard key={contact.id} contact={contact} />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((contact) => {
-                const initials = contact.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-                return (
-                  <Card
-                    key={contact.id}
-                    className="cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
-                    data-testid={`card-contact-${contact.id}`}
-                    onClick={() => navigate(`/admin/contacts/${contact.id}`)}
-                  >
-                    <CardContent className="p-4">
-                      {/* Top: avatar + name + actions */}
-                      <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-semibold text-primary">{initials}</span>
-                        </div>
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          <p className="font-semibold text-sm leading-tight truncate" data-testid={`text-contact-name-${contact.id}`}>
-                            {contact.name}
-                          </p>
-                          {contact.companyName ? (
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{contact.companyName}</p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground/30 mt-0.5 italic">No company</p>
-                          )}
-                        </div>
-                        <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                          <ContactActions contact={contact} />
-                        </span>
-                      </div>
-
-                      <Separator className="my-3" />
-
-                      {/* Contact info */}
-                      <div className="space-y-1.5 mb-3">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
-                          <Mail className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{contact.email}</span>
-                        </div>
-                        {contact.phone ? (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3 flex-shrink-0" />
-                            <span>{contact.phone}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground/30">
-                            <Phone className="h-3 w-3 flex-shrink-0" />
-                            <span>No phone</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Footer: status + zoho + date */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <Badge
-                          variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
-                          className="text-[10px] px-1.5 py-0 h-4"
-                          data-testid={`badge-status-${contact.id}`}
-                        >
-                          {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
-                        </Badge>
-                        {contact.zohoCrmContactId && (
-                          <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700 text-[10px] px-1.5 py-0 h-4" data-testid={`badge-zoho-synced-${contact.id}`}>
-                            <Link2 className="h-2.5 w-2.5" />
-                            Zoho
-                          </Badge>
-                        )}
-                        <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums" data-testid={`text-contact-created-${contact.id}`}>
-                          {contact.createdAt
-                            ? new Date(contact.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-                            : "—"}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+              {filtered.map((contact) => <ContactCard key={contact.id} contact={contact} />)}
             </div>
+            )
           ) : (
             <div className="flex flex-col items-center justify-center h-48 text-center">
               <Users className="h-8 w-8 text-muted-foreground/40 mb-2" />
