@@ -23,6 +23,7 @@ import PortalProfile from "@/pages/portal/profile";
 import PortalProductDetail from "@/pages/portal/product-detail";
 import PortalRestock from "@/pages/portal/restock";
 import PortalCommandes from "@/pages/portal/commandes";
+import PortalLivraisons from "@/pages/portal/livraisons";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
 import AdminBoutique from "@/pages/admin/boutique";
 import AdminInventaire from "@/pages/admin/inventaire";
@@ -112,6 +113,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
             </Route>
             <Route path="/portal/commandes">
               <PortalCommandes viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/livraisons">
+              <PortalLivraisons viewAsContactId={viewAsContactId} />
             </Route>
             <Route path="/portal/forms/:id?">
               <PortalForms viewAsContactId={viewAsContactId} />

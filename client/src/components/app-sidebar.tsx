@@ -64,6 +64,7 @@ const clientItems = [
   { title: "Boutique", url: "/portal/boutique", icon: ShoppingCart },
   { title: "Soumissions", url: "/portal/forms", icon: ClipboardList },
   { title: "Commandes", url: "/portal/commandes", icon: PackageCheck },
+  { title: "Livraisons", url: "/portal/livraisons", icon: Truck },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {

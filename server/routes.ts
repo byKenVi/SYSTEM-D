@@ -1884,6 +1884,24 @@ export async function registerRoutes(
 
   // ── Livraisons (outbound inventory) ──────────────────────────────────────
 
+  app.get("/api/portal/livraisons", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+      if (role.role === "admin") {
+        const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
+        const forms = await storage.getLivraisonForms(contactId);
+        return res.json(forms);
+      }
+      if (!role.contactId) return res.json([]);
+      const forms = await storage.getLivraisonForms(role.contactId);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching portal livraisons:", error);
+      res.status(500).json({ message: "Failed to fetch livraisons" });
+    }
+  });
+
   app.get("/api/admin/livraisons", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
