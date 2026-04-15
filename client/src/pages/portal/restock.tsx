@@ -52,8 +52,8 @@ export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: n
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Restock Requests</h1>
-        <p className="text-muted-foreground mt-1">Track your restock request history and status</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Work Orders</h1>
+        <p className="text-muted-foreground mt-1">Track your work order history and status</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -133,9 +133,9 @@ export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: n
           ) : (
             <div className="p-12 text-center">
               <RefreshCw className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">No restock requests yet</p>
+              <p className="text-muted-foreground font-medium">No work orders yet</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Submit a restock request from your Products page.
+                Work orders can be submitted from your Products page.
               </p>
             </div>
           )}

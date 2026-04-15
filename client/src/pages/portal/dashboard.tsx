@@ -233,7 +233,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               </Link>
               <Link href={`/portal/restock${qs}`}>
                 <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-restock">
-                  <RefreshCw className="h-3.5 w-3.5" /> Restock Requests
+                  <RefreshCw className="h-3.5 w-3.5" /> Work Orders
                 </Button>
               </Link>
               <Link href={`/portal/profile${qs}`}>

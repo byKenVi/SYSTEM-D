@@ -77,7 +77,7 @@ const TYPE_LABELS: Record<string, string> = {
   contact_revoke: "Access Revoked",
   contact_delete: "Contact Deleted",
   product_delete: "Product Deleted",
-  restock_request: "Restock Request",
+  restock_request: "Work Order",
   shopify_writeback: "Shopify Writeback",
 };
 

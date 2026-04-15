@@ -49,7 +49,7 @@ const adminItems = [
   { title: "Contacts", url: "/admin/contacts", icon: Users },
   { title: "Products", url: "/admin/products", icon: Package },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
-  { title: "Restock Requests", url: "/admin/restock-requests", icon: RefreshCw },
+  { title: "Work Orders", url: "/admin/restock-requests", icon: RefreshCw },
   { title: "Service Requests", url: "/admin/forms", icon: ClipboardList },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
@@ -58,7 +58,7 @@ const clientItems = [
   { title: "Dashboard", url: "/portal/dashboard", icon: LayoutDashboard },
   { title: "Profile", url: "/portal/profile", icon: User },
   { title: "Products", url: "/portal/products", icon: Package },
-  { title: "Restock Requests", url: "/portal/restock", icon: RefreshCw },
+  { title: "Work Orders", url: "/portal/restock", icon: RefreshCw },
   { title: "Service Requests", url: "/portal/forms", icon: ClipboardList },
 ];
 

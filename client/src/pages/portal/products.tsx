@@ -69,10 +69,10 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
       queryClient.invalidateQueries({ queryKey: ["/api/portal/restock-requests"] });
       setRestockProduct(null);
       setRestockQty("");
-      toast({ title: "Request submitted", description: "Your restock request has been created." });
+      toast({ title: "Work order submitted", description: "Your work order has been created." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to submit restock request.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to submit work order.", variant: "destructive" });
     },
   });
 
@@ -229,7 +229,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                             data-testid={`button-request-restock-${product.id}`}
                           >
                             <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                            Restock
+                            Work Order
                           </Button>
                         </TableCell>
                       )}
@@ -253,7 +253,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
       <Dialog open={!!restockProduct} onOpenChange={() => setRestockProduct(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request Restock</DialogTitle>
+            <DialogTitle>Submit Work Order</DialogTitle>
           </DialogHeader>
           {restockProduct && (
             <div className="space-y-4 mt-2">
@@ -267,7 +267,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Quantity to Restock</Label>
+                <Label>Quantity</Label>
                 <Input
                   type="number"
                   min="1"
@@ -283,7 +283,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                 disabled={!restockQty || Number(restockQty) < 1 || restockMutation.isPending}
                 data-testid="button-submit-restock"
               >
-                {restockMutation.isPending ? "Submitting..." : "Submit Request"}
+                {restockMutation.isPending ? "Submitting..." : "Submit Work Order"}
               </Button>
             </div>
           )}

@@ -68,8 +68,8 @@ export default function AdminRestockRequests() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Restock Requests</h1>
-        <p className="text-muted-foreground mt-1">Monitor restock requests and Zoho sales order status</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Work Orders</h1>
+        <p className="text-muted-foreground mt-1">Monitor work orders and Zoho sales order status</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -175,7 +175,7 @@ export default function AdminRestockRequests() {
           ) : (
             <div className="p-12 text-center">
               <RefreshCw className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">No restock requests</p>
+              <p className="text-muted-foreground font-medium">No work orders</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Requests will appear when clients submit them.
               </p>
