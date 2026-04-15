@@ -188,8 +188,8 @@ export default function AdminForms() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Demandes de service</h1>
-          <p className="text-muted-foreground mt-1">Gérez les demandes de service des clients</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Soumissions</h1>
+          <p className="text-muted-foreground mt-1">Gérez les soumissions des clients</p>
         </div>
         <div className="flex items-center gap-2">
           {selectedCount > 0 && (
@@ -953,7 +953,7 @@ export function AdminFormDetail({ id }: { id: number }) {
               data-testid="button-back-to-list"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Demandes de service
+              Soumissions
             </button>
             <div className="flex items-center gap-2 flex-wrap">
               {form.status !== "draft" && (

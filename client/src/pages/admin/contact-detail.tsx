@@ -597,7 +597,7 @@ export default function ContactDetail() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Demandes de service</CardTitle>
+                <CardTitle className="text-base">Soumissions</CardTitle>
                 {contactForms && (
                   <Badge variant="secondary" className="ml-auto">{contactForms.length}</Badge>
                 )}

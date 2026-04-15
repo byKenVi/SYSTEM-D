@@ -50,7 +50,7 @@ const adminItems = [
   { title: "Clients", url: "/admin/contacts", icon: Users },
   { title: "Produits", url: "/admin/products", icon: Package },
   { title: "Commandes", url: "/admin/orders", icon: ShoppingCart },
-  { title: "Demandes de service", url: "/admin/forms", icon: ClipboardList },
+  { title: "Soumissions", url: "/admin/forms", icon: ClipboardList },
   { title: "Demandes de réapprovisionnement", url: "/admin/restock-requests", icon: RefreshCw },
   { title: "Paramètres", url: "/admin/settings", icon: Settings },
 ];
