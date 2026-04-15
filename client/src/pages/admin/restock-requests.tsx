@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RestockRequest, Contact, Product } from "@shared/schema";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -67,20 +67,19 @@ export default function AdminRestockRequests() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Work Orders</h1>
-        <p className="text-muted-foreground mt-1">Monitor work orders and Zoho sales order status</p>
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Work Orders</h1>
+          <p className="text-muted-foreground mt-1">Monitor work orders and Zoho sales order status</p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by client or product..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 w-[220px]"
               data-testid="input-search-restock"
             />
           </div>
@@ -96,7 +95,10 @@ export default function AdminRestockRequests() {
               <SelectItem value="Delivered">Delivered</SelectItem>
             </SelectContent>
           </Select>
-        </CardHeader>
+        </div>
+      </div>
+
+      <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6 space-y-3">
