@@ -133,7 +133,7 @@ export default function AdminContacts() {
       else if (sortKey === "company") { aVal = a.companyName || ""; bVal = b.companyName || ""; }
       else if (sortKey === "email") { aVal = a.email; bVal = b.email; }
       else if (sortKey === "status") { aVal = a.status; bVal = b.status; }
-      else if (sortKey === "zoho") { aVal = a.zohoCrmContactId ? "1" : "0"; bVal = b.zohoCrmContactId ? "1" : "0"; }
+      else if (sortKey === "phone") { aVal = a.phone || ""; bVal = b.phone || ""; }
       else if (sortKey === "created") { aVal = a.createdAt ? new Date(a.createdAt).toISOString() : ""; bVal = b.createdAt ? new Date(b.createdAt).toISOString() : ""; }
       const cmp = aVal.localeCompare(bVal);
       return sortDir === "asc" ? cmp : -cmp;
@@ -240,7 +240,7 @@ export default function AdminContacts() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    {(["name", "company", "email", "status", "zoho", "created"] as const).map((col) => (
+                    {(["name", "company", "email", "status", "phone", "created"] as const).map((col) => (
                       <TableHead key={col}>
                         <button
                           type="button"
@@ -248,7 +248,7 @@ export default function AdminContacts() {
                           onClick={() => handleSort(col)}
                           data-testid={`sort-${col}`}
                         >
-                          {col === "name" ? "Name" : col === "company" ? "Company" : col === "email" ? "Email" : col === "status" ? "Status" : col === "zoho" ? "Zoho CRM" : "Created"}
+                          {col === "name" ? "Name" : col === "company" ? "Company" : col === "email" ? "Email" : col === "status" ? "Status" : col === "phone" ? "Phone" : "Created"}
                           <SortIcon col={col} />
                         </button>
                       </TableHead>
@@ -290,18 +290,8 @@ export default function AdminContacts() {
                             {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          {contact.zohoCrmContactId ? (
-                            <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700" data-testid={`badge-zoho-synced-${contact.id}`}>
-                              <Link2 className="h-3 w-3" />
-                              Synced
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="gap-1 text-muted-foreground" data-testid={`badge-zoho-unsynced-${contact.id}`}>
-                              <Link2Off className="h-3 w-3" />
-                              None
-                            </Badge>
-                          )}
+                        <TableCell className="text-muted-foreground text-sm" data-testid={`text-contact-phone-${contact.id}`}>
+                          {contact.phone || <span className="opacity-40">—</span>}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm whitespace-nowrap" data-testid={`text-contact-created-${contact.id}`}>
                           {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="opacity-40">—</span>}
