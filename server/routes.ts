@@ -1882,6 +1882,19 @@ export async function registerRoutes(
     }
   });
 
+  // ── Livraisons (outbound inventory) ──────────────────────────────────────
+
+  app.get("/api/admin/livraisons", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const contactId = req.query.contactId ? Number(req.query.contactId) : undefined;
+      const forms = await storage.getLivraisonForms(contactId);
+      res.json(forms);
+    } catch (error) {
+      console.error("Error fetching livraisons:", error);
+      res.status(500).json({ message: "Failed to fetch livraisons" });
+    }
+  });
+
   app.post("/api/forms/:id/reorder", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);

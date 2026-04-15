@@ -38,6 +38,7 @@ import {
   ShoppingCart,
   BoxIcon,
   PackageCheck,
+  Truck,
 } from "lucide-react";
 import logoSrc from "@assets/logo_no_bg.png";
 
@@ -53,6 +54,7 @@ const adminItems = [
   { title: "Inventaire", url: "/admin/inventaire", icon: BoxIcon },
   { title: "Soumissions", url: "/admin/forms", icon: ClipboardList },
   { title: "Commandes", url: "/admin/commandes", icon: PackageCheck },
+  { title: "Livraisons", url: "/admin/livraisons", icon: Truck },
   { title: "Paramètres", url: "/admin/settings", icon: Settings },
 ];
 
