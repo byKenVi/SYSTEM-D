@@ -199,11 +199,18 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
           {/* Left: back + identity */}
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            <Link href={backUrl}>
-              <Button variant="ghost" size="icon" className="h-8 w-8 mt-0.5 flex-shrink-0" data-testid="button-back-forms">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 mt-0.5 flex-shrink-0"
+              data-testid="button-back-forms"
+              onClick={async () => {
+                if (isDraft) await save();
+                navigate(backUrl);
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold font-mono tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
