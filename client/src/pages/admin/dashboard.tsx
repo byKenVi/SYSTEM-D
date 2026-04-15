@@ -192,7 +192,7 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5">
         {/* Recent Forms */}
         <div className="lg:col-span-2">
           <Card>
