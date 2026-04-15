@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, FileText, Trash2 } from "lucide-react";
 import { useState } from "react";
 import FormEditor from "@/pages/form-editor";
@@ -119,42 +120,56 @@ export default function AdminForms() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[160px]" data-testid="select-filter-type">
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            {Object.entries(TYPE_LABELS).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]" data-testid="select-filter-status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-[200px]" data-testid="select-filter-client">
-            <SelectValue placeholder="Client" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All clients</SelectItem>
-            {contacts?.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)}>
-                {c.name}{c.companyName ? ` (${c.companyName})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3">
+        <Tabs value={typeFilter} onValueChange={setTypeFilter} data-testid="tabs-form-type">
+          <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/50 p-1">
+            {[{ value: "all", label: "All" }, ...Object.entries(TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))].map(({ value, label }) => {
+              const count = value === "all"
+                ? (forms?.length ?? 0)
+                : (forms?.filter((f) => f.formType === value).length ?? 0);
+              return (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="text-sm gap-1.5"
+                  data-testid={`tab-type-${value}`}
+                >
+                  {label}
+                  <span className={`text-[10px] font-semibold rounded-full px-1.5 py-0 leading-4 min-w-[18px] text-center ${typeFilter === value ? "bg-primary/20 text-primary" : "bg-muted-foreground/20 text-muted-foreground"}`}>
+                    {count}
+                  </span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
+
+        <div className="flex flex-wrap gap-3">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[160px]" data-testid="select-filter-status">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={clientFilter} onValueChange={setClientFilter}>
+            <SelectTrigger className="w-[200px]" data-testid="select-filter-client">
+              <SelectValue placeholder="Client" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All clients</SelectItem>
+              {contacts?.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name}{c.companyName ? ` (${c.companyName})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (
