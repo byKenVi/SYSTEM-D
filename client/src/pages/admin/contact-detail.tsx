@@ -421,50 +421,70 @@ export default function ContactDetail() {
         {/* ══ RIGHT CONTENT ══ */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Related Contacts — only shown when there are matches */}
-          {relatedContacts && relatedContacts.length > 0 && (
+          {/* Related Contacts — shown whenever contact has a company */}
+          {contact.companyName && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <CardTitle className="text-base">Related Contacts</CardTitle>
-                  <Badge variant="secondary" className="ml-auto">{relatedContacts.length}</Badge>
+                  {relatedContacts && (
+                    <Badge variant="secondary" className="ml-auto">{relatedContacts.length}</Badge>
+                  )}
                   <span className="text-xs text-muted-foreground">at {contact.companyName}</span>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {relatedContacts.map((rc) => {
-                    const initials = rc.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-                    return (
-                      <Link key={rc.id} href={`/admin/contacts/${rc.id}`}>
-                        <div
-                          className="flex items-center gap-3 px-5 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
-                          data-testid={`row-related-contact-${rc.id}`}
-                        >
-                          <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-semibold text-primary">{initials}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium leading-none truncate">{rc.name}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{rc.email}</p>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {rc.phone && (
-                              <span className="text-xs text-muted-foreground hidden sm:block">{rc.phone}</span>
-                            )}
-                            <Badge
-                              variant={rc.status === "active" ? "default" : rc.status === "revoked" ? "destructive" : "secondary"}
-                              className="text-[10px] px-1.5 py-0"
-                            >
-                              {rc.status === "active" ? "Active" : rc.status === "revoked" ? "Revoked" : "Invited"}
-                            </Badge>
-                          </div>
+                {!relatedContacts ? (
+                  <div className="divide-y divide-border">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 px-5 py-3">
+                        <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3.5 w-32" />
+                          <Skeleton className="h-3 w-48" />
                         </div>
-                      </Link>
-                    );
-                  })}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : relatedContacts.length === 0 ? (
+                  <div className="h-16 flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">No other contacts at {contact.companyName}</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {relatedContacts.map((rc) => {
+                      const initials = rc.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+                      return (
+                        <Link key={rc.id} href={`/admin/contacts/${rc.id}`}>
+                          <div
+                            className="flex items-center gap-3 px-5 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
+                            data-testid={`row-related-contact-${rc.id}`}
+                          >
+                            <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-xs font-semibold text-primary">{initials}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium leading-none truncate">{rc.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">{rc.email}</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {rc.phone && (
+                                <span className="text-xs text-muted-foreground hidden sm:block">{rc.phone}</span>
+                              )}
+                              <Badge
+                                variant={rc.status === "active" ? "default" : rc.status === "revoked" ? "destructive" : "secondary"}
+                                className="text-[10px] px-1.5 py-0"
+                              >
+                                {rc.status === "active" ? "Active" : rc.status === "revoked" ? "Revoked" : "Invited"}
+                              </Badge>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
