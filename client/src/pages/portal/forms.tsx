@@ -62,14 +62,17 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
 
   const createFormMutation = useMutation({
     mutationFn: async (formType: string) => {
-      const res = await apiRequest("POST", "/api/forms", {
-        formType,
-        data: {},
-      });
+      const body: Record<string, any> = { formType, data: {} };
+      if (viewAsContactId) body.contactId = viewAsContactId;
+      const res = await apiRequest("POST", "/api/forms", body);
       return res.json();
     },
     onSuccess: (form: FormSubmission) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
+      if (viewAsContactId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/view-as", viewAsContactId, "forms"] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
+      }
       setNewFormOpen(false);
       const qs = viewAsContactId ? `?viewAs=${viewAsContactId}` : "";
       navigate(`/portal/forms/${form.id}${qs}`);
@@ -92,13 +95,7 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
           <p className="text-muted-foreground mt-1">Submit and track your service requests</p>
         </div>
         <Button
-          onClick={() => {
-            if (isViewAs) {
-              toast({ title: "Preview mode", description: "Clients see this button to create new service requests." });
-              return;
-            }
-            setNewFormOpen(true);
-          }}
+          onClick={() => setNewFormOpen(true)}
           data-testid="button-new-form-portal"
         >
           <Plus className="h-4 w-4 mr-1.5" />
@@ -116,13 +113,7 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
           <p>No forms submitted yet</p>
           <Button
             className="mt-4"
-            onClick={() => {
-              if (isViewAs) {
-                toast({ title: "Preview mode", description: "Clients see this button to create new service requests." });
-                return;
-              }
-              setNewFormOpen(true);
-            }}
+            onClick={() => setNewFormOpen(true)}
             data-testid="button-new-form-empty"
           >
             <Plus className="h-4 w-4 mr-1.5" />
