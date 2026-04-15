@@ -264,9 +264,12 @@ export class DatabaseStorage implements IStorage {
       livraison: "LIV",
     };
     const prefix = prefixMap[formType] || formType.toUpperCase();
-    const [result] = await db.select({ count: sql<number>`count(*)` }).from(formSubmissions).where(eq(formSubmissions.formType, formType));
-    const nextNum = (result?.count || 0) + 1;
-    return `${prefix}-${String(nextNum).padStart(3, "0")}`;
+    const [result] = await db
+      .select({ maxNum: sql<string>`MAX(CAST(NULLIF(SPLIT_PART(form_number, '-', 2), '') AS INTEGER))` })
+      .from(formSubmissions)
+      .where(eq(formSubmissions.formType, formType));
+    const maxNum = result?.maxNum ? parseInt(result.maxNum, 10) : 0;
+    return `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
   }
 
   async createFormUpload(data: InsertFormUpload): Promise<FormUpload> {

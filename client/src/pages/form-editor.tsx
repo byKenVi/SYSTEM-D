@@ -76,13 +76,44 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     }
   }, [form]);
 
-  const handleChange = useCallback((data: any) => {
+  const handleChange = useCallback((data: Record<string, unknown>) => {
     setFormData(data);
     setData(data);
   }, [setData]);
 
+  const persistUploadRecord = useCallback(async (fieldKey: string, file: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) => {
+    if (!formId) return;
+    try {
+      await apiRequest("POST", `/api/forms/${formId}/uploads`, {
+        fieldKey,
+        fileName: file.fileName,
+        fileUrl: file.fileUrl,
+        fileType: file.fileType,
+        fileSize: file.fileSize,
+      });
+    } catch (err) {
+      console.error("Failed to persist upload record:", err);
+    }
+  }, [formId]);
+
+  function validateBeforeSubmit(): string | null {
+    if (!formData) return "Aucune donnée à soumettre.";
+    if (form?.formType === "tri") {
+      if (!formData.client?.trim()) return "Le champ Client est obligatoire.";
+      if (!formData.nomProjet?.trim()) return "Le champ Nom du projet est obligatoire.";
+      if (!formData.codePiece?.trim()) return "Le champ Code pièce est obligatoire.";
+    }
+    if (form?.formType === "inspection") {
+      if (!formData.customer?.trim()) return "Le champ Customer est obligatoire.";
+      if (!formData.partNumber?.trim()) return "Le champ Part Number est obligatoire.";
+    }
+    return null;
+  }
+
   const submitMutation = useMutation({
     mutationFn: async () => {
+      const validationError = validateBeforeSubmit();
+      if (validationError) throw new Error(validationError);
       await apiRequest("PUT", `/api/forms/${formId}`, {
         data: formData,
         status: "submitted",
@@ -221,7 +252,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             <TriForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} />
           )}
           {form.formType === "inspection" && (
-            <InspectionForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} revisionHistory={revisionHistory} />
+            <InspectionForm data={formData} onChange={handleChange} disabled={isDisabled && role !== "admin"} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
           )}
           {!["tri", "inspection"].includes(form.formType) && (
             <div className="text-center py-12 text-muted-foreground">

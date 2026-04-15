@@ -3,7 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
-import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail } from "./resend";
+import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail } from "./resend";
+import { db } from "./db";
+import { users as usersTable } from "@shared/models/auth";
+import { eq } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -1056,8 +1059,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/uploads/:filename", (req, res) => {
-    const filePath = path.join(uploadsDir, req.params.filename);
+  app.get("/api/uploads/:filename", isAuthenticated, (req, res) => {
+    const sanitized = path.basename(req.params.filename);
+    const filePath = path.join(uploadsDir, sanitized);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found" });
     res.sendFile(filePath);
   });
@@ -1206,6 +1210,20 @@ export async function registerRoutes(
             }).catch((err) => console.error("Form email error:", err));
           }
 
+          const settings = await storage.getAdminSettings();
+          if (settings?.adminUserId) {
+            const adminUsers = await db.select().from(usersTable).where(eq(usersTable.id, settings.adminUserId));
+            const adminUser = adminUsers[0];
+            if (adminUser?.email) {
+              sendFormAdminNotificationEmail({
+                adminEmail: adminUser.email,
+                clientName: contact?.name || `Contact #${form.contactId}`,
+                formType: form.formType,
+                formNumber: form.formNumber,
+              }).catch((err) => console.error("Admin form notification error:", err));
+            }
+          }
+
           await storage.createActivityLog({
             type: "form_submission",
             status: "success",
@@ -1259,8 +1277,15 @@ export async function registerRoutes(
 
   app.post("/api/forms/:id/uploads", isAuthenticated, async (req: any, res) => {
     try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
       const form = await storage.getFormSubmission(Number(req.params.id));
       if (!form) return res.status(404).json({ message: "Form not found" });
+
+      if (role.role === "client" && form.contactId !== role.contactId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
 
       const { fieldKey, fileName, fileUrl, fileType, fileSize } = req.body;
       const upload = await storage.createFormUpload({
@@ -1278,7 +1303,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/form-uploads/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/form-uploads/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       await storage.deleteFormUpload(Number(req.params.id));
       res.json({ message: "Upload deleted" });

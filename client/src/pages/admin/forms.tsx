@@ -51,6 +51,7 @@ export default function AdminForms() {
   const { toast } = useToast();
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
   const [newFormOpen, setNewFormOpen] = useState(false);
   const [selectedType, setSelectedType] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
@@ -101,6 +102,7 @@ export default function AdminForms() {
   const filtered = forms?.filter((f) => {
     if (typeFilter !== "all" && f.formType !== typeFilter) return false;
     if (statusFilter !== "all" && f.status !== statusFilter) return false;
+    if (clientFilter !== "all" && f.contactId !== Number(clientFilter)) return false;
     return true;
   }) || [];
 
@@ -137,6 +139,19 @@ export default function AdminForms() {
             <SelectItem value="all">Tous les statuts</SelectItem>
             {Object.entries(STATUS_LABELS).map(([k, v]) => (
               <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="w-[200px]" data-testid="select-filter-client">
+            <SelectValue placeholder="Client" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les clients</SelectItem>
+            {contacts?.map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>
+                {c.name}{c.companyName ? ` (${c.companyName})` : ""}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

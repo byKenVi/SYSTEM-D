@@ -12,13 +12,14 @@ interface UploadedFile {
 interface FileUploadProps {
   value: UploadedFile[];
   onChange: (files: UploadedFile[]) => void;
+  onFileAdded?: (file: UploadedFile) => void;
   accept?: string;
   multiple?: boolean;
   disabled?: boolean;
   label?: string;
 }
 
-export function FileUpload({ value = [], onChange, accept, multiple = true, disabled, label }: FileUploadProps) {
+export function FileUpload({ value = [], onChange, onFileAdded, accept, multiple = true, disabled, label }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +44,9 @@ export function FileUpload({ value = [], onChange, accept, multiple = true, disa
       } catch (err) {
         console.error("Upload failed:", err);
       }
+    }
+    if (onFileAdded) {
+      for (const f of newFiles) onFileAdded(f);
     }
     onChange([...value, ...newFiles]);
     setUploading(false);

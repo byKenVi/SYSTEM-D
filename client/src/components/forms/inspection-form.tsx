@@ -49,7 +49,8 @@ interface InspectionFormProps {
   data: InspectionFormData;
   onChange: (data: InspectionFormData) => void;
   disabled?: boolean;
-  revisionHistory?: any[];
+  revisionHistory?: { date: string; rev: number; description: string; modifiedBy: string }[];
+  onFileAdded?: (fieldKey: string, file: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) => void;
 }
 
 const defaultInspectionData: InspectionFormData = {
@@ -89,7 +90,7 @@ const PPE_OPTIONS = [
 
 const CONTROL_METHODS = ["Visual", "Electrical", "Dimensional", "Other"];
 
-export function InspectionForm({ data, onChange, disabled, revisionHistory = [] }: InspectionFormProps) {
+export function InspectionForm({ data, onChange, disabled, revisionHistory = [], onFileAdded }: InspectionFormProps) {
   const d = { ...defaultInspectionData, ...data };
 
   function update(partial: Partial<InspectionFormData>) {
@@ -309,7 +310,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [] 
                 <div className="space-y-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
                   <h4 className="font-medium text-sm text-red-700 dark:text-red-400">Non-conforme</h4>
                   <Textarea value={c.nonCompliantDescription} onChange={(e) => updateCriteria(i, { nonCompliantDescription: e.target.value })} disabled={disabled} rows={2} placeholder="Qu'est-ce qui rend la pièce non-conforme?" data-testid={`input-criteria-nc-desc-${i}`} />
-                  <FileUpload value={c.nonCompliantPhotos || []} onChange={(files) => updateCriteria(i, { nonCompliantPhotos: files })} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos non-conformes" />
+                  <FileUpload value={c.nonCompliantPhotos || []} onChange={(files) => updateCriteria(i, { nonCompliantPhotos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_nc_photo`, f)} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos non-conformes" />
                   <div className="space-y-1">
                     <Label className="text-xs">Vidéo (URL Loom ou fichier)</Label>
                     <Input value={c.nonCompliantVideo || ""} onChange={(e) => updateCriteria(i, { nonCompliantVideo: e.target.value })} disabled={disabled} placeholder="URL de la vidéo (optionnel)" data-testid={`input-criteria-nc-video-${i}`} />
@@ -319,7 +320,7 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [] 
                 <div className="space-y-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg">
                   <h4 className="font-medium text-sm text-emerald-700 dark:text-emerald-400">Conforme</h4>
                   <Textarea value={c.compliantDescription} onChange={(e) => updateCriteria(i, { compliantDescription: e.target.value })} disabled={disabled} rows={2} placeholder="À quoi ressemble une pièce conforme?" data-testid={`input-criteria-c-desc-${i}`} />
-                  <FileUpload value={c.compliantPhotos || []} onChange={(files) => updateCriteria(i, { compliantPhotos: files })} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos conformes" />
+                  <FileUpload value={c.compliantPhotos || []} onChange={(files) => updateCriteria(i, { compliantPhotos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_c_photo`, f)} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos conformes" />
                   <div className="space-y-1">
                     <Label className="text-xs">Vidéo (URL Loom ou fichier)</Label>
                     <Input value={c.compliantVideo || ""} onChange={(e) => updateCriteria(i, { compliantVideo: e.target.value })} disabled={disabled} placeholder="URL de la vidéo (optionnel)" data-testid={`input-criteria-c-video-${i}`} />

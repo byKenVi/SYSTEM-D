@@ -118,6 +118,40 @@ export async function sendFormStatusEmail(data: {
   }
 }
 
+export async function sendFormAdminNotificationEmail(data: {
+  adminEmail: string;
+  clientName: string;
+  formType: string;
+  formNumber: string;
+}) {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+    const appUrl = process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : 'https://workspace.masdouk1.replit.app';
+    const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
+
+    await client.emails.send({
+      from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
+      to: data.adminEmail,
+      subject: `Nouveau formulaire ${data.formNumber} soumis — ${data.clientName}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
+          <h2 style="margin: 0 0 8px;">Nouveau formulaire soumis</h2>
+          <p style="margin: 0 0 24px; color: #555;">
+            <strong>${data.clientName}</strong> a soumis un formulaire <strong>${typeLabel}</strong> (${data.formNumber}).
+          </p>
+          <a href="${appUrl}/admin/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+            Voir les formulaires
+          </a>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error("sendFormAdminNotificationEmail error:", err);
+  }
+}
+
 export async function sendInviteEmail(contact: {
   name: string;
   email: string;
