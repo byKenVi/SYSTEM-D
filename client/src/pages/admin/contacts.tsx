@@ -239,7 +239,7 @@ export default function AdminContacts() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    {(["name", "company", "email", "status", "phone", "created"] as const).map((col) => (
+                    {(["company", "name", "email", "status", "phone", "created"] as const).map((col) => (
                       <TableHead key={col}>
                         <button
                           type="button"
@@ -272,11 +272,11 @@ export default function AdminContacts() {
                         className="cursor-pointer"
                         onClick={() => navigate(`/admin/contacts/${contact.id}`)}
                       >
-                        <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
-                          {contact.name}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="font-medium">
                           {contact.companyName || <span className="text-muted-foreground/40">—</span>}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground" data-testid={`text-contact-name-${contact.id}`}>
+                          {contact.name}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {contact.email}
