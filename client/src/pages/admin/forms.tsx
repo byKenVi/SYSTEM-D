@@ -658,7 +658,7 @@ export function AdminFormDetail({ id }: { id: number }) {
       </div>
 
       {/* Status stepper */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="flex items-center w-full">
         {STATUS_FLOW.map((s, i) => (
           <Fragment key={s}>
             <div className={`flex items-center gap-1.5 flex-shrink-0 ${i <= currentStep ? "text-foreground" : "text-muted-foreground/40"}`}>
@@ -674,7 +674,7 @@ export function AdminFormDetail({ id }: { id: number }) {
               </span>
             </div>
             {i < STATUS_FLOW.length - 1 && (
-              <div className={`h-px flex-1 min-w-4 max-w-10 ${i < currentStep ? "bg-primary/40" : "bg-muted-foreground/20"}`} />
+              <div className={`h-px flex-1 mx-2 ${i < currentStep ? "bg-primary/40" : "bg-muted-foreground/20"}`} />
             )}
           </Fragment>
         ))}
