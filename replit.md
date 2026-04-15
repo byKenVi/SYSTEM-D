@@ -131,7 +131,7 @@ shared/
 
 ## Activity Log
 - `activity_logs` DB table tracks all significant events
-- Logged events: Shopify auto-sync, Shopify import, Shopify writeback, Zoho push, Zoho inventory sync, contact invite/revoke/delete, product delete, restock requests
+- Logged events: Shopify auto-sync, Shopify import, Shopify writeback, Zoho push, Zoho inventory sync, contact invite/revoke/delete, product delete, restock requests, form submission, form status change
 - Visible in Settings → Activity Log tab with search, type filter, and status filter
 - Auto-refreshes every 30 seconds
 - `GET /api/activity-logs` endpoint returns up to 500 most recent entries
@@ -152,6 +152,16 @@ shared/
 - Activity log entry created on form submission
 - Admin Forms page: table view with type/status filters, create new form for any client
 - Portal Forms page: card list view, clients can create tri/entreposage/copacking/livraison forms
+
+## PDF Generation
+- `GET /api/forms/:id/pdf` generates and returns a PDF on demand
+- Uses `pdfkit` library for server-side PDF generation
+- Professional layout: Système-D header with branding, form metadata, section headings, styled tables, page footer with revision/page numbers
+- All 5 form types have dedicated rendering: TRI (NC items, contacts table), Inspection (criteria with inline images, approvals), Entreposage (product/delivery sections), Co-packing (time tracking tables, picks, packers), Livraison (destinations, billing)
+- Uploaded images (inspection criteria photos) are embedded inline in the PDF
+- Permission checks: admin can download any form, client can download their own. Draft forms cannot be exported.
+- "Download PDF" button visible in form editor for all submitted+ forms (both admin and client)
+- PDF file: `server/pdf-generator.ts`
 
 ## User Roles
 - First authenticated user is Admin

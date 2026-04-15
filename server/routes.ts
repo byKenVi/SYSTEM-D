@@ -12,6 +12,7 @@ import path from "path";
 import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, fetchZohoItemsMap } from "./zoho-api";
+import { generateFormPdf } from "./pdf-generator";
 import {
   fetchAllProducts,
   normalizeProducts,
@@ -1272,9 +1273,9 @@ export async function registerRoutes(
           });
         }
 
-        if (status !== form.status && status !== "draft") {
+        if (status !== form.status && status !== "draft" && form.status !== "draft") {
           const contact = await storage.getContact(form.contactId);
-          if (contact?.email && form.status !== "draft") {
+          if (contact?.email) {
             sendFormStatusEmail({
               email: contact.email,
               name: contact.name,
@@ -1282,6 +1283,13 @@ export async function registerRoutes(
               newStatus: status,
             }).catch((err) => console.error("Status email error:", err));
           }
+
+          const statusLabels: Record<string, string> = { submitted: "Soumis", in_review: "En révision", approved: "Approuvé", completed: "Complété" };
+          await storage.createActivityLog({
+            type: "form_status_change",
+            status: "success",
+            message: `${form.formNumber} : ${statusLabels[form.status] || form.status} → ${statusLabels[status] || status} par ${userName}`,
+          });
         }
       }
 
@@ -1303,6 +1311,39 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error updating form:", error);
       res.status(500).json({ message: error.message || "Failed to update form" });
+    }
+  });
+
+  app.get("/api/forms/:id/pdf", isAuthenticated, async (req: any, res) => {
+    try {
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Form not found" });
+
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      if (role.role === "client") {
+        if (!("contactId" in role) || form.contactId !== role.contactId) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
+
+      if (form.status === "draft") {
+        return res.status(400).json({ message: "Cannot generate PDF for draft forms" });
+      }
+
+      const contact = await storage.getContact(form.contactId);
+      const uploads = await storage.getFormUploadsBySubmission(form.id);
+
+      const pdfBuffer = await generateFormPdf(form, contact, uploads);
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${form.formNumber}.pdf"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (error: any) {
+      console.error("Error generating PDF:", error);
+      res.status(500).json({ message: "Failed to generate PDF" });
     }
   });
 

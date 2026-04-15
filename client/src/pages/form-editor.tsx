@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck } from "lucide-react";
+import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData, type TriFormData } from "@/components/forms/tri-form";
@@ -267,6 +267,20 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             }} data-testid="button-admin-save">
               <Save className="h-3.5 w-3.5 mr-1" />
               Sauvegarder
+            </Button>
+          )}
+
+          {!isDraft && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.open(`/api/forms/${formId}/pdf`, "_blank");
+              }}
+              data-testid="button-download-pdf"
+            >
+              <Download className="h-3.5 w-3.5 mr-1" />
+              PDF
             </Button>
           )}
         </div>
