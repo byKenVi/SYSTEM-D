@@ -252,7 +252,15 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                     {product.shopifyHandle && (
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Handle</p>
-                        <p className="text-sm font-medium">{product.shopifyHandle}</p>
+                        <a
+                          href={`https://${product.shopifyStoreUrl}/products/${product.shopifyHandle}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
+                        >
+                          {product.shopifyHandle}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       </div>
                     )}
                     {product.shopifyProductId && (
