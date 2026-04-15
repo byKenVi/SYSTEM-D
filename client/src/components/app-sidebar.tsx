@@ -47,7 +47,7 @@ interface AppSidebarProps {
 
 const adminItems = [
   { title: "Tableau de bord", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Contacts", url: "/admin/contacts", icon: Users },
+  { title: "Clients", url: "/admin/contacts", icon: Users },
   { title: "Produits", url: "/admin/products", icon: Package },
   { title: "Commandes", url: "/admin/orders", icon: ShoppingCart },
   { title: "Demandes de service", url: "/admin/forms", icon: ClipboardList },

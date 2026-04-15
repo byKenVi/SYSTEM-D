@@ -258,7 +258,7 @@ export default function ContactDetail() {
           <Link href="/admin/contacts">
             <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2" data-testid="button-back">
               <ArrowLeft className="h-3.5 w-3.5" />
-              Contacts
+              Clients
             </Button>
           </Link>
           <span className="text-muted-foreground/40 text-sm">/</span>
