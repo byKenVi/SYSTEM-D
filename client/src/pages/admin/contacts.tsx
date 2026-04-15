@@ -242,7 +242,7 @@ export default function AdminContacts() {
               <span className="text-sm font-semibold text-primary">{initials}</span>
             </div>
             <div className="flex-1 min-w-0 pt-0.5">
-              <p className="font-semibold text-sm leading-tight truncate" data-testid={`text-contact-name-${contact.id}`}>
+              <p className="font-semibold text-sm leading-tight" data-testid={`text-contact-name-${contact.id}`}>
                 {contact.name}
               </p>
               {contact.companyName ? (
