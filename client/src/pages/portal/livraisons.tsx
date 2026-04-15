@@ -28,7 +28,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Truck, Search, ArrowUpRight, MapPin } from "lucide-react";
+import {
+  Truck, Search, ArrowUpRight, MapPin,
+  Package, Hash, Phone, User, FileText, Calendar, MessageSquare,
+} from "lucide-react";
 import { Link } from "wouter";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -314,114 +317,166 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
 
       {/* Detail sheet */}
       <Sheet open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-md p-0 overflow-y-auto flex flex-col gap-0">
           {selected && (() => {
             const d = getLivData(selected);
             return (
               <>
-                <SheetHeader className="mb-6">
-                  <SheetTitle className="flex items-center gap-2">
-                    <Truck className="h-5 w-5 text-emerald-600" />
-                    {selected.formNumber}
-                  </SheetTitle>
-                </SheetHeader>
-                <div className="space-y-5">
-                  {/* Status + date */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <Badge className={`text-xs border-0 ${STATUS_COLORS[selected.status] || ""}`}>
+                {/* ── Hero header ── */}
+                <div className="bg-emerald-600 dark:bg-emerald-700 text-white px-6 pt-8 pb-6">
+                  <SheetHeader className="mb-0">
+                    <SheetTitle className="sr-only">{selected.formNumber}</SheetTitle>
+                  </SheetHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <Truck className="h-6 w-6 text-white" />
+                    </div>
+                    <Badge className={`mt-0.5 border-0 text-xs font-semibold ${STATUS_COLORS[selected.status] || ""}`}>
                       {STATUS_LABELS[selected.status] || selected.status}
                     </Badge>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {new Date(selected.updatedAt).toLocaleString("fr-CA", {
-                        timeZone: "America/New_York",
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
-                    </span>
                   </div>
+                  <div className="mt-4">
+                    <p className="text-2xl font-bold tracking-tight">{selected.formNumber}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-3 text-xs text-emerald-200">
+                    <Calendar className="h-3 w-3" />
+                    {new Date(selected.updatedAt).toLocaleString("fr-CA", {
+                      timeZone: "America/New_York",
+                      dateStyle: "long",
+                      timeStyle: "short",
+                    })}
+                  </div>
+                </div>
 
-                  {/* Marchandise */}
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Marchandise</p>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Type</p>
-                        <p className="font-medium">{d.typeMarchandise || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Nombre d'unités</p>
-                        <p className="font-medium">{d.nbUnites || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Poids total</p>
-                        <p className="font-medium">{d.poidsTotal ? `${d.poidsTotal} ${d.unitePoids || "kg"}` : "—"}</p>
-                      </div>
-                      {d.reference && (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Référence</p>
-                          <p className="font-mono text-xs font-medium">{d.reference}</p>
-                        </div>
-                      )}
+                <div className="p-6 space-y-6">
+                  {/* ── Key metrics ── */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-muted/50 p-3 text-center">
+                      <Package className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                      <p className="text-xl font-bold">{d.nbUnites || "—"}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">Unités</p>
+                    </div>
+                    <div className="rounded-xl bg-muted/50 p-3 text-center">
+                      <Truck className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                      <p className="text-xl font-bold leading-tight">{d.poidsTotal || "—"}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">
+                        {d.poidsTotal ? (d.unitePoids || "kg") : "Poids"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-muted/50 p-3 text-center">
+                      <Hash className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                      <p className="text-sm font-bold font-mono truncate">{d.reference || "—"}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">Référence</p>
                     </div>
                   </div>
 
-                  {/* Destinations */}
-                  {d.destinations && d.destinations.length > 0 && (
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Destination{d.destinations.length > 1 ? "s" : ""}
+                  {/* ── Marchandise type ── */}
+                  {d.typeMarchandise && (
+                    <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
+                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Type de marchandise</p>
+                        <p className="text-sm font-medium mt-0.5">{d.typeMarchandise}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Destinations ── */}
+                  {d.destinations && d.destinations.some(dest => dest.adresse || dest.contact || dest.telephone) && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
+                        {(d.destinations.length > 1) ? "Destinations" : "Destination"}
                       </p>
                       {d.destinations.map((dest, i) => (
-                        <div key={i} className="text-sm space-y-0.5 pb-3 last:pb-0 border-b last:border-0">
-                          {dest.adresse && <p className="font-medium flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{dest.adresse}</p>}
-                          {dest.contact && <p className="text-muted-foreground text-xs">{dest.contact}</p>}
-                          {dest.telephone && <p className="text-muted-foreground text-xs">{dest.telephone}</p>}
-                          {dest.notes && <p className="text-muted-foreground text-xs italic">{dest.notes}</p>}
-                        </div>
+                        (dest.adresse || dest.contact || dest.telephone || dest.notes) ? (
+                          <div key={i} className="rounded-xl border p-4 space-y-2">
+                            {d.destinations!.length > 1 && (
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">#{i + 1}</p>
+                            )}
+                            {dest.adresse && (
+                              <div className="flex items-start gap-2">
+                                <MapPin className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                                <p className="text-sm font-semibold leading-snug">{dest.adresse}</p>
+                              </div>
+                            )}
+                            {dest.contact && (
+                              <div className="flex items-center gap-2 ml-6">
+                                <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <p className="text-xs text-muted-foreground">{dest.contact}</p>
+                              </div>
+                            )}
+                            {dest.telephone && (
+                              <div className="flex items-center gap-2 ml-6">
+                                <Phone className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <p className="text-xs text-muted-foreground">{dest.telephone}</p>
+                              </div>
+                            )}
+                            {dest.notes && (
+                              <p className="text-xs text-muted-foreground italic ml-6">{dest.notes}</p>
+                            )}
+                          </div>
+                        ) : null
                       ))}
                     </div>
                   )}
 
-                  {/* RV + options */}
+                  {/* ── Options ── */}
                   {(d.hasRendezVous || d.hasTailgate) && (
-                    <div className="rounded-lg border p-4 space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Options</p>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {d.hasTailgate && <Badge variant="outline">Hayon requis</Badge>}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Options</p>
+                      <div className="flex flex-wrap gap-2">
+                        {d.hasTailgate && (
+                          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium">
+                            <Truck className="h-3 w-3" />
+                            Hayon requis
+                          </div>
+                        )}
                         {d.hasRendezVous && (
-                          <Badge variant="outline">
-                            RV: {d.rvDate || ""} {d.rvTime || ""}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium">
+                            <Calendar className="h-3 w-3" />
+                            RV : {d.rvDate || ""}{d.rvTime ? ` à ${d.rvTime}` : ""}
+                          </div>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* Billing + docs */}
+                  {/* ── Billing + docs ── */}
                   {(d.modeBilling || (d.documentation && d.documentation.length > 0)) && (
-                    <div className="rounded-lg border p-4 space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Facturation & documents</p>
-                      {d.modeBilling && <p className="text-sm capitalize">{d.modeBilling}</p>}
-                      {d.documentation && d.documentation.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {d.documentation.map((doc) => (
-                            <Badge key={doc} variant="secondary" className="text-xs">{doc}</Badge>
-                          ))}
-                        </div>
-                      )}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Facturation & documents</p>
+                      <div className="rounded-xl border p-4 space-y-3">
+                        {d.modeBilling && (
+                          <p className="text-sm capitalize font-medium">{d.modeBilling}</p>
+                        )}
+                        {d.documentation && d.documentation.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {d.documentation.map((doc) => (
+                              <div key={doc} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                                <FileText className="h-3 w-3 text-muted-foreground" />
+                                {doc}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  {/* Instructions */}
+                  {/* ── Instructions ── */}
                   {d.instructionsSpeciales && (
-                    <div className="rounded-lg border p-4 space-y-1">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Instructions spéciales</p>
-                      <p className="text-sm text-muted-foreground">{d.instructionsSpeciales}</p>
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Instructions spéciales</p>
+                      <div className="rounded-xl border-l-4 border-l-amber-400 bg-amber-50 dark:bg-amber-900/10 px-4 py-3 flex items-start gap-2">
+                        <MessageSquare className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-amber-900 dark:text-amber-200 leading-relaxed">{d.instructionsSpeciales}</p>
+                      </div>
                     </div>
                   )}
 
+                  {/* ── CTA ── */}
                   <Link href={`/portal/forms/${selected.id}${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`}>
-                    <Button variant="outline" size="sm" className="w-full gap-2" data-testid="button-open-full-form">
+                    <Button className="w-full gap-2" data-testid="button-open-full-form">
                       <ArrowUpRight className="h-4 w-4" />
                       Ouvrir le formulaire complet
                     </Button>
