@@ -28,11 +28,11 @@ const FORM_TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  in_review: "In Review",
-  approved: "Approved",
-  completed: "Completed",
+  draft: "Brouillon",
+  submitted: "Soumis",
+  in_review: "En révision",
+  approved: "Approuvé",
+  completed: "Complété",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -111,15 +111,15 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   }, [formId]);
 
   function validateBeforeSubmit(): string | null {
-    if (!formData) return "No data to submit.";
+    if (!formData) return "Aucune donnée à soumettre.";
     if (form?.formType === "tri") {
-      if (!formData.client?.trim()) return "The Client field is required.";
-      if (!formData.nomProjet?.trim()) return "The Project Name field is required.";
-      if (!formData.codePiece?.trim()) return "The Part Code field is required.";
+      if (!formData.client?.trim()) return "Le champ Client est requis.";
+      if (!formData.nomProjet?.trim()) return "Le champ Nom du projet est requis.";
+      if (!formData.codePiece?.trim()) return "Le champ Code pièce est requis.";
     }
     if (form?.formType === "inspection") {
-      if (!formData.customer?.trim()) return "The Client field is required.";
-      if (!formData.partNumber?.trim()) return "The Part Number field is required.";
+      if (!formData.customer?.trim()) return "Le champ Client est requis.";
+      if (!formData.partNumber?.trim()) return "Le champ Numéro de pièce est requis.";
     }
     return null;
   }
@@ -138,10 +138,10 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
       setSubmitDialogOpen(false);
-      toast({ title: "Form submitted", description: "The form has been submitted successfully." });
+      toast({ title: "Formulaire soumis", description: "Le formulaire a été soumis avec succès." });
     },
     onError: (err: any) => {
-      toast({ title: "Error", description: err.message || "Submission failed.", variant: "destructive" });
+      toast({ title: "Erreur", description: err.message || "Échec de la soumission.", variant: "destructive" });
     },
   });
 
@@ -162,10 +162,10 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     onSuccess: (livForm: FormSubmission) => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-      toast({ title: "Delivery form created", description: `${livForm.formNumber} linked to this work order.` });
+      toast({ title: "Formulaire de livraison créé", description: `${livForm.formNumber} lié à ce bon de travail.` });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
     },
   });
 
@@ -227,17 +227,17 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             {/* Auto-save indicator */}
             {isDraft && saveStatus === "saving" && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />Saving…
+                <Loader2 className="h-3 w-3 animate-spin" />Enregistrement…
               </span>
             )}
             {isDraft && saveStatus === "saved" && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Cloud className="h-3 w-3" />Saved
+                <Cloud className="h-3 w-3" />Enregistré
               </span>
             )}
             {isDraft && saveStatus === "error" && (
               <span className="text-xs text-destructive flex items-center gap-1">
-                <CloudOff className="h-3 w-3" />Save error
+                <CloudOff className="h-3 w-3" />Erreur d'enregistrement
               </span>
             )}
 
@@ -246,11 +246,11 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
               <>
                 <Button variant="outline" size="sm" onClick={() => saveDraftMutation.mutate()} disabled={saveDraftMutation.isPending} data-testid="button-save-draft">
                   <Save className="h-3.5 w-3.5 mr-1.5" />
-                  {saveDraftMutation.isPending ? "Saving…" : "Save"}
+                  {saveDraftMutation.isPending ? "Enregistrement…" : "Enregistrer"}
                 </Button>
                 <Button size="sm" onClick={() => setSubmitDialogOpen(true)} data-testid="button-submit-form">
                   <Send className="h-3.5 w-3.5 mr-1.5" />
-                  Submit
+                  Soumettre
                 </Button>
               </>
             )}
@@ -261,12 +261,12 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
                 apiRequest("PUT", `/api/forms/${formId}`, { data: formData, revisionDescription: "Admin edit" })
                   .then(() => {
                     queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-                    toast({ title: "Changes saved" });
+                    toast({ title: "Modifications enregistrées" });
                   })
-                  .catch(() => toast({ title: "Error", variant: "destructive" }));
+                  .catch(() => toast({ title: "Erreur", variant: "destructive" }));
               }} data-testid="button-admin-save">
                 <Save className="h-3.5 w-3.5 mr-1.5" />
-                Save
+                Enregistrer
               </Button>
             )}
 
@@ -287,11 +287,11 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
         <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <LinkIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span className="text-sm text-blue-700 dark:text-blue-300">
-            Linked form:
+            Formulaire lié :
           </span>
           <Link href={`${backUrl.includes("admin") ? "/admin" : "/portal"}/forms/${form.linkedFormId}`}>
             <Button variant="ghost" size="sm" className="text-blue-600 p-0 h-auto underline" data-testid="link-linked-form">
-              View linked form
+              Voir le formulaire lié
             </Button>
           </Link>
         </div>
@@ -301,7 +301,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
         <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
           <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <span className="text-sm text-amber-700 dark:text-amber-300">
-            Create a delivery form linked to this work order
+            Créer un formulaire de livraison lié à ce bon de travail
           </span>
           <Button
             variant="outline"
@@ -311,7 +311,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             data-testid="button-create-linked-livraison"
           >
             <Truck className="h-3.5 w-3.5 mr-1" />
-            {createLinkedLivraisonMutation.isPending ? "Creating..." : "Create delivery"}
+            {createLinkedLivraisonMutation.isPending ? "Création..." : "Créer livraison"}
           </Button>
         </div>
       )}
@@ -339,26 +339,26 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Submit form</DialogTitle>
+            <DialogTitle>Soumettre le formulaire</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Once submitted, you will no longer be able to edit this form. The Système-D team will review it.
+              Une fois soumis, vous ne pourrez plus modifier ce formulaire. L'équipe Système-D le révisera.
             </p>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Submission note (optional)</label>
+              <label className="text-sm font-medium">Note de soumission (optionnelle)</label>
               <Input
                 value={revisionDesc}
                 onChange={(e) => setRevisionDesc(e.target.value)}
-                placeholder="Describe what changed..."
+                placeholder="Décrivez les changements..."
                 data-testid="input-revision-desc"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSubmitDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setSubmitDialogOpen(false)}>Annuler</Button>
             <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending} data-testid="button-confirm-submit">
-              {submitMutation.isPending ? "Submitting..." : "Confirm submission"}
+              {submitMutation.isPending ? "Soumission..." : "Confirmer la soumission"}
             </Button>
           </DialogFooter>
         </DialogContent>

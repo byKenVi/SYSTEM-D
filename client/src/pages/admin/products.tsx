@@ -92,10 +92,10 @@ export default function AdminProducts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setSelected(new Set());
-      toast({ title: "Success", description: "Products pushed to Zoho Inventory." });
+      toast({ title: "Succès", description: "Produits envoyés vers Zoho Inventory." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to push products.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de l'envoi des produits.", variant: "destructive" });
     },
   });
 
@@ -106,10 +106,10 @@ export default function AdminProducts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setDeleteTarget(null);
-      toast({ title: "Deleted", description: "Product has been deleted." });
+      toast({ title: "Supprimé", description: "Le produit a été supprimé." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to delete product.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la suppression du produit.", variant: "destructive" });
     },
   });
 
@@ -121,10 +121,10 @@ export default function AdminProducts() {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setSelected(new Set());
       setBulkDeleteConfirm(false);
-      toast({ title: "Deleted", description: `${selected.size} product${selected.size !== 1 ? "s" : ""} deleted.` });
+      toast({ title: "Supprimé", description: `${selected.size} produit${selected.size !== 1 ? "s" : ""} supprimé${selected.size !== 1 ? "s" : ""}.` });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to delete products.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la suppression des produits.", variant: "destructive" });
     },
   });
 
@@ -183,8 +183,8 @@ export default function AdminProducts() {
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products</h1>
-          <p className="text-muted-foreground mt-1">Manage products across all client accounts</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Produits</h1>
+          <p className="text-muted-foreground mt-1">Gérez les produits de tous les comptes clients</p>
         </div>
       </div>
 
@@ -193,7 +193,7 @@ export default function AdminProducts() {
           <div className="relative flex-1 min-w-0 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search products, SKU, barcode..."
+              placeholder="Rechercher produit, SKU, code-barres..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -205,7 +205,7 @@ export default function AdminProducts() {
               <SelectValue placeholder="All Clients" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Clients</SelectItem>
+              <SelectItem value="all">Tous les clients</SelectItem>
               {contacts?.map((c) => (
                 <SelectItem key={c.id} value={String(c.id)}>
                   {c.companyName || c.name}
@@ -243,7 +243,7 @@ export default function AdminProducts() {
             data-testid="button-toggle-groupby"
           >
             <Layers className="h-3.5 w-3.5" />
-            Group
+            Grouper
           </Button>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -259,7 +259,7 @@ export default function AdminProducts() {
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6 9 17l-5-5"/></svg>
                 )}
               </div>
-              {filtered.every((p) => selected.has(p.id)) ? "Deselect All" : "Select All"}
+              {filtered.every((p) => selected.has(p.id)) ? "Tout désélectionner" : "Tout sélectionner"}
             </Button>
           )}
           {selected.size > 0 && (
@@ -272,7 +272,7 @@ export default function AdminProducts() {
                 data-testid="button-bulk-delete"
               >
                 <Trash2 className="h-4 w-4 mr-1.5" />
-                Delete {selected.size}
+                Supprimer {selected.size}
               </Button>
               <Button
                 size="sm"
@@ -281,7 +281,7 @@ export default function AdminProducts() {
                 data-testid="button-bulk-push-zoho"
               >
                 <Upload className="h-4 w-4 mr-1.5" />
-                Push {selected.size} to Zoho
+                Envoyer {selected.size} vers Zoho
               </Button>
             </>
           )}
@@ -304,12 +304,12 @@ export default function AdminProducts() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10"><Checkbox checked={filtered.every((p) => selected.has(p.id))} onCheckedChange={toggleAll} /></TableHead>
-                      <TableHead>Product</TableHead>
+                      <TableHead>Produit</TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Source</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Shopify Stock</TableHead>
-                      <TableHead className="text-right">Zoho Stock</TableHead>
+                      <TableHead className="text-right">Prix</TableHead>
+                      <TableHead className="text-right">Stock Shopify</TableHead>
+                      <TableHead className="text-right">Stock Zoho</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -339,7 +339,7 @@ export default function AdminProducts() {
                               <span className="text-xs text-green-700 dark:text-green-400 hover:underline font-medium">Shopify</span>
                             </a>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Manual</span>
+                            <span className="text-xs text-muted-foreground">Manuel</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</TableCell>
@@ -353,7 +353,7 @@ export default function AdminProducts() {
                           <div className="flex items-center justify-end gap-1.5">
                             {!product.pushedToZoho && (
                               <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}>
-                                <Upload className="h-3.5 w-3.5 mr-1" />Push
+                                <Upload className="h-3.5 w-3.5 mr-1" />Pousser
                               </Button>
                             )}
                             <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}>
@@ -388,10 +388,10 @@ export default function AdminProducts() {
                             <Users className="h-3.5 w-3.5 text-primary" />
                           </div>
                           <span className="font-semibold text-sm" data-testid={`text-group-client-name-${group.contactId}`}>{clientName}</span>
-                          <Badge variant="secondary" className="text-xs font-normal">{groupProductCount} {groupProductCount === 1 ? "product" : "products"}</Badge>
+                          <Badge variant="secondary" className="text-xs font-normal">{groupProductCount} {groupProductCount === 1 ? "produit" : "produits"}</Badge>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{groupStock.toLocaleString()} in stock</span>
+                          <span>{groupStock.toLocaleString()} en stock</span>
                         </div>
                       </button>
                       {!isCollapsed && (
@@ -411,12 +411,12 @@ export default function AdminProducts() {
                                     data-testid={`checkbox-select-all-${group.contactId}`}
                                   />
                                 </TableHead>
-                                <TableHead>Product</TableHead>
+                                <TableHead>Produit</TableHead>
                                 <TableHead>SKU</TableHead>
                                 <TableHead>Source</TableHead>
-                                <TableHead className="text-right">Price</TableHead>
-                                <TableHead className="text-right">Shopify Stock</TableHead>
-                                <TableHead className="text-right">Zoho Stock</TableHead>
+                                <TableHead className="text-right">Prix</TableHead>
+                                <TableHead className="text-right">Stock Shopify</TableHead>
+                                <TableHead className="text-right">Stock Zoho</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -467,7 +467,7 @@ export default function AdminProducts() {
                                       <div className="flex items-center justify-end gap-1.5">
                                         {!product.pushedToZoho && (
                                           <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}>
-                                            <Upload className="h-3.5 w-3.5 mr-1" />Push
+                                            <Upload className="h-3.5 w-3.5 mr-1" />Pousser
                                           </Button>
                                         )}
                                         <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}>
@@ -489,8 +489,8 @@ export default function AdminProducts() {
             ) : (
               <div className="p-12 text-center">
                 <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                <p className="text-muted-foreground font-medium">No products found</p>
-                <p className="text-sm text-muted-foreground mt-1">Import products from client Shopify stores in Settings.</p>
+                <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
+                <p className="text-sm text-muted-foreground mt-1">Importez des produits depuis les boutiques Shopify des clients dans les Paramètres.</p>
               </div>
             )}
           </CardContent>
@@ -524,12 +524,12 @@ export default function AdminProducts() {
                       {product.sku && <p className="text-[11px] font-mono text-muted-foreground truncate">{product.sku}</p>}
                       <div className="flex items-center justify-between pt-0.5">
                         <span className="text-xs font-medium">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</span>
-                        <span className="text-xs font-semibold text-muted-foreground">{product.inventoryQuantity} units</span>
+                        <span className="text-xs font-semibold text-muted-foreground">{product.inventoryQuantity} unités</span>
                       </div>
-                      {product.pushedToZoho && product.zohoInventoryQuantity != null && <p className="text-[11px] text-violet-600 dark:text-violet-400 font-medium">Zoho: {product.zohoInventoryQuantity} units</p>}
+                      {product.pushedToZoho && product.zohoInventoryQuantity != null && <p className="text-[11px] text-violet-600 dark:text-violet-400 font-medium">Zoho : {product.zohoInventoryQuantity} unités</p>}
                     </div>
                     <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Push</Button>}
+                      {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Pousser</Button>}
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </div>
@@ -613,12 +613,12 @@ export default function AdminProducts() {
                                     {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
                                   </span>
                                   <span className="text-xs font-semibold text-muted-foreground">
-                                    {product.inventoryQuantity} units
+                                    {product.inventoryQuantity} unités
                                   </span>
                                 </div>
                                 {product.pushedToZoho && product.zohoInventoryQuantity != null && (
                                   <p className="text-[11px] text-violet-600 dark:text-violet-400 font-medium">
-                                    Zoho: {product.zohoInventoryQuantity} units
+                                    Zoho : {product.zohoInventoryQuantity} unités
                                   </p>
                                 )}
                               </div>
@@ -627,7 +627,7 @@ export default function AdminProducts() {
                               <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                 {!product.pushedToZoho && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}>
-                                    <Upload className="h-3 w-3 mr-1" />Push
+                                    <Upload className="h-3 w-3 mr-1" />Pousser
                                   </Button>
                                 )}
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}>
@@ -646,8 +646,8 @@ export default function AdminProducts() {
           ) : (
             <div className="p-12 text-center border rounded-xl bg-card">
               <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">No products found</p>
-              <p className="text-sm text-muted-foreground mt-1">Import products from client Shopify stores in Settings.</p>
+              <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
+              <p className="text-sm text-muted-foreground mt-1">Importez des produits depuis les boutiques Shopify des clients dans les Paramètres.</p>
             </div>
           )}
         </div>
@@ -656,14 +656,14 @@ export default function AdminProducts() {
       <Dialog open={bulkDeleteConfirm} onOpenChange={(open) => !open && setBulkDeleteConfirm(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {selected.size} product{selected.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogTitle>Supprimer {selected.size} produit{selected.size !== 1 ? "s" : ""} ?</DialogTitle>
             <DialogDescription>
-              This will permanently remove {selected.size} selected product{selected.size !== 1 ? "s" : ""} from your inventory. Any Shopify-sourced products will not be deleted from Shopify but may be re-imported on the next sync.
+              Cela supprimera définitivement {selected.size} produit{selected.size !== 1 ? "s" : ""} sélectionné{selected.size !== 1 ? "s" : ""} de votre inventaire. Les produits importés depuis Shopify ne seront pas supprimés de Shopify mais pourront être réimportés lors de la prochaine synchronisation.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)} data-testid="button-cancel-bulk-delete">
-              Cancel
+              Annuler
             </Button>
             <Button
               variant="destructive"
@@ -671,7 +671,7 @@ export default function AdminProducts() {
               disabled={bulkDeleteMutation.isPending}
               data-testid="button-confirm-bulk-delete"
             >
-              Delete {selected.size} product{selected.size !== 1 ? "s" : ""}
+              Supprimer {selected.size} produit{selected.size !== 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -680,14 +680,14 @@ export default function AdminProducts() {
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Shopify product?</DialogTitle>
+            <DialogTitle>Supprimer le produit Shopify ?</DialogTitle>
             <DialogDescription>
-              "{deleteTarget?.name}" was imported from Shopify ({deleteTarget?.shopifyStoreUrl?.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}). Deleting it here will not remove it from Shopify, but it will no longer appear in your inventory and may be re-imported on the next sync.
+              « {deleteTarget?.name} » a été importé depuis Shopify ({deleteTarget?.shopifyStoreUrl?.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}). Le supprimer ici ne le supprimera pas de Shopify, mais il n'apparaîtra plus dans votre inventaire et pourra être réimporté lors de la prochaine synchronisation.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} data-testid="button-cancel-delete">
-              Cancel
+              Annuler
             </Button>
             <Button
               variant="destructive"
@@ -695,7 +695,7 @@ export default function AdminProducts() {
               disabled={deleteProductMutation.isPending}
               data-testid="button-confirm-delete-product"
             >
-              Delete Product
+              Supprimer le produit
             </Button>
           </DialogFooter>
         </DialogContent>

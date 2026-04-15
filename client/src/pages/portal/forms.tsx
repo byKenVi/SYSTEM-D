@@ -22,11 +22,11 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  in_review: "In Review",
-  approved: "Approved",
-  completed: "Completed",
+  draft: "Brouillon",
+  submitted: "Soumis",
+  in_review: "En révision",
+  approved: "Approuvé",
+  completed: "Terminé",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -40,8 +40,8 @@ const STATUS_COLORS: Record<string, string> = {
 const FORM_TYPES = [
   {
     value: "tri",
-    label: "Tri (Sorting)",
-    desc: "Sorting service request",
+    label: "Tri",
+    desc: "Demande de service de tri",
     icon: ArrowLeftRight,
     color: "bg-blue-500",
     light: "bg-blue-50 dark:bg-blue-950/40",
@@ -50,7 +50,7 @@ const FORM_TYPES = [
   {
     value: "entreposage",
     label: "Entreposage",
-    desc: "Warehousing & storage request",
+    desc: "Demande d'entreposage et de stockage",
     icon: Warehouse,
     color: "bg-amber-500",
     light: "bg-amber-50 dark:bg-amber-950/40",
@@ -59,7 +59,7 @@ const FORM_TYPES = [
   {
     value: "copacking",
     label: "Co-packing",
-    desc: "Co-packing work order",
+    desc: "Bon de travail co-packing",
     icon: Package2,
     color: "bg-violet-500",
     light: "bg-violet-50 dark:bg-violet-950/40",
@@ -68,7 +68,7 @@ const FORM_TYPES = [
   {
     value: "livraison",
     label: "Livraison",
-    desc: "Delivery request",
+    desc: "Demande de livraison",
     icon: Truck,
     color: "bg-emerald-500",
     light: "bg-emerald-50 dark:bg-emerald-950/40",
@@ -127,15 +127,15 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">My Service Requests</h1>
-          <p className="text-muted-foreground mt-1">Submit and track your service requests</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Mes demandes de service</h1>
+          <p className="text-muted-foreground mt-1">Soumettez et suivez vos demandes de service</p>
         </div>
         <Button
           onClick={() => setNewFormOpen(true)}
           data-testid="button-new-form-portal"
         >
           <Plus className="h-4 w-4 mr-1.5" />
-          New form
+          Nouveau formulaire
         </Button>
       </div>
 
@@ -148,25 +148,25 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
           ) : !forms || forms.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p>No forms submitted yet</p>
+              <p>Aucun formulaire soumis pour l'instant</p>
               <Button
                 className="mt-4"
                 onClick={() => setNewFormOpen(true)}
                 data-testid="button-new-form-empty"
               >
                 <Plus className="h-4 w-4 mr-1.5" />
-                Create a form
+                Créer un formulaire
               </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Form #</TableHead>
+                  <TableHead>Formulaire #</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Last updated</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Créé</TableHead>
+                  <TableHead>Dernière mise à jour</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
@@ -205,8 +205,8 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg">New service request</DialogTitle>
-            <p className="text-sm text-muted-foreground">Choose the type of service you need</p>
+            <DialogTitle className="text-lg">Nouvelle demande de service</DialogTitle>
+            <p className="text-sm text-muted-foreground">Choisissez le type de service dont vous avez besoin</p>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-1">
             {FORM_TYPES.map((t) => {

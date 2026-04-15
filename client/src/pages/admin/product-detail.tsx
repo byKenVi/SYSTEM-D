@@ -60,10 +60,10 @@ export default function AdminProductDetail() {
     mutationFn: () => apiRequest("DELETE", `/api/products/${productId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Deleted", description: "Product has been deleted." });
+      toast({ title: "Supprimé", description: "Le produit a été supprimé." });
       navigate("/admin/products");
     },
-    onError: () => toast({ title: "Error", description: "Failed to delete product.", variant: "destructive" }),
+    onError: () => toast({ title: "Erreur", description: "Échec de la suppression du produit.", variant: "destructive" }),
   });
 
   if (isLoading) {
@@ -85,9 +85,9 @@ export default function AdminProductDetail() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <Package className="h-12 w-12 text-muted-foreground/30" />
-        <p className="text-muted-foreground font-medium">Product not found</p>
+        <p className="text-muted-foreground font-medium">Produit introuvable</p>
         <Link href="/admin/products">
-          <Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1.5" />Back to Products</Button>
+          <Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1.5" />Retour aux produits</Button>
         </Link>
       </div>
     );
@@ -107,7 +107,7 @@ export default function AdminProductDetail() {
             </Button>
           </Link>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-0.5">Product Detail</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-0.5">Détail du produit</p>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold tracking-tight leading-none" data-testid="text-product-name">
                 {product.name}
@@ -115,7 +115,7 @@ export default function AdminProductDetail() {
               {product.pushedToZoho ? (
                 <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">Zoho Synced</Badge>
               ) : (
-                <Badge className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 hover:bg-orange-100 border-orange-200 dark:border-orange-800">Not in Zoho</Badge>
+                <Badge className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 hover:bg-orange-100 border-orange-200 dark:border-orange-800">Pas dans Zoho</Badge>
               )}
               {product.shopifyStatus && (
                 <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
@@ -134,7 +134,7 @@ export default function AdminProductDetail() {
             data-testid="button-delete-product"
           >
             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-            Delete
+            Supprimer
           </Button>
         </div>
       </div>
@@ -165,13 +165,13 @@ export default function AdminProductDetail() {
               {/* Stat pills */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-muted/60 px-3 py-2.5 text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Price</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Prix</p>
                   <p className="text-sm font-bold" data-testid="text-price">
                     {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
                   </p>
                 </div>
                 <div className={`rounded-lg px-3 py-2.5 text-center ${isLow ? "bg-amber-50 dark:bg-amber-950/30" : "bg-muted/60"}`}>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Shopify Stock</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Stock Shopify</p>
                   <p className={`text-sm font-bold ${isLow ? "text-amber-600 dark:text-amber-400" : ""}`} data-testid="text-stock">
                     {isLow && <AlertTriangle className="inline h-3 w-3 mr-0.5 -mt-0.5" />}
                     {product.inventoryQuantity}
@@ -197,7 +197,7 @@ export default function AdminProductDetail() {
                   data-testid="link-view-on-shopify"
                 >
                   <SiShopify className="h-3.5 w-3.5" />
-                  View on Shopify
+                  Voir sur Shopify
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
@@ -206,7 +206,7 @@ export default function AdminProductDetail() {
               {product.lastSyncedAt && (
                 <p className="text-[11px] text-muted-foreground flex items-center justify-center gap-1" data-testid="text-synced">
                   <Clock className="h-3 w-3 flex-shrink-0" />
-                  Last synced {new Date(product.lastSyncedAt).toLocaleString()}
+                  Dernière sync {new Date(product.lastSyncedAt).toLocaleString("fr-CA")}
                 </p>
               )}
             </CardContent>
@@ -220,12 +220,12 @@ export default function AdminProductDetail() {
 
               {/* Identifiers */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Identifiers</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Identifiants</p>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                   <MetaRow label="SKU" value={product.sku} testId="text-sku" />
-                  <MetaRow label="Barcode" value={product.barcode} testId="text-barcode" />
-                  <MetaRow label="Price" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} testId="text-price-meta" />
-                  <MetaRow label="Compare at" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} testId="text-compare-price" />
+                  <MetaRow label="Code-barres" value={product.barcode} testId="text-barcode" />
+                  <MetaRow label="Prix" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} testId="text-price-meta" />
+                  <MetaRow label="Prix comparatif" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} testId="text-compare-price" />
                 </div>
               </div>
 
@@ -233,11 +233,11 @@ export default function AdminProductDetail() {
 
               {/* Catalog */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Catalog</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Catalogue</p>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                  <MetaRow label="Vendor" value={product.vendor} testId="text-vendor" />
+                  <MetaRow label="Fournisseur" value={product.vendor} testId="text-vendor" />
                   <MetaRow label="Type" value={product.productType} testId="text-product-type" />
-                  <MetaRow label="Weight" value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null} testId="text-weight" />
+                  <MetaRow label="Poids" value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null} testId="text-weight" />
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Client</p>
                     {contact ? (
@@ -259,13 +259,13 @@ export default function AdminProductDetail() {
                   <Separator />
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                      <SiShopify className="h-3 w-3" /> Shopify Source
+                      <SiShopify className="h-3 w-3" /> Source Shopify
                     </p>
                     <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                      <MetaRow label="Store" value={product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")} testId="text-store" />
+                      <MetaRow label="Boutique" value={product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")} testId="text-store" />
                       <MetaRow label="Handle" value={product.shopifyHandle} testId="text-handle" />
-                      <MetaRow label="Product ID" value={product.shopifyProductId} testId="text-shopify-product-id" />
-                      <MetaRow label="Variant ID" value={product.shopifyVariantId} testId="text-shopify-variant-id" />
+                      <MetaRow label="ID produit" value={product.shopifyProductId} testId="text-shopify-product-id" />
+                      <MetaRow label="ID variante" value={product.shopifyVariantId} testId="text-shopify-variant-id" />
                     </div>
                   </div>
                 </>
@@ -276,7 +276,7 @@ export default function AdminProductDetail() {
                 <>
                   <Separator />
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Tags</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Étiquettes</p>
                     <div className="flex flex-wrap gap-1.5" data-testid="container-tags">
                       {product.tags.split(",").map((tag, i) => (
                         <Badge key={i} variant="secondary" className="text-xs font-normal">{tag.trim()}</Badge>
@@ -308,22 +308,22 @@ export default function AdminProductDetail() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {product.name}?</DialogTitle>
+            <DialogTitle>Supprimer {product.name} ?</DialogTitle>
             <DialogDescription>
               {product.shopifyStoreUrl
-                ? `This product was imported from Shopify. Deleting it here will not remove it from Shopify, but it may be re-imported on the next sync.`
-                : `This will permanently remove the product from your inventory. This action cannot be undone.`}
+                ? `Ce produit a été importé depuis Shopify. Le supprimer ici ne le retirera pas de Shopify, mais il pourrait être réimporté lors de la prochaine synchronisation.`
+                : `Cela supprimera définitivement le produit de votre inventaire. Cette action est irréversible.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Annuler</Button>
             <Button
               variant="destructive"
               onClick={() => deleteProductMutation.mutate()}
               disabled={deleteProductMutation.isPending}
               data-testid="button-confirm-delete"
             >
-              {deleteProductMutation.isPending ? "Deleting…" : "Delete Product"}
+              {deleteProductMutation.isPending ? "Suppression…" : "Supprimer le produit"}
             </Button>
           </DialogFooter>
         </DialogContent>

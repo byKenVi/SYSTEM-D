@@ -59,27 +59,27 @@ const ZOHO_REGIONS = [
 ];
 
 const SYNC_OPTIONS = [
-  { value: "0", label: "Disabled" },
-  { value: "15", label: "Every 15 minutes" },
-  { value: "30", label: "Every 30 minutes" },
-  { value: "60", label: "Every hour" },
-  { value: "360", label: "Every 6 hours" },
-  { value: "720", label: "Every 12 hours" },
-  { value: "1440", label: "Every 24 hours" },
+  { value: "0", label: "Désactivé" },
+  { value: "15", label: "Toutes les 15 minutes" },
+  { value: "30", label: "Toutes les 30 minutes" },
+  { value: "60", label: "Toutes les heures" },
+  { value: "360", label: "Toutes les 6 heures" },
+  { value: "720", label: "Toutes les 12 heures" },
+  { value: "1440", label: "Toutes les 24 heures" },
 ];
 
 const TYPE_LABELS: Record<string, string> = {
   shopify_auto_sync: "Auto Sync",
-  shopify_import: "Shopify Import",
-  shopify_orders_sync: "Orders Sync",
-  zoho_push: "Zoho Push",
-  zoho_inventory_sync: "Zoho Inventory",
-  contact_invite: "Invite Sent",
-  contact_revoke: "Access Revoked",
-  contact_delete: "Contact Deleted",
-  product_delete: "Product Deleted",
-  restock_request: "Work Order",
-  shopify_writeback: "Shopify Writeback",
+  shopify_import: "Import Shopify",
+  shopify_orders_sync: "Sync Commandes",
+  zoho_push: "Envoi Zoho",
+  zoho_inventory_sync: "Inventaire Zoho",
+  contact_invite: "Invitation envoyée",
+  contact_revoke: "Accès révoqué",
+  contact_delete: "Contact supprimé",
+  product_delete: "Produit supprimé",
+  restock_request: "Bon de travail",
+  shopify_writeback: "Écriture Shopify",
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -141,15 +141,15 @@ export default function AdminSettingsPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("zoho_connected") === "true") {
       queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
-      toast({ title: "Zoho Inventory connected", description: "Your account has been linked successfully." });
+      toast({ title: "Zoho Inventory connecté", description: "Votre compte a été lié avec succès." });
       window.history.replaceState({}, "", "/admin/settings");
     } else if (params.get("zoho_select_org") === "true") {
       setOrgSelectOpen(true);
       window.history.replaceState({}, "", "/admin/settings");
     } else if (params.get("zoho_error")) {
       toast({
-        title: "Zoho connection failed",
-        description: decodeURIComponent(params.get("zoho_error") || "Unknown error"),
+        title: "Connexion Zoho échouée",
+        description: decodeURIComponent(params.get("zoho_error") || "Erreur inconnue"),
         variant: "destructive",
       });
       window.history.replaceState({}, "", "/admin/settings");
@@ -185,12 +185,12 @@ export default function AdminSettingsPage() {
       setSelectedClient("");
       setShopifyStoreUrl("");
       setShopifyAccessToken("");
-      toast({ title: "Store connected", description: "Shopify store has been linked successfully." });
+      toast({ title: "Boutique connectée", description: "La boutique Shopify a été liée avec succès." });
     },
     onError: (error: any) => {
       toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect Shopify store. Check the store URL and access token.",
+        title: "Connexion échouée",
+        description: error.message || "Impossible de connecter la boutique Shopify. Vérifiez l'URL et le jeton d'accès.",
         variant: "destructive",
       });
     },
@@ -204,14 +204,14 @@ export default function AdminSettingsPage() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       toast({
-        title: "Import Complete",
-        description: data.message || `${data.imported} new, ${data.updated} updated (${data.total} total)`,
+        title: "Import terminé",
+        description: data.message || `${data.imported} nouveau${data.imported > 1 ? "x" : ""}, ${data.updated} mis à jour (${data.total} total)`,
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Import Failed",
-        description: error.message || "Failed to import products from Shopify.",
+        title: "Import échoué",
+        description: error.message || "Impossible d'importer les produits depuis Shopify.",
         variant: "destructive",
       });
     },
@@ -224,10 +224,10 @@ export default function AdminSettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      toast({ title: "Disconnected", description: "Shopify store removed." });
+      toast({ title: "Déconnecté", description: "Boutique Shopify supprimée." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to disconnect store.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la déconnexion de la boutique.", variant: "destructive" });
     },
   });
 
@@ -237,10 +237,10 @@ export default function AdminSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
-      toast({ title: "Updated", description: "Product sync frequency updated." });
+      toast({ title: "Mis à jour", description: "Fréquence de sync produits mise à jour." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update sync frequency.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la mise à jour de la fréquence.", variant: "destructive" });
     },
   });
 
@@ -250,10 +250,10 @@ export default function AdminSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
-      toast({ title: "Updated", description: "Order sync frequency updated." });
+      toast({ title: "Mis à jour", description: "Fréquence de sync commandes mise à jour." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update order sync frequency.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la mise à jour de la fréquence des commandes.", variant: "destructive" });
     },
   });
 
@@ -264,10 +264,10 @@ export default function AdminSettingsPage() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
-      toast({ title: "Orders synced", description: data.message || `${data.synced} orders synced.` });
+      toast({ title: "Commandes synchronisées", description: data.message || `${data.synced} commande${data.synced > 1 ? "s" : ""} synchronisée${data.synced > 1 ? "s" : ""}.` });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to sync orders.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la synchronisation des commandes.", variant: "destructive" });
     },
   });
 
@@ -277,10 +277,10 @@ export default function AdminSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
-      toast({ title: "Updated", description: "Zoho sync frequency updated." });
+      toast({ title: "Mis à jour", description: "Fréquence de sync Zoho mise à jour." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update Zoho sync frequency.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la mise à jour de la fréquence Zoho.", variant: "destructive" });
     },
   });
 
@@ -290,10 +290,10 @@ export default function AdminSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
-      toast({ title: "Updated", description: "Shopify writeback frequency updated." });
+      toast({ title: "Mis à jour", description: "Fréquence d'écriture Shopify mise à jour." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update Shopify writeback frequency.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la mise à jour de la fréquence d'écriture Shopify.", variant: "destructive" });
     },
   });
 
@@ -315,8 +315,8 @@ export default function AdminSettingsPage() {
     },
     onError: (err: any) => {
       toast({
-        title: "Error",
-        description: err.message || "Failed to start Zoho connection",
+        title: "Erreur",
+        description: err.message || "Impossible de démarrer la connexion Zoho",
         variant: "destructive",
       });
     },
@@ -326,10 +326,10 @@ export default function AdminSettingsPage() {
     mutationFn: async () => apiRequest("POST", "/api/auth/zoho/disconnect"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
-      toast({ title: "Disconnected", description: "Zoho Inventory has been disconnected." });
+      toast({ title: "Déconnecté", description: "Zoho Inventory a été déconnecté." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to disconnect.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la déconnexion.", variant: "destructive" });
     },
   });
 
@@ -339,24 +339,24 @@ export default function AdminSettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
       setOrgSelectOpen(false);
-      toast({ title: "Organization selected", description: "Zoho Inventory connected." });
+      toast({ title: "Organisation sélectionnée", description: "Zoho Inventory connecté." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to select organization.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la sélection de l'organisation.", variant: "destructive" });
     },
   });
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure integrations and view system activity</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Paramètres</h1>
+        <p className="text-muted-foreground mt-1">Configurez les intégrations et consultez l'activité du système</p>
       </div>
 
       <Tabs defaultValue="integrations">
         <TabsList data-testid="tabs-settings">
-          <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
-          <TabsTrigger value="activity-log" data-testid="tab-activity-log">Activity Log</TabsTrigger>
+          <TabsTrigger value="integrations" data-testid="tab-integrations">Intégrations</TabsTrigger>
+          <TabsTrigger value="activity-log" data-testid="tab-activity-log">Journal d'activité</TabsTrigger>
         </TabsList>
 
         {/* ── Integrations Tab ── */}
@@ -372,12 +372,12 @@ export default function AdminSettingsPage() {
                   <h3 className="font-semibold">Zoho Inventory</h3>
                   <p className="text-sm text-muted-foreground">
                     {isZohoConnected
-                      ? adminSettings?.zohoInventoryOrgName || "Connected"
-                      : "Connect via OAuth 2.0"}
+                      ? adminSettings?.zohoInventoryOrgName || "Connecté"
+                      : "Connecter via OAuth 2.0"}
                   </p>
                 </div>
                 {isZohoConnected && (
-                  <Badge variant="default" className="ml-auto bg-emerald-600">Connected</Badge>
+                  <Badge variant="default" className="ml-auto bg-emerald-600">Connecté</Badge>
                 )}
               </CardHeader>
               <CardContent>
@@ -390,15 +390,15 @@ export default function AdminSettingsPage() {
                     <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                       <div className="text-sm">
-                        <p className="font-medium text-emerald-800 dark:text-emerald-300">Connected</p>
+                        <p className="font-medium text-emerald-800 dark:text-emerald-300">Connecté</p>
                         {adminSettings?.zohoInventoryOrgName && (
                           <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
-                            Organization: {adminSettings.zohoInventoryOrgName}
+                            Organisation : {adminSettings.zohoInventoryOrgName}
                           </p>
                         )}
                         {adminSettings?.zohoInventoryOrgId && (
                           <p className="text-emerald-600 dark:text-emerald-500 text-xs">
-                            Org ID: {adminSettings.zohoInventoryOrgId}
+                            Org ID : {adminSettings.zohoInventoryOrgId}
                           </p>
                         )}
                       </div>
@@ -406,7 +406,7 @@ export default function AdminSettingsPage() {
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1.5 text-sm">
                         <Clock className="h-3.5 w-3.5" />
-                        Zoho → App Sync Frequency
+                        Fréquence de sync Zoho → App
                       </Label>
                       <Select
                         value={String(adminSettings?.zohoSyncFrequencyMinutes ?? 0)}
@@ -426,10 +426,10 @@ export default function AdminSettingsPage() {
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1.5 text-sm">
                         <RefreshCw className="h-3.5 w-3.5" />
-                        Zoho → Shopify Writeback Frequency
+                        Fréquence d'écriture Zoho → Shopify
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        Pushes Zoho inventory levels back to connected Shopify stores
+                        Renvoie les niveaux d'inventaire Zoho vers les boutiques Shopify connectées
                       </p>
                       <Select
                         value={String(adminSettings?.shopifyWritebackFrequencyMinutes ?? 0)}
@@ -453,14 +453,14 @@ export default function AdminSettingsPage() {
                       disabled={disconnectZohoMutation.isPending}
                       data-testid="button-disconnect-zoho"
                     >
-                      {disconnectZohoMutation.isPending ? "Disconnecting..." : "Disconnect Zoho Inventory"}
+                      {disconnectZohoMutation.isPending ? "Déconnexion..." : "Déconnecter Zoho Inventory"}
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="rounded-md bg-muted/50 border p-3 text-sm text-muted-foreground space-y-1">
-                      <p className="font-medium text-foreground">Setup required</p>
-                      <p>You'll be redirected to Zoho to authorize access. Make sure your Zoho API Console app has this redirect URI set:</p>
+                      <p className="font-medium text-foreground">Configuration requise</p>
+                      <p>Vous serez redirigé vers Zoho pour autoriser l'accès. Assurez-vous que votre application Zoho API Console a cet URI de redirection :</p>
                       <code className="block mt-1 text-xs bg-muted rounded px-2 py-1 break-all">
                         {window.location.origin}/api/auth/zoho/callback
                       </code>
@@ -468,7 +468,7 @@ export default function AdminSettingsPage() {
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1.5">
                         <Globe className="h-3.5 w-3.5" />
-                        Data Center Region
+                        Région du centre de données
                       </Label>
                       <Select value={zohoRegion} onValueChange={setZohoRegion}>
                         <SelectTrigger data-testid="select-zoho-region">
@@ -490,7 +490,7 @@ export default function AdminSettingsPage() {
                       data-testid="button-connect-zoho"
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      {connectZohoMutation.isPending ? "Redirecting..." : "Connect with Zoho"}
+                      {connectZohoMutation.isPending ? "Redirection..." : "Connecter avec Zoho"}
                     </Button>
                   </div>
                 )}
@@ -505,8 +505,8 @@ export default function AdminSettingsPage() {
                     <SiShopify className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Shopify Integration</h3>
-                    <p className="text-sm text-muted-foreground">Connect stores using a Shopify Admin API token</p>
+                    <h3 className="font-semibold">Intégration Shopify</h3>
+                    <p className="text-sm text-muted-foreground">Connectez des boutiques via un jeton API Admin Shopify</p>
                   </div>
                 </div>
                 <Dialog open={shopifyOpen} onOpenChange={(open) => {
@@ -520,22 +520,22 @@ export default function AdminSettingsPage() {
                   <DialogTrigger asChild>
                     <Button size="sm" data-testid="button-connect-shopify">
                       <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
-                      Connect Store
+                      Connecter boutique
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Connect Shopify Store</DialogTitle>
+                      <DialogTitle>Connecter une boutique Shopify</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 mt-2">
                       <p className="text-sm text-muted-foreground">
-                        Enter the client's store URL and a Shopify Admin API access token. You can generate one in your Shopify admin under <strong>Apps → Develop apps</strong>.
+                        Entrez l'URL de la boutique du client et un jeton d'accès API Admin Shopify. Vous pouvez en générer un dans votre admin Shopify sous <strong>Applications → Développer des applications</strong>.
                       </p>
                       <div className="space-y-2">
                         <Label>Client</Label>
                         <Select value={selectedClient} onValueChange={setSelectedClient}>
                           <SelectTrigger data-testid="select-shopify-client">
-                            <SelectValue placeholder="Select a client" />
+                            <SelectValue placeholder="Sélectionner un client" />
                           </SelectTrigger>
                           <SelectContent>
                             {availableClients.map((c) => (
@@ -547,7 +547,7 @@ export default function AdminSettingsPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Store URL</Label>
+                        <Label>URL de la boutique</Label>
                         <Input
                           value={shopifyStoreUrl}
                           onChange={(e) => setShopifyStoreUrl(e.target.value)}
@@ -556,7 +556,7 @@ export default function AdminSettingsPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Admin API Access Token</Label>
+                        <Label>Jeton d'accès API Admin</Label>
                         <Input
                           type="password"
                           value={shopifyAccessToken}
@@ -564,7 +564,7 @@ export default function AdminSettingsPage() {
                           placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
                           data-testid="input-shopify-access-token"
                         />
-                        <p className="text-xs text-muted-foreground">The token requires <code>read_products</code>, <code>read_inventory</code>, and <code>write_inventory</code> scopes.</p>
+                        <p className="text-xs text-muted-foreground">Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code> et <code>write_inventory</code>.</p>
                       </div>
                       <Button
                         className="w-full"
@@ -572,7 +572,7 @@ export default function AdminSettingsPage() {
                         disabled={!selectedClient || !shopifyStoreUrl || !shopifyAccessToken || connectShopifyMutation.isPending}
                         data-testid="button-submit-shopify"
                       >
-                        {connectShopifyMutation.isPending ? "Connecting..." : "Connect Store"}
+                        {connectShopifyMutation.isPending ? "Connexion..." : "Connecter la boutique"}
                       </Button>
                     </div>
                   </DialogContent>
@@ -618,7 +618,7 @@ export default function AdminSettingsPage() {
 
                           {/* Product sync row */}
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Products</span>
+                            <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Produits</span>
                             <Select
                               value={String(integration.syncFrequencyMinutes ?? 0)}
                               onValueChange={(v) =>
@@ -644,18 +644,18 @@ export default function AdminSettingsPage() {
                               data-testid={`button-import-products-${integration.id}`}
                             >
                               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${importProductsMutation.isPending ? "animate-spin" : ""}`} />
-                              Import now
+                              Importer
                             </Button>
                             {integration.lastAutoSyncAt && (
                               <span className="text-xs text-muted-foreground">
-                                Last: {new Date(integration.lastAutoSyncAt).toLocaleString()}
+                                Dernier : {new Date(integration.lastAutoSyncAt).toLocaleString("fr-CA")}
                               </span>
                             )}
                           </div>
 
                           {/* Orders sync row */}
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Orders</span>
+                            <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Commandes</span>
                             <Select
                               value={String(integration.orderSyncFrequencyMinutes ?? 0)}
                               onValueChange={(v) =>
@@ -681,11 +681,11 @@ export default function AdminSettingsPage() {
                               data-testid={`button-sync-orders-${integration.id}`}
                             >
                               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncOrdersNowMutation.isPending ? "animate-spin" : ""}`} />
-                              Sync now
+                              Sync maintenant
                             </Button>
                             {integration.lastOrderSyncAt && (
                               <span className="text-xs text-muted-foreground">
-                                Last: {new Date(integration.lastOrderSyncAt).toLocaleString()}
+                                Dernier : {new Date(integration.lastOrderSyncAt).toLocaleString("fr-CA")}
                               </span>
                             )}
                           </div>
@@ -696,8 +696,8 @@ export default function AdminSettingsPage() {
                 ) : (
                   <div className="text-center py-8">
                     <SiShopify className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                    <p className="text-sm text-muted-foreground">No stores connected yet</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">Click "Connect Store" to link a client's Shopify store</p>
+                    <p className="text-sm text-muted-foreground">Aucune boutique connectée</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Cliquez sur « Connecter boutique » pour lier la boutique Shopify d'un client</p>
                   </div>
                 )}
               </CardContent>
@@ -708,11 +708,11 @@ export default function AdminSettingsPage() {
           <Dialog open={orgSelectOpen} onOpenChange={setOrgSelectOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Select Zoho Organization</DialogTitle>
+                <DialogTitle>Sélectionner l'organisation Zoho</DialogTitle>
               </DialogHeader>
               <div className="space-y-3 mt-2">
                 <p className="text-sm text-muted-foreground">
-                  Multiple organizations were found. Select which one to connect:
+                  Plusieurs organisations ont été trouvées. Sélectionnez celle à connecter :
                 </p>
                 {pendingOrgs?.organizations?.map((org: any) => (
                   <Button
@@ -740,7 +740,7 @@ export default function AdminSettingsPage() {
             <div className="relative flex-1 min-w-0 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search log messages..."
+                placeholder="Rechercher dans les journaux..."
                 value={logSearch}
                 onChange={(e) => setLogSearch(e.target.value)}
                 className="pl-9"
@@ -749,10 +749,10 @@ export default function AdminSettingsPage() {
             </div>
             <Select value={logTypeFilter} onValueChange={setLogTypeFilter}>
               <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-type-filter">
-                <SelectValue placeholder="All Types" />
+                <SelectValue placeholder="Tous les types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">Tous les types</SelectItem>
                 {allLogTypes.map((t) => (
                   <SelectItem key={t} value={t}>{TYPE_LABELS[t] ?? t}</SelectItem>
                 ))}
@@ -760,12 +760,12 @@ export default function AdminSettingsPage() {
             </Select>
             <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
               <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-status-filter">
-                <SelectValue placeholder="All Statuses" />
+                <SelectValue placeholder="Tous les statuts" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="success">Succès</SelectItem>
+                <SelectItem value="error">Erreur</SelectItem>
                 <SelectItem value="info">Info</SelectItem>
               </SelectContent>
             </Select>
@@ -779,7 +779,7 @@ export default function AdminSettingsPage() {
                     <TableHead className="w-8"></TableHead>
                     <TableHead>Message</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead className="text-right whitespace-nowrap">Date & Time</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Date et heure</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -819,8 +819,8 @@ export default function AdminSettingsPage() {
                     <TableRow>
                       <TableCell colSpan={4} className="h-36 text-center">
                         <ScrollText className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-                        <p className="text-sm text-muted-foreground">No log entries found</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">Activity will appear here as actions are performed</p>
+                        <p className="text-sm text-muted-foreground">Aucune entrée de journal</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">L'activité apparaîtra ici au fur et à mesure des actions</p>
                       </TableCell>
                     </TableRow>
                   )}

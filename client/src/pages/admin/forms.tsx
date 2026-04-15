@@ -26,11 +26,11 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  in_review: "In Review",
-  approved: "Approved",
-  completed: "Completed",
+  draft: "Brouillon",
+  submitted: "Soumis",
+  in_review: "En révision",
+  approved: "Approuvé",
+  completed: "Terminé",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -50,11 +50,11 @@ const STATUS_BORDER: Record<string, string> = {
 };
 
 const FORM_TYPES = [
-  { value: "tri", label: "Tri (Sorting)" },
+  { value: "tri", label: "Tri" },
   { value: "inspection", label: "Inspection" },
-  { value: "entreposage", label: "Entreposage (Storage)" },
+  { value: "entreposage", label: "Entreposage" },
   { value: "copacking", label: "Co-packing (F015)" },
-  { value: "livraison", label: "Livraison (Delivery)" },
+  { value: "livraison", label: "Livraison" },
 ];
 
 export default function AdminForms() {
@@ -104,7 +104,7 @@ export default function AdminForms() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
-      toast({ title: "Form deleted" });
+      toast({ title: "Formulaire supprimé" });
     },
   });
 
@@ -116,10 +116,10 @@ export default function AdminForms() {
     onSuccess: (_data, ids) => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       setSelectedIds(new Set());
-      toast({ title: `${ids.length} form(s) deleted` });
+      toast({ title: `${ids.length} formulaire${ids.length > 1 ? "s" : ""} supprimé${ids.length > 1 ? "s" : ""}` });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to delete forms.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la suppression des formulaires.", variant: "destructive" });
     },
   });
 
@@ -188,8 +188,8 @@ export default function AdminForms() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Service Requests</h1>
-          <p className="text-muted-foreground mt-1">Manage client service requests</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Demandes de service</h1>
+          <p className="text-muted-foreground mt-1">Gérez les demandes de service des clients</p>
         </div>
         <div className="flex items-center gap-2">
           {selectedCount > 0 && (
@@ -201,12 +201,12 @@ export default function AdminForms() {
               data-testid="button-bulk-delete"
             >
               <Trash2 className="h-4 w-4 mr-1.5" />
-              Delete {selectedCount} selected
+              Supprimer {selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}
             </Button>
           )}
           <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form">
             <Plus className="h-4 w-4 mr-1.5" />
-            New form
+            Nouvelle demande
           </Button>
         </div>
       </div>
@@ -214,7 +214,7 @@ export default function AdminForms() {
       <div className="flex flex-col gap-3">
         <Tabs value={typeFilter} onValueChange={setTypeFilter} data-testid="tabs-form-type">
           <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/50 p-1">
-            {[{ value: "all", label: "All" }, ...Object.entries(TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))].map(({ value, label }) => {
+            {[{ value: "all", label: "Tous" }, ...Object.entries(TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))].map(({ value, label }) => {
               const count = value === "all"
                 ? (forms?.length ?? 0)
                 : (forms?.filter((f) => f.formType === value).length ?? 0);
@@ -241,7 +241,7 @@ export default function AdminForms() {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="all">Tous les statuts</SelectItem>
               {Object.entries(STATUS_LABELS).map(([k, v]) => (
                 <SelectItem key={k} value={k}>{v}</SelectItem>
               ))}
@@ -252,7 +252,7 @@ export default function AdminForms() {
               <SelectValue placeholder="Client" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All clients</SelectItem>
+              <SelectItem value="all">Tous les clients</SelectItem>
               {contacts?.map((c) => (
                 <SelectItem key={c.id} value={String(c.id)}>
                   {c.name}{c.companyName ? ` (${c.companyName})` : ""}
@@ -266,10 +266,10 @@ export default function AdminForms() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No grouping</SelectItem>
-              <SelectItem value="type">Group by Type</SelectItem>
-              <SelectItem value="status">Group by Status</SelectItem>
-              <SelectItem value="client">Group by Client</SelectItem>
+              <SelectItem value="none">Sans regroupement</SelectItem>
+              <SelectItem value="type">Par type</SelectItem>
+              <SelectItem value="status">Par statut</SelectItem>
+              <SelectItem value="client">Par client</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -282,7 +282,7 @@ export default function AdminForms() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>No forms found</p>
+          <p>Aucune demande trouvée</p>
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -299,10 +299,10 @@ export default function AdminForms() {
                       data-testid="checkbox-select-all"
                     />
                   </TableHead>
-                  <TableHead>Number</TableHead>
+                  <TableHead>Numéro</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Statut</TableHead>
                   <TableHead>Créé</TableHead>
                   <TableHead>Modifié</TableHead>
                   <TableHead className="w-10"></TableHead>
@@ -405,14 +405,14 @@ export default function AdminForms() {
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New form</DialogTitle>
+            <DialogTitle>Nouvelle demande</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Form type *</label>
+              <label className="text-sm font-medium">Type de formulaire *</label>
               <Select value={selectedType} onValueChange={setSelectedType}>
                 <SelectTrigger data-testid="select-new-form-type">
-                  <SelectValue placeholder="Select a type" />
+                  <SelectValue placeholder="Sélectionner un type" />
                 </SelectTrigger>
                 <SelectContent>
                   {FORM_TYPES.map((t) => (
@@ -425,7 +425,7 @@ export default function AdminForms() {
               <label className="text-sm font-medium">Client *</label>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
                 <SelectTrigger data-testid="select-new-form-client">
-                  <SelectValue placeholder="Select a client" />
+                  <SelectValue placeholder="Sélectionner un client" />
                 </SelectTrigger>
                 <SelectContent>
                   {contacts?.map((c) => (
@@ -440,7 +440,7 @@ export default function AdminForms() {
               disabled={!selectedType || !selectedClient || createFormMutation.isPending}
               data-testid="button-create-form"
             >
-              {createFormMutation.isPending ? "Creating..." : "Create form"}
+              {createFormMutation.isPending ? "Création..." : "Créer la demande"}
             </Button>
           </div>
         </DialogContent>
@@ -454,9 +454,9 @@ export default function AdminForms() {
 const STATUS_FLOW = ["draft", "submitted", "in_review", "approved", "completed"] as const;
 
 const ADVANCE_LABELS: Record<string, string> = {
-  submitted: "Start Review",
-  in_review: "Approve",
-  approved: "Mark Complete",
+  submitted: "Démarrer la révision",
+  in_review: "Approuver",
+  approved: "Marquer comme terminé",
 };
 
 function FieldRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -884,11 +884,11 @@ export function AdminFormDetail({ id }: { id: number }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
-      toast({ title: "Status updated" });
+      toast({ title: "Statut mis à jour" });
       setPriceDialog({ open: false, priceInput: "", quantityInput: "" });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Échec de la mise à jour du statut.", variant: "destructive" });
     },
   });
 
@@ -929,8 +929,8 @@ export function AdminFormDetail({ id }: { id: number }) {
     return (
       <div className="text-center py-16 text-muted-foreground">
         <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-        <p>Form not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate("/admin/forms")}>Back to list</Button>
+        <p>Demande introuvable</p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate("/admin/forms")}>Retour à la liste</Button>
       </div>
     );
   }
@@ -953,7 +953,7 @@ export function AdminFormDetail({ id }: { id: number }) {
               data-testid="button-back-to-list"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Service Requests
+              Demandes de service
             </button>
             <div className="flex items-center gap-2 flex-wrap">
               {form.status !== "draft" && (
@@ -986,7 +986,7 @@ export function AdminFormDetail({ id }: { id: number }) {
               )}
               <Button size="sm" onClick={() => navigate(`/admin/forms/${id}/edit`)} data-testid="button-edit-form">
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                Edit
+                Modifier
               </Button>
             </div>
           </div>
@@ -1015,7 +1015,7 @@ export function AdminFormDetail({ id }: { id: number }) {
             )}
             <span className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-              Updated {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
+              Modifié le {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
               <span className="text-muted-foreground/50">·</span>
               Rev. {form.revision}
             </span>
@@ -1050,13 +1050,13 @@ export function AdminFormDetail({ id }: { id: number }) {
       {form.linkedFormId && (
         <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30 text-sm">
           <LinkIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-          <span className="text-muted-foreground">Linked to</span>
+          <span className="text-muted-foreground">Lié à</span>
           <button
             className="text-primary hover:underline font-medium"
             onClick={() => navigate(`/admin/forms/${form.linkedFormId}`)}
             data-testid="button-linked-form"
           >
-            View linked form →
+            Voir le formulaire lié →
           </button>
         </div>
       )}
@@ -1167,7 +1167,7 @@ export function AdminFormDetail({ id }: { id: number }) {
       {/* Form data summary */}
       <Card>
         <CardContent className="p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Form Summary</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Résumé du formulaire</p>
           <FormSummary form={form} />
         </CardContent>
       </Card>

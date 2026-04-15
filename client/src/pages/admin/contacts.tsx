@@ -112,9 +112,9 @@ export default function AdminContacts() {
     mutationFn: async (contactId: number) =>
       apiRequest("POST", `/api/contacts/${contactId}/resend-invite`),
     onSuccess: () =>
-      toast({ title: "Invite sent", description: "The invitation email has been sent." }),
+      toast({ title: "Invitation envoyée", description: "L'email d'invitation a été envoyé." }),
     onError: () =>
-      toast({ title: "Error", description: "Failed to send invite.", variant: "destructive" }),
+      toast({ title: "Erreur", description: "Échec de l'envoi de l'invitation.", variant: "destructive" }),
   });
 
   const revokeAccessMutation = useMutation({
@@ -122,11 +122,11 @@ export default function AdminContacts() {
       apiRequest("POST", `/api/contacts/${contactId}/revoke-access`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      toast({ title: "Access revoked", description: "The contact's login access has been removed." });
+      toast({ title: "Accès révoqué", description: "L'accès au compte du contact a été supprimé." });
       setRevokeTarget(null);
     },
     onError: () =>
-      toast({ title: "Error", description: "Failed to revoke access.", variant: "destructive" }),
+      toast({ title: "Erreur", description: "Échec de la révocation de l'accès.", variant: "destructive" }),
   });
 
   const deleteContactMutation = useMutation({
@@ -134,11 +134,11 @@ export default function AdminContacts() {
       apiRequest("DELETE", `/api/contacts/${contactId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      toast({ title: "Contact deleted", description: "The contact has been permanently removed." });
+      toast({ title: "Contact supprimé", description: "Le contact a été supprimé définitivement." });
       setDeleteTarget(null);
     },
     onError: () =>
-      toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" }),
+      toast({ title: "Erreur", description: "Échec de la suppression du contact.", variant: "destructive" }),
   });
 
   const bulkDeleteMutation = useMutation({
@@ -146,12 +146,12 @@ export default function AdminContacts() {
       apiRequest("DELETE", "/api/contacts/bulk", { ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      toast({ title: "Contacts deleted", description: `${selectedIds.size} contact(s) permanently removed.` });
+      toast({ title: "Contacts supprimés", description: `${selectedIds.size} contact(s) supprimé(s) définitivement.` });
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
     },
     onError: () =>
-      toast({ title: "Error", description: "Failed to delete contacts.", variant: "destructive" }),
+      toast({ title: "Erreur", description: "Échec de la suppression des contacts.", variant: "destructive" }),
   });
 
   const toggleSelect = (id: number) => {
@@ -220,10 +220,10 @@ export default function AdminContacts() {
 
   const groupLabel = (key: string) => {
     if (key === "") {
-      return groupBy === "company" ? "No Company" : "Unknown";
+      return groupBy === "company" ? "Sans entreprise" : "Inconnu";
     }
     if (groupBy === "status") {
-      return key === "active" ? "Active" : key === "revoked" ? "Revoked" : "Invited";
+      return key === "active" ? "Actif" : key === "revoked" ? "Révoqué" : "Invité";
     }
     return key;
   };
@@ -258,7 +258,7 @@ export default function AdminContacts() {
             className={contact.status === "active" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-500/20" : ""}
             data-testid={`badge-status-${contact.id}`}
           >
-            {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
+            {contact.status === "active" ? "Actif" : contact.status === "revoked" ? "Révoqué" : "Invité"}
           </Badge>
         </TableCell>
         <TableCell className="text-muted-foreground text-sm" data-testid={`text-contact-phone-${contact.id}`}>
@@ -305,7 +305,7 @@ export default function AdminContacts() {
               {contact.companyName ? (
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{contact.companyName}</p>
               ) : (
-                <p className="text-xs text-muted-foreground/30 mt-0.5 italic">No company</p>
+                <p className="text-xs text-muted-foreground/30 mt-0.5 italic">Sans entreprise</p>
               )}
             </div>
             <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
@@ -326,7 +326,7 @@ export default function AdminContacts() {
             ) : (
               <div className="flex items-center gap-2 text-xs text-muted-foreground/30">
                 <Phone className="h-3 w-3 flex-shrink-0" />
-                <span>No phone</span>
+                <span>Pas de téléphone</span>
               </div>
             )}
           </div>
@@ -336,7 +336,7 @@ export default function AdminContacts() {
               className={`text-[10px] px-1.5 py-0 h-4${contact.status === "active" ? " bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-500/20" : ""}`}
               data-testid={`badge-status-${contact.id}`}
             >
-              {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
+              {contact.status === "active" ? "Actif" : contact.status === "revoked" ? "Révoqué" : "Invité"}
             </Badge>
             <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums" data-testid={`text-contact-created-${contact.id}`}>
               {contact.createdAt
@@ -361,7 +361,7 @@ export default function AdminContacts() {
           <Link href={`/portal/profile?viewAs=${contact.id}`}>
             <DropdownMenuItem data-testid={`button-view-as-${contact.id}`}>
               <Eye className="h-4 w-4 mr-2" />
-              View as client
+              Voir en tant que client
             </DropdownMenuItem>
           </Link>
           {(contact.status === "invited" || contact.status === "revoked") && (
@@ -371,7 +371,7 @@ export default function AdminContacts() {
               data-testid={`button-resend-${contact.id}`}
             >
               <Send className="h-4 w-4 mr-2" />
-              Send invite
+              Envoyer une invitation
             </DropdownMenuItem>
           )}
           {contact.status === "active" && (
@@ -381,7 +381,7 @@ export default function AdminContacts() {
               data-testid={`button-revoke-${contact.id}`}
             >
               <ShieldOff className="h-4 w-4 mr-2" />
-              Revoke access
+              Révoquer l'accès
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
@@ -391,7 +391,7 @@ export default function AdminContacts() {
             data-testid={`button-delete-${contact.id}`}
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            Delete contact
+            Supprimer le contact
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -403,14 +403,14 @@ export default function AdminContacts() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Contacts</h1>
-          <p className="text-muted-foreground mt-1">Manage client contacts and invitations</p>
+          <p className="text-muted-foreground mt-1">Gérez les contacts clients et les invitations</p>
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search contacts..."
+              placeholder="Rechercher des contacts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 w-56"
@@ -423,9 +423,9 @@ export default function AdminContacts() {
               <SelectValue placeholder="Group by…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No grouping</SelectItem>
-              <SelectItem value="company">Company</SelectItem>
-              <SelectItem value="status">Status</SelectItem>
+              <SelectItem value="none">Sans groupement</SelectItem>
+              <SelectItem value="company">Entreprise</SelectItem>
+              <SelectItem value="status">Statut</SelectItem>
             </SelectContent>
           </Select>
 
@@ -456,7 +456,7 @@ export default function AdminContacts() {
       {/* ── Selection toolbar ── */}
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
-          <span className="text-sm font-medium text-primary">{selectedIds.size} selected</span>
+          <span className="text-sm font-medium text-primary">{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
           <div className="flex-1" />
           <Button
             variant="ghost"
@@ -466,7 +466,7 @@ export default function AdminContacts() {
             data-testid="button-clear-selection"
           >
             <X className="h-3.5 w-3.5 mr-1.5" />
-            Clear
+            Effacer
           </Button>
           <Button
             variant="destructive"
@@ -476,7 +476,7 @@ export default function AdminContacts() {
             data-testid="button-bulk-delete"
           >
             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-            Delete {selectedIds.size}
+            Supprimer {selectedIds.size}
           </Button>
         </div>
       )}
@@ -504,7 +504,7 @@ export default function AdminContacts() {
                           onClick={() => handleSort(col)}
                           data-testid={`sort-${col}`}
                         >
-                          {col === "name" ? "Name" : col === "company" ? "Company" : col === "email" ? "Email" : col === "status" ? "Status" : col === "phone" ? "Phone" : "Created"}
+                          {col === "name" ? "Nom" : col === "company" ? "Entreprise" : col === "email" ? "Email" : col === "status" ? "Statut" : col === "phone" ? "Téléphone" : "Créé"}
                           <SortIcon col={col} />
                         </button>
                       </TableHead>
@@ -547,8 +547,8 @@ export default function AdminContacts() {
                     <TableRow>
                       <TableCell colSpan={8} className="h-36 text-center">
                         <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-                        <p className="text-sm text-muted-foreground">No contacts found</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">Contacts are created when Zoho CRM sends a webhook</p>
+                        <p className="text-sm text-muted-foreground">Aucun contact trouvé</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
                       </TableCell>
                     </TableRow>
                   )}
@@ -605,8 +605,8 @@ export default function AdminContacts() {
           ) : (
             <div className="flex flex-col items-center justify-center h-48 text-center">
               <Users className="h-8 w-8 text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">No contacts found</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Contacts are created when Zoho CRM sends a webhook</p>
+              <p className="text-sm text-muted-foreground">Aucun contact trouvé</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
             </div>
           )}
         </div>
@@ -616,20 +616,20 @@ export default function AdminContacts() {
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogTitle>Supprimer {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""} ?</DialogTitle>
             <DialogDescription>
-              This will permanently delete {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""} and all their associated data. This action cannot be undone.
+              Ceci supprimera définitivement {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""} et toutes leurs données associées. Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Annuler</Button>
             <Button
               variant="destructive"
               onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
               disabled={bulkDeleteMutation.isPending}
               data-testid="button-confirm-bulk-delete"
             >
-              {bulkDeleteMutation.isPending ? "Deleting…" : `Delete ${selectedIds.size}`}
+              {bulkDeleteMutation.isPending ? "Suppression…" : `Supprimer ${selectedIds.size}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -639,20 +639,20 @@ export default function AdminContacts() {
       <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Revoke access for {revokeTarget?.name}?</DialogTitle>
+            <DialogTitle>Révoquer l'accès de {revokeTarget?.name} ?</DialogTitle>
             <DialogDescription>
-              This will remove their ability to log in to the client portal. Their contact record will remain and you can resend an invite later.
+              Cela leur retirera la possibilité de se connecter au portail client. Leur fiche contact restera et vous pourrez renvoyer une invitation plus tard.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRevokeTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRevokeTarget(null)}>Annuler</Button>
             <Button
               className="bg-amber-600 hover:bg-amber-700 text-white"
               onClick={() => revokeTarget && revokeAccessMutation.mutate(revokeTarget.id)}
               disabled={revokeAccessMutation.isPending}
               data-testid="button-confirm-revoke"
             >
-              Revoke Access
+              Révoquer l'accès
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -662,20 +662,20 @@ export default function AdminContacts() {
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {deleteTarget?.name}?</DialogTitle>
+            <DialogTitle>Supprimer {deleteTarget?.name} ?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the contact and all their associated data. This action cannot be undone.
+              Ceci supprimera définitivement le contact et toutes ses données associées. Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Annuler</Button>
             <Button
               variant="destructive"
               onClick={() => deleteTarget && deleteContactMutation.mutate(deleteTarget.id)}
               disabled={deleteContactMutation.isPending}
               data-testid="button-confirm-delete"
             >
-              Delete Contact
+              Supprimer le contact
             </Button>
           </DialogFooter>
         </DialogContent>

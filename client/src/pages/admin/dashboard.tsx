@@ -29,11 +29,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  in_review: "In Review",
-  approved: "Approved",
-  completed: "Completed",
+  draft: "Brouillon",
+  submitted: "Soumis",
+  in_review: "En révision",
+  approved: "Approuvé",
+  completed: "Terminé",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -79,9 +79,9 @@ export default function AdminDashboard() {
 
   const greeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
+    if (hour < 12) return "Bonjour";
+    if (hour < 18) return "Bon après-midi";
+    return "Bonsoir";
   };
 
   return (
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
           {greeting()}, {user?.firstName || "Admin"}
         </h1>
-        <p className="text-muted-foreground mt-1">Here's what's happening across your platform.</p>
+        <p className="text-muted-foreground mt-1">Voici ce qui se passe sur votre plateforme.</p>
       </div>
 
       {/* Stat Cards */}
@@ -100,13 +100,13 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Clients</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Contacts</p>
                 {loadingContacts ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-contacts">{contacts?.length ?? 0}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">{activeContacts} active</p>
+                <p className="text-xs text-muted-foreground mt-1">{activeContacts} actifs</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Users className="h-5 w-5 text-primary" />
@@ -119,13 +119,13 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Companies</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Entreprises</p>
                 {loadingContacts ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-companies">{companiesCount}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">unique clients</p>
+                <p className="text-xs text-muted-foreground mt-1">clients uniques</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
                 <Building2 className="h-5 w-5 text-emerald-500" />
@@ -138,13 +138,13 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Products</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Produits</p>
                 {loadingProducts ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-products">{products?.length ?? 0}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">in inventory</p>
+                <p className="text-xs text-muted-foreground mt-1">en inventaire</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Package className="h-5 w-5 text-primary" />
@@ -157,13 +157,13 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Restocks</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Réapprovisionnements</p>
                 {loadingRestock ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-restock">{pendingRestocks}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">pending</p>
+                <p className="text-xs text-muted-foreground mt-1">en attente</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
                 <RefreshCw className="h-5 w-5 text-amber-500" />
@@ -176,13 +176,13 @@ export default function AdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Open Requests</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Demandes ouvertes</p>
                 {loadingForms ? (
                   <Skeleton className="h-8 w-12 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-forms">{openForms}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">need attention</p>
+                <p className="text-xs text-muted-foreground mt-1">à traiter</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                 <ClipboardList className="h-5 w-5 text-purple-500" />
@@ -197,10 +197,10 @@ export default function AdminDashboard() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Recent Service Requests</CardTitle>
+              <CardTitle className="text-base font-semibold">Demandes récentes</CardTitle>
               <Link href="/admin/forms">
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
-                  View all <ArrowRight className="h-3 w-3" />
+                  Tout afficher <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
             </CardHeader>
@@ -211,7 +211,7 @@ export default function AdminDashboard() {
                 </div>
               ) : recentForms.length === 0 ? (
                 <div className="px-6 pb-6 text-center text-muted-foreground text-sm py-8">
-                  No service requests yet
+                  Aucune demande de service pour l'instant
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -248,7 +248,7 @@ export default function AdminDashboard() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Request Status</CardTitle>
+              <CardTitle className="text-base font-semibold">Statut des demandes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {loadingForms ? (
@@ -258,11 +258,11 @@ export default function AdminDashboard() {
               ) : (
                 <>
                   {[
-                    { key: "draft", label: "Draft", icon: FileText, color: "text-muted-foreground" },
-                    { key: "submitted", label: "Submitted", icon: Clock, color: "text-blue-500" },
-                    { key: "in_review", label: "In Review", icon: AlertCircle, color: "text-amber-500" },
-                    { key: "approved", label: "Approved", icon: CheckCircle2, color: "text-emerald-500" },
-                    { key: "completed", label: "Completed", icon: TrendingUp, color: "text-purple-500" },
+                    { key: "draft", label: "Brouillon", icon: FileText, color: "text-muted-foreground" },
+                    { key: "submitted", label: "Soumis", icon: Clock, color: "text-blue-500" },
+                    { key: "in_review", label: "En révision", icon: AlertCircle, color: "text-amber-500" },
+                    { key: "approved", label: "Approuvé", icon: CheckCircle2, color: "text-emerald-500" },
+                    { key: "completed", label: "Terminé", icon: TrendingUp, color: "text-purple-500" },
                   ].map(({ key, label, icon: Icon, color }) => (
                     <div key={key} className="flex items-center justify-between" data-testid={`status-count-${key}`}>
                       <div className="flex items-center gap-2">

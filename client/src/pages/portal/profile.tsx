@@ -56,10 +56,10 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/portal/profile"] });
-      toast({ title: "Saved", description: "Your profile has been updated." });
+      toast({ title: "Enregistré", description: "Votre profil a été mis à jour." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update profile.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Impossible de mettre à jour le profil.", variant: "destructive" });
     },
   });
 
@@ -85,8 +85,8 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Profile</h1>
-        <p className="text-muted-foreground mt-1">View and manage your account information</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Profil</h1>
+        <p className="text-muted-foreground mt-1">Consultez et gérez vos informations de compte</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -113,14 +113,14 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
 
         <Card className="lg:col-span-2">
           <CardHeader className="pb-4">
-            <h3 className="font-semibold">Contact Information</h3>
-            <p className="text-sm text-muted-foreground">Update your details below</p>
+            <h3 className="font-semibold">Informations de contact</h3>
+            <p className="text-sm text-muted-foreground">Mettez à jour vos informations ci-dessous</p>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5" /> Full Name
+                  <User className="h-3.5 w-3.5" /> Nom complet
                 </Label>
                 <Input
                   value={name}
@@ -141,34 +141,34 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5" /> Phone
+                  <Phone className="h-3.5 w-3.5" /> Téléphone
                 </Label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number"
+                  placeholder="Numéro de téléphone"
                   data-testid="input-profile-phone"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5" /> Company Name
+                  <Building2 className="h-3.5 w-3.5" /> Nom de l'entreprise
                 </Label>
                 <Input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Company name"
+                  placeholder="Nom de l'entreprise"
                   data-testid="input-profile-company"
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label className="flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5" /> Company Address
+                  <MapPin className="h-3.5 w-3.5" /> Adresse de l'entreprise
                 </Label>
                 <Input
                   value={companyAddress}
                   onChange={(e) => setCompanyAddress(e.target.value)}
-                  placeholder="Company address"
+                  placeholder="Adresse de l'entreprise"
                   data-testid="input-profile-address"
                 />
               </div>
@@ -186,7 +186,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
               data-testid="button-save-profile"
             >
               <Save className="h-4 w-4 mr-1.5" />
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+              {updateMutation.isPending ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </CardContent>
         </Card>
@@ -198,7 +198,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Team Members at {contact?.companyName}
+              Membres de l'équipe chez {contact?.companyName}
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -25,11 +25,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  in_review: "In Review",
-  approved: "Approved",
-  completed: "Completed",
+  draft: "Brouillon",
+  submitted: "Soumis",
+  in_review: "En révision",
+  approved: "Approuvé",
+  completed: "Terminé",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -75,9 +75,9 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
 
   const greeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
+    if (hour < 12) return "Bonjour";
+    if (hour < 18) return "Bon après-midi";
+    return "Bonsoir";
   };
 
   return (
@@ -101,13 +101,13 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Products</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Produits</p>
                 {loadingProducts ? (
                   <Skeleton className="h-8 w-10 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-products">{products?.length ?? 0}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">in storage</p>
+                <p className="text-xs text-muted-foreground mt-1">en entrepôt</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Package className="h-5 w-5 text-primary" />
@@ -120,13 +120,13 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Restocks</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Réapprovisionnements</p>
                 {loadingRestock ? (
                   <Skeleton className="h-8 w-10 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-restock">{pendingRestock}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">pending</p>
+                <p className="text-xs text-muted-foreground mt-1">en attente</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
                 <RefreshCw className="h-5 w-5 text-amber-500" />
@@ -139,13 +139,13 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Active Requests</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Demandes actives</p>
                 {loadingForms ? (
                   <Skeleton className="h-8 w-10 mt-1" />
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-forms">{activeForms.length}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">in progress</p>
+                <p className="text-xs text-muted-foreground mt-1">en cours</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                 <ClipboardList className="h-5 w-5 text-purple-500" />
@@ -160,10 +160,10 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">My Service Requests</CardTitle>
+              <CardTitle className="text-base font-semibold">Mes demandes</CardTitle>
               <Link href={`/portal/forms${qs}`}>
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
-                  View all <ArrowRight className="h-3 w-3" />
+                  Tout afficher <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
             </CardHeader>
@@ -175,12 +175,12 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               ) : recentForms.length === 0 ? (
                 <div className="px-6 py-8 text-center text-muted-foreground">
                   <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No forms yet</p>
+                  <p className="text-sm">Aucun formulaire pour l'instant</p>
                   {!viewAsContactId && (
                     <Link href="/portal/forms">
                       <Button size="sm" className="mt-3" data-testid="button-create-first-form">
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Create your first form
+                        Créer votre premier formulaire
                       </Button>
                     </Link>
                   )}
@@ -216,29 +216,29 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+              <CardTitle className="text-base font-semibold">Actions rapides</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {!viewAsContactId && (
                 <Link href="/portal/forms">
                   <Button size="sm" className="w-full justify-start gap-2" data-testid="link-quick-new-form">
-                    <Plus className="h-3.5 w-3.5" /> New Service Request
+                    <Plus className="h-3.5 w-3.5" /> Nouvelle demande
                   </Button>
                 </Link>
               )}
               <Link href={`/portal/products${qs}`}>
                 <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-products">
-                  <Package className="h-3.5 w-3.5" /> View Products
+                  <Package className="h-3.5 w-3.5" /> Voir les produits
                 </Button>
               </Link>
               <Link href={`/portal/restock${qs}`}>
                 <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-restock">
-                  <RefreshCw className="h-3.5 w-3.5" /> Work Orders
+                  <RefreshCw className="h-3.5 w-3.5" /> Bons de travail
                 </Button>
               </Link>
               <Link href={`/portal/profile${qs}`}>
                 <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-profile">
-                  <Building2 className="h-3.5 w-3.5" /> My Profile
+                  <Building2 className="h-3.5 w-3.5" /> Mon profil
                 </Button>
               </Link>
             </CardContent>
@@ -247,7 +247,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           {contact && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Account Info</CardTitle>
+                <CardTitle className="text-base font-semibold">Informations du compte</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {loadingContact ? (
@@ -258,18 +258,18 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                 ) : (
                   <>
                     <div>
-                      <p className="text-xs text-muted-foreground">Name</p>
+                      <p className="text-xs text-muted-foreground">Nom</p>
                       <p className="font-medium" data-testid="text-contact-name">{contact.name}</p>
                     </div>
                     {contact.companyName && (
                       <div>
-                        <p className="text-xs text-muted-foreground">Company</p>
+                        <p className="text-xs text-muted-foreground">Entreprise</p>
                         <p className="font-medium">{contact.companyName}</p>
                       </div>
                     )}
                     {contact.phone && (
                       <div>
-                        <p className="text-xs text-muted-foreground">Phone</p>
+                        <p className="text-xs text-muted-foreground">Téléphone</p>
                         <p className="font-medium">{contact.phone}</p>
                       </div>
                     )}

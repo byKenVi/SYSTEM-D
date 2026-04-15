@@ -46,21 +46,21 @@ interface AppSidebarProps {
 }
 
 const adminItems = [
-  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Tableau de bord", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Contacts", url: "/admin/contacts", icon: Users },
-  { title: "Products", url: "/admin/products", icon: Package },
-  { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
-  { title: "Service Requests", url: "/admin/forms", icon: ClipboardList },
-  { title: "Inventory Requests", url: "/admin/restock-requests", icon: RefreshCw },
-  { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Produits", url: "/admin/products", icon: Package },
+  { title: "Commandes", url: "/admin/orders", icon: ShoppingCart },
+  { title: "Demandes de service", url: "/admin/forms", icon: ClipboardList },
+  { title: "Demandes de réapprovisionnement", url: "/admin/restock-requests", icon: RefreshCw },
+  { title: "Paramètres", url: "/admin/settings", icon: Settings },
 ];
 
 const clientItems = [
-  { title: "Dashboard", url: "/portal/dashboard", icon: LayoutDashboard },
-  { title: "Profile", url: "/portal/profile", icon: User },
-  { title: "Products", url: "/portal/products", icon: Package },
-  { title: "Service Requests", url: "/portal/forms", icon: ClipboardList },
-  { title: "Inventory Requests", url: "/portal/restock", icon: RefreshCw },
+  { title: "Tableau de bord", url: "/portal/dashboard", icon: LayoutDashboard },
+  { title: "Profil", url: "/portal/profile", icon: User },
+  { title: "Produits", url: "/portal/products", icon: Package },
+  { title: "Demandes de service", url: "/portal/forms", icon: ClipboardList },
+  { title: "Demandes de réapprovisionnement", url: "/portal/restock", icon: RefreshCw },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
@@ -148,7 +148,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             <SidebarGroupLabel className="text-sidebar-foreground/40">
               <span className="flex items-center gap-1.5">
                 <Eye className="h-3 w-3" />
-                Preview Portal
+                Aperçu portail
               </span>
             </SidebarGroupLabel>
             <SidebarGroupContent className="px-2">
@@ -160,11 +160,11 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                   className="w-full h-8 text-xs border-sidebar-border bg-sidebar-accent text-sidebar-foreground"
                   data-testid="select-view-as-contact"
                 >
-                  <SelectValue placeholder="View as client..." />
+                  <SelectValue placeholder="Voir en tant que client..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__admin__" data-testid="option-view-as-admin">
-                    — Admin view
+                    — Vue admin
                   </SelectItem>
                   {contacts.map((contact) => (
                     <SelectItem
@@ -189,7 +189,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
         <div className="group-data-[collapsible=icon]:hidden space-y-2">
           <div className="flex items-center gap-2.5 px-1">
             <Avatar className="h-7 w-7 flex-shrink-0 ring-1 ring-sidebar-border">
-              <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+              <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
               <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-foreground">
                 {initials}
               </AvatarFallback>
@@ -211,7 +211,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               data-testid="button-logout"
             >
               <LogOut className="h-3.5 w-3.5" />
-              Sign out
+              Se déconnecter
             </Button>
           </div>
         </div>
@@ -219,7 +219,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
         {/* Collapsed */}
         <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-2">
           <Avatar className="h-7 w-7 ring-1 ring-sidebar-border">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
             <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-foreground">
               {initials}
             </AvatarFallback>

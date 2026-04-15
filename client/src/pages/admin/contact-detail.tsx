@@ -194,8 +194,8 @@ export default function ContactDetail() {
 
   const resendInviteMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/contacts/${contactId}/resend-invite`),
-    onSuccess: () => toast({ title: "Invite sent", description: "The invitation email has been sent." }),
-    onError: () => toast({ title: "Error", description: "Failed to send invite.", variant: "destructive" }),
+    onSuccess: () => toast({ title: "Invitation envoyée", description: "L'e-mail d'invitation a été envoyé." }),
+    onError: () => toast({ title: "Erreur", description: "Échec de l'envoi de l'invitation.", variant: "destructive" }),
   });
 
   const revokeAccessMutation = useMutation({
@@ -204,9 +204,9 @@ export default function ContactDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts", contactId] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setRevokeOpen(false);
-      toast({ title: "Access revoked" });
+      toast({ title: "Accès révoqué" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to revoke access.", variant: "destructive" }),
+    onError: () => toast({ title: "Erreur", description: "Échec de la révocation de l'accès.", variant: "destructive" }),
   });
 
   const deleteContactMutation = useMutation({
@@ -214,9 +214,9 @@ export default function ContactDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       navigate("/admin/contacts");
-      toast({ title: "Contact deleted" });
+      toast({ title: "Contact supprimé" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" }),
+    onError: () => toast({ title: "Erreur", description: "Échec de la suppression du contact.", variant: "destructive" }),
   });
 
   if (contactLoading) {
@@ -238,8 +238,8 @@ export default function ContactDetail() {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-center gap-3">
         <AlertCircle className="h-8 w-8 text-muted-foreground/40" />
-        <p className="text-muted-foreground">Contact not found</p>
-        <Link href="/admin/contacts"><Button variant="outline" size="sm">Back to Contacts</Button></Link>
+        <p className="text-muted-foreground">Contact introuvable</p>
+        <Link href="/admin/contacts"><Button variant="outline" size="sm">Retour aux contacts</Button></Link>
       </div>
     );
   }
@@ -247,7 +247,7 @@ export default function ContactDetail() {
   const integration = shopifyIntegrations?.[0];
 
   const statusVariant = contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary";
-  const statusLabel = contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited";
+  const statusLabel = contact.status === "active" ? "Actif" : contact.status === "revoked" ? "Révoqué" : "Invité";
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
@@ -274,7 +274,7 @@ export default function ContactDetail() {
               data-testid="toggle-hide-empty-related"
             />
             <Label htmlFor="hide-empty-related" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
-              Hide empty related
+              Masquer les sections vides
             </Label>
           </div>
 
@@ -342,22 +342,22 @@ export default function ContactDetail() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <Link href={`/portal/profile?viewAs=${contact.id}`}>
-                        <Eye className="h-4 w-4 mr-2" /> View as client
+                        <Eye className="h-4 w-4 mr-2" /> Voir en tant que client
                       </Link>
                     </DropdownMenuItem>
                     {(contact.status === "invited" || contact.status === "revoked") && (
                       <DropdownMenuItem onClick={() => resendInviteMutation.mutate()} disabled={resendInviteMutation.isPending} data-testid="button-send-invite">
-                        <Send className="h-4 w-4 mr-2" /> Send invite
+                        <Send className="h-4 w-4 mr-2" /> Envoyer invitation
                       </DropdownMenuItem>
                     )}
                     {contact.status === "active" && (
                       <DropdownMenuItem className="text-amber-600 focus:text-amber-600" onClick={() => setRevokeOpen(true)} data-testid="button-revoke">
-                        <ShieldOff className="h-4 w-4 mr-2" /> Revoke access
+                        <ShieldOff className="h-4 w-4 mr-2" /> Révoquer l'accès
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteOpen(true)} data-testid="button-delete">
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete contact
+                      <Trash2 className="h-4 w-4 mr-2" /> Supprimer le contact
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -373,22 +373,22 @@ export default function ContactDetail() {
               />
               <InfoRow
                 icon={Building2}
-                label="Company"
+                label="Entreprise"
                 value={contact.companyName ?? <span className="text-muted-foreground/40">—</span>}
               />
               <InfoRow
                 icon={Phone}
-                label="Phone"
+                label="Téléphone"
                 value={contact.phone ?? <span className="text-muted-foreground/40">—</span>}
               />
               <InfoRow
                 icon={MapPin}
-                label="Address"
+                label="Adresse"
                 value={contact.companyAddress ?? <span className="text-muted-foreground/40">—</span>}
               />
               <InfoRow
                 icon={CalendarDays}
-                label="Created"
+                label="Créé le"
                 value={contact.createdAt
                   ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
                   : <span className="text-muted-foreground/40">—</span>}
@@ -399,7 +399,7 @@ export default function ContactDetail() {
           {/* Integrations card */}
           <Card>
             <CardHeader className="pb-2 pt-4 px-5">
-              <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">Integrations</CardTitle>
+              <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">Intégrations</CardTitle>
             </CardHeader>
             <CardContent className="px-5 pb-5 space-y-3">
               {/* Zoho */}
@@ -413,10 +413,10 @@ export default function ContactDetail() {
                 {contact.zohoCrmContactId ? (
                   <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Synced</span>
+                    <span className="text-xs font-medium">Synchronisé</span>
                   </div>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Not synced</span>
+                  <span className="text-xs text-muted-foreground">Non synchronisé</span>
                 )}
               </div>
 
@@ -440,7 +440,7 @@ export default function ContactDetail() {
                     </Button>
                   </a>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Not connected</span>
+                  <span className="text-xs text-muted-foreground">Non connecté</span>
                 )}
               </div>
             </CardContent>
@@ -456,7 +456,7 @@ export default function ContactDetail() {
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-base">Related Contacts</CardTitle>
+                  <CardTitle className="text-base">Contacts associés</CardTitle>
                   {relatedContacts && (
                     <Badge variant="secondary" className="ml-auto">{relatedContacts.length}</Badge>
                   )}
@@ -478,7 +478,7 @@ export default function ContactDetail() {
                 ) : relatedContacts.length === 0 ? (
                   <div className="h-16 flex items-center justify-center">
                     <p className="text-sm text-muted-foreground">
-                      {contact.companyName ? `No other contacts at ${contact.companyName}` : "No company associated"}
+                      {contact.companyName ? `Aucun autre contact chez ${contact.companyName}` : "Aucune entreprise associée"}
                     </p>
                   </div>
                 ) : (
@@ -506,7 +506,7 @@ export default function ContactDetail() {
                                 variant={rc.status === "active" ? "default" : rc.status === "revoked" ? "destructive" : "secondary"}
                                 className="text-[10px] px-1.5 py-0"
                               >
-                                {rc.status === "active" ? "Active" : rc.status === "revoked" ? "Revoked" : "Invited"}
+                                {rc.status === "active" ? "Actif" : rc.status === "revoked" ? "Révoqué" : "Invité"}
                               </Badge>
                             </div>
                           </div>
@@ -524,7 +524,7 @@ export default function ContactDetail() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Products</CardTitle>
+                <CardTitle className="text-base">Produits</CardTitle>
                 {products && (
                   <Badge variant="secondary" className="ml-auto">{products.length}</Badge>
                 )}
@@ -535,12 +535,12 @@ export default function ContactDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead>Name</TableHead>
+                      <TableHead>Nom</TableHead>
                       <TableHead>SKU</TableHead>
-                      <TableHead>Price</TableHead>
+                      <TableHead>Prix</TableHead>
                       <TableHead>Stock</TableHead>
-                      <TableHead>Zoho Stock</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Stock Zoho</TableHead>
+                      <TableHead>Statut</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -580,7 +580,7 @@ export default function ContactDetail() {
                         <TableCell colSpan={6} className="h-20 text-center">
                           <div className="flex flex-col items-center gap-1">
                             <Package className="h-5 w-5 text-muted-foreground/30" />
-                            <p className="text-sm text-muted-foreground">No products imported yet</p>
+                            <p className="text-sm text-muted-foreground">Aucun produit importé</p>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -597,7 +597,7 @@ export default function ContactDetail() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Service Requests</CardTitle>
+                <CardTitle className="text-base">Demandes de service</CardTitle>
                 {contactForms && (
                   <Badge variant="secondary" className="ml-auto">{contactForms.length}</Badge>
                 )}
@@ -608,10 +608,10 @@ export default function ContactDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead>Number</TableHead>
+                      <TableHead>Numéro</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Submitted by</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Soumis par</TableHead>
                       <TableHead className="text-right">Date</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -634,11 +634,11 @@ export default function ContactDetail() {
                           livraison:   { label: "LIV", className: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800" },
                         };
                         const statusConfig: Record<string, { label: string; className: string }> = {
-                          draft:      { label: "Draft",     className: "bg-muted text-muted-foreground border-border" },
-                          submitted:  { label: "Submitted", className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" },
-                          in_review:  { label: "In Review", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800" },
-                          approved:   { label: "Approved",  className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" },
-                          completed:  { label: "Completed", className: "bg-muted text-muted-foreground border-border" },
+                          draft:      { label: "Brouillon",   className: "bg-muted text-muted-foreground border-border" },
+                          submitted:  { label: "Soumis",      className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" },
+                          in_review:  { label: "En révision", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800" },
+                          approved:   { label: "Approuvé",    className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" },
+                          completed:  { label: "Complété",    className: "bg-muted text-muted-foreground border-border" },
                         };
                         const type = typeConfig[form.formType] ?? { label: form.formType, className: "" };
                         const status = statusConfig[form.status] ?? { label: form.status, className: "" };
@@ -674,7 +674,7 @@ export default function ContactDetail() {
                         <TableCell colSpan={5} className="h-20 text-center">
                           <div className="flex flex-col items-center gap-1">
                             <FileText className="h-5 w-5 text-muted-foreground/30" />
-                            <p className="text-sm text-muted-foreground">No service requests yet</p>
+                            <p className="text-sm text-muted-foreground">Aucune demande de service</p>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -692,10 +692,10 @@ export default function ContactDetail() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Orders</CardTitle>
+                <CardTitle className="text-base">Commandes</CardTitle>
                 <div className="ml-auto flex items-center gap-2">
                   {ordersData?.shopName && (
-                    <span className="text-xs text-muted-foreground">from {ordersData.shopName}</span>
+                    <span className="text-xs text-muted-foreground">de {ordersData.shopName}</span>
                   )}
                   <Badge variant="secondary">{ordersData?.orders?.length ?? 0}</Badge>
                 </div>
@@ -705,19 +705,19 @@ export default function ContactDetail() {
               {!contact.shopifyConnected ? (
                 <div className="h-20 flex flex-col items-center justify-center gap-1.5">
                   <SiShopify className="h-5 w-5 text-muted-foreground/20" />
-                  <p className="text-sm text-muted-foreground">No Shopify store connected for this client</p>
+                  <p className="text-sm text-muted-foreground">Aucune boutique Shopify connectée pour ce client</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead>Order</TableHead>
+                        <TableHead>Commande</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead>Fulfillment</TableHead>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Articles</TableHead>
+                        <TableHead>Paiement</TableHead>
+                        <TableHead>Traitement</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -743,7 +743,7 @@ export default function ContactDetail() {
                                 : order.email || <span className="text-muted-foreground/40">—</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground tabular-nums">
-                              {order.line_items.length} item{order.line_items.length !== 1 ? "s" : ""}
+                              {order.line_items.length} article{order.line_items.length !== 1 ? "s" : ""}
                             </TableCell>
                             <TableCell><FinancialBadge status={order.financial_status} /></TableCell>
                             <TableCell><FulfillmentBadge status={order.fulfillment_status} /></TableCell>
@@ -757,7 +757,7 @@ export default function ContactDetail() {
                           <TableCell colSpan={7} className="h-20 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <ShoppingCart className="h-5 w-5 text-muted-foreground/30" />
-                              <p className="text-sm text-muted-foreground">No orders found in Shopify</p>
+                              <p className="text-sm text-muted-foreground">Aucune commande trouvée</p>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -776,15 +776,15 @@ export default function ContactDetail() {
       <Dialog open={revokeOpen} onOpenChange={setRevokeOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Revoke access for {contact.name}?</DialogTitle>
+            <DialogTitle>Révoquer l'accès de {contact.name} ?</DialogTitle>
             <DialogDescription>
-              This will remove their ability to log in to the client portal. Their contact record will remain and you can resend an invite later.
+              Cela supprimera leur capacité à se connecter au portail client. Leur fiche de contact restera et vous pourrez renvoyer une invitation ultérieurement.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRevokeOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRevokeOpen(false)}>Annuler</Button>
             <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => revokeAccessMutation.mutate()} disabled={revokeAccessMutation.isPending} data-testid="button-confirm-revoke">
-              Revoke Access
+              Révoquer l'accès
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -794,15 +794,15 @@ export default function ContactDetail() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {contact.name}?</DialogTitle>
+            <DialogTitle>Supprimer {contact.name} ?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the contact and all their associated data. This action cannot be undone.
+              Cela supprimera définitivement le contact et toutes ses données associées. Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Annuler</Button>
             <Button variant="destructive" onClick={() => deleteContactMutation.mutate()} disabled={deleteContactMutation.isPending} data-testid="button-confirm-delete">
-              Delete Contact
+              Supprimer le contact
             </Button>
           </DialogFooter>
         </DialogContent>

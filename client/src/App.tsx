@@ -124,14 +124,14 @@ function ViewAsBanner({ contactId }: { contactId: number }) {
       <div className="flex items-center gap-2 text-sm">
         <Eye className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
         <span className="text-amber-800 dark:text-amber-200">
-          Viewing as <span className="font-semibold">{contact?.name || `Contact #${contactId}`}</span>
+          Aperçu en tant que <span className="font-semibold">{contact?.name || `Contact #${contactId}`}</span>
           {contact?.companyName && <span className="text-amber-700 dark:text-amber-300"> ({contact.companyName})</span>}
         </span>
       </div>
       <Link href="/admin/contacts">
         <Button size="sm" variant="outline" data-testid="button-exit-view-as">
           <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-          Back to Admin
+          Retour à l'admin
         </Button>
       </Link>
     </div>
@@ -147,15 +147,15 @@ function AccessDenied() {
         <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
           <ShieldAlert className="h-7 w-7 text-destructive" />
         </div>
-        <h1 className="text-2xl font-bold" data-testid="text-access-denied-title">Access Denied</h1>
+        <h1 className="text-2xl font-bold" data-testid="text-access-denied-title">Accès refusé</h1>
         <p className="text-muted-foreground">
-          Your email address is not associated with an invited account. Only users who have received an invitation can access this platform.
+          Votre adresse e-mail n'est pas associée à un compte invité. Seuls les utilisateurs ayant reçu une invitation peuvent accéder à cette plateforme.
         </p>
         <p className="text-sm text-muted-foreground">
-          If you believe this is a mistake, please contact your account administrator.
+          Si vous pensez qu'il s'agit d'une erreur, veuillez contacter votre administrateur.
         </p>
         <Button variant="outline" onClick={() => logout()} data-testid="button-sign-out-denied">
-          Sign Out
+          Se déconnecter
         </Button>
       </div>
     </div>
@@ -191,10 +191,10 @@ function AuthenticatedApp() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="max-w-md text-center space-y-4 px-6">
-          <h1 className="text-xl font-bold">Something went wrong</h1>
-          <p className="text-muted-foreground">Unable to load your account. Please try again.</p>
+          <h1 className="text-xl font-bold">Une erreur est survenue</h1>
+          <p className="text-muted-foreground">Impossible de charger votre compte. Veuillez réessayer.</p>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Retry
+            Réessayer
           </Button>
         </div>
       </div>

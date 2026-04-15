@@ -56,12 +56,12 @@ interface OrdersResponse {
 function FinancialBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-muted-foreground/40 text-xs">—</span>;
   const map: Record<string, { label: string; class: string }> = {
-    paid:           { label: "Paid",           class: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
-    pending:        { label: "Pending",        class: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
-    refunded:       { label: "Refunded",       class: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
-    partially_refunded: { label: "Part. Refunded", class: "text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
-    voided:         { label: "Voided",         class: "text-muted-foreground bg-muted border-border" },
-    authorized:     { label: "Authorized",     class: "text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-950/30 dark:border-violet-800" },
+    paid:           { label: "Payé",            class: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
+    pending:        { label: "En attente",      class: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
+    refunded:       { label: "Remboursé",       class: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
+    partially_refunded: { label: "Part. remboursé", class: "text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
+    voided:         { label: "Annulé",          class: "text-muted-foreground bg-muted border-border" },
+    authorized:     { label: "Autorisé",        class: "text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-950/30 dark:border-violet-800" },
   };
   const cfg = map[status] ?? { label: status, class: "text-muted-foreground bg-muted border-border" };
   return (
@@ -72,11 +72,11 @@ function FinancialBadge({ status }: { status: string | null }) {
 }
 
 function FulfillmentBadge({ status }: { status: string | null }) {
-  if (!status) return <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted border-border">Unfulfilled</span>;
+  if (!status) return <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted border-border">Non traité</span>;
   const map: Record<string, { label: string; class: string }> = {
-    fulfilled:         { label: "Fulfilled",    class: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
-    partial:           { label: "Partial",      class: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
-    restocked:         { label: "Restocked",    class: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
+    fulfilled:         { label: "Traité",       class: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
+    partial:           { label: "Partiel",      class: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
+    restocked:         { label: "Restocké",     class: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
   };
   const cfg = map[status] ?? { label: status, class: "text-muted-foreground bg-muted border-border" };
   return (
@@ -144,8 +144,8 @@ export default function AdminOrders() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Orders</h1>
-        <p className="text-muted-foreground mt-1">All orders across connected Shopify stores</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Commandes</h1>
+        <p className="text-muted-foreground mt-1">Toutes les commandes de vos boutiques Shopify connectées</p>
       </div>
 
       {/* Stats */}
@@ -155,7 +155,7 @@ export default function AdminOrders() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Total Orders</span>
+                <span className="text-xs text-muted-foreground">Total commandes</span>
               </div>
               <p className="text-2xl font-bold tabular-nums">{stats.total}</p>
             </CardContent>
@@ -164,7 +164,7 @@ export default function AdminOrders() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                <span className="text-xs text-muted-foreground">Paid</span>
+                <span className="text-xs text-muted-foreground">Payées</span>
               </div>
               <p className="text-2xl font-bold tabular-nums">{stats.paid}</p>
             </CardContent>
@@ -173,7 +173,7 @@ export default function AdminOrders() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Clock className="h-3.5 w-3.5 text-amber-500" />
-                <span className="text-xs text-muted-foreground">Unfulfilled</span>
+                <span className="text-xs text-muted-foreground">Non traitées</span>
               </div>
               <p className="text-2xl font-bold tabular-nums">{stats.pending}</p>
             </CardContent>
@@ -182,7 +182,7 @@ export default function AdminOrders() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs text-muted-foreground">Revenue</span>
+                <span className="text-xs text-muted-foreground">Revenus</span>
               </div>
               <p className="text-2xl font-bold tabular-nums">${stats.revenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
             </CardContent>
@@ -197,7 +197,7 @@ export default function AdminOrders() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Search order, customer, client…"
+                placeholder="Rechercher commande, client…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9"
@@ -210,7 +210,7 @@ export default function AdminOrders() {
                   <SelectValue placeholder="All clients" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All clients</SelectItem>
+                  <SelectItem value="all">Tous les clients</SelectItem>
                   {clients.map(([id, name]) => (
                     <SelectItem key={id} value={String(id)}>{name}</SelectItem>
                   ))}
@@ -222,13 +222,13 @@ export default function AdminOrders() {
                   <SelectValue placeholder="Payment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All payments</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="authorized">Authorized</SelectItem>
-                  <SelectItem value="refunded">Refunded</SelectItem>
-                  <SelectItem value="partially_refunded">Part. Refunded</SelectItem>
-                  <SelectItem value="voided">Voided</SelectItem>
+                  <SelectItem value="all">Tous les paiements</SelectItem>
+                  <SelectItem value="paid">Payé</SelectItem>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="authorized">Autorisé</SelectItem>
+                  <SelectItem value="refunded">Remboursé</SelectItem>
+                  <SelectItem value="partially_refunded">Part. remboursé</SelectItem>
+                  <SelectItem value="voided">Annulé</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -237,15 +237,15 @@ export default function AdminOrders() {
                   <SelectValue placeholder="Fulfillment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="unfulfilled">Unfulfilled</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="fulfilled">Fulfilled</SelectItem>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="unfulfilled">Non traité</SelectItem>
+                  <SelectItem value="partial">Partiel</SelectItem>
+                  <SelectItem value="fulfilled">Traité</SelectItem>
                 </SelectContent>
               </Select>
 
               {(search || paymentFilter !== "all" || fulfillmentFilter !== "all" || clientFilter !== "all") && (
-                <Badge variant="secondary" className="tabular-nums">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</Badge>
+                <Badge variant="secondary" className="tabular-nums">{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</Badge>
               )}
             </div>
           </div>
@@ -255,14 +255,14 @@ export default function AdminOrders() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Order</TableHead>
+                  <TableHead>Commande</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Client</TableHead>
-                  <TableHead>Store</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Fulfillment</TableHead>
+                  <TableHead>Boutique</TableHead>
+                  <TableHead>Acheteur</TableHead>
+                  <TableHead>Articles</TableHead>
+                  <TableHead>Paiement</TableHead>
+                  <TableHead>Traitement</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
@@ -283,13 +283,13 @@ export default function AdminOrders() {
                         {orders.length === 0 ? (
                           <>
                             <SiShopify className="h-8 w-8 text-muted-foreground/20" />
-                            <p className="text-sm font-medium text-muted-foreground">No Shopify stores connected</p>
-                            <p className="text-xs text-muted-foreground/60">Connect a Shopify store in Settings to see orders here</p>
+                            <p className="text-sm font-medium text-muted-foreground">Aucune boutique Shopify connectée</p>
+                            <p className="text-xs text-muted-foreground/60">Connectez une boutique Shopify dans les Paramètres pour voir les commandes</p>
                           </>
                         ) : (
                           <>
                             <ShoppingCart className="h-7 w-7 text-muted-foreground/30" />
-                            <p className="text-sm text-muted-foreground">No orders match your filters</p>
+                            <p className="text-sm text-muted-foreground">Aucune commande ne correspond à vos filtres</p>
                           </>
                         )}
                       </div>
@@ -328,7 +328,7 @@ export default function AdminOrders() {
                           {customer ?? <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground tabular-nums">
-                          {order.line_items.length} item{order.line_items.length !== 1 ? "s" : ""}
+                          {order.line_items.length} article{order.line_items.length !== 1 ? "s" : ""}
                         </TableCell>
                         <TableCell><FinancialBadge status={order.financial_status} /></TableCell>
                         <TableCell><FulfillmentBadge status={order.fulfillment_status} /></TableCell>

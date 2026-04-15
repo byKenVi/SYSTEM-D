@@ -90,14 +90,14 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products</h1>
-          <p className="text-muted-foreground mt-1">View your products and current stock levels</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Produits</h1>
+          <p className="text-muted-foreground mt-1">Consultez vos produits et les niveaux de stock actuels</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search products..."
+              placeholder="Rechercher des produits..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 w-[200px]"
@@ -109,9 +109,9 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="name">Name A-Z</SelectItem>
-              <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
-              <SelectItem value="stock-desc">Stock: High to Low</SelectItem>
+              <SelectItem value="name">Nom A-Z</SelectItem>
+              <SelectItem value="stock-asc">Stock : Croissant</SelectItem>
+              <SelectItem value="stock-desc">Stock : Décroissant</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -129,9 +129,9 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
+                  <TableHead>Produit</TableHead>
                   <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Prix</TableHead>
                   <TableHead className="text-right">Stock</TableHead>
                   {!isViewAs && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
@@ -189,7 +189,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isViewAs) {
-                              toast({ title: "Preview mode", description: "Clients see this button to submit a work order." });
+                              toast({ title: "Mode aperçu", description: "Les clients voient ce bouton pour soumettre un bon de travail." });
                               return;
                             }
                             setRestockProduct(product);
@@ -198,7 +198,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                           data-testid={`button-request-restock-${product.id}`}
                         >
                           <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                          Restock Request
+                          Bon de travail
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -209,9 +209,9 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
           ) : (
             <div className="p-12 text-center">
               <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">No products found</p>
+              <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Your admin will import products from your Shopify store.
+                Votre administrateur importera les produits depuis votre boutique Shopify.
               </p>
             </div>
           )}
@@ -221,7 +221,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
       <Dialog open={!!restockProduct} onOpenChange={() => setRestockProduct(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Submit Restock Request</DialogTitle>
+            <DialogTitle>Soumettre un bon de travail</DialogTitle>
           </DialogHeader>
           {restockProduct && (
             <div className="space-y-4 mt-2">
@@ -230,18 +230,18 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                 <div>
                   <p className="font-medium text-sm">{restockProduct.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Current stock: {restockProduct.inventoryQuantity}
+                    Stock actuel : {restockProduct.inventoryQuantity}
                   </p>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Quantity</Label>
+                <Label>Quantité</Label>
                 <Input
                   type="number"
                   min="1"
                   value={restockQty}
                   onChange={(e) => setRestockQty(e.target.value)}
-                  placeholder="Enter quantity"
+                  placeholder="Entrer la quantité"
                   data-testid="input-restock-quantity"
                 />
               </div>
@@ -251,7 +251,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                 disabled={!restockQty || Number(restockQty) < 1 || restockMutation.isPending}
                 data-testid="button-submit-restock"
               >
-                {restockMutation.isPending ? "Submitting..." : "Submit Restock Request"}
+                {restockMutation.isPending ? "Envoi…" : "Soumettre le bon de travail"}
               </Button>
             </div>
           )}

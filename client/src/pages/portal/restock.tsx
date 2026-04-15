@@ -52,13 +52,13 @@ export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: n
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Work Orders</h1>
-        <p className="text-muted-foreground mt-1">Track your work order history and status</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Bons de travail</h1>
+        <p className="text-muted-foreground mt-1">Suivez l'historique et le statut de vos bons de travail</p>
       </div>
 
       <Card>
         <CardHeader className="pb-4">
-          <h3 className="font-semibold">Request History</h3>
+          <h3 className="font-semibold">Historique des demandes</h3>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -71,11 +71,11 @@ export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: n
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead>Produit</TableHead>
+                  <TableHead className="text-right">Qté</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Reference</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Référence</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -113,9 +113,9 @@ export default function PortalRestock({ viewAsContactId }: { viewAsContactId?: n
           ) : (
             <div className="p-12 text-center">
               <RefreshCw className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">No work orders yet</p>
+              <p className="text-muted-foreground font-medium">Aucun bon de travail pour l'instant</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Work orders can be submitted from your Products page.
+                Les bons de travail peuvent être soumis depuis votre page Produits.
               </p>
             </div>
           )}
