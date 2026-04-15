@@ -133,7 +133,7 @@ export default function AdminContacts() {
       else if (sortKey === "email") { aVal = a.email; bVal = b.email; }
       else if (sortKey === "status") { aVal = a.status; bVal = b.status; }
       else if (sortKey === "zoho") { aVal = a.zohoCrmContactId ? "1" : "0"; bVal = b.zohoCrmContactId ? "1" : "0"; }
-      else if (sortKey === "created") { aVal = a.createdAt ?? ""; bVal = b.createdAt ?? ""; }
+      else if (sortKey === "created") { aVal = a.createdAt ? new Date(a.createdAt).toISOString() : ""; bVal = b.createdAt ? new Date(b.createdAt).toISOString() : ""; }
       const cmp = aVal.localeCompare(bVal);
       return sortDir === "asc" ? cmp : -cmp;
     });

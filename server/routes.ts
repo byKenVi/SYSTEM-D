@@ -17,13 +17,7 @@ import {
   fetchAllProducts,
   normalizeProducts,
   testShopifyConnection,
-  buildShopifyAuthUrl,
-  exchangeShopifyCode,
-  generateOAuthState,
-  getShopifyCallbackUrl,
-  getShopDetails,
   validateShopifyStoreUrl,
-  verifyShopifyHmac,
 } from "./shopify-api";
 
 export async function registerRoutes(
@@ -360,84 +354,37 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/shopify/connect", isAuthenticated, isAdmin, async (req: any, res) => {
+  app.post("/api/shopify-integrations/connect", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const { contactId, storeUrl } = req.body;
-      if (!contactId || !storeUrl) {
-        return res.status(400).json({ message: "contactId and storeUrl are required" });
+      const { contactId, storeUrl, accessToken } = req.body;
+      if (!contactId || !storeUrl || !accessToken) {
+        return res.status(400).json({ message: "contactId, storeUrl, and accessToken are required" });
       }
 
       if (!validateShopifyStoreUrl(storeUrl)) {
         return res.status(400).json({ message: "Store URL must be a valid *.myshopify.com domain (e.g. mystore.myshopify.com)" });
       }
 
-      const settings = await storage.getAdminSettings();
-      if (!settings?.shopifyAppClientId || !settings?.shopifyAppClientSecret) {
-        return res.status(400).json({ message: "Shopify app credentials not configured. Add your Client ID and Client Secret in Settings first." });
+      const test = await testShopifyConnection(storeUrl, accessToken);
+      if (!test.success) {
+        return res.status(400).json({ message: `Could not connect to Shopify store: ${test.error || "invalid token or store URL"}` });
       }
-
-      const state = generateOAuthState();
-      const host = req.get("host");
-      const redirectUri = getShopifyCallbackUrl(host);
-      const authUrl = buildShopifyAuthUrl(storeUrl, settings.shopifyAppClientId, redirectUri, state);
-
-      req.session.shopifyOAuth = { state, contactId: Number(contactId), storeUrl, redirectUri };
-
-      res.json({ authUrl });
-    } catch (error) {
-      console.error("Error initiating Shopify OAuth:", error);
-      res.status(500).json({ message: "Failed to start Shopify connection" });
-    }
-  });
-
-  app.get("/api/auth/shopify/callback", async (req: any, res) => {
-    try {
-      const { code, shop, state, hmac } = req.query;
-      const oauthData = req.session?.shopifyOAuth;
-
-      if (!oauthData || oauthData.state !== state) {
-        return res.redirect("/admin/settings?shopify_error=invalid_state");
-      }
-
-      const settings = await storage.getAdminSettings();
-      if (!settings?.shopifyAppClientId || !settings?.shopifyAppClientSecret) {
-        return res.redirect("/admin/settings?shopify_error=no_credentials");
-      }
-
-      if (hmac && !verifyShopifyHmac(req.query as Record<string, string>, settings.shopifyAppClientSecret)) {
-        return res.redirect("/admin/settings?shopify_error=hmac_verification_failed");
-      }
-
-      if (shop && !validateShopifyStoreUrl(shop as string)) {
-        return res.redirect("/admin/settings?shopify_error=invalid_shop_domain");
-      }
-
-      const storeUrl = (shop as string) || oauthData.storeUrl;
-      const { accessToken, scope } = await exchangeShopifyCode(
-        storeUrl,
-        settings.shopifyAppClientId,
-        settings.shopifyAppClientSecret,
-        code as string
-      );
-
-      const shopDetails = await getShopDetails(storeUrl, accessToken);
 
       await storage.createShopifyIntegration({
-        contactId: oauthData.contactId,
+        contactId: Number(contactId),
         accessToken,
         storeUrl,
-        shopName: shopDetails.name,
-        scope,
+        shopName: test.shopName || storeUrl,
+        scope: null,
         isActive: true,
       });
 
-      await storage.updateContact(oauthData.contactId, { shopifyConnected: true });
+      await storage.updateContact(Number(contactId), { shopifyConnected: true });
 
-      delete req.session.shopifyOAuth;
-      res.redirect("/admin/settings?shopify_connected=true");
+      res.json({ success: true, shopName: test.shopName });
     } catch (error: any) {
-      console.error("Shopify OAuth callback error:", error);
-      res.redirect(`/admin/settings?shopify_error=${encodeURIComponent(error.message || "token_exchange_failed")}`);
+      console.error("Error connecting Shopify store:", error);
+      res.status(500).json({ message: error.message || "Failed to connect Shopify store" });
     }
   });
 

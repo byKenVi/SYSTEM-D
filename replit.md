@@ -88,12 +88,10 @@ shared/
 - Redirect URI: `https://{domain}/api/auth/zoho/callback`
 
 ## Shopify Integration
-- Uses OAuth 2.0 flow via `server/shopify-api.ts`
-- Admin configures Shopify app credentials (Client ID, Client Secret) in Settings → App Settings
-- Shopify app credentials stored in `admin_settings` table (`shopifyAppClientId`, `shopifyAppClientSecret`)
-- Per-client store connections use OAuth redirect → Shopify authorization → callback with access token
-- OAuth routes: `/api/auth/shopify/connect` (initiate), `/api/auth/shopify/callback` (exchange code for token)
-- Redirect URI: `https://{domain}/api/auth/shopify/callback`
+- Uses direct Admin API token connection (no OAuth required)
+- Admin enters store URL + Admin API access token per client store in Settings → Shopify Integration
+- Token is validated immediately via `GET shop.json` before saving
+- Connect route: `POST /api/shopify-integrations/connect` with `{ contactId, storeUrl, accessToken }`
 - Access tokens stored in `shopify_integrations` table per client (`accessToken`, `storeUrl`, `shopName`, `scope`)
 - Products capture full details: name, SKU, barcode, description, image, vendor, product type, tags, weight, price, compare-at price, status, handle
 - Each variant is a separate product row; upserted by `(contactId, shopifyVariantId)` to avoid duplicates
