@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, FileText, ChevronRight } from "lucide-react";
+import { Plus, FileText, ChevronRight, ArrowLeftRight, Warehouse, Package2, Truck } from "lucide-react";
 import { useState } from "react";
 import FormEditor from "@/pages/form-editor";
 
@@ -38,10 +38,42 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const FORM_TYPES = [
-  { value: "tri", label: "Tri (Sorting)", desc: "Sorting service request" },
-  { value: "entreposage", label: "Entreposage", desc: "Warehousing request" },
-  { value: "copacking", label: "Co-packing", desc: "Co-packing work order" },
-  { value: "livraison", label: "Livraison", desc: "Delivery request" },
+  {
+    value: "tri",
+    label: "Tri (Sorting)",
+    desc: "Sorting service request",
+    icon: ArrowLeftRight,
+    color: "bg-blue-500",
+    light: "bg-blue-50 dark:bg-blue-950/40",
+    text: "text-blue-600 dark:text-blue-400",
+  },
+  {
+    value: "entreposage",
+    label: "Entreposage",
+    desc: "Warehousing & storage request",
+    icon: Warehouse,
+    color: "bg-amber-500",
+    light: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-600 dark:text-amber-400",
+  },
+  {
+    value: "copacking",
+    label: "Co-packing",
+    desc: "Co-packing work order",
+    icon: Package2,
+    color: "bg-violet-500",
+    light: "bg-violet-50 dark:bg-violet-950/40",
+    text: "text-violet-600 dark:text-violet-400",
+  },
+  {
+    value: "livraison",
+    label: "Livraison",
+    desc: "Delivery request",
+    icon: Truck,
+    color: "bg-emerald-500",
+    light: "bg-emerald-50 dark:bg-emerald-950/40",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
 ];
 
 export default function PortalForms({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -167,26 +199,32 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
       </Card>
 
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Choose a service type</DialogTitle>
+            <DialogTitle className="text-lg">New service request</DialogTitle>
+            <p className="text-sm text-muted-foreground">Choose the type of service you need</p>
           </DialogHeader>
-          <div className="grid gap-3">
-            {FORM_TYPES.map((t) => (
-              <Button
-                key={t.value}
-                variant="outline"
-                className="h-auto py-4 justify-start text-left"
-                onClick={() => createFormMutation.mutate(t.value)}
-                disabled={createFormMutation.isPending}
-                data-testid={`button-create-${t.value}`}
-              >
-                <div>
-                  <p className="font-medium">{t.label}</p>
-                  <p className="text-xs text-muted-foreground">{t.desc}</p>
-                </div>
-              </Button>
-            ))}
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            {FORM_TYPES.map((t) => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => createFormMutation.mutate(t.value)}
+                  disabled={createFormMutation.isPending}
+                  data-testid={`button-create-${t.value}`}
+                  className={`group flex flex-col items-start gap-3 rounded-xl border p-4 text-left transition-all hover:shadow-md hover:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${t.light}`}
+                >
+                  <div className={`h-9 w-9 rounded-lg ${t.color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                    <Icon className="h-[18px] w-[18px] text-white" />
+                  </div>
+                  <div>
+                    <p className={`font-semibold text-sm ${t.text}`}>{t.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{t.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>
