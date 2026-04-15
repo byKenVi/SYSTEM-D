@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -453,9 +453,11 @@ export function AdminFormDetail({ id }: { id: number }) {
             {contact && (
               <>
                 <span>·</span>
-                <span data-testid="text-form-client">
-                  {contact.companyName || contact.name}
-                </span>
+                <Link href={`/admin/contacts/${contact.id}`}>
+                  <span className="hover:underline hover:text-foreground cursor-pointer transition-colors" data-testid="text-form-client">
+                    {contact.companyName || contact.name}
+                  </span>
+                </Link>
               </>
             )}
           </div>
