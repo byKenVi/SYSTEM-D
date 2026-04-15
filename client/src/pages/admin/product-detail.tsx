@@ -140,7 +140,7 @@ export default function AdminProductDetail() {
       </div>
 
       {/* Body */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
         {/* ── LEFT: image + stats ── */}
         <div className="space-y-4">
@@ -212,7 +212,7 @@ export default function AdminProductDetail() {
         </div>
 
         {/* ── RIGHT: metadata ── */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
 
           {/* Identifiers */}
           <Card>
