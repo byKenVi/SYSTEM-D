@@ -167,7 +167,7 @@ export default function ContactDetail() {
   const { data: relatedContacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts", contactId, "related"],
     queryFn: () => fetch(`/api/contacts/${contactId}/related`, { credentials: "include" }).then(r => r.json()),
-    enabled: !!contact?.companyName,
+    enabled: !!contact,
   });
 
   const { data: allContacts } = useQuery<Contact[]>({
@@ -437,8 +437,8 @@ export default function ContactDetail() {
         {/* ══ RIGHT CONTENT ══ */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Related Contacts — shown whenever contact has a company (unless toggle hides empty) */}
-          {contact.companyName && !(hideEmptyRelated && relatedContacts && relatedContacts.length === 0) && (
+          {/* Related Contacts */}
+          {!(hideEmptyRelated && relatedContacts && relatedContacts.length === 0) && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
@@ -464,7 +464,9 @@ export default function ContactDetail() {
                   </div>
                 ) : relatedContacts.length === 0 ? (
                   <div className="h-16 flex items-center justify-center">
-                    <p className="text-sm text-muted-foreground">No other contacts at {contact.companyName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {contact.companyName ? `No other contacts at ${contact.companyName}` : "No company associated"}
+                    </p>
                   </div>
                 ) : (
                   <div className="divide-y divide-border">
