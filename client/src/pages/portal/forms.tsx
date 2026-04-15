@@ -6,9 +6,9 @@ import type { FormSubmission } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, FileText, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import FormEditor from "@/pages/form-editor";
@@ -49,7 +49,6 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
   const { toast } = useToast();
   const isViewAs = !!viewAsContactId;
 
-  const pathPrefix = viewAsContactId ? `/portal/forms` : `/portal/forms`;
   const [matchEdit, paramsEdit] = useRoute("/portal/forms/:id");
 
   const { data: forms, isLoading } = useQuery<FormSubmission[]>({
@@ -87,6 +86,11 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
     return <FormEditor formId={Number(paramsEdit.id)} role={isViewAs ? "admin" : "client"} backUrl={`/portal/forms${qs}`} />;
   }
 
+  const goToForm = (id: number) => {
+    const qs = viewAsContactId ? `?viewAs=${viewAsContactId}` : "";
+    navigate(`/portal/forms/${id}${qs}`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -103,54 +107,64 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
         </Button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
-        </div>
-      ) : !forms || forms.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>No forms submitted yet</p>
-          <Button
-            className="mt-4"
-            onClick={() => setNewFormOpen(true)}
-            data-testid="button-new-form-empty"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Create a form
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {forms.map((form) => (
-            <Card
-              key={form.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                const qs = viewAsContactId ? `?viewAs=${viewAsContactId}` : "";
-                navigate(`/portal/forms/${form.id}${qs}`);
-              }}
-              data-testid={`card-form-${form.id}`}
-            >
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{form.formNumber}</span>
-                    <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>
-                      {STATUS_LABELS[form.status] || form.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{TYPE_LABELS[form.formType] || form.formType}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : ""}
-                  </p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-6 space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : !forms || forms.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>No forms submitted yet</p>
+              <Button
+                className="mt-4"
+                onClick={() => setNewFormOpen(true)}
+                data-testid="button-new-form-empty"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create a form
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Form #</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last updated</TableHead>
+                  <TableHead className="w-8" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {forms.map((form) => (
+                  <TableRow
+                    key={form.id}
+                    className="cursor-pointer"
+                    onClick={() => goToForm(form.id)}
+                    data-testid={`row-form-${form.id}`}
+                  >
+                    <TableCell className="font-semibold font-mono">{form.formNumber}</TableCell>
+                    <TableCell className="text-muted-foreground">{TYPE_LABELS[form.formType] || form.formType}</TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>
+                        {STATUS_LABELS[form.status] || form.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent>
