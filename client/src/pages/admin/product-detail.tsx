@@ -108,9 +108,21 @@ export default function AdminProductDetail() {
           </Link>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-0.5">Product Detail</p>
-            <h1 className="text-xl font-bold tracking-tight leading-none" data-testid="text-product-name">
-              {product.name}
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight leading-none" data-testid="text-product-name">
+                {product.name}
+              </h1>
+              {product.pushedToZoho ? (
+                <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">Zoho Synced</Badge>
+              ) : (
+                <Badge className="text-xs bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100">Not in Zoho</Badge>
+              )}
+              {product.shopifyStatus && (
+                <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
+                  {product.shopifyStatus}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -170,22 +182,6 @@ export default function AdminProductDetail() {
                       {product.zohoInventoryQuantity}
                     </p>
                   </div>
-                )}
-              </div>
-
-              {/* Badges */}
-              <div className="flex flex-wrap gap-2">
-                {product.pushedToZoho ? (
-                  <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">
-                    Zoho Synced
-                  </Badge>
-                ) : (
-                  <Badge className="text-xs bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100">Not in Zoho</Badge>
-                )}
-                {product.shopifyStatus && (
-                  <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
-                    {product.shopifyStatus}
-                  </Badge>
                 )}
               </div>
 
