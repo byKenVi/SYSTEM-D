@@ -254,7 +254,8 @@ export default function AdminContacts() {
         </TableCell>
         <TableCell>
           <Badge
-            variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
+            variant={contact.status === "revoked" ? "destructive" : "secondary"}
+            className={contact.status === "active" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-500/20" : ""}
             data-testid={`badge-status-${contact.id}`}
           >
             {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
