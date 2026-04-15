@@ -85,7 +85,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
