@@ -21,7 +21,6 @@ import {
   Package,
   ShoppingBag,
   ExternalLink,
-  Upload,
   Trash2,
   Clock,
   AlertTriangle,
@@ -56,16 +55,6 @@ export default function AdminProductDetail() {
 
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
   const contact = product ? contacts?.find(c => c.id === product.contactId) : undefined;
-
-  const pushToZohoMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/products/push-to-zoho", { productIds: [productId] }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products", productId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Pushed to Zoho", description: "Product is now synced with Zoho Inventory." });
-    },
-    onError: () => toast({ title: "Error", description: "Failed to push to Zoho.", variant: "destructive" }),
-  });
 
   const deleteProductMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/products/${productId}`),
@@ -125,18 +114,6 @@ export default function AdminProductDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {!product.pushedToZoho && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => pushToZohoMutation.mutate()}
-              disabled={pushToZohoMutation.isPending}
-              data-testid="button-push-zoho"
-            >
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-              Push to Zoho
-            </Button>
-          )}
           <Button
             size="sm"
             variant="outline"
