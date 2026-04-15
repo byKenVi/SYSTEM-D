@@ -56,9 +56,15 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
     },
   });
 
-  const initials = user
-    ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "U"
-    : "U";
+  const displayName = isViewAs
+    ? (contact?.name || `Contact #${viewAsContactId}`)
+    : `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "";
+
+  const displayEmail = isViewAs ? (contact?.email || "") : (user?.email || "");
+
+  const initials = isViewAs
+    ? (contact?.name || "C").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() || "U";
 
   if (isLoading) {
     return (
@@ -80,14 +86,14 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
         <Card className="lg:col-span-1">
           <CardContent className="p-6 flex flex-col items-center text-center">
             <Avatar className="h-20 w-20 mb-4">
-              <AvatarImage src={user?.profileImageUrl || undefined} />
+              <AvatarImage src={isViewAs ? undefined : (user?.profileImageUrl || undefined)} />
               <AvatarFallback className="text-xl">{initials}</AvatarFallback>
             </Avatar>
             <h3 className="font-semibold text-lg" data-testid="text-profile-name">
-              {user?.firstName} {user?.lastName}
+              {displayName}
             </h3>
             <p className="text-sm text-muted-foreground" data-testid="text-profile-email">
-              {user?.email}
+              {displayEmail}
             </p>
             {contact?.companyName && (
               <div className="flex items-center gap-1.5 mt-2 text-sm text-muted-foreground">
