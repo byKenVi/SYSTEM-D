@@ -152,7 +152,6 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-      toast({ title: "Draft saved" });
     },
   });
 
