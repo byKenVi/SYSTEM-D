@@ -17,6 +17,7 @@ import {
   Trash2,
   LayoutGrid,
   LayoutList,
+  Layers,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,6 +56,15 @@ export default function AdminProducts() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
+  const [groupBy, setGroupBy] = useState<boolean>(() => localStorage.getItem("products_groupBy") !== "false");
+
+  const toggleGroupBy = () => {
+    setGroupBy((prev) => {
+      const next = !prev;
+      localStorage.setItem("products_groupBy", String(next));
+      return next;
+    });
+  };
 
   const toggleCollapse = (contactId: number) => {
     setCollapsedGroups((prev) => {
@@ -223,6 +233,17 @@ export default function AdminProducts() {
               <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
+          {/* Group toggle */}
+          <Button
+            variant={groupBy ? "secondary" : "outline"}
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={toggleGroupBy}
+            data-testid="button-toggle-groupby"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Group
+          </Button>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {filtered && filtered.length > 0 && (
@@ -275,6 +296,74 @@ export default function AdminProducts() {
                 {[1, 2, 3].map((i) => (
                   <Skeleton key={i} className="h-14 w-full" />
                 ))}
+              </div>
+            ) : !groupBy && filtered && filtered.length > 0 ? (
+              <div className="overflow-x-auto scrollbar-hide">
+                <Table className="min-w-[800px] w-full">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"><Checkbox checked={filtered.every((p) => selected.has(p.id))} onCheckedChange={toggleAll} /></TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">Shopify Stock</TableHead>
+                      <TableHead className="text-right">Zoho Stock</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((product) => (
+                      <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => navigate(`/admin/products/${product.id}`)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {product.imageUrl ? (
+                              <img src={product.imageUrl} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" />
+                            ) : (
+                              <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <span className="font-medium" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground font-mono text-sm">{product.sku || "—"}</TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {product.shopifyStoreUrl ? (
+                            <a href={`https://${product.shopifyStoreUrl.replace(/^https?:\/\//, "")}/products/${product.shopifyHandle || ""}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 w-fit" data-testid={`link-shopify-store-${product.id}`}>
+                              <ShoppingBag className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                              <span className="text-xs text-green-700 dark:text-green-400 hover:underline font-medium">Shopify</span>
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Manual</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</TableCell>
+                        <TableCell className="text-right font-mono text-sm">{product.inventoryQuantity}</TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {product.pushedToZoho && product.zohoInventoryQuantity != null ? (
+                            <span className="text-primary">{product.zohoInventoryQuantity}</span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {!product.pushedToZoho && (
+                              <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}>
+                                <Upload className="h-3.5 w-3.5 mr-1" />Push
+                              </Button>
+                            )}
+                            <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             ) : groupedByClient.length > 0 ? (
               <div className="divide-y">
@@ -413,6 +502,38 @@ export default function AdminProducts() {
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
+            </div>
+          ) : !groupBy && filtered && filtered.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {filtered.map((product) => {
+                const isSelected = selected.has(product.id);
+                return (
+                  <div key={product.id} data-testid={`card-product-${product.id}`} className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`} onClick={() => navigate(`/admin/products/${product.id}`)}>
+                    <div className="absolute top-2 left-2 z-10" onClick={(e) => { e.stopPropagation(); toggleSelect(product.id); }}>
+                      <div className={`h-5 w-5 rounded border-2 flex items-center justify-center bg-background transition-colors ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary"}`}>
+                        {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-primary-foreground"><path d="M20 6 9 17l-5-5"/></svg>}
+                      </div>
+                    </div>
+                    {product.pushedToZoho && <div className="absolute top-2 right-2 z-10"><span className="inline-flex items-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[9px] font-semibold px-1.5 py-0.5">Zoho</span></div>}
+                    <div className="aspect-square w-full overflow-hidden rounded-t-xl bg-muted">
+                      {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Package className="h-10 w-10 text-muted-foreground/30" /></div>}
+                    </div>
+                    <div className="p-3 space-y-1.5">
+                      <p className="text-sm font-semibold leading-tight line-clamp-2" data-testid={`text-card-product-name-${product.id}`}>{product.name}</p>
+                      {product.sku && <p className="text-[11px] font-mono text-muted-foreground truncate">{product.sku}</p>}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-xs font-medium">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</span>
+                        <span className="text-xs font-semibold text-muted-foreground">{product.inventoryQuantity} units</span>
+                      </div>
+                      {product.pushedToZoho && product.zohoInventoryQuantity != null && <p className="text-[11px] text-violet-600 dark:text-violet-400 font-medium">Zoho: {product.zohoInventoryQuantity} units</p>}
+                    </div>
+                    <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Push</Button>}
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : groupedByClient.length > 0 ? (
             <div className="space-y-6">
