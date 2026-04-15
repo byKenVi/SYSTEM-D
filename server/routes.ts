@@ -1306,6 +1306,62 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/forms/:id/create-linked-livraison", isAuthenticated, isAdmin, async (req: Request, res) => {
+    try {
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Form not found" });
+      if (form.formType !== "copacking") return res.status(400).json({ message: "Only co-packing forms can create linked livraison" });
+      if (form.linkedFormId) return res.status(400).json({ message: "This form already has a linked form" });
+
+      const formData = (form.data && typeof form.data === "object") ? form.data as Record<string, unknown> : {};
+      const userId = (req as any).user?.claims?.sub;
+      const userName = `${(req as any).user?.claims?.first_name || ""} ${(req as any).user?.claims?.last_name || ""}`.trim() || "Unknown";
+
+      const livFormNumber = await storage.getNextFormNumber("livraison");
+      const livData = {
+        reference: `${form.formNumber}`,
+        typeMarchandise: "",
+        nbUnites: "",
+        poidsTotal: "",
+        unitePoids: "kg",
+        destinationType: "local",
+        hasTailgate: false,
+        hasRendezVous: false,
+        rvDate: "",
+        rvTime: "",
+        destinations: [{ adresse: "", contact: "", telephone: "", notes: "" }],
+        modeBilling: "forfaitaire",
+        documentation: [],
+        instructionsSpeciales: formData.projet ? `Lié au projet co-packing: ${formData.projet}` : "",
+      };
+
+      const livForm = await storage.createFormSubmission({
+        formType: "livraison",
+        formNumber: livFormNumber,
+        contactId: form.contactId,
+        submittedBy: userId,
+        submittedByName: userName,
+        status: "draft",
+        data: livData,
+        revision: 1,
+        linkedFormId: form.id,
+        revisionHistory: [{
+          date: new Date().toISOString(),
+          rev: 1,
+          description: `Créé automatiquement à partir du bon de travail ${form.formNumber}`,
+          modifiedBy: userName,
+        }],
+      });
+
+      await storage.updateFormSubmission(form.id, { linkedFormId: livForm.id });
+
+      res.status(201).json(livForm);
+    } catch (error: unknown) {
+      console.error("Error creating linked livraison:", error);
+      res.status(500).json({ message: "Failed to create linked livraison" });
+    }
+  });
+
   app.delete("/api/forms/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       await storage.deleteFormSubmission(Number(req.params.id));

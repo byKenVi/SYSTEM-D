@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData } from "@/components/forms/tri-form";
@@ -165,6 +165,21 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     },
   });
 
+  const createLinkedLivraisonMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/forms/${formId}/create-linked-livraison`);
+      return res.json();
+    },
+    onSuccess: (livForm: FormSubmission) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
+      toast({ title: "Formulaire de livraison créé", description: `${livForm.formNumber} lié à ce bon de travail.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    },
+  });
+
   if (isLoading || !form) {
     return (
       <div className="space-y-6">
@@ -265,6 +280,25 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
               Voir le formulaire lié
             </Button>
           </Link>
+        </div>
+      )}
+
+      {form.formType === "copacking" && !form.linkedFormId && role === "admin" && (
+        <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <span className="text-sm text-amber-700 dark:text-amber-300">
+            Créer un formulaire de livraison lié à ce bon de travail
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => createLinkedLivraisonMutation.mutate()}
+            disabled={createLinkedLivraisonMutation.isPending}
+            data-testid="button-create-linked-livraison"
+          >
+            <Truck className="h-3.5 w-3.5 mr-1" />
+            {createLinkedLivraisonMutation.isPending ? "Création..." : "Créer livraison"}
+          </Button>
         </div>
       )}
 
