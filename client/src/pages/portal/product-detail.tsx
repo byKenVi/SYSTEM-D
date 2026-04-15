@@ -16,7 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Package, RefreshCw, Tag, Layers } from "lucide-react";
+import { ArrowLeft, Package, RefreshCw, Tag, Layers, ExternalLink } from "lucide-react";
+import { SiShopify } from "react-icons/si";
 import { useState } from "react";
 
 export default function PortalProductDetail({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -207,10 +208,12 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
         </div>
       </div>
 
-      {/* Specs + Tags */}
-      {(specs.length > 0 || product.tags) && (
+      {/* Specs + Shopify + Tags */}
+      {(specs.length > 0 || product.shopifyStoreUrl || product.tags) && (
         <Card>
           <CardContent className="p-6 space-y-6">
+
+            {/* Specifications */}
             {specs.length > 0 && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Specifications</p>
@@ -225,19 +228,65 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
               </div>
             )}
 
-            {specs.length > 0 && product.tags && <Separator />}
-
-            {product.tags && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <Tag className="h-3.5 w-3.5" /> Tags
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {product.tags.split(",").map((tag, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs font-normal">{tag.trim()}</Badge>
-                  ))}
+            {/* Shopify Source */}
+            {product.shopifyStoreUrl && (
+              <>
+                {specs.length > 0 && <Separator />}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-1.5">
+                    <SiShopify className="h-3.5 w-3.5" /> Shopify Source
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Store</p>
+                      <a
+                        href={`https://${product.shopifyStoreUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
+                      >
+                        {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    {product.shopifyHandle && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Handle</p>
+                        <p className="text-sm font-medium">{product.shopifyHandle}</p>
+                      </div>
+                    )}
+                    {product.shopifyProductId && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Product ID</p>
+                        <p className="text-sm font-medium font-mono">{product.shopifyProductId}</p>
+                      </div>
+                    )}
+                    {product.shopifyVariantId && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Variant ID</p>
+                        <p className="text-sm font-medium font-mono">{product.shopifyVariantId}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </>
+            )}
+
+            {/* Tags */}
+            {product.tags && (
+              <>
+                {(specs.length > 0 || product.shopifyStoreUrl) && <Separator />}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5" /> Tags
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.tags.split(",").map((tag, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs font-normal">{tag.trim()}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
