@@ -212,14 +212,6 @@ export default function AdminProductDetail() {
                 )}
               </div>
 
-              {/* Last synced */}
-              {product.lastSyncedAt && (
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1" data-testid="text-synced">
-                  <Clock className="h-3 w-3 flex-shrink-0" />
-                  Last synced {new Date(product.lastSyncedAt).toLocaleString()}
-                </p>
-              )}
-
               {/* Shopify link */}
               {product.shopifyStoreUrl && (
                 <a
@@ -233,6 +225,14 @@ export default function AdminProductDetail() {
                   View on Shopify
                   <ExternalLink className="h-3 w-3" />
                 </a>
+              )}
+
+              {/* Last synced */}
+              {product.lastSyncedAt && (
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1" data-testid="text-synced">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  Last synced {new Date(product.lastSyncedAt).toLocaleString()}
+                </p>
               )}
             </CardContent>
           </Card>
