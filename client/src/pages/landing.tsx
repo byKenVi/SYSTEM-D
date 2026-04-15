@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Warehouse, Package, BarChart3, ArrowRight, ShieldCheck, Zap } from "lucide-react";
-import logoSrc from "@assets/image_1776241748167.png";
+import logoSrc from "@assets/logo_no_bg.png";
 
 export default function Landing() {
   return (

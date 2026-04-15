@@ -38,7 +38,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
 } from "lucide-react";
-import logoSrc from "@assets/image_1776241748167.png";
+import logoSrc from "@assets/logo_no_bg.png";
 
 interface AppSidebarProps {
   role: "admin" | "client";
@@ -101,7 +101,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               className="flex items-center gap-2.5 rounded-md px-1.5 py-1 cursor-pointer transition-colors hover:bg-sidebar-accent"
               data-testid="link-sidebar-home"
             >
-              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain rounded-md bg-gray-950 px-1.5" />
+              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain" />
               <p className="text-[11px] text-sidebar-foreground/50 capitalize">
                 {role} Panel
               </p>
