@@ -26,6 +26,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Users,
   Package,
   RefreshCw,
@@ -35,6 +40,8 @@ import {
   LogOut,
   Eye,
   ClipboardList,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -86,63 +93,113 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
-        {/* Expanded state: logo + name + trigger */}
-        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:hidden">
+      {/* ── Brand Header ── */}
+      <SidebarHeader className="p-0 border-b border-sidebar-border">
+        {/* Expanded */}
+        <div className="group-data-[collapsible=icon]:hidden">
           <Link href={role === "admin" ? "/admin/contacts" : "/portal/profile"}>
-            <div className="flex items-center gap-2 hover-elevate rounded-md p-1 cursor-pointer" data-testid="link-sidebar-home">
-              <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-                <Warehouse className="h-4 w-4 text-primary-foreground" />
+            <div
+              className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-sidebar-accent/60 transition-colors"
+              data-testid="link-sidebar-home"
+            >
+              <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Warehouse className="h-5 w-5 text-sidebar-primary-foreground" />
               </div>
-              <div>
-                <p className="font-semibold text-sm leading-none">SYSTEM D</p>
-                <p className="text-xs text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm tracking-wide leading-none text-sidebar-foreground">
+                  SYSTEM D
+                </p>
+                <p className="text-[11px] text-sidebar-primary mt-1 font-medium capitalize tracking-wider uppercase">
+                  {role === "admin" ? "Admin Panel" : "Client Portal"}
+                </p>
               </div>
             </div>
           </Link>
-          <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <div className="flex justify-end px-3 pb-2">
+            <SidebarTrigger
+              className="h-6 w-6 text-muted-foreground hover:text-sidebar-foreground"
+              data-testid="button-sidebar-toggle"
+            />
+          </div>
         </div>
-        {/* Collapsed state: just the trigger centered */}
-        <div className="hidden group-data-[collapsible=icon]:flex justify-center">
-          <SidebarTrigger data-testid="button-sidebar-toggle-collapsed" />
+        {/* Collapsed */}
+        <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-2 py-3">
+          <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center shadow-sm">
+            <Warehouse className="h-4 w-4 text-sidebar-primary-foreground" />
+          </div>
+          <SidebarTrigger
+            className="h-6 w-6 text-muted-foreground hover:text-sidebar-foreground"
+            data-testid="button-sidebar-toggle-collapsed"
+          />
         </div>
       </SidebarHeader>
-      <SidebarContent>
+
+      {/* ── Navigation ── */}
+      <SidebarContent className="px-2 py-3">
         <SidebarGroup>
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-muted-foreground px-2 mb-1">
+            Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url.split("?")[0] || location.startsWith(item.url.split("?")[0] + "/")}
-                  >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+            <SidebarMenu className="gap-0.5">
+              {items.map((item) => {
+                const isActive =
+                  location === item.url.split("?")[0] ||
+                  location.startsWith(item.url.split("?")[0] + "/");
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      className="relative h-9 rounded-md group/item"
+                    >
+                      <Link
+                        href={item.url}
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        className="flex items-center gap-3 px-3"
+                      >
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-sidebar-primary rounded-r-full" />
+                        )}
+                        <item.icon
+                          className={`h-4 w-4 flex-shrink-0 transition-colors ${
+                            isActive
+                              ? "text-sidebar-primary"
+                              : "text-muted-foreground group-hover/item:text-sidebar-foreground"
+                          }`}
+                        />
+                        <span
+                          className={`text-sm font-medium transition-colors ${
+                            isActive
+                              ? "text-sidebar-foreground"
+                              : "text-muted-foreground group-hover/item:text-sidebar-foreground"
+                          }`}
+                        >
+                          {item.title}
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* View As selector */}
         {role === "admin" && viewAsContactId && contacts && contacts.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>
-              <span className="flex items-center gap-1.5">
-                <Eye className="h-3 w-3" />
-                Preview Portal
-              </span>
+          <SidebarGroup className="mt-2">
+            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-muted-foreground px-2 mb-1 flex items-center gap-1.5">
+              <Eye className="h-3 w-3" />
+              Preview Portal
             </SidebarGroupLabel>
-            <SidebarGroupContent className="px-2">
+            <SidebarGroupContent className="px-1">
               <Select
                 value={viewAsContactId ? String(viewAsContactId) : "__admin__"}
                 onValueChange={handleViewAsChange}
               >
                 <SelectTrigger
-                  className="w-full h-8 text-xs"
+                  className="w-full h-8 text-xs group-data-[collapsible=icon]:hidden"
                   data-testid="select-view-as-contact"
                 >
                   <SelectValue placeholder="View as client..." />
@@ -167,29 +224,65 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
           </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter className="p-4 group-data-[collapsible=icon]:p-2">
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-          <Avatar className="h-8 w-8 flex-shrink-0">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
-            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-medium truncate" data-testid="text-sidebar-username">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+
+      {/* ── Footer / User ── */}
+      <SidebarFooter className="p-0 border-t border-sidebar-border">
+        {/* Expanded */}
+        <div className="group-data-[collapsible=icon]:hidden px-3 py-3 space-y-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-8 w-8 flex-shrink-0 ring-1 ring-sidebar-border">
+              <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+              <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-accent-foreground font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold leading-tight truncate text-sidebar-foreground" data-testid="text-sidebar-username">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">{user?.email}</p>
+            </div>
           </div>
-          <div className="flex items-center group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-1">
             <ThemeToggle />
             <Button
-              size="icon"
+              size="sm"
               variant="ghost"
+              className="flex-1 justify-start gap-2 h-8 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               onClick={() => logout()}
               data-testid="button-logout"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
             </Button>
           </div>
+        </div>
+
+        {/* Collapsed */}
+        <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-2 py-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Avatar className="h-7 w-7 ring-1 ring-sidebar-border cursor-pointer">
+                <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+                <AvatarFallback className="text-[10px] bg-sidebar-accent text-sidebar-accent-foreground font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p className="font-medium">{user?.firstName} {user?.lastName}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </TooltipContent>
+          </Tooltip>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={() => logout()}
+            data-testid="button-logout"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </SidebarFooter>
     </Sidebar>
