@@ -101,7 +101,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               className="flex items-center gap-2.5 rounded-md px-1.5 py-1 cursor-pointer transition-colors hover:bg-sidebar-accent"
               data-testid="link-sidebar-home"
             >
-              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain mix-blend-screen" />
+              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain rounded-md bg-gray-950 px-1.5" />
               <p className="text-[11px] text-sidebar-foreground/50 capitalize">
                 {role} Panel
               </p>
