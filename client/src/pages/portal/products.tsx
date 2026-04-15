@@ -24,7 +24,6 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   Package,
-  AlertTriangle,
   Search,
   RefreshCw,
   Layers,
@@ -38,8 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const LOW_STOCK_THRESHOLD = 10;
 
 export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
@@ -89,7 +86,6 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
     });
 
   const totalStock = products?.reduce((sum, p) => sum + p.inventoryQuantity, 0) || 0;
-  const lowStockCount = products?.filter((p) => p.inventoryQuantity <= LOW_STOCK_THRESHOLD).length || 0;
 
   return (
     <div className="space-y-6">
@@ -98,7 +94,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
         <p className="text-muted-foreground mt-1">View your products and current stock levels</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -118,17 +114,6 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
             <div>
               <p className="text-sm text-muted-foreground">Total Stock</p>
               <p className="text-2xl font-bold" data-testid="text-portal-total-stock">{totalStock.toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Low Stock</p>
-              <p className="text-2xl font-bold" data-testid="text-portal-low-stock">{lowStockCount}</p>
             </div>
           </CardContent>
         </Card>
@@ -177,7 +162,6 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
               </TableHeader>
               <TableBody>
                 {filtered.map((product) => {
-                  const isLow = product.inventoryQuantity <= LOW_STOCK_THRESHOLD;
                   return (
                     <TableRow key={product.id} data-testid={`row-portal-product-${product.id}`}>
                       <TableCell>
@@ -210,12 +194,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                         {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
-                          <span className={isLow ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
-                            {product.inventoryQuantity}
-                          </span>
-                        </div>
+                        {product.inventoryQuantity}
                       </TableCell>
                       {!isViewAs && (
                         <TableCell className="text-right">
