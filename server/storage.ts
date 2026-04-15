@@ -33,6 +33,7 @@ export interface IStorage {
   getRestockRequestsByContactId(contactId: number): Promise<RestockRequest[]>;
   createRestockRequest(data: InsertRestockRequest): Promise<RestockRequest>;
   updateRestockRequest(id: number, data: Partial<InsertRestockRequest>): Promise<RestockRequest | undefined>;
+  deleteRestockRequests(ids: number[]): Promise<void>;
 
   getShopifyIntegrations(): Promise<ShopifyIntegration[]>;
   getShopifyIntegration(id: number): Promise<ShopifyIntegration | undefined>;
@@ -151,6 +152,11 @@ export class DatabaseStorage implements IStorage {
   async createRestockRequest(data: InsertRestockRequest): Promise<RestockRequest> {
     const [request] = await db.insert(restockRequests).values(data).returning();
     return request;
+  }
+
+  async deleteRestockRequests(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.delete(restockRequests).where(inArray(restockRequests.id, ids));
   }
 
   async updateRestockRequest(id: number, data: Partial<InsertRestockRequest>): Promise<RestockRequest | undefined> {

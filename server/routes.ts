@@ -490,6 +490,18 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/restock-requests/bulk", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { ids } = req.body as { ids: number[] };
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "ids required" });
+      await storage.deleteRestockRequests(ids);
+      res.json({ deleted: ids.length });
+    } catch (error) {
+      console.error("Error bulk deleting restock requests:", error);
+      res.status(500).json({ message: "Failed to delete" });
+    }
+  });
+
   app.get("/api/restock-requests", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const requests = await storage.getRestockRequests();
