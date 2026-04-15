@@ -50,7 +50,7 @@ const adminItems = [
   { title: "Tableau de bord", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Clients", url: "/admin/contacts", icon: Users },
   { title: "Boutique", url: "/admin/boutique", icon: ShoppingCart },
-  { title: "Inventaire", url: "/admin/inventaire", icon: BoxIcon },
+  { title: "Inventaires", url: "/admin/inventaire", icon: BoxIcon },
   { title: "Soumissions", url: "/admin/forms", icon: ClipboardList },
   { title: "Demandes de réapprovisionnement", url: "/admin/restock-requests", icon: RefreshCw },
   { title: "Paramètres", url: "/admin/settings", icon: Settings },
