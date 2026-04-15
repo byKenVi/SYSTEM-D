@@ -15,7 +15,6 @@ import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import AdminContacts from "@/pages/admin/contacts";
 import AdminContactDetail from "@/pages/admin/contact-detail";
-import AdminProducts from "@/pages/admin/products";
 import AdminProductDetail from "@/pages/admin/product-detail";
 import AdminRestockRequests from "@/pages/admin/restock-requests";
 import AdminSettingsPage from "@/pages/admin/settings";
@@ -24,7 +23,7 @@ import PortalProducts from "@/pages/portal/products";
 import PortalProductDetail from "@/pages/portal/product-detail";
 import PortalRestock from "@/pages/portal/restock";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
-import AdminOrders from "@/pages/admin/orders";
+import AdminBoutique from "@/pages/admin/boutique";
 import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
@@ -51,8 +50,9 @@ function AdminLayout() {
           <Route path="/admin/contacts/:id" component={AdminContactDetail} />
           <Route path="/admin/contacts" component={AdminContacts} />
           <Route path="/admin/products/:id" component={AdminProductDetail} />
-          <Route path="/admin/products" component={AdminProducts} />
-          <Route path="/admin/orders" component={AdminOrders} />
+          <Route path="/admin/boutique" component={AdminBoutique} />
+          <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
+          <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
           <Route path="/admin/restock-requests" component={AdminRestockRequests} />
           <Route path="/admin/forms/:id/edit">
             {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
