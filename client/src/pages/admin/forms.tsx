@@ -303,7 +303,8 @@ export default function AdminForms() {
                   <TableHead>Type</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Créé</TableHead>
+                  <TableHead>Modifié</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -312,7 +313,7 @@ export default function AdminForms() {
                   groups.map((group) => (
                     <Fragment key={group.key}>
                       <TableRow className="bg-muted/40 hover:bg-muted/40 pointer-events-none">
-                        <TableCell colSpan={7} className="py-2 px-4">
+                        <TableCell colSpan={8} className="py-2 px-4">
                           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             {group.label}
                           </span>
@@ -339,6 +340,9 @@ export default function AdminForms() {
                             <TableCell>{contact?.name || `#${form.contactId}`}</TableCell>
                             <TableCell>
                               <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {form.createdAt ? new Date(form.createdAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                               {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
@@ -374,6 +378,9 @@ export default function AdminForms() {
                         <TableCell>{contact?.name || `#${form.contactId}`}</TableCell>
                         <TableCell>
                           <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {form.createdAt ? new Date(form.createdAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                           {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
