@@ -185,11 +185,11 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                         {STATUS_LABELS[form.status] || form.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {form.createdAt ? new Date(form.createdAt).toLocaleDateString("fr-CA") : "—"}
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                      {form.createdAt ? new Date(form.createdAt).toLocaleString("fr-CA", { dateStyle: "short", timeStyle: "short" }) : "—"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                      {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { dateStyle: "short", timeStyle: "short" }) : "—"}
                     </TableCell>
                     <TableCell>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
