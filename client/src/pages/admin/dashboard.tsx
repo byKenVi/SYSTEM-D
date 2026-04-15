@@ -232,7 +232,7 @@ export default function AdminDashboard() {
                             {STATUS_LABELS[form.status] || form.status}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("en-CA") : ""}
+                            {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : ""}
                           </span>
                         </div>
                       </div>
