@@ -179,12 +179,12 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
     },
     onSuccess: (newForm) => {
       queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
-      toast({ title: "Brouillon créé", description: "Votre nouvelle demande a été créée. Vérifiez les détails avant de soumettre." });
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/commandes"] });
+      toast({ title: "Commande soumise", description: `La demande ${newForm.formNumber} a été soumise à l'admin pour approbation.` });
       setConfirmForm(null);
-      navigate(`/portal/forms/${newForm.id}`);
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de créer la demande.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Impossible de soumettre la commande.", variant: "destructive" });
     },
   });
 
@@ -407,10 +407,9 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
           {confirmForm && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Un nouveau brouillon basé sur la soumission{" "}
+                Une nouvelle demande basée sur{" "}
                 <span className="font-mono font-semibold text-foreground">{confirmForm.formNumber}</span>{" "}
-                ({TYPE_LABELS[confirmForm.formType] || confirmForm.formType}) sera créé avec les mêmes informations
-                pré-remplies. Vous pourrez le modifier avant de soumettre.
+                ({TYPE_LABELS[confirmForm.formType] || confirmForm.formType}) sera soumise <span className="font-semibold text-foreground">directement à l'administration</span> pour approbation avec les mêmes informations. Une fois approuvée, un bon de commande sera créé automatiquement.
               </p>
               <div className={`flex items-start gap-3 p-3 rounded-lg ${TYPE_COLORS[confirmForm.formType]?.light || "bg-muted"}`}>
                 {(() => {
@@ -445,7 +444,7 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
               data-testid="button-confirm-reorder"
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              {reorderMutation.isPending ? "Création..." : "Créer le brouillon"}
+              {reorderMutation.isPending ? "Soumission..." : "Soumettre la commande"}
             </Button>
           </DialogFooter>
         </DialogContent>

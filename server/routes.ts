@@ -1905,10 +1905,47 @@ export async function registerRoutes(
         contactId,
         submittedBy: userId,
         submittedByName: userName,
-        status: "draft",
+        status: "submitted",
         data: original.data || {},
         revision: 1,
-        revisionHistory: [],
+        revisionHistory: [{
+          date: new Date().toISOString(),
+          rev: 1,
+          description: `Re-commande basée sur ${original.formNumber}`,
+          modifiedBy: userName,
+        }],
+      });
+
+      // Send submission confirmation email to client
+      const contact = await storage.getContact(contactId);
+      if (contact?.email) {
+        sendFormSubmissionEmail({
+          email: contact.email,
+          name: contact.name,
+          formType: newForm.formType,
+          formNumber: newForm.formNumber,
+        }).catch((err) => console.error("Reorder email error:", err));
+      }
+
+      // Notify admin
+      const settings = await storage.getAdminSettings();
+      if (settings?.adminUserId) {
+        const adminUsers = await db.select().from(usersTable).where(eq(usersTable.id, settings.adminUserId));
+        const adminUser = adminUsers[0];
+        if (adminUser?.email) {
+          sendFormAdminNotificationEmail({
+            adminEmail: adminUser.email,
+            clientName: contact?.name || `Contact #${contactId}`,
+            formType: newForm.formType,
+            formNumber: newForm.formNumber,
+          }).catch((err) => console.error("Reorder admin notification error:", err));
+        }
+      }
+
+      await storage.createActivityLog({
+        type: "form_submission",
+        status: "success",
+        message: `Re-commande ${newForm.formNumber} soumise par ${userName} (basée sur ${original.formNumber})`,
       });
 
       res.status(201).json(newForm);
