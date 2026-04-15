@@ -2,12 +2,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useParams, useLocation, Link } from "wouter";
 import type { Product } from "@shared/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -15,17 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Package, RefreshCw } from "lucide-react";
+import { ArrowLeft, Package, RefreshCw, Tag, Layers } from "lucide-react";
 import { useState } from "react";
-
-function MetaRow({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
-      <p className="text-sm font-medium">{value || "—"}</p>
-    </div>
-  );
-}
 
 export default function PortalProductDetail({ viewAsContactId }: { viewAsContactId?: number }) {
   const { id } = useParams<{ id: string }>();
@@ -76,10 +68,15 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-40" />
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <Skeleton className="lg:col-span-2 h-80 rounded-xl" />
-          <Skeleton className="lg:col-span-3 h-80 rounded-xl" />
+        <Skeleton className="h-5 w-24" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Skeleton className="aspect-square rounded-2xl" />
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-5 w-1/3" />
+            <Skeleton className="h-12 w-1/2" />
+            <Skeleton className="h-10 w-full mt-6" />
+          </div>
         </div>
       </div>
     );
@@ -97,128 +94,154 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
     );
   }
 
+  const specs = [
+    { label: "SKU", value: product.sku },
+    { label: "Barcode", value: product.barcode },
+    { label: "Vendor", value: product.vendor },
+    { label: "Type", value: product.productType },
+    { label: "Weight", value: product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null },
+    { label: "Compare at", value: product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null },
+  ].filter((s) => s.value);
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <Link href={backHref}>
-          <Button variant="ghost" size="icon" className="-ml-2 mt-0.5" data-testid="button-back">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight truncate" data-testid="text-product-name">{product.name}</h1>
-          {product.sku && (
-            <p className="text-sm text-muted-foreground mt-0.5">SKU: {product.sku}</p>
+    <div className="space-y-8">
+      {/* Back link */}
+      <Link href={backHref}>
+        <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Products
+        </button>
+      </Link>
+
+      {/* Hero */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+
+        {/* Image */}
+        <div className="rounded-2xl overflow-hidden border bg-muted/30 aspect-square flex items-center justify-center">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              data-testid="img-product"
+            />
+          ) : (
+            <Package className="h-24 w-24 text-muted-foreground/20" />
           )}
         </div>
-        {!isViewAs && (
-          <Button
-            variant="outline"
-            onClick={() => { setRestockOpen(true); setRestockQty(""); }}
-            data-testid="button-work-order"
-          >
-            <RefreshCw className="h-4 w-4 mr-1.5" />
-            Work Order
-          </Button>
-        )}
-      </div>
 
-      {/* Body */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
-
-        {/* LEFT: image + stock */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              {product.imageUrl ? (
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="w-full aspect-square object-cover rounded-md"
-                  data-testid="img-product"
-                />
-              ) : (
-                <div className="w-full aspect-square rounded-md bg-muted flex items-center justify-center">
-                  <Package className="h-16 w-16 text-muted-foreground/30" />
-                </div>
+        {/* Info panel */}
+        <div className="space-y-6">
+          {/* Name + status */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              {product.shopifyStatus && (
+                <Badge
+                  variant={product.shopifyStatus === "active" ? "default" : "secondary"}
+                  className="capitalize text-xs"
+                >
+                  {product.shopifyStatus}
+                </Badge>
               )}
-            </CardContent>
-          </Card>
+              {product.vendor && (
+                <span className="text-xs text-muted-foreground">{product.vendor}</span>
+              )}
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight" data-testid="text-product-name">
+              {product.name}
+            </h1>
+            {product.sku && (
+              <p className="text-sm text-muted-foreground mt-1">SKU: {product.sku}</p>
+            )}
+          </div>
 
-          {/* Stock card */}
-          <Card>
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Package className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Stock</p>
-                <p className="text-2xl font-bold" data-testid="text-stock">{product.inventoryQuantity}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {product.shopifyStatus && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="capitalize">
-                {product.shopifyStatus}
-              </Badge>
+          {/* Price */}
+          {product.price && (
+            <div>
+              <p className="text-4xl font-bold text-primary" data-testid="text-price">
+                ${Number(product.price).toFixed(2)}
+              </p>
             </div>
           )}
+
+          {/* Stock */}
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border">
+            <div className="h-10 w-10 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
+              <Layers className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Current Stock</p>
+              <p className="text-2xl font-bold leading-none mt-0.5" data-testid="text-stock">
+                {product.inventoryQuantity}
+                <span className="text-sm font-normal text-muted-foreground ml-1.5">units</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Description (inline if short, else below) */}
+          {product.description && (
+            <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-description">
+              {product.description}
+            </p>
+          )}
+
+          <Separator />
+
+          {/* Work Order button */}
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => {
+              if (isViewAs) {
+                toast({ title: "Preview mode", description: "Clients can submit a work order here." });
+                return;
+              }
+              setRestockOpen(true);
+              setRestockQty("");
+            }}
+            data-testid="button-work-order"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Submit Work Order
+          </Button>
         </div>
+      </div>
 
-        {/* RIGHT: details */}
-        <div className="lg:col-span-3 space-y-4">
+      {/* Specs + Tags */}
+      {(specs.length > 0 || product.tags) && (
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            {specs.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Specifications</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-4">
+                  {specs.map((s) => (
+                    <div key={s.label}>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">{s.label}</p>
+                      <p className="text-sm font-medium">{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Pricing & Identifiers */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Details</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-8 gap-y-4">
-              <MetaRow label="SKU" value={product.sku} />
-              <MetaRow label="Barcode" value={product.barcode} />
-              <MetaRow label="Price" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} />
-              <MetaRow label="Compare at" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} />
-              <MetaRow label="Vendor" value={product.vendor} />
-              <MetaRow label="Type" value={product.productType} />
-              <MetaRow label="Weight" value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null} />
-            </CardContent>
-          </Card>
+            {specs.length > 0 && product.tags && <Separator />}
 
-          {/* Tags */}
-          {product.tags && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
+            {product.tags && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                  <Tag className="h-3.5 w-3.5" /> Tags
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {product.tags.split(",").map((tag, i) => (
                     <Badge key={i} variant="secondary" className="text-xs font-normal">{tag.trim()}</Badge>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Description */}
-          {product.description && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Description</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-description">
-                  {product.description}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Work Order Dialog */}
       <Dialog open={restockOpen} onOpenChange={setRestockOpen}>
