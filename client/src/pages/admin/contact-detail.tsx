@@ -51,6 +51,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Users,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useState } from "react";
@@ -166,6 +168,15 @@ export default function ContactDetail() {
     enabled: !!contact?.companyName,
   });
 
+  const { data: allContacts } = useQuery<Contact[]>({
+    queryKey: ["/api/contacts"],
+  });
+
+  const sortedContacts = allContacts ? [...allContacts].sort((a, b) => a.name.localeCompare(b.name)) : [];
+  const currentIndex = sortedContacts.findIndex((c) => c.id === contactId);
+  const prevContact = currentIndex > 0 ? sortedContacts[currentIndex - 1] : null;
+  const nextContact = currentIndex < sortedContacts.length - 1 ? sortedContacts[currentIndex + 1] : null;
+
   const resendInviteMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/contacts/${contactId}/resend-invite`),
     onSuccess: () => toast({ title: "Invite sent", description: "The invitation email has been sent." }),
@@ -227,15 +238,47 @@ export default function ContactDetail() {
     <div className="max-w-6xl mx-auto space-y-5">
 
       {/* ── Top nav bar ── */}
-      <div className="flex items-center gap-2">
-        <Link href="/admin/contacts">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2" data-testid="button-back">
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Contacts
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link href="/admin/contacts">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2" data-testid="button-back">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Contacts
+            </Button>
+          </Link>
+          <span className="text-muted-foreground/40 text-sm">/</span>
+          <span className="text-sm text-muted-foreground truncate max-w-[200px]">{contact.name}</span>
+        </div>
+
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {allContacts && currentIndex >= 0 && (
+            <span className="text-xs text-muted-foreground mr-1 tabular-nums">
+              {currentIndex + 1} / {sortedContacts.length}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            disabled={!prevContact}
+            onClick={() => prevContact && navigate(`/admin/contacts/${prevContact.id}`)}
+            title={prevContact ? `Previous: ${prevContact.name}` : undefined}
+            data-testid="button-prev-contact"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-        </Link>
-        <span className="text-muted-foreground/40 text-sm">/</span>
-        <span className="text-sm text-muted-foreground truncate max-w-[200px]">{contact.name}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            disabled={!nextContact}
+            onClick={() => nextContact && navigate(`/admin/contacts/${nextContact.id}`)}
+            title={nextContact ? `Next: ${nextContact.name}` : undefined}
+            data-testid="button-next-contact"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {/* ── Main layout ── */}
