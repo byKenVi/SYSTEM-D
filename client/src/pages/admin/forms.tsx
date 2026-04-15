@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle } from "lucide-react";
 import { Fragment, useState } from "react";
 
@@ -55,6 +56,7 @@ export default function AdminForms() {
   const [newFormOpen, setNewFormOpen] = useState(false);
   const [selectedType, setSelectedType] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: forms, isLoading } = useQuery<FormSubmission[]>({
     queryKey: ["/api/forms"],
@@ -93,6 +95,21 @@ export default function AdminForms() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await apiRequest("DELETE", "/api/forms/bulk", { ids });
+      return res.json();
+    },
+    onSuccess: (_data, ids) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
+      setSelectedIds(new Set());
+      toast({ title: `${ids.length} form(s) deleted` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete forms.", variant: "destructive" });
+    },
+  });
+
   const contactMap = new Map(contacts?.map((c) => [c.id, c]) || []);
 
   const filtered = forms?.filter((f) => {
@@ -102,6 +119,35 @@ export default function AdminForms() {
     return true;
   }) || [];
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((f) => selectedIds.has(f.id));
+  const someFilteredSelected = filtered.some((f) => selectedIds.has(f.id));
+
+  function toggleSelectAll() {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((f) => next.delete(f.id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((f) => next.add(f.id));
+        return next;
+      });
+    }
+  }
+
+  function toggleSelectId(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const selectedCount = [...selectedIds].filter((id) => filtered.some((f) => f.id === id)).length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -109,10 +155,24 @@ export default function AdminForms() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Service Requests</h1>
           <p className="text-muted-foreground mt-1">Manage client service requests</p>
         </div>
-        <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form">
-          <Plus className="h-4 w-4 mr-1.5" />
-          New form
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedCount > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => bulkDeleteMutation.mutate([...selectedIds])}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-bulk-delete"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Delete {selectedCount} selected
+            </Button>
+          )}
+          <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form">
+            <Plus className="h-4 w-4 mr-1.5" />
+            New form
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -182,6 +242,15 @@ export default function AdminForms() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      data-state={someFilteredSelected && !allFilteredSelected ? "indeterminate" : undefined}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                      data-testid="checkbox-select-all"
+                    />
+                  </TableHead>
                   <TableHead>Number</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Client</TableHead>
@@ -193,13 +262,22 @@ export default function AdminForms() {
               <TableBody>
                 {filtered.map((form) => {
                   const contact = contactMap.get(form.contactId);
+                  const isSelected = selectedIds.has(form.id);
                   return (
                     <TableRow
                       key={form.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-muted/30" : ""}`}
                       onClick={() => navigate(`/admin/forms/${form.id}`)}
                       data-testid={`row-form-${form.id}`}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelectId(form.id)}
+                          aria-label={`Select ${form.formNumber}`}
+                          data-testid={`checkbox-form-${form.id}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{form.formNumber}</TableCell>
                       <TableCell>{TYPE_LABELS[form.formType] || form.formType}</TableCell>
                       <TableCell>{contact?.name || `#${form.contactId}`}</TableCell>

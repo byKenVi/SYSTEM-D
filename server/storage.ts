@@ -10,7 +10,7 @@ import {
   formUploads, type FormUpload, type InsertFormUpload,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gt, sql, or, isNull, like, ilike } from "drizzle-orm";
+import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getContacts(): Promise<Contact[]>;
@@ -57,6 +57,7 @@ export interface IStorage {
   getFormSubmissionsByContact(contactId: number): Promise<FormSubmission[]>;
   updateFormSubmission(id: number, data: Partial<InsertFormSubmission>): Promise<FormSubmission | undefined>;
   deleteFormSubmission(id: number): Promise<void>;
+  bulkDeleteFormSubmissions(ids: number[]): Promise<void>;
   getNextFormNumber(formType: string): Promise<string>;
 
   createFormUpload(data: InsertFormUpload): Promise<FormUpload>;
@@ -307,6 +308,12 @@ export class DatabaseStorage implements IStorage {
   async deleteFormSubmission(id: number): Promise<void> {
     await db.delete(formUploads).where(eq(formUploads.formSubmissionId, id));
     await db.delete(formSubmissions).where(eq(formSubmissions.id, id));
+  }
+
+  async bulkDeleteFormSubmissions(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.delete(formUploads).where(inArray(formUploads.formSubmissionId, ids));
+    await db.delete(formSubmissions).where(inArray(formSubmissions.id, ids));
   }
 
   async getNextFormNumber(formType: string): Promise<string> {

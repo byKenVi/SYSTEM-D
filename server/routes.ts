@@ -1587,6 +1587,20 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/forms/bulk", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "ids must be a non-empty array" });
+      }
+      await storage.bulkDeleteFormSubmissions(ids.map(Number));
+      res.json({ message: `${ids.length} form(s) deleted` });
+    } catch (error) {
+      console.error("Error bulk deleting forms:", error);
+      res.status(500).json({ message: "Failed to delete forms" });
+    }
+  });
+
   app.delete("/api/forms/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       await storage.deleteFormSubmission(Number(req.params.id));
