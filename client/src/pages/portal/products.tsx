@@ -27,7 +27,6 @@ import {
   Package,
   Search,
   RefreshCw,
-  Layers,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -87,38 +86,11 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
       return a.name.localeCompare(b.name);
     });
 
-  const totalStock = products?.reduce((sum, p) => sum + p.inventoryQuantity, 0) || 0;
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products</h1>
         <p className="text-muted-foreground mt-1">View your products and current stock levels</p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Package className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Products</p>
-              <p className="text-2xl font-bold" data-testid="text-portal-total-products">{products?.length || 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <Layers className="h-5 w-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Stock</p>
-              <p className="text-2xl font-bold" data-testid="text-portal-total-stock">{totalStock.toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
