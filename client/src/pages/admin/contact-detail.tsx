@@ -554,7 +554,7 @@ export default function ContactDetail() {
                       ))
                     ) : products && products.length > 0 ? (
                       products.map((product) => (
-                        <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
+                        <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => navigate(`/admin/products/${product.id}`)}>
                           <TableCell className="font-medium max-w-[200px] truncate">{product.name}</TableCell>
                           <TableCell className="text-muted-foreground text-sm font-mono">{product.sku || <span className="opacity-40">—</span>}</TableCell>
                           <TableCell className="text-sm">{product.price ? `$${Number(product.price).toFixed(2)}` : <span className="text-muted-foreground/40">—</span>}</TableCell>
