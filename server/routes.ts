@@ -1066,12 +1066,12 @@ export async function registerRoutes(
       if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found" });
 
       const role = await getUserRole(req);
-      if (role === "admin") return res.sendFile(filePath);
+      if (role?.role === "admin") return res.sendFile(filePath);
 
       const upload = await storage.getUploadByFilename(sanitized);
       if (!upload) return res.status(404).json({ message: "File not found" });
 
-      const form = await storage.getForm(upload.formSubmissionId);
+      const form = await storage.getFormSubmission(upload.formSubmissionId);
       if (!form) return res.status(404).json({ message: "File not found" });
 
       const contact = await storage.getContactByEmail(req.user.claims.email);
@@ -1319,8 +1319,13 @@ export async function registerRoutes(
       const form = await storage.getFormSubmission(Number(req.params.id));
       if (!form) return res.status(404).json({ message: "Form not found" });
 
-      if (role.role === "client" && form.contactId !== role.contactId) {
-        return res.status(403).json({ message: "Not authorized" });
+      if (role.role === "client") {
+        if (form.contactId !== role.contactId) {
+          return res.status(403).json({ message: "Not authorized" });
+        }
+        if (form.status !== "draft") {
+          return res.status(403).json({ message: "Cannot upload to non-draft form" });
+        }
       }
 
       const { fieldKey, fileName, fileUrl, fileType, fileSize } = req.body;

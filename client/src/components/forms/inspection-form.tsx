@@ -15,10 +15,10 @@ interface CriteriaItem {
   processDescription: string;
   nonCompliantDescription: string;
   nonCompliantPhotos: any[];
-  nonCompliantVideo: string;
+  nonCompliantVideos: any[];
   compliantDescription: string;
   compliantPhotos: any[];
-  compliantVideo: string;
+  compliantVideos: any[];
   active: boolean;
 }
 
@@ -114,10 +114,10 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
         processDescription: "",
         nonCompliantDescription: "",
         nonCompliantPhotos: [],
-        nonCompliantVideo: "",
+        nonCompliantVideos: [],
         compliantDescription: "",
         compliantPhotos: [],
-        compliantVideo: "",
+        compliantVideos: [],
         active: true,
       }],
     });
@@ -312,20 +312,14 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
                   <h4 className="font-medium text-sm text-red-700 dark:text-red-400">Non-conforme</h4>
                   <Textarea value={c.nonCompliantDescription} onChange={(e) => updateCriteria(i, { nonCompliantDescription: e.target.value })} disabled={disabled} rows={2} placeholder="Qu'est-ce qui rend la pièce non-conforme?" data-testid={`input-criteria-nc-desc-${i}`} />
                   <FileUpload value={c.nonCompliantPhotos || []} onChange={(files) => updateCriteria(i, { nonCompliantPhotos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_nc_photo`, f)} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos non-conformes" />
-                  <div className="space-y-1">
-                    <Label className="text-xs">Vidéo (URL Loom ou fichier)</Label>
-                    <Input value={c.nonCompliantVideo || ""} onChange={(e) => updateCriteria(i, { nonCompliantVideo: e.target.value })} disabled={disabled} placeholder="URL de la vidéo (optionnel)" data-testid={`input-criteria-nc-video-${i}`} />
-                  </div>
+                  <FileUpload value={c.nonCompliantVideos || []} onChange={(files) => updateCriteria(i, { nonCompliantVideos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_nc_video`, f)} accept=".mp4,.mov" disabled={disabled} label="Vidéos non-conformes" />
                 </div>
 
                 <div className="space-y-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg">
                   <h4 className="font-medium text-sm text-emerald-700 dark:text-emerald-400">Conforme</h4>
                   <Textarea value={c.compliantDescription} onChange={(e) => updateCriteria(i, { compliantDescription: e.target.value })} disabled={disabled} rows={2} placeholder="À quoi ressemble une pièce conforme?" data-testid={`input-criteria-c-desc-${i}`} />
                   <FileUpload value={c.compliantPhotos || []} onChange={(files) => updateCriteria(i, { compliantPhotos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_c_photo`, f)} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos conformes" />
-                  <div className="space-y-1">
-                    <Label className="text-xs">Vidéo (URL Loom ou fichier)</Label>
-                    <Input value={c.compliantVideo || ""} onChange={(e) => updateCriteria(i, { compliantVideo: e.target.value })} disabled={disabled} placeholder="URL de la vidéo (optionnel)" data-testid={`input-criteria-c-video-${i}`} />
-                  </div>
+                  <FileUpload value={c.compliantVideos || []} onChange={(files) => updateCriteria(i, { compliantVideos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_c_video`, f)} accept=".mp4,.mov" disabled={disabled} label="Vidéos conformes" />
                 </div>
               </div>
             </div>
