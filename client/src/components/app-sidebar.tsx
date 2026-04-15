@@ -38,6 +38,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
 } from "lucide-react";
+import logoSrc from "@assets/image_1776241748167.png";
 
 interface AppSidebarProps {
   role: "admin" | "client";
@@ -100,17 +101,10 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               className="flex items-center gap-2.5 rounded-md px-1.5 py-1 cursor-pointer transition-colors hover:bg-sidebar-accent"
               data-testid="link-sidebar-home"
             >
-              <div className="h-7 w-7 rounded-md bg-sidebar-primary flex items-center justify-center flex-shrink-0">
-                <Warehouse className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm leading-none tracking-tight text-sidebar-foreground">
-                  SYSTEM D
-                </p>
-                <p className="text-[11px] text-sidebar-foreground/50 mt-0.5 capitalize">
-                  {role} Panel
-                </p>
-              </div>
+              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain rounded-sm" />
+              <p className="text-[11px] text-sidebar-foreground/50 capitalize">
+                {role} Panel
+              </p>
             </div>
           </Link>
           <SidebarTrigger className="text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle" />

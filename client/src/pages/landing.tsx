@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Warehouse, Package, BarChart3, ArrowRight, ShieldCheck, Zap } from "lucide-react";
+import logoSrc from "@assets/image_1776241748167.png";
 
 export default function Landing() {
   return (
@@ -8,10 +9,7 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-md bg-primary flex items-center justify-center">
-              <Warehouse className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="font-semibold text-lg tracking-tight" data-testid="text-app-name">SYSTEM D</span>
+            <img src={logoSrc} alt="Système D" className="h-10 w-auto object-contain rounded-sm" data-testid="text-app-name" />
           </div>
           <div className="flex items-center gap-3">
             <a href="/api/login">
