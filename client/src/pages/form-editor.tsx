@@ -67,11 +67,11 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   useEffect(() => {
     if (form) {
-      try {
-        const parsed = JSON.parse(form.data || "{}");
-        setFormData(parsed);
-      } catch {
-        setFormData({});
+      const d = form.data;
+      if (typeof d === "string") {
+        try { setFormData(JSON.parse(d)); } catch { setFormData({}); }
+      } else {
+        setFormData(d || {});
       }
     }
   }, [form]);
@@ -163,7 +163,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   const isDisabled = role === "client" && form.status !== "draft";
   const isDraft = form.status === "draft";
-  const revisionHistory = JSON.parse(form.revisionHistory || "[]");
+  const revisionHistory = Array.isArray(form.revisionHistory) ? form.revisionHistory : (typeof form.revisionHistory === "string" ? JSON.parse(form.revisionHistory) : []);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -189,19 +189,28 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
           {isDraft && saveStatus === "saved" && <span className="text-xs text-muted-foreground flex items-center gap-1"><Cloud className="h-3 w-3" />Sauvegardé</span>}
           {isDraft && saveStatus === "error" && <span className="text-xs text-destructive flex items-center gap-1"><CloudOff className="h-3 w-3" />Erreur</span>}
 
-          {role === "admin" && !isDraft && (
-            <Select value={form.status} onValueChange={(v) => statusMutation.mutate(v)} disabled={statusMutation.isPending}>
-              <SelectTrigger className="w-[140px] h-8 text-xs" data-testid="select-form-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="submitted">Soumis</SelectItem>
-                <SelectItem value="in_review">En révision</SelectItem>
-                <SelectItem value="approved">Approuvé</SelectItem>
-                <SelectItem value="completed">Complété</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          {role === "admin" && !isDraft && (() => {
+            const adminTransitions: Record<string, { value: string; label: string }[]> = {
+              submitted: [{ value: "in_review", label: "En révision" }],
+              in_review: [{ value: "approved", label: "Approuvé" }, { value: "submitted", label: "Soumis" }],
+              approved: [{ value: "completed", label: "Complété" }, { value: "in_review", label: "En révision" }],
+              completed: [],
+            };
+            const options = adminTransitions[form.status] || [];
+            if (options.length === 0) return null;
+            return (
+              <Select value="" onValueChange={(v) => statusMutation.mutate(v)} disabled={statusMutation.isPending}>
+                <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-form-status">
+                  <SelectValue placeholder="Changer statut..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          })()}
 
           {!isDisabled && isDraft && (
             <>

@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -123,10 +123,10 @@ export const formSubmissions = pgTable("form_submissions", {
   submittedBy: text("submitted_by"),
   submittedByName: text("submitted_by_name"),
   status: text("status").notNull().default("draft"),
-  data: text("data").notNull().default("{}"),
+  data: jsonb("data").notNull().default({}),
   revision: integer("revision").notNull().default(1),
   linkedFormId: integer("linked_form_id"),
-  revisionHistory: text("revision_history").default("[]"),
+  revisionHistory: jsonb("revision_history").default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

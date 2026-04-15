@@ -141,12 +141,13 @@ shared/
 - `form_submissions` table: formType, formNumber, contactId, status, data (JSON text), revision, linkedFormId, revisionHistory
 - `form_uploads` table: formSubmissionId, fieldKey, fileName, fileUrl, fileType, fileSize
 - Status flow: draft → submitted → in_review → approved → completed
-- Clients can only edit drafts; admin can edit any status and change status
+- Server-enforced transitions: clients can only do draft→submitted; admin can advance through workflow
+- Clients can only edit drafts; admin can edit any status
 - Auto-save: `useAutoSave` hook saves draft data every 30 seconds
 - File upload via multer to `uploads/` directory, max 25MB, supports jpg/png/heic/pdf/mp4/mov
 - **TRI → Inspection auto-link**: when TRI form is submitted, server auto-creates a linked Inspection form with pre-filled header data
 - Both forms get `linkedFormId` set pointing to each other
-- `formSubmissions.data` is stored as JSON **text** — always `JSON.stringify()` on write, `JSON.parse()` on read
+- `formSubmissions.data` and `revisionHistory` are stored as **jsonb** — no manual JSON.stringify/parse needed
 - Email notifications: submission confirmation + status change emails (French)
 - Activity log entry created on form submission
 - Admin Forms page: table view with type/status filters, create new form for any client

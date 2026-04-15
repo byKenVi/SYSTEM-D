@@ -1112,9 +1112,9 @@ export async function registerRoutes(
         submittedBy: userId,
         submittedByName: userName,
         status: "draft",
-        data: JSON.stringify(data || {}),
+        data: data || {},
         revision: 1,
-        revisionHistory: "[]",
+        revisionHistory: [],
       });
 
       res.status(201).json(submission);
@@ -1160,25 +1160,40 @@ export async function registerRoutes(
       const { data, status, revisionDescription } = req.body;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
 
-      const updateData: any = {};
-      if (data !== undefined) updateData.data = JSON.stringify(data);
+      if (status && status !== form.status) {
+        const clientAllowed: Record<string, string[]> = { draft: ["submitted"] };
+        const adminAllowed: Record<string, string[]> = {
+          draft: ["submitted"],
+          submitted: ["in_review"],
+          in_review: ["approved", "submitted"],
+          approved: ["completed", "in_review"],
+        };
+        const allowed = role.role === "admin" ? adminAllowed : clientAllowed;
+        const validTransitions = allowed[form.status] || [];
+        if (!validTransitions.includes(status)) {
+          return res.status(403).json({ message: `Cannot transition from ${form.status} to ${status}` });
+        }
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (data !== undefined) updateData.data = data;
 
       if (status && status !== form.status) {
         updateData.status = status;
 
         if (status === "submitted" && form.status === "draft") {
-          const history = JSON.parse(form.revisionHistory || "[]");
+          const history = Array.isArray(form.revisionHistory) ? [...(form.revisionHistory as Record<string, unknown>[])] : [];
           history.push({
             date: new Date().toISOString(),
             rev: form.revision,
             description: revisionDescription || "Initial submission",
             modifiedBy: userName,
           });
-          updateData.revisionHistory = JSON.stringify(history);
+          updateData.revisionHistory = history;
 
           if (form.formType === "tri") {
             const insFormNumber = await storage.getNextFormNumber("inspection");
-            const formData = JSON.parse(form.data || "{}");
+            const formData = (form.data || {}) as Record<string, string>;
             const insData = {
               customer: formData.client || "",
               partNumber: formData.codePiece || "",
@@ -1192,10 +1207,10 @@ export async function registerRoutes(
               submittedBy: form.submittedBy,
               submittedByName: form.submittedByName,
               status: "draft",
-              data: JSON.stringify(insData),
+              data: insData,
               revision: 1,
               linkedFormId: form.id,
-              revisionHistory: "[]",
+              revisionHistory: [],
             });
             updateData.linkedFormId = insForm.id;
           }
@@ -1247,14 +1262,14 @@ export async function registerRoutes(
       if (revisionDescription && status !== "submitted") {
         const newRevision = form.revision + 1;
         updateData.revision = newRevision;
-        const history = JSON.parse(form.revisionHistory || "[]");
+        const history = Array.isArray(form.revisionHistory) ? [...(form.revisionHistory as Record<string, unknown>[])] : [];
         history.push({
           date: new Date().toISOString(),
           rev: newRevision,
           description: revisionDescription,
           modifiedBy: userName,
         });
-        updateData.revisionHistory = JSON.stringify(history);
+        updateData.revisionHistory = history;
       }
 
       const updated = await storage.updateFormSubmission(form.id, updateData);
