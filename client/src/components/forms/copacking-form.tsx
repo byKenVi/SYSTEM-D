@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -5,8 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ChevronDown } from "lucide-react";
 import { TimeTrackingTable, type TimeRow } from "./time-tracking-table";
+
+function CollapsibleCard({ title, children, defaultOpen = true, extra }: { title: string; children: import("react").ReactNode; defaultOpen?: boolean; extra?: import("react").ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            className="flex items-center gap-2 flex-1 text-left group"
+            onClick={() => setOpen((v) => !v)}
+          >
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${open ? "" : "-rotate-90"}`} />
+            <h3 className="font-semibold group-hover:text-foreground transition-colors">{title}</h3>
+          </button>
+          {extra}
+        </div>
+      </CardHeader>
+      {open && <CardContent className="space-y-4">{children}</CardContent>}
+    </Card>
+  );
+}
 
 function emptyTimeRow(): TimeRow {
   return { date: "", debut: "", fin: "", nbGens: "", noms: "", qte: "", agence: "", totalHeure: 0 };
@@ -198,11 +221,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <h3 className="font-semibold text-lg">En-tête</h3>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <CollapsibleCard title="En-tête">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Client</Label>
@@ -223,8 +242,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
               <Input value={d.reference} onChange={(e) => update({ reference: e.target.value })} disabled={disabled} data-testid="input-cop-reference" />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleCard>
 
       <Tabs defaultValue="detaillee" className="w-full">
         <TabsList className="w-full grid grid-cols-5">
@@ -236,27 +254,16 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
         </TabsList>
 
         <TabsContent value="detaillee" className="space-y-6 mt-4">
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Vérification du gap</h3></CardHeader>
-            <CardContent>
+          <CollapsibleCard title="Vérification du gap">
               <TimeTrackingTable rows={d.gapVerificationRows} onChange={(r) => update({ gapVerificationRows: r })} disabled={disabled} showNbGens showNoms label="" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Approbation photo</h3></CardHeader>
-            <CardContent>
+          </CollapsibleCard>
+          <CollapsibleCard title="Approbation photo">
               <TimeTrackingTable rows={d.photoApprovalRows} onChange={(r) => update({ photoApprovalRows: r })} disabled={disabled} showNbGens showNoms label="" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Préparation montage</h3></CardHeader>
-            <CardContent>
+          </CollapsibleCard>
+          <CollapsibleCard title="Préparation montage">
               <TimeTrackingTable rows={d.montagePrepRows} onChange={(r) => update({ montagePrepRows: r })} disabled={disabled} showNbGens showNoms label="" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Palette & Matériaux</h3></CardHeader>
-            <CardContent className="space-y-4">
+          </CollapsibleCard>
+          <CollapsibleCard title="Palette & Matériaux">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Type de palette</Label>
@@ -297,11 +304,8 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                   </div>
                 </RadioGroup>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Performance</h3></CardHeader>
-            <CardContent>
+          </CollapsibleCard>
+          <CollapsibleCard title="Performance">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Qté totale</Label>
@@ -316,44 +320,36 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                   <Input type="number" value={d.performanceQteNC} onChange={(e) => update({ performanceQteNC: e.target.value })} disabled={disabled} data-testid="input-cop-perf-nc" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
         </TabsContent>
 
         <TabsContent value="montage" className="space-y-6 mt-4">
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Suivi montage</h3></CardHeader>
-            <CardContent className="space-y-4">
+          <CollapsibleCard title="Suivi montage">
               <TimeTrackingTable rows={d.montageRows} onChange={(r) => update({ montageRows: r })} disabled={disabled} showNbGens showNoms />
               <div className="space-y-1">
                 <Label>Commentaires</Label>
                 <Textarea value={d.montageComments} onChange={(e) => update({ montageComments: e.target.value })} disabled={disabled} rows={3} data-testid="input-cop-montage-comments" />
               </div>
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
         </TabsContent>
 
         <TabsContent value="ajout" className="space-y-6 mt-4">
           {d.workBlocks.map((block, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Travail supplémentaire {i + 1}</h3>
-                  {!disabled && d.workBlocks.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeWorkBlock(i)} data-testid={`button-cop-remove-block-${i}`}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <CollapsibleCard
+              key={i}
+              title={`Travail supplémentaire ${i + 1}`}
+              extra={!disabled && d.workBlocks.length > 1 ? (
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeWorkBlock(i)} data-testid={`button-cop-remove-block-${i}`}>
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : undefined}
+            >
                 <div className="space-y-1">
                   <Label>Description</Label>
                   <Textarea value={block.description} onChange={(e) => updateWorkBlockDesc(i, e.target.value)} disabled={disabled} rows={2} data-testid={`input-cop-block-desc-${i}`} />
                 </div>
                 <TimeTrackingTable rows={block.rows} onChange={(r) => updateWorkBlockRows(i, r)} disabled={disabled} showNbGens showNoms showQte showAgence />
-              </CardContent>
-            </Card>
+            </CollapsibleCard>
           ))}
           {!disabled && (
             <Button type="button" variant="outline" onClick={addWorkBlock} data-testid="button-cop-add-block">
@@ -364,9 +360,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
         </TabsContent>
 
         <TabsContent value="express-global" className="space-y-6 mt-4">
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Picks avec facture</h3></CardHeader>
-            <CardContent>
+          <CollapsibleCard title="Picks avec facture">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -408,12 +402,9 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                   <Plus className="h-3 w-3 mr-1" />Ajouter
                 </Button>
               )}
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
 
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Picks sans facture</h3></CardHeader>
-            <CardContent>
+          <CollapsibleCard title="Picks sans facture">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -455,12 +446,9 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                   <Plus className="h-3 w-3 mr-1" />Ajouter
                 </Button>
               )}
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
 
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Suivi des packers</h3></CardHeader>
-            <CardContent>
+          <CollapsibleCard title="Suivi des packers">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -511,14 +499,11 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                   <Plus className="h-3 w-3 mr-1" />Ajouter
                 </Button>
               )}
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
         </TabsContent>
 
         <TabsContent value="express-individuel" className="space-y-6 mt-4">
-          <Card>
-            <CardHeader className="pb-3"><h3 className="font-semibold">Journal quotidien individuel</h3></CardHeader>
-            <CardContent>
+          <CollapsibleCard title="Journal quotidien individuel">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -556,8 +541,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
                   <Plus className="h-3 w-3 mr-1" />Ajouter
                 </Button>
               )}
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
         </TabsContent>
       </Tabs>
     </div>
