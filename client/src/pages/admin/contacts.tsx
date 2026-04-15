@@ -275,8 +275,8 @@ export default function AdminContacts() {
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <Badge
-              variant={contact.status === "active" ? "default" : contact.status === "revoked" ? "destructive" : "secondary"}
-              className="text-[10px] px-1.5 py-0 h-4"
+              variant={contact.status === "revoked" ? "destructive" : "secondary"}
+              className={`text-[10px] px-1.5 py-0 h-4${contact.status === "active" ? " bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-500/20" : ""}`}
               data-testid={`badge-status-${contact.id}`}
             >
               {contact.status === "active" ? "Active" : contact.status === "revoked" ? "Revoked" : "Invited"}
