@@ -94,7 +94,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products & Inventory</h1>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Products</h1>
         <p className="text-muted-foreground mt-1">View your products and current stock levels</p>
       </div>
 
