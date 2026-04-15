@@ -71,6 +71,7 @@ shared/
 - `/api/auth/zoho/callback` - OAuth callback from Zoho (stores tokens)
 - `/api/auth/zoho/disconnect` - Disconnect Zoho Inventory
 - `/api/auth/zoho/test` - Test Zoho connection
+- `/api/zoho/inventory` - GET all Zoho Inventory items (with cf_client custom field), enriched with contact match
 - `/api/zoho/sync-items/:contactId` - Sync Zoho items into app for a contact
 - `/api/zoho/push-item/:productId` - Push a product to Zoho Inventory
 - `/api/zoho/sync-inventory` - Sync Zoho inventory levels for all pushed products

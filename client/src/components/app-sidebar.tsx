@@ -37,6 +37,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   ShoppingCart,
+  BoxIcon,
 } from "lucide-react";
 import logoSrc from "@assets/logo_no_bg.png";
 
@@ -49,6 +50,7 @@ const adminItems = [
   { title: "Tableau de bord", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Clients", url: "/admin/contacts", icon: Users },
   { title: "Boutique", url: "/admin/boutique", icon: ShoppingCart },
+  { title: "Inventaire", url: "/admin/inventaire", icon: BoxIcon },
   { title: "Soumissions", url: "/admin/forms", icon: ClipboardList },
   { title: "Demandes de réapprovisionnement", url: "/admin/restock-requests", icon: RefreshCw },
   { title: "Paramètres", url: "/admin/settings", icon: Settings },

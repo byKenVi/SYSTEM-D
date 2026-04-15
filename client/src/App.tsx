@@ -23,6 +23,7 @@ import PortalProductDetail from "@/pages/portal/product-detail";
 import PortalRestock from "@/pages/portal/restock";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
 import AdminBoutique from "@/pages/admin/boutique";
+import AdminInventaire from "@/pages/admin/inventaire";
 import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
@@ -51,6 +52,7 @@ function AdminLayout() {
           <Route path="/admin/contacts" component={AdminContacts} />
           <Route path="/admin/products/:id" component={AdminProductDetail} />
           <Route path="/admin/boutique" component={AdminBoutique} />
+          <Route path="/admin/inventaire" component={AdminInventaire} />
           <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
           <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
           <Route path="/admin/restock-requests" component={AdminRestockRequests} />

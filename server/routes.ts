@@ -925,6 +925,59 @@ export async function registerRoutes(
   });
 
   // Sync items from Zoho Inventory into the app for a contact
+  // Fetch all Zoho Inventory items with cf_client custom field, enriched with contact info
+  app.get("/api/zoho/inventory", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { fetchZohoItems } = await import("./zoho-api");
+      const zohoItems = await fetchZohoItems();
+      const allContacts = await storage.getContacts();
+
+      // Build a lookup map by company name / name (lowercase for fuzzy match)
+      const contactByCompany = new Map<string, typeof allContacts[number]>();
+      const contactByName = new Map<string, typeof allContacts[number]>();
+      for (const c of allContacts) {
+        if (c.companyName) contactByCompany.set(c.companyName.toLowerCase().trim(), c);
+        contactByName.set(c.name.toLowerCase().trim(), c);
+      }
+
+      const enriched = zohoItems.map((item: any) => {
+        // Read the cf_client custom field value
+        let cfClient: string | null = null;
+        if (Array.isArray(item.custom_fields)) {
+          const cf = item.custom_fields.find((f: any) => f.api_name === "cf_client" || f.label?.toLowerCase() === "client");
+          if (cf) cfClient = cf.value ?? null;
+        }
+        // Try to match to a contact
+        let contact: typeof allContacts[number] | undefined;
+        if (cfClient) {
+          const key = cfClient.toLowerCase().trim();
+          contact = contactByCompany.get(key) || contactByName.get(key);
+        }
+
+        return {
+          zohoItemId: item.item_id,
+          name: item.name,
+          sku: item.sku || null,
+          description: item.description || null,
+          imageUrl: item.image_document_id ? null : null, // Zoho items don't expose image URL directly
+          price: item.rate != null ? String(item.rate) : null,
+          inventoryQuantity: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
+          cfClient,
+          contactId: contact?.id ?? null,
+          contactName: contact ? (contact.companyName || contact.name) : null,
+          status: item.status,
+          unit: item.unit || null,
+          productType: item.product_type || null,
+        };
+      });
+
+      res.json({ items: enriched, total: enriched.length });
+    } catch (error: any) {
+      console.error("Zoho inventory fetch error:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch Zoho inventory" });
+    }
+  });
+
   app.post("/api/zoho/sync-items/:contactId", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.contactId);
