@@ -12,8 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers } from "lucide-react";
+import { Fragment, useState, useMemo } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
   entreposage: "Entreposage",
@@ -57,6 +57,7 @@ export default function AdminForms() {
   const [selectedType, setSelectedType] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [groupBy, setGroupBy] = useState<"none" | "type" | "status" | "client">("none");
 
   const { data: forms, isLoading } = useQuery<FormSubmission[]>({
     queryKey: ["/api/forms"],
@@ -148,6 +149,29 @@ export default function AdminForms() {
 
   const selectedCount = [...selectedIds].filter((id) => filtered.some((f) => f.id === id)).length;
 
+  const groups = useMemo(() => {
+    if (groupBy === "none") return null;
+    const map = new Map<string, { label: string; forms: typeof filtered }>();
+    for (const form of filtered) {
+      let key: string;
+      let label: string;
+      if (groupBy === "type") {
+        key = form.formType;
+        label = TYPE_LABELS[form.formType] || form.formType;
+      } else if (groupBy === "status") {
+        key = form.status;
+        label = STATUS_LABELS[form.status] || form.status;
+      } else {
+        const contact = contactMap.get(form.contactId);
+        key = String(form.contactId);
+        label = contact?.name || `Client #${form.contactId}`;
+      }
+      if (!map.has(key)) map.set(key, { label, forms: [] });
+      map.get(key)!.forms.push(form);
+    }
+    return [...map.entries()].map(([key, val]) => ({ key, ...val }));
+  }, [filtered, groupBy, contactMap]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -224,6 +248,18 @@ export default function AdminForms() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
+            <SelectTrigger className="w-[160px]" data-testid="select-group-by">
+              <Layers className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No grouping</SelectItem>
+              <SelectItem value="type">Group by Type</SelectItem>
+              <SelectItem value="status">Group by Status</SelectItem>
+              <SelectItem value="client">Group by Client</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -260,49 +296,87 @@ export default function AdminForms() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((form) => {
-                  const contact = contactMap.get(form.contactId);
-                  const isSelected = selectedIds.has(form.id);
-                  return (
-                    <TableRow
-                      key={form.id}
-                      className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-muted/30" : ""}`}
-                      onClick={() => navigate(`/admin/forms/${form.id}`)}
-                      data-testid={`row-form-${form.id}`}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelectId(form.id)}
-                          aria-label={`Select ${form.formNumber}`}
-                          data-testid={`checkbox-form-${form.id}`}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">{form.formNumber}</TableCell>
-                      <TableCell>{TYPE_LABELS[form.formType] || form.formType}</TableCell>
-                      <TableCell>{contact?.name || `#${form.contactId}`}</TableCell>
-                      <TableCell>
-                        <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {form.status === "draft" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(form.id); }}
-                            data-testid={`button-delete-form-${form.id}`}
+                {groups ? (
+                  groups.map((group) => (
+                    <Fragment key={group.key}>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40 pointer-events-none">
+                        <TableCell colSpan={7} className="py-2 px-4">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {group.label}
+                          </span>
+                          <span className="ml-2 text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-muted-foreground/15 text-muted-foreground">
+                            {group.forms.length}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                      {group.forms.map((form) => {
+                        const contact = contactMap.get(form.contactId);
+                        const isSelected = selectedIds.has(form.id);
+                        return (
+                          <TableRow
+                            key={form.id}
+                            className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-muted/30" : ""}`}
+                            onClick={() => navigate(`/admin/forms/${form.id}`)}
+                            data-testid={`row-form-${form.id}`}
                           >
-                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox checked={isSelected} onCheckedChange={() => toggleSelectId(form.id)} aria-label={`Select ${form.formNumber}`} data-testid={`checkbox-form-${form.id}`} />
+                            </TableCell>
+                            <TableCell className="font-medium">{form.formNumber}</TableCell>
+                            <TableCell>{TYPE_LABELS[form.formType] || form.formType}</TableCell>
+                            <TableCell>{contact?.name || `#${form.contactId}`}</TableCell>
+                            <TableCell>
+                              <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
+                            </TableCell>
+                            <TableCell>
+                              {form.status === "draft" && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(form.id); }} data-testid={`button-delete-form-${form.id}`}>
+                                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </Fragment>
+                  ))
+                ) : (
+                  filtered.map((form) => {
+                    const contact = contactMap.get(form.contactId);
+                    const isSelected = selectedIds.has(form.id);
+                    return (
+                      <TableRow
+                        key={form.id}
+                        className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-muted/30" : ""}`}
+                        onClick={() => navigate(`/admin/forms/${form.id}`)}
+                        data-testid={`row-form-${form.id}`}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleSelectId(form.id)} aria-label={`Select ${form.formNumber}`} data-testid={`checkbox-form-${form.id}`} />
+                        </TableCell>
+                        <TableCell className="font-medium">{form.formNumber}</TableCell>
+                        <TableCell>{TYPE_LABELS[form.formType] || form.formType}</TableCell>
+                        <TableCell>{contact?.name || `#${form.contactId}`}</TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {form.status === "draft" && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(form.id); }} data-testid={`button-delete-form-${form.id}`}>
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </div>
