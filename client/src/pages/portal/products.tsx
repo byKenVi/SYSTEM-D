@@ -198,7 +198,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                           data-testid={`button-request-restock-${product.id}`}
                         >
                           <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                          Work Order
+                          Restock Request
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -221,7 +221,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
       <Dialog open={!!restockProduct} onOpenChange={() => setRestockProduct(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Submit Work Order</DialogTitle>
+            <DialogTitle>Submit Restock Request</DialogTitle>
           </DialogHeader>
           {restockProduct && (
             <div className="space-y-4 mt-2">
@@ -251,7 +251,7 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
                 disabled={!restockQty || Number(restockQty) < 1 || restockMutation.isPending}
                 data-testid="button-submit-restock"
               >
-                {restockMutation.isPending ? "Submitting..." : "Submit Work Order"}
+                {restockMutation.isPending ? "Submitting..." : "Submit Restock Request"}
               </Button>
             </div>
           )}
