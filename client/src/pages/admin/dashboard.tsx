@@ -11,7 +11,12 @@ import {
   RefreshCw,
   ClipboardList,
   ArrowRight,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
   Building2,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -37,14 +42,6 @@ const TYPE_LABELS: Record<string, string> = {
   inspection: "Inspection",
   copacking: "Co-packing",
   livraison: "Livraison",
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  entreposage: "bg-blue-500",
-  tri: "bg-amber-500",
-  inspection: "bg-purple-500",
-  copacking: "bg-emerald-500",
-  livraison: "bg-rose-500",
 };
 
 export default function AdminDashboard() {
@@ -195,25 +192,25 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Forms */}
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader className="py-3 px-5 flex flex-row items-center justify-between border-b">
-              <CardTitle className="text-sm font-semibold">Recent Service Requests</CardTitle>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold">Recent Service Requests</CardTitle>
               <Link href="/admin/forms">
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 -mr-2" data-testid="link-view-all-forms">
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
                   View all <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
             </CardHeader>
             <CardContent className="p-0">
               {loadingForms ? (
-                <div className="px-5 py-3 space-y-2">
-                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
+                <div className="px-6 pb-4 space-y-3">
+                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
               ) : recentForms.length === 0 ? (
-                <div className="px-5 py-8 text-center text-muted-foreground text-sm">
+                <div className="px-6 pb-6 text-center text-muted-foreground text-sm py-8">
                   No service requests yet
                 </div>
               ) : (
@@ -221,19 +218,20 @@ export default function AdminDashboard() {
                   {recentForms.map((form) => (
                     <Link key={form.id} href={`/admin/forms/${form.id}`}>
                       <div
-                        className="px-5 py-2.5 flex items-center justify-between hover:bg-muted/40 transition-colors cursor-pointer"
+                        className="px-6 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors cursor-pointer"
                         data-testid={`row-recent-form-${form.id}`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${TYPE_COLORS[form.formType] || "bg-gray-400"}`} />
-                          <span className="text-sm font-medium">{form.formNumber}</span>
-                          <span className="text-xs text-muted-foreground hidden sm:inline">{TYPE_LABELS[form.formType] || form.formType}</span>
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <p className="text-sm font-medium">{form.formNumber}</p>
+                            <p className="text-xs text-muted-foreground">{TYPE_LABELS[form.formType] || form.formType}</p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2.5">
-                          <Badge className={`text-[11px] px-1.5 py-0 ${STATUS_COLORS[form.status]}`}>
+                        <div className="flex items-center gap-3">
+                          <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>
                             {STATUS_LABELS[form.status] || form.status}
                           </Badge>
-                          <span className="text-[11px] text-muted-foreground tabular-nums w-20 text-right">
+                          <span className="text-xs text-muted-foreground">
                             {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("en-CA") : ""}
                           </span>
                         </div>
@@ -247,31 +245,34 @@ export default function AdminDashboard() {
         </div>
 
         {/* Forms by Status */}
-        <div>
-          <Card className="h-full">
-            <CardHeader className="py-3 px-5 border-b">
-              <CardTitle className="text-sm font-semibold">By Status</CardTitle>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Request Status</CardTitle>
             </CardHeader>
-            <CardContent className="p-3">
+            <CardContent className="space-y-3">
               {loadingForms ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <>
                   {[
-                    { key: "draft", label: "Draft", bg: "bg-muted/60", text: "text-foreground" },
-                    { key: "submitted", label: "Submitted", bg: "bg-blue-50 dark:bg-blue-950/40", text: "text-blue-700 dark:text-blue-400" },
-                    { key: "in_review", label: "In Review", bg: "bg-amber-50 dark:bg-amber-950/40", text: "text-amber-700 dark:text-amber-400" },
-                    { key: "approved", label: "Approved", bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400" },
-                    { key: "completed", label: "Completed", bg: "bg-purple-50 dark:bg-purple-950/40", text: "text-purple-700 dark:text-purple-400" },
-                  ].map(({ key, label, bg, text }) => (
-                    <div key={key} className={`rounded-lg px-3 py-2.5 ${bg}`} data-testid={`status-count-${key}`}>
-                      <p className={`text-xl font-bold leading-none ${text}`}>{formStatusCounts[key] ?? 0}</p>
-                      <p className="text-[11px] text-muted-foreground mt-1">{label}</p>
+                    { key: "draft", label: "Draft", icon: FileText, color: "text-muted-foreground" },
+                    { key: "submitted", label: "Submitted", icon: Clock, color: "text-blue-500" },
+                    { key: "in_review", label: "In Review", icon: AlertCircle, color: "text-amber-500" },
+                    { key: "approved", label: "Approved", icon: CheckCircle2, color: "text-emerald-500" },
+                    { key: "completed", label: "Completed", icon: TrendingUp, color: "text-purple-500" },
+                  ].map(({ key, label, icon: Icon, color }) => (
+                    <div key={key} className="flex items-center justify-between" data-testid={`status-count-${key}`}>
+                      <div className="flex items-center gap-2">
+                        <Icon className={`h-4 w-4 ${color}`} />
+                        <span className="text-sm">{label}</span>
+                      </div>
+                      <span className="text-sm font-semibold">{formStatusCounts[key] ?? 0}</span>
                     </div>
                   ))}
-                </div>
+                </>
               )}
             </CardContent>
           </Card>
