@@ -46,7 +46,6 @@ import {
   Eye,
   Package,
   ShoppingCart,
-  Link2,
   ExternalLink,
   CheckCircle2,
   AlertCircle,
@@ -54,7 +53,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { SiShopify } from "react-icons/si";
+import { SiShopify, SiZoho } from "react-icons/si";
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -393,7 +392,7 @@ export default function ContactDetail() {
               {/* Zoho */}
               <div className="flex items-center gap-2.5">
                 <div className="h-7 w-7 rounded-md bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-                  <Link2 className="h-3.5 w-3.5 text-orange-500" />
+                  <SiZoho className="h-3.5 w-3.5 text-orange-500" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium">Zoho CRM</p>
