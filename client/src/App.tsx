@@ -14,6 +14,7 @@ import type { Contact } from "@shared/schema";
 import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import AdminContacts from "@/pages/admin/contacts";
+import AdminContactDetail from "@/pages/admin/contact-detail";
 import AdminProducts from "@/pages/admin/products";
 import AdminRestockRequests from "@/pages/admin/restock-requests";
 import AdminSettingsPage from "@/pages/admin/settings";
@@ -44,6 +45,7 @@ function AdminLayout() {
           <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-6">
             <Switch>
               <Route path="/admin/dashboard" component={AdminDashboard} />
+              <Route path="/admin/contacts/:id" component={AdminContactDetail} />
               <Route path="/admin/contacts" component={AdminContacts} />
               <Route path="/admin/products" component={AdminProducts} />
               <Route path="/admin/restock-requests" component={AdminRestockRequests} />

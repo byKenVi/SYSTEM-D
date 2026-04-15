@@ -294,6 +294,68 @@ export function normalizeProducts(shopifyProducts: ShopifyProduct[]): Normalized
   return results;
 }
 
+export interface ShopifyOrder {
+  id: number;
+  name: string;
+  email: string | null;
+  created_at: string;
+  updated_at: string;
+  total_price: string;
+  subtotal_price: string;
+  total_tax: string;
+  currency: string;
+  financial_status: string;
+  fulfillment_status: string | null;
+  tags: string;
+  note: string | null;
+  line_items: {
+    id: number;
+    title: string;
+    quantity: number;
+    price: string;
+    sku: string | null;
+    variant_title: string | null;
+  }[];
+  shipping_address?: {
+    name: string;
+    address1: string;
+    city: string;
+    province: string;
+    country: string;
+    zip: string;
+  };
+  customer?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+}
+
+export async function fetchShopifyOrders(
+  storeUrl: string,
+  accessToken: string,
+  limit = 100
+): Promise<ShopifyOrder[]> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const allOrders: ShopifyOrder[] = [];
+  let nextPageUrl: string | null = `${baseUrl}/orders.json?status=any&limit=${Math.min(limit, 250)}`;
+
+  while (nextPageUrl && allOrders.length < limit) {
+    const res = await fetch(nextPageUrl, { headers: buildHeaders(accessToken) });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify Orders API error ${res.status}: ${text}`);
+    }
+    const data = await res.json();
+    allOrders.push(...(data.orders || []));
+    const linkHeader = res.headers.get("link");
+    nextPageUrl = parseLinkHeaderNext(linkHeader);
+    if (allOrders.length >= limit) break;
+  }
+
+  return allOrders.slice(0, limit);
+}
+
 export async function fetchShopifyLocations(
   storeUrl: string,
   accessToken: string

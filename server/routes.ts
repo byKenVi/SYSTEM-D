@@ -18,6 +18,7 @@ import {
   normalizeProducts,
   testShopifyConnection,
   validateShopifyStoreUrl,
+  fetchShopifyOrders,
 } from "./shopify-api";
 
 export async function registerRoutes(
@@ -174,6 +175,43 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting contact:", error);
       res.status(500).json({ message: "Failed to delete contact" });
+    }
+  });
+
+  app.get("/api/contacts/:id/products", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const products = await storage.getProductsByContactId(Number(req.params.id));
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching contact products:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/contacts/:id/shopify-integrations", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const all = await storage.getShopifyIntegrations();
+      const contactIntegrations = all.filter((i) => i.contactId === Number(req.params.id));
+      res.json(contactIntegrations);
+    } catch (error) {
+      console.error("Error fetching contact shopify integrations:", error);
+      res.status(500).json({ message: "Failed to fetch integrations" });
+    }
+  });
+
+  app.get("/api/contacts/:id/shopify-orders", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.id);
+      const all = await storage.getShopifyIntegrations();
+      const integration = all.find((i) => i.contactId === contactId && i.isActive);
+      if (!integration) {
+        return res.json({ orders: [], storeUrl: null });
+      }
+      const orders = await fetchShopifyOrders(integration.storeUrl, integration.accessToken, 100);
+      res.json({ orders, storeUrl: integration.storeUrl, shopName: integration.shopName });
+    } catch (error: any) {
+      console.error("Error fetching Shopify orders:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch orders" });
     }
   });
 

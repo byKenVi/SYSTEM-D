@@ -48,7 +48,7 @@ import {
   Mail,
   CalendarDays,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 
@@ -56,6 +56,7 @@ type ViewMode = "table" | "card";
 
 export default function AdminContacts() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [revokeTarget, setRevokeTarget] = useState<Contact | null>(null);
@@ -266,7 +267,12 @@ export default function AdminContacts() {
                     ))
                   ) : filtered && filtered.length > 0 ? (
                     filtered.map((contact) => (
-                      <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
+                      <TableRow
+                        key={contact.id}
+                        data-testid={`row-contact-${contact.id}`}
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/admin/contacts/${contact.id}`)}
+                      >
                         <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
                           {contact.name}
                         </TableCell>
@@ -300,7 +306,7 @@ export default function AdminContacts() {
                         <TableCell className="text-muted-foreground text-sm whitespace-nowrap" data-testid={`text-contact-created-${contact.id}`}>
                           {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="opacity-40">—</span>}
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <ContactActions contact={contact} />
                         </TableCell>
                       </TableRow>
@@ -346,7 +352,12 @@ export default function AdminContacts() {
           ) : filtered && filtered.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((contact) => (
-                <Card key={contact.id} className="flex flex-col" data-testid={`card-contact-${contact.id}`}>
+                <Card
+                  key={contact.id}
+                  className="flex flex-col cursor-pointer hover:border-primary/40 transition-colors"
+                  data-testid={`card-contact-${contact.id}`}
+                  onClick={() => navigate(`/admin/contacts/${contact.id}`)}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -360,7 +371,9 @@ export default function AdminContacts() {
                           </p>
                         )}
                       </div>
-                      <ContactActions contact={contact} />
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <ContactActions contact={contact} />
+                      </span>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0 flex-1 space-y-3">
