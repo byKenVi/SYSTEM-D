@@ -13,7 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RefreshCw, Search, Package, Clock, CheckCircle2, Truck, PackageCheck, Trash2 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import { RefreshCw, Search, Package, Clock, CheckCircle2, Truck, PackageCheck, Trash2, ExternalLink, User, Calendar, Hash } from "lucide-react";
 import { useState } from "react";
 import {
   Table,
@@ -44,6 +51,7 @@ export default function AdminRestockRequests() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [detailRequest, setDetailRequest] = useState<RestockRequest | null>(null);
   const { toast } = useToast();
 
   const { data: requests, isLoading } = useQuery<RestockRequest[]>({
@@ -98,12 +106,17 @@ export default function AdminRestockRequests() {
     onSuccess: (_, ids) => {
       queryClient.invalidateQueries({ queryKey: ["/api/restock-requests"] });
       setSelectedIds(new Set());
+      setDetailRequest(null);
       toast({ title: `${ids.length} work order${ids.length !== 1 ? "s" : ""} deleted` });
     },
     onError: () => {
       toast({ title: "Failed to delete", variant: "destructive" });
     },
   });
+
+  const detailContact = detailRequest ? contactMap.get(detailRequest.contactId) : null;
+  const detailProduct = detailRequest ? productMap.get(detailRequest.productId) : null;
+  const DetailStatusIcon = detailRequest ? (statusIcons[detailRequest.status] || Clock) : Clock;
 
   return (
     <div className="space-y-6">
@@ -185,8 +198,14 @@ export default function AdminRestockRequests() {
                   const StatusIcon = statusIcons[req.status] || Clock;
                   const isSelected = selectedIds.has(req.id);
                   return (
-                    <TableRow key={req.id} data-testid={`row-restock-${req.id}`} data-state={isSelected ? "selected" : undefined}>
-                      <TableCell>
+                    <TableRow
+                      key={req.id}
+                      data-testid={`row-restock-${req.id}`}
+                      data-state={isSelected ? "selected" : undefined}
+                      className="cursor-pointer"
+                      onClick={() => setDetailRequest(req)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleSelectId(req.id)}
@@ -233,6 +252,121 @@ export default function AdminRestockRequests() {
           )}
         </CardContent>
       </Card>
+
+      {/* Detail sheet */}
+      <Sheet open={!!detailRequest} onOpenChange={(open) => { if (!open) setDetailRequest(null); }}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          {detailRequest && (
+            <>
+              <SheetHeader className="pb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <SheetTitle>Work Order #{detailRequest.id}</SheetTitle>
+                  <Badge variant={statusVariants[detailRequest.status] || "secondary"} className="gap-1">
+                    <DetailStatusIcon className="h-3 w-3" />
+                    {detailRequest.status}
+                  </Badge>
+                </div>
+              </SheetHeader>
+
+              <div className="space-y-5">
+                {/* Client */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Client</p>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">{detailContact?.companyName || detailContact?.name || "—"}</p>
+                      {detailContact?.email && <p className="text-sm text-muted-foreground">{detailContact.email}</p>}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Product */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Product</p>
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">{detailProduct?.name || "—"}</p>
+                      {detailProduct?.sku && <p className="text-sm text-muted-foreground">SKU: {detailProduct.sku}</p>}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Details grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quantity</p>
+                    <p className="text-2xl font-bold">{detailRequest.requestedQuantity}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ID</p>
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Hash className="h-3.5 w-3.5" />
+                      <span className="font-mono">{detailRequest.id}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Created</p>
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                      {detailRequest.createdAt ? new Date(detailRequest.createdAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Updated</p>
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                      {detailRequest.updatedAt ? new Date(detailRequest.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {detailRequest.notes && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailRequest.notes}</p>
+                    </div>
+                  </>
+                )}
+
+                {/* Zoho SO */}
+                {detailRequest.zohoSalesOrderRef && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Zoho Sales Order</p>
+                      <p className="font-mono font-medium">{detailRequest.zohoSalesOrderRef}</p>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                {/* Delete */}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full gap-1.5"
+                  onClick={() => deleteMutation.mutate([detailRequest.id])}
+                  disabled={deleteMutation.isPending}
+                  data-testid="button-delete-detail"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete work order
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
