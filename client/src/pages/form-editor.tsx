@@ -212,7 +212,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const statusOptions = adminTransitions[form.status] || [];
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       {/* Header card */}
       <div className={`rounded-xl border bg-card shadow-sm border-l-4 ${statusBorderColor[form.status] || "border-l-gray-300"}`}>
         <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
