@@ -306,10 +306,12 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
             {/* PDF export */}
             {!isDraft && (
-              <Button variant="outline" size="sm" onClick={() => { window.location.href = `/${role === "admin" ? "admin" : "portal"}/forms/${formId}/print`; }} data-testid="button-download-pdf">
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                PDF
-              </Button>
+              <a href={`/api/forms/${formId}/pdf`} download data-testid="button-download-pdf">
+                <Button variant="outline" size="sm">
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  PDF
+                </Button>
+              </a>
             )}
           </div>
         </div>

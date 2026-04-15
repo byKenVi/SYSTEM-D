@@ -882,10 +882,12 @@ export function AdminFormDetail({ id }: { id: number }) {
             </button>
             <div className="flex items-center gap-2 flex-wrap">
               {form.status !== "draft" && (
-                <Button variant="outline" size="sm" onClick={() => window.location.href = `/admin/forms/${id}/print`} data-testid="button-download-pdf">
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  PDF
-                </Button>
+                <a href={`/api/forms/${id}/pdf`} download data-testid="button-download-pdf">
+                  <Button variant="outline" size="sm">
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    PDF
+                  </Button>
+                </a>
               )}
               {canAdvance && (
                 <Button variant="outline" size="sm" onClick={() => statusMutation.mutate(nextStatus!)} disabled={statusMutation.isPending} data-testid="button-advance-status">
