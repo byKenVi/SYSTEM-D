@@ -178,6 +178,22 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/contacts/:id/related", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.id);
+      const contact = await storage.getContact(contactId);
+      if (!contact || !contact.companyName) return res.json([]);
+      const all = await storage.getContacts();
+      const related = all.filter(
+        (c) => c.id !== contactId && c.companyName && c.companyName.toLowerCase() === contact.companyName!.toLowerCase()
+      );
+      res.json(related);
+    } catch (error) {
+      console.error("Error fetching related contacts:", error);
+      res.status(500).json({ message: "Failed to fetch related contacts" });
+    }
+  });
+
   app.get("/api/contacts/:id/products", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const products = await storage.getProductsByContactId(Number(req.params.id));
