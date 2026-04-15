@@ -561,7 +561,7 @@ export default function AdminContacts() {
 
       {/* ── Card View ── */}
       {viewMode === "card" && (
-        <>
+        <div>
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -609,7 +609,7 @@ export default function AdminContacts() {
               <p className="text-xs text-muted-foreground/60 mt-1">Contacts are created when Zoho CRM sends a webhook</p>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Bulk Delete Confirmation */}
