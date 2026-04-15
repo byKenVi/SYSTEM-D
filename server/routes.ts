@@ -63,7 +63,21 @@ export async function registerRoutes(
       return { role: "admin" as const };
     }
 
+    // Check env-var-defined extra admin user IDs (comma-separated Replit user IDs)
+    const envAdminIds = (process.env.ADDITIONAL_ADMIN_IDS || "")
+      .split(",").map((s) => s.trim()).filter(Boolean);
+    if (envAdminIds.includes(userId)) {
+      return { role: "admin" as const };
+    }
+
     if (email) {
+      // Check env-var-defined extra admin emails (comma-separated)
+      const envAdminEmails = (process.env.ADDITIONAL_ADMIN_EMAILS || "")
+        .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+      if (envAdminEmails.includes(email.toLowerCase())) {
+        return { role: "admin" as const };
+      }
+
       const settings = await storage.getAdminSettings();
       const extraAdmins = settings?.additionalAdminEmails
         ? settings.additionalAdminEmails.split(",").map((e) => e.trim().toLowerCase())
