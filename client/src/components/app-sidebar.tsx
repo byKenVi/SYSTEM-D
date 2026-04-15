@@ -60,7 +60,7 @@ const clientItems = [
   { title: "Tableau de bord", url: "/portal/dashboard", icon: LayoutDashboard },
   { title: "Profil", url: "/portal/profile", icon: User },
   { title: "Boutique", url: "/portal/boutique", icon: ShoppingCart },
-  { title: "Demandes de service", url: "/portal/forms", icon: ClipboardList },
+  { title: "Soumissions", url: "/portal/forms", icon: ClipboardList },
   { title: "Commandes", url: "/portal/commandes", icon: PackageCheck },
 ];
 
