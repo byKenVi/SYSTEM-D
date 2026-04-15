@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useParams, useLocation, Link } from "wouter";
 import type { Product, Contact } from "@shared/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -214,90 +214,93 @@ export default function AdminProductDetail() {
         </div>
 
         {/* ── RIGHT: metadata ── */}
-        <div className="lg:col-span-3 space-y-4">
-
-          {/* Identifiers */}
+        <div className="lg:col-span-3">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Identifiers</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-8 gap-y-4">
-              <MetaRow label="SKU" value={product.sku} testId="text-sku" />
-              <MetaRow label="Barcode" value={product.barcode} testId="text-barcode" />
-              <MetaRow label="Price" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} testId="text-price-meta" />
-              <MetaRow label="Compare at" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} testId="text-compare-price" />
-            </CardContent>
-          </Card>
+            <CardContent className="p-5 space-y-5">
 
-          {/* Catalog info */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Catalog</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-8 gap-y-4">
-              <MetaRow label="Vendor" value={product.vendor} testId="text-vendor" />
-              <MetaRow label="Type" value={product.productType} testId="text-product-type" />
-              <MetaRow label="Weight" value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null} testId="text-weight" />
+              {/* Identifiers */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Client</p>
-                {contact ? (
-                  <Link href={`/admin/contacts/${contact.id}`}>
-                    <span className="text-sm font-medium text-primary hover:underline cursor-pointer" data-testid="link-client">
-                      {clientName}
-                    </span>
-                  </Link>
-                ) : (
-                  <p className="text-sm font-medium" data-testid="text-client">{clientName}</p>
-                )}
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Identifiers</p>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                  <MetaRow label="SKU" value={product.sku} testId="text-sku" />
+                  <MetaRow label="Barcode" value={product.barcode} testId="text-barcode" />
+                  <MetaRow label="Price" value={product.price ? `$${Number(product.price).toFixed(2)}` : null} testId="text-price-meta" />
+                  <MetaRow label="Compare at" value={product.compareAtPrice ? `$${Number(product.compareAtPrice).toFixed(2)}` : null} testId="text-compare-price" />
+                </div>
               </div>
+
+              <Separator />
+
+              {/* Catalog */}
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Catalog</p>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                  <MetaRow label="Vendor" value={product.vendor} testId="text-vendor" />
+                  <MetaRow label="Type" value={product.productType} testId="text-product-type" />
+                  <MetaRow label="Weight" value={product.weight ? `${product.weight} ${product.weightUnit || ""}`.trim() : null} testId="text-weight" />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Client</p>
+                    {contact ? (
+                      <Link href={`/admin/contacts/${contact.id}`}>
+                        <span className="text-sm font-medium text-primary hover:underline cursor-pointer" data-testid="link-client">
+                          {clientName}
+                        </span>
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-medium" data-testid="text-client">{clientName}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Shopify Source */}
+              {product.shopifyStoreUrl && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                      <SiShopify className="h-3 w-3" /> Shopify Source
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                      <MetaRow label="Store" value={product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")} testId="text-store" />
+                      <MetaRow label="Handle" value={product.shopifyHandle} testId="text-handle" />
+                      <MetaRow label="Product ID" value={product.shopifyProductId} testId="text-shopify-product-id" />
+                      <MetaRow label="Variant ID" value={product.shopifyVariantId} testId="text-shopify-variant-id" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Tags */}
+              {product.tags && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Tags</p>
+                    <div className="flex flex-wrap gap-1.5" data-testid="container-tags">
+                      {product.tags.split(",").map((tag, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs font-normal">{tag.trim()}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Description */}
+              {product.description && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Description</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-description">
+                      {product.description}
+                    </p>
+                  </div>
+                </>
+              )}
+
             </CardContent>
           </Card>
-
-          {/* Source */}
-          {product.shopifyStoreUrl && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Shopify Source</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-x-8 gap-y-4">
-                <MetaRow label="Store" value={product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")} testId="text-store" />
-                <MetaRow label="Handle" value={product.shopifyHandle} testId="text-handle" />
-                <MetaRow label="Product ID" value={product.shopifyProductId} testId="text-shopify-product-id" />
-                <MetaRow label="Variant ID" value={product.shopifyVariantId} testId="text-shopify-variant-id" />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Tags */}
-          {product.tags && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5" data-testid="container-tags">
-                  {product.tags.split(",").map((tag, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs font-normal">{tag.trim()}</Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Description */}
-          {product.description && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Description</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-description">
-                  {product.description}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
         </div>
       </div>
 
