@@ -70,13 +70,13 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   useEffect(() => {
     if (form) {
-      let d: any;
+      let d: Record<string, unknown>;
       if (typeof form.data === "string") {
         try { d = JSON.parse(form.data); } catch { d = {}; }
       } else {
-        d = form.data || {};
+        d = (form.data as Record<string, unknown>) || {};
       }
-      const defaults: Record<string, any> = {
+      const defaults: Record<string, Record<string, unknown>> = {
         tri: defaultTriData,
         inspection: defaultInspectionData,
         entreposage: defaultEntreposageData,
@@ -89,7 +89,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     }
   }, [form]);
 
-  const handleChange = useCallback((data: any) => {
+  const handleChange = useCallback((data: Record<string, unknown>) => {
     setFormData(data);
     setData(data);
   }, [setData]);

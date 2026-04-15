@@ -151,7 +151,7 @@ export function CopackingForm({ data, onChange, disabled }: CopackingFormProps) 
   function removePickRow(type: "avecFacture" | "sansFacture", i: number) {
     const key = type === "avecFacture" ? "picksAvecFacture" : "picksSansFacture";
     if (d[key].length <= 1) return;
-    update({ [key]: d[key].filter((_: any, idx: number) => idx !== i) });
+    update({ [key]: d[key].filter((_: PickRow, idx: number) => idx !== i) });
   }
 
   function updatePackerRow(i: number, field: string, value: string) {

@@ -385,10 +385,12 @@ export function EntreposageForm({ data, onChange, disabled }: EntreposageFormPro
               </RadioGroup>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox checked={d.hasTailgate} onCheckedChange={(v) => update({ hasTailgate: !!v })} disabled={disabled} data-testid="check-ent-tailgate" />
-              <Label className="text-sm">Tailgate requis</Label>
-            </div>
+            {d.destinationType === "longue_distance" && (
+              <div className="flex items-center gap-2">
+                <Checkbox checked={d.hasTailgate} onCheckedChange={(v) => update({ hasTailgate: !!v })} disabled={disabled} data-testid="check-ent-tailgate" />
+                <Label className="text-sm">Tailgate requis</Label>
+              </div>
+            )}
 
             <div className="space-y-3 p-3 border rounded-lg">
               <div className="flex items-center gap-2">
