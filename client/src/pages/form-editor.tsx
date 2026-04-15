@@ -76,7 +76,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     }
   }, [form]);
 
-  const handleChange = useCallback((data: Record<string, unknown>) => {
+  const handleChange = useCallback((data: any) => {
     setFormData(data);
     setData(data);
   }, [setData]);
@@ -248,7 +248,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             Formulaire lié :
           </span>
           <Link href={`${backUrl.includes("admin") ? "/admin" : "/portal"}/forms/${form.linkedFormId}`}>
-            <Button variant="link" size="sm" className="text-blue-600 p-0 h-auto" data-testid="link-linked-form">
+            <Button variant="ghost" size="sm" className="text-blue-600 p-0 h-auto underline" data-testid="link-linked-form">
               Voir le formulaire lié
             </Button>
           </Link>

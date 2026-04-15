@@ -126,9 +126,15 @@ export function TriForm({ data, onChange, disabled }: TriFormProps) {
               <Input value={d.codePiece} onChange={(e) => update({ codePiece: e.target.value })} disabled={disabled} placeholder="Ex: L1406A" data-testid="input-tri-code-piece" />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <Input value={d.description} onChange={(e) => update({ description: e.target.value })} disabled={disabled} placeholder="Description courte (ex: Gasket)" data-testid="input-tri-description" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input value={d.description} onChange={(e) => update({ description: e.target.value })} disabled={disabled} placeholder="Description courte (ex: Gasket)" data-testid="input-tri-description" />
+            </div>
+            <div className="space-y-2">
+              <Label># Instructions</Label>
+              <Input value={d.instructionsNumero} onChange={(e) => update({ instructionsNumero: e.target.value })} disabled={disabled} placeholder="Numéro d'instruction" data-testid="input-tri-instructions-numero" />
+            </div>
           </div>
         </CardContent>
       </Card>

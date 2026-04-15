@@ -1231,7 +1231,12 @@ export async function registerRoutes(
               data: insData,
               revision: 1,
               linkedFormId: form.id,
-              revisionHistory: [],
+              revisionHistory: [{
+                date: new Date().toISOString(),
+                rev: 1,
+                description: `Créé automatiquement à partir du formulaire TRI ${form.formNumber}`,
+                modifiedBy: userName,
+              }],
             });
             updateData.linkedFormId = insForm.id;
           }
