@@ -89,28 +89,37 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+      {/* ── Header ── */}
+      <SidebarHeader className="p-4 pb-3 group-data-[collapsible=icon]:p-2">
         {/* Expanded */}
         <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:hidden">
-          <Link href={role === "admin" ? "/admin/contacts" : "/portal/profile"}>
-            <div className="flex items-center gap-2.5 hover:bg-sidebar-accent rounded-md px-1.5 py-1 cursor-pointer transition-colors" data-testid="link-sidebar-home">
+          <Link href={role === "admin" ? "/admin/dashboard" : "/portal/dashboard"}>
+            <div
+              className="flex items-center gap-2.5 rounded-md px-1.5 py-1 cursor-pointer transition-colors hover:bg-sidebar-accent"
+              data-testid="link-sidebar-home"
+            >
               <div className="h-7 w-7 rounded-md bg-sidebar-primary flex items-center justify-center flex-shrink-0">
                 <Warehouse className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
               </div>
               <div>
-                <p className="font-semibold text-sm leading-none tracking-tight">SYSTEM D</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{role} Panel</p>
+                <p className="font-semibold text-sm leading-none tracking-tight text-sidebar-foreground">
+                  SYSTEM D
+                </p>
+                <p className="text-[11px] text-sidebar-foreground/50 mt-0.5 capitalize">
+                  {role} Panel
+                </p>
               </div>
             </div>
           </Link>
-          <SidebarTrigger className="text-muted-foreground" data-testid="button-sidebar-toggle" />
+          <SidebarTrigger className="text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle" />
         </div>
         {/* Collapsed */}
         <div className="hidden group-data-[collapsible=icon]:flex justify-center">
-          <SidebarTrigger className="text-muted-foreground" data-testid="button-sidebar-toggle-collapsed" />
+          <SidebarTrigger className="text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle-collapsed" />
         </div>
       </SidebarHeader>
 
+      {/* ── Navigation ── */}
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -139,7 +148,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
 
         {role === "admin" && viewAsContactId && contacts && contacts.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>
+            <SidebarGroupLabel className="text-sidebar-foreground/40">
               <span className="flex items-center gap-1.5">
                 <Eye className="h-3 w-3" />
                 Preview Portal
@@ -151,7 +160,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                 onValueChange={handleViewAsChange}
               >
                 <SelectTrigger
-                  className="w-full h-8 text-xs"
+                  className="w-full h-8 text-xs border-sidebar-border bg-sidebar-accent text-sidebar-foreground"
                   data-testid="select-view-as-contact"
                 >
                   <SelectValue placeholder="View as client..." />
@@ -177,19 +186,22 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
         )}
       </SidebarContent>
 
+      {/* ── Footer ── */}
       <SidebarFooter className="border-t border-sidebar-border p-3">
         {/* Expanded */}
         <div className="group-data-[collapsible=icon]:hidden space-y-2">
           <div className="flex items-center gap-2.5 px-1">
-            <Avatar className="h-7 w-7 flex-shrink-0">
+            <Avatar className="h-7 w-7 flex-shrink-0 ring-1 ring-sidebar-border">
               <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
-              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+              <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-foreground">
+                {initials}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-tight truncate" data-testid="text-sidebar-username">
+              <p className="text-sm font-medium leading-tight truncate text-sidebar-foreground" data-testid="text-sidebar-username">
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              <p className="text-xs text-sidebar-foreground/50 truncate">{user?.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 px-1">
@@ -197,7 +209,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             <Button
               size="sm"
               variant="ghost"
-              className="flex-1 justify-start gap-2 h-8 text-xs text-muted-foreground hover:text-foreground"
+              className="flex-1 justify-start gap-2 h-8 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
               onClick={() => logout()}
               data-testid="button-logout"
             >
@@ -209,14 +221,16 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
 
         {/* Collapsed */}
         <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-2">
-          <Avatar className="h-7 w-7">
+          <Avatar className="h-7 w-7 ring-1 ring-sidebar-border">
             <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
-            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+            <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-foreground">
+              {initials}
+            </AvatarFallback>
           </Avatar>
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 text-muted-foreground"
+            className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
             onClick={() => logout()}
             data-testid="button-logout"
           >
