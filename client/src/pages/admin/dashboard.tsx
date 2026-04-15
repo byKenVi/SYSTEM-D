@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { Contact, Product, RestockRequest, FormSubmission } from "@shared/schema";
+import type { Contact, Product, FormSubmission } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users,
   Package,
-  RefreshCw,
   ClipboardList,
   ArrowRight,
   TrendingUp,
@@ -55,17 +54,12 @@ export default function AdminDashboard() {
     queryKey: ["/api/products"],
   });
 
-  const { data: restockRequests, isLoading: loadingRestock } = useQuery<RestockRequest[]>({
-    queryKey: ["/api/restock-requests"],
-  });
-
   const { data: forms, isLoading: loadingForms } = useQuery<FormSubmission[]>({
     queryKey: ["/api/forms"],
   });
 
   const activeContacts = contacts?.filter((c) => c.status === "active")?.length ?? 0;
   const companiesCount = new Set(contacts?.filter((c) => c.companyName).map((c) => c.companyName)).size;
-  const pendingRestocks = restockRequests?.filter((r) => r.status === "Processing")?.length ?? 0;
   const openForms = forms?.filter((f) => f.status !== "completed" && f.status !== "draft")?.length ?? 0;
   const recentForms = (forms ?? []).slice(0, 5);
 
@@ -95,7 +89,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card data-testid="stat-card-contacts">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
@@ -153,24 +147,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-card-restock">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Réapprovisionnements</p>
-                {loadingRestock ? (
-                  <Skeleton className="h-8 w-12 mt-1" />
-                ) : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-restock">{pendingRestocks}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">en attente</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                <RefreshCw className="h-5 w-5 text-amber-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         <Card data-testid="stat-card-forms">
           <CardContent className="p-5">
