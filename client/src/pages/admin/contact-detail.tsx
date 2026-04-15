@@ -56,6 +56,8 @@ import {
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useState } from "react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface ShopifyOrdersResponse {
   orders: ShopifyOrder[];
@@ -140,6 +142,7 @@ export default function ContactDetail() {
   const { toast } = useToast();
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [hideEmptyRelated, setHideEmptyRelated] = useState(false);
 
   const { data: contact, isLoading: contactLoading } = useQuery<Contact>({
     queryKey: ["/api/contacts", contactId],
@@ -250,34 +253,48 @@ export default function ContactDetail() {
           <span className="text-sm text-muted-foreground truncate max-w-[200px]">{contact.name}</span>
         </div>
 
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {allContacts && currentIndex >= 0 && (
-            <span className="text-xs text-muted-foreground mr-1 tabular-nums">
-              {currentIndex + 1} / {sortedContacts.length}
-            </span>
-          )}
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            disabled={!prevContact}
-            onClick={() => prevContact && navigate(`/admin/contacts/${prevContact.id}`)}
-            title={prevContact ? `Previous: ${prevContact.name}` : undefined}
-            data-testid="button-prev-contact"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            disabled={!nextContact}
-            onClick={() => nextContact && navigate(`/admin/contacts/${nextContact.id}`)}
-            title={nextContact ? `Next: ${nextContact.name}` : undefined}
-            data-testid="button-next-contact"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Switch
+              id="hide-empty-related"
+              checked={hideEmptyRelated}
+              onCheckedChange={setHideEmptyRelated}
+              data-testid="toggle-hide-empty-related"
+            />
+            <Label htmlFor="hide-empty-related" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+              Hide empty related
+            </Label>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {allContacts && currentIndex >= 0 && (
+              <span className="text-xs text-muted-foreground mr-1 tabular-nums">
+                {currentIndex + 1} / {sortedContacts.length}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              disabled={!prevContact}
+              onClick={() => prevContact && navigate(`/admin/contacts/${prevContact.id}`)}
+              title={prevContact ? `Previous: ${prevContact.name}` : undefined}
+              data-testid="button-prev-contact"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              disabled={!nextContact}
+              onClick={() => nextContact && navigate(`/admin/contacts/${nextContact.id}`)}
+              title={nextContact ? `Next: ${nextContact.name}` : undefined}
+              data-testid="button-next-contact"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -421,8 +438,8 @@ export default function ContactDetail() {
         {/* ══ RIGHT CONTENT ══ */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Related Contacts — shown whenever contact has a company */}
-          {contact.companyName && (
+          {/* Related Contacts — shown whenever contact has a company (unless toggle hides empty) */}
+          {contact.companyName && !(hideEmptyRelated && relatedContacts && relatedContacts.length === 0) && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
