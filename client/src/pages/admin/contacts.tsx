@@ -65,12 +65,25 @@ export default function AdminContacts() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [viewMode, setViewModeRaw] = useState<ViewMode>(
+    () => (localStorage.getItem("contacts_viewMode") as ViewMode) || "table"
+  );
+  const [groupBy, setGroupByRaw] = useState<GroupBy>(
+    () => (localStorage.getItem("contacts_groupBy") as GroupBy) || "none"
+  );
   const [revokeTarget, setRevokeTarget] = useState<Contact | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const setViewMode = (v: ViewMode) => {
+    localStorage.setItem("contacts_viewMode", v);
+    setViewModeRaw(v);
+  };
+  const setGroupBy = (v: GroupBy) => {
+    localStorage.setItem("contacts_groupBy", v);
+    setGroupByRaw(v);
+  };
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
