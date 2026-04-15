@@ -15,6 +15,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -94,7 +95,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Card data-testid="stat-card-contacts">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
@@ -105,14 +106,29 @@ export default function AdminDashboard() {
                 ) : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-contacts">{contacts?.length ?? 0}</p>
                 )}
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-xs text-muted-foreground">{activeContacts} active</p>
-                  <span className="text-muted-foreground/30 text-xs">·</span>
-                  <p className="text-xs text-muted-foreground" data-testid="stat-value-companies">{companiesCount} {companiesCount === 1 ? "company" : "companies"}</p>
-                </div>
+                <p className="text-xs text-muted-foreground mt-1">{activeContacts} active</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Users className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="stat-card-companies">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Companies</p>
+                {loadingContacts ? (
+                  <Skeleton className="h-8 w-12 mt-1" />
+                ) : (
+                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-companies">{companiesCount}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">unique clients</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                <Building2 className="h-5 w-5 text-emerald-500" />
               </div>
             </div>
           </CardContent>
