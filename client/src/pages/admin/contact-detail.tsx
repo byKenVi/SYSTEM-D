@@ -583,12 +583,14 @@ export default function ContactDetail() {
               <div className="flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                 <CardTitle className="text-base">Orders</CardTitle>
-                {ordersData?.orders && (
-                  <Badge variant="secondary" className="ml-auto">{ordersData.orders.length}</Badge>
-                )}
-                {ordersData?.shopName && (
-                  <span className="text-xs text-muted-foreground">from {ordersData.shopName}</span>
-                )}
+                <div className="ml-auto flex items-center gap-2">
+                  {ordersData?.shopName && (
+                    <span className="text-xs text-muted-foreground">from {ordersData.shopName}</span>
+                  )}
+                  {ordersData?.orders && (
+                    <Badge variant="secondary">{ordersData.orders.length}</Badge>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
