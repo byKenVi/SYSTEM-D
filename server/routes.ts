@@ -44,8 +44,14 @@ export async function registerRoutes(
 
   async function getUserRole(req: any) {
     const userId = req.user?.claims?.sub;
-    const email = req.user?.claims?.email;
+    let email = req.user?.claims?.email as string | undefined;
     if (!userId) return null;
+
+    // Fallback: look up email from users table if not in JWT claims
+    if (!email) {
+      const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+      email = dbUser?.email ?? undefined;
+    }
 
     const adminId = await getAdminUserId();
     if (!adminId) {
