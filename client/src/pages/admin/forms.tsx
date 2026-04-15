@@ -65,7 +65,9 @@ export default function AdminForms() {
   const [selectedType, setSelectedType] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [groupBy, setGroupBy] = useState<"none" | "type" | "status" | "client">("none");
+  const [groupBy, setGroupBy] = useState<"none" | "type" | "status" | "client">(
+    () => (localStorage.getItem("forms_groupBy") as any) || "none"
+  );
 
   const { data: forms, isLoading } = useQuery<FormSubmission[]>({
     queryKey: ["/api/forms"],
@@ -256,7 +258,7 @@ export default function AdminForms() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
+          <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as any); localStorage.setItem("forms_groupBy", v); }}>
             <SelectTrigger className="w-[160px]" data-testid="select-group-by">
               <Layers className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
               <SelectValue />
