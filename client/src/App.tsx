@@ -29,6 +29,7 @@ import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PortalForms from "@/pages/portal/forms";
 import PortalDashboard from "@/pages/portal/dashboard";
+import FormPrintPage from "@/pages/form-print";
 
 interface UserRole {
   role: "admin" | "client";
@@ -214,6 +215,11 @@ function AuthenticatedApp() {
 
   if (location === "/" || location === "") {
     return <Redirect to={role === "admin" ? "/admin/dashboard" : "/portal/dashboard"} />;
+  }
+
+  const printMatch = location.match(/^\/(admin|portal)\/forms\/(\d+)\/print$/);
+  if (printMatch) {
+    return <FormPrintPage id={Number(printMatch[2])} />;
   }
 
   if (location.startsWith("/admin")) {

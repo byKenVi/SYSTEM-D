@@ -882,7 +882,7 @@ export function AdminFormDetail({ id }: { id: number }) {
             </button>
             <div className="flex items-center gap-2 flex-wrap">
               {form.status !== "draft" && (
-                <Button variant="outline" size="sm" onClick={() => window.open(`/api/forms/${id}/pdf`, "_blank")} data-testid="button-download-pdf">
+                <Button variant="outline" size="sm" onClick={() => window.location.href = `/admin/forms/${id}/print`} data-testid="button-download-pdf">
                   <Download className="h-3.5 w-3.5 mr-1.5" />
                   PDF
                 </Button>
