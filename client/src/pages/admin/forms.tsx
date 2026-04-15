@@ -460,6 +460,34 @@ function FieldRow({ label, value }: { label: string; value?: string | number | n
   );
 }
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 col-span-full border-b pb-1 mb-1 mt-2 first:mt-0">
+      {children}
+    </p>
+  );
+}
+
+function TagList({ items }: { items: string[] }) {
+  if (!items?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-0.5">
+      {items.map((item, i) => (
+        <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded-full border">{item}</span>
+      ))}
+    </div>
+  );
+}
+
+function FieldBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+}
+
 function FormSummary({ form }: { form: FormSubmission }) {
   const data: any = form.data || {};
 
@@ -467,72 +495,318 @@ function FormSummary({ form }: { form: FormSubmission }) {
     const dims = [data.longueur, data.largeur, data.hauteur].filter(Boolean).join(" × ");
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+        <SectionTitle>A. Entreposage</SectionTitle>
         <FieldRow label="Nature du produit" value={data.natureProduit} />
         <FieldRow label="Type d'emballage" value={data.typeEmballage || (data.hasBinRack ? "Bin/Rack" : undefined)} />
         <FieldRow label="Dimensions" value={dims ? `${dims} ${data.uniteDimension || "cm"}` : undefined} />
         <FieldRow label="Poids" value={data.poids ? `${data.poids} ${data.unitePoids || "kg"}` : undefined} />
-        <FieldRow label="Type palette" value={data.paletteType} />
-        <FieldRow label="Destination" value={data.destinationType} />
-        <FieldRow label="Facturation" value={data.modeBilling} />
-        {data.hasRendezVous && <FieldRow label="Rendez-vous" value={[data.rvDate, data.rvTime].filter(Boolean).join(" ")} />}
-        {data.hasLivraison && <FieldRow label="Livraison" value="Demandée" />}
-        {data.hasKitting && <FieldRow label="Kitting" value={data.kittingDescription || "Oui"} />}
-        {data.hasConditionnement && <FieldRow label="Conditionnement" value={data.conditionnementDescription || "Oui"} />}
-        {data.notes && <div className="col-span-full"><FieldRow label="Notes" value={data.notes} /></div>}
+
+        {data.typeEmballage === "Palette" && (
+          <>
+            <FieldRow label="Dimensions palette" value={data.paletteDimensions} />
+            <FieldRow label="Nb unités / palette" value={data.paletteNbUnites} />
+            <FieldRow label="Hauteur palette" value={data.paletteHauteur} />
+            <FieldRow label="Type palette" value={data.paletteType} />
+          </>
+        )}
+        {data.typeEmballage === "Boîte" && (
+          <>
+            <FieldRow label="Format boîte" value={data.boiteFormat} />
+            <FieldRow label="Nb unités / boîte" value={data.boiteNbUnites} />
+          </>
+        )}
+        {data.typeEmballage === "Vrac" && (
+          <div className="col-span-full"><FieldRow label="Description vrac" value={data.vracDescription} /></div>
+        )}
+        {data.typeEmballage === "Sac" && (
+          <>
+            <FieldRow label="Format sac" value={data.sacFormat} />
+            <FieldRow label="Nb unités / sac" value={data.sacNbUnites} />
+          </>
+        )}
+        {data.hasBinRack && (
+          <>
+            <FieldRow label="Taille Bin" value={data.binSize} />
+            <FieldRow label="Taille Rack" value={data.rackSize} />
+          </>
+        )}
+
+        {data.hasLivraison && (
+          <>
+            <SectionTitle>B. Service de livraison</SectionTitle>
+            {data.typeMarchandise?.length > 0 && (
+              <div className="col-span-full">
+                <FieldBlock label="Type de marchandise">
+                  <TagList items={data.typeMarchandise} />
+                </FieldBlock>
+              </div>
+            )}
+            <FieldRow label="Destination" value={data.destinationType === "longue_distance" ? "Longue distance" : "Local"} />
+            {data.destinationType === "longue_distance" && data.hasTailgate && (
+              <FieldRow label="Tailgate" value="Requis" />
+            )}
+            {data.hasRendezVous && (
+              <FieldRow label="Rendez-vous" value={[data.rvDate, data.rvTime].filter(Boolean).join(" à ")} />
+            )}
+            {data.adresses?.filter((a: any) => a.adresse).length > 0 && (
+              <div className="col-span-full space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Adresse(s)</p>
+                {data.adresses.filter((a: any) => a.adresse).map((a: any, i: number) => (
+                  <div key={i} className="text-sm">
+                    <span>{a.adresse}</span>
+                    {a.notes && <span className="text-muted-foreground ml-2">— {a.notes}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <FieldRow label="Mode de facturation" value={data.modeBilling} />
+            {data.documentation?.length > 0 && (
+              <div className="col-span-full">
+                <FieldBlock label="Documentation requise">
+                  <TagList items={data.documentation} />
+                </FieldBlock>
+              </div>
+            )}
+            {data.hasConditionnement && (
+              <div className="col-span-full">
+                <FieldRow label="Conditionnement" value={data.conditionnementDescription || "Requis"} />
+              </div>
+            )}
+            {data.hasKitting && (
+              <div className="col-span-full">
+                <FieldRow label="Kitting" value={data.kittingDescription || "Requis"} />
+              </div>
+            )}
+          </>
+        )}
+
+        {data.notes && (
+          <>
+            <SectionTitle>Notes</SectionTitle>
+            <div className="col-span-full"><FieldRow label="Notes" value={data.notes} /></div>
+          </>
+        )}
       </div>
     );
   }
 
   if (form.formType === "tri") {
+    const ncFilled = data.ncItems?.filter((i: any) => i.description) || [];
+    const contactsFilled = data.contacts?.filter((c: any) => c.nom || c.email) || [];
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+        <SectionTitle>Identification</SectionTitle>
         <FieldRow label="Client" value={data.client} />
+        <FieldRow label="Sous-traitant" value={data.sousTraitant} />
         <FieldRow label="Nom du projet" value={data.nomProjet} />
         <FieldRow label="Code pièce" value={data.codePiece} />
-        <FieldRow label="Date" value={data.date} />
-        <FieldRow label="Raison NC" value={data.raisonNC} />
-        <FieldRow label="Éléments NC" value={data.ncItems?.length ? `${data.ncItems.length} item(s)` : undefined} />
-        <FieldRow label="Contacts" value={data.contacts?.length ? `${data.contacts.length} contact(s)` : undefined} />
-        {data.description && <div className="col-span-full"><FieldRow label="Description" value={data.description} /></div>}
+        <FieldRow label="N° instructions" value={data.instructionsNumero} />
+        <FieldRow label="Type TRI" value={data.typeTri} />
+        <FieldRow label="Langue échangée" value={data.langueEchangee} />
+        {data.description && (
+          <div className="col-span-full"><FieldRow label="Description" value={data.description} /></div>
+        )}
+        {data.ncReferences?.length > 0 && (
+          <div className="col-span-full">
+            <FieldBlock label="Références NC">
+              <TagList items={data.ncReferences} />
+            </FieldBlock>
+          </div>
+        )}
+
+        {ncFilled.length > 0 && (
+          <>
+            <SectionTitle>Éléments NC ({ncFilled.length})</SectionTitle>
+            {ncFilled.map((item: any, i: number) => (
+              <div key={i} className="col-span-full">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">NC {i + 1}</p>
+                <p className="text-sm">{item.description}</p>
+              </div>
+            ))}
+          </>
+        )}
+
+        <SectionTitle>Méthode de tri</SectionTitle>
+        <FieldRow label="Méthode" value={data.methodeTri} />
+        <FieldRow label="Outils" value={data.outils} />
+        <FieldRow label="Unité / boîte" value={data.uniteParBoite} />
+        <FieldRow label="Besoin quotidien" value={data.besoinQuotidien} />
+        <FieldRow label="Cycle de tri" value={data.cycleTri ? `${data.cycleTri} (${data.cycleTriType || ""})` : undefined} />
+
+        {contactsFilled.length > 0 && (
+          <>
+            <SectionTitle>Contacts ({contactsFilled.length})</SectionTitle>
+            {contactsFilled.map((c: any, i: number) => (
+              <div key={i} className="col-span-full text-sm flex flex-wrap gap-x-4 gap-y-0.5">
+                {c.nom && <span className="font-medium">{c.nom}</span>}
+                {c.role && <span className="text-muted-foreground">{c.role}</span>}
+                {c.email && <span className="text-muted-foreground">{c.email}</span>}
+              </div>
+            ))}
+          </>
+        )}
       </div>
     );
   }
 
   if (form.formType === "inspection") {
+    const criteriaFilled = data.criteria?.filter((c: any) => c.processTitle || c.processDescription) || [];
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+        <SectionTitle>En-tête</SectionTitle>
         <FieldRow label="Client" value={data.customer} />
         <FieldRow label="Numéro de pièce" value={data.partNumber} />
-        <FieldRow label="Ordre de travail" value={data.workOrder} />
-        <FieldRow label="Date" value={data.date} />
-        <FieldRow label="Critères d'inspection" value={data.criteria?.length ? `${data.criteria.length} critère(s)` : undefined} />
-        <FieldRow label="Inspecteur" value={data.inspector} />
-        {data.notes && <div className="col-span-full"><FieldRow label="Notes" value={data.notes} /></div>}
+        <FieldRow label="Nom de pièce" value={data.partName} />
+        <FieldRow label="Révision" value={data.revision} />
+        <FieldRow label="Instruction de travail" value={data.workInstruction} />
+        <FieldRow label="Échantillon de contrôle" value={data.controlSample} />
+        {data.controlSample === "custom" && <FieldRow label="% personnalisé" value={data.customSamplePercent} />}
+        {data.controlMethod?.length > 0 && (
+          <div className="col-span-full">
+            <FieldBlock label="Méthode de contrôle">
+              <TagList items={data.controlMethod} />
+            </FieldBlock>
+          </div>
+        )}
+        {data.ppe?.length > 0 && (
+          <div className="col-span-full">
+            <FieldBlock label="PPE requis">
+              <TagList items={[...data.ppe, ...(data.ppeOther ? [data.ppeOther] : [])]} />
+            </FieldBlock>
+          </div>
+        )}
+        <FieldRow label="Outil de rework" value={data.reworkTool} />
+        <FieldRow label="Liste d'outils" value={data.toolList} />
+        <FieldRow label="Référence documentation" value={data.documentationReference} />
+        {data.inspectionDescription && (
+          <div className="col-span-full"><FieldRow label="Description inspection" value={data.inspectionDescription} /></div>
+        )}
+        {data.reworkDescription && (
+          <div className="col-span-full"><FieldRow label="Description rework" value={data.reworkDescription} /></div>
+        )}
+
+        {criteriaFilled.length > 0 && (
+          <>
+            <SectionTitle>Critères d'inspection ({criteriaFilled.length})</SectionTitle>
+            {criteriaFilled.map((c: any, i: number) => (
+              <div key={i} className="col-span-full border rounded-lg p-3 space-y-1">
+                <p className="text-sm font-semibold">{c.processTitle || `Critère ${i + 1}`}</p>
+                {c.processDescription && <p className="text-xs text-muted-foreground">{c.processDescription}</p>}
+                {c.compliantDescription && <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ {c.compliantDescription}</p>}
+                {c.nonCompliantDescription && <p className="text-xs text-red-600 dark:text-red-400">✗ {c.nonCompliantDescription}</p>}
+              </div>
+            ))}
+          </>
+        )}
+
+        {(data.approvalSystemeDName || data.approvalCustomerName) && (
+          <>
+            <SectionTitle>Approbations</SectionTitle>
+            {data.approvalSystemeDName && (
+              <FieldRow label="Système-D" value={`${data.approvalSystemeDName}${data.approvalSystemeDDate ? ` — ${data.approvalSystemeDDate}` : ""}`} />
+            )}
+            {data.approvalCustomerName && (
+              <FieldRow label="Client" value={`${data.approvalCustomerName}${data.approvalCustomerDate ? ` — ${data.approvalCustomerDate}` : ""}`} />
+            )}
+          </>
+        )}
       </div>
     );
   }
 
   if (form.formType === "copacking") {
+    const totalPickers = data.packerRows?.filter((r: any) => r.nom).length || 0;
+    const totalPicksAvec = data.picksAvecFacture?.filter((r: any) => r.date).length || 0;
+    const totalPicksSans = data.picksSansFacture?.filter((r: any) => r.date).length || 0;
+    const workBlocksFilled = data.workBlocks?.filter((b: any) => b.description) || [];
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+        <SectionTitle>En-tête</SectionTitle>
         <FieldRow label="Client" value={data.client} />
-        <FieldRow label="Projet" value={data.project} />
-        <FieldRow label="Date" value={data.date} />
-        <FieldRow label="Suivi de temps" value={data.timeTracking?.length ? `${data.timeTracking.length} entrée(s)` : undefined} />
-        <FieldRow label="Picks" value={data.picks?.length ? `${data.picks.length} ligne(s)` : undefined} />
-        <FieldRow label="Emballeurs" value={data.packers?.length ? `${data.packers.length} emballeur(s)` : undefined} />
+        <FieldRow label="Projet" value={data.projet} />
+        <FieldRow label="Date bon de travail" value={data.dateBonTravail} />
+        <FieldRow label="Référence" value={data.reference} />
+
+        <SectionTitle>Palette & Matériaux</SectionTitle>
+        <FieldRow label="Type palette" value={data.paletteType} />
+        <FieldRow label="Nb palettes" value={data.paletteNb} />
+        <FieldRow label="Matériaux disponibles" value={data.materiauxDisponible} />
+        {data.materiauxDescription && (
+          <div className="col-span-full"><FieldRow label="Description matériaux" value={data.materiauxDescription} /></div>
+        )}
+
+        <SectionTitle>Performance</SectionTitle>
+        <FieldRow label="Qté totale" value={data.performanceQteTotal} />
+        <FieldRow label="Qté conforme" value={data.performanceQteConforme} />
+        <FieldRow label="Qté NC" value={data.performanceQteNC} />
+
+        {workBlocksFilled.length > 0 && (
+          <>
+            <SectionTitle>Blocs de travail ({workBlocksFilled.length})</SectionTitle>
+            {workBlocksFilled.map((b: any, i: number) => (
+              <div key={i} className="col-span-full text-sm font-medium">{b.description}</div>
+            ))}
+          </>
+        )}
+
+        <SectionTitle>Picks & Emballeurs</SectionTitle>
+        {totalPicksAvec > 0 && <FieldRow label="Picks avec facture" value={`${totalPicksAvec} ligne(s)`} />}
+        {totalPicksSans > 0 && <FieldRow label="Picks sans facture" value={`${totalPicksSans} ligne(s)`} />}
+        {totalPickers > 0 && <FieldRow label="Emballeurs" value={`${totalPickers} personne(s)`} />}
+        {data.montageComments && (
+          <div className="col-span-full"><FieldRow label="Commentaires montage" value={data.montageComments} /></div>
+        )}
       </div>
     );
   }
 
   if (form.formType === "livraison") {
+    const destFilled = data.destinations?.filter((d: any) => d.adresse) || [];
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-        <FieldRow label="Client" value={data.client} />
-        <FieldRow label="Date de livraison" value={data.deliveryDate} />
-        <FieldRow label="Destinations" value={data.destinations?.length ? `${data.destinations.length} destination(s)` : undefined} />
-        <FieldRow label="Mode de transport" value={data.transportMode} />
-        {data.notes && <div className="col-span-full"><FieldRow label="Notes" value={data.notes} /></div>}
+        <SectionTitle>Marchandise</SectionTitle>
+        <FieldRow label="Type de marchandise" value={data.typeMarchandise} />
+        <FieldRow label="Nb unités" value={data.nbUnites} />
+        <FieldRow label="Poids total" value={data.poidsTotal ? `${data.poidsTotal} ${data.unitePoids || "kg"}` : undefined} />
+        <FieldRow label="Référence" value={data.reference} />
+
+        <SectionTitle>Livraison</SectionTitle>
+        <FieldRow label="Type destination" value={data.destinationType === "longue_distance" ? "Longue distance" : "Local"} />
+        {data.hasTailgate && <FieldRow label="Tailgate" value="Requis" />}
+        {data.hasRendezVous && (
+          <FieldRow label="Rendez-vous" value={[data.rvDate, data.rvTime].filter(Boolean).join(" à ")} />
+        )}
+        <FieldRow label="Mode de facturation" value={data.modeBilling} />
+
+        {destFilled.length > 0 && (
+          <>
+            <SectionTitle>Destinations ({destFilled.length})</SectionTitle>
+            {destFilled.map((d: any, i: number) => (
+              <div key={i} className="col-span-full border rounded-lg p-3 space-y-0.5">
+                <p className="text-sm font-medium">{d.adresse}</p>
+                {d.contact && <p className="text-xs text-muted-foreground">Contact: {d.contact}</p>}
+                {d.telephone && <p className="text-xs text-muted-foreground">Tél: {d.telephone}</p>}
+                {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
+              </div>
+            ))}
+          </>
+        )}
+
+        {data.documentation?.length > 0 && (
+          <>
+            <SectionTitle>Documentation</SectionTitle>
+            <div className="col-span-full">
+              <TagList items={data.documentation} />
+            </div>
+          </>
+        )}
+
+        {data.instructionsSpeciales && (
+          <>
+            <SectionTitle>Instructions spéciales</SectionTitle>
+            <div className="col-span-full"><FieldRow label="Instructions" value={data.instructionsSpeciales} /></div>
+          </>
+        )}
       </div>
     );
   }
