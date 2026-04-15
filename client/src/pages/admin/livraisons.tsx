@@ -31,14 +31,8 @@ import {
 import {
   Truck,
   Search,
-  Package,
-  Users,
-  CheckCircle2,
   ArrowUpRight,
   MapPin,
-  Weight,
-  Hash,
-  Calendar,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -147,23 +141,11 @@ export default function AdminLivraisons() {
     });
   }, [forms, search, statusFilter, clientFilter, marchandiseFilter, dateFrom, dateTo, contactsList]);
 
-  const stats = useMemo(() => {
-    const out = filtered.filter((f) => f.status === "approved" || f.status === "completed");
-    const totalUnits = out.reduce((sum, f) => {
-      const d = getLivData(f);
-      return sum + (parseInt(d.nbUnites || "0") || 0);
-    }, 0);
-    const uniqueClients = new Set(out.map((f) => f.contactId)).size;
-    return { total: filtered.length, outbound: out.length, totalUnits, uniqueClients };
-  }, [filtered]);
-
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
-        </div>
+        <Skeleton className="h-16 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
       </div>
     );
@@ -175,54 +157,6 @@ export default function AdminLivraisons() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Livraisons</h1>
         <p className="text-sm text-muted-foreground mt-1">Historique des sorties d'inventaire du système</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
-              <Truck className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total livraisons</p>
-              <p className="text-xl font-bold" data-testid="stat-total-livraisons">{stats.total}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="h-4.5 w-4.5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Approuvées / Terminées</p>
-              <p className="text-xl font-bold" data-testid="stat-outbound">{stats.outbound}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-              <Package className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Unités sorties</p>
-              <p className="text-xl font-bold" data-testid="stat-units">{stats.totalUnits.toLocaleString("fr-CA")}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-              <Users className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Clients</p>
-              <p className="text-xl font-bold" data-testid="stat-clients">{stats.uniqueClients}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
