@@ -165,6 +165,28 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/contacts/bulk", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { ids } = req.body as { ids: number[] };
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "No contact IDs provided" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const contact = await storage.getContact(id);
+        if (contact) {
+          await storage.deleteContact(contact.id);
+          deleted++;
+        }
+      }
+      await storage.createActivityLog({ type: "contact_delete", status: "success", message: `${deleted} contact(s) bulk deleted` });
+      res.json({ message: `${deleted} contact(s) deleted` });
+    } catch (error) {
+      console.error("Error bulk deleting contacts:", error);
+      res.status(500).json({ message: "Failed to delete contacts" });
+    }
+  });
+
   app.delete("/api/contacts/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contact = await storage.getContact(Number(req.params.id));

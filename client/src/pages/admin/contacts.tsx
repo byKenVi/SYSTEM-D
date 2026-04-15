@@ -45,7 +45,9 @@ import {
   List,
   Mail,
   Phone,
+  X,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import {
@@ -74,6 +76,8 @@ export default function AdminContacts() {
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const setViewMode = (v: ViewMode) => {
     localStorage.setItem("contacts_viewMode", v);
@@ -137,6 +141,28 @@ export default function AdminContacts() {
       toast({ title: "Error", description: "Failed to delete contact.", variant: "destructive" }),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) =>
+      apiRequest("DELETE", "/api/contacts/bulk", { ids }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({ title: "Contacts deleted", description: `${selectedIds.size} contact(s) permanently removed.` });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+    },
+    onError: () =>
+      toast({ title: "Error", description: "Failed to delete contacts.", variant: "destructive" }),
+  });
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const filtered = contacts
     ?.filter(
       (c) =>
@@ -180,6 +206,18 @@ export default function AdminContacts() {
       });
   }, [filtered, groupBy]);
 
+  const allFilteredIds = filtered?.map((c) => c.id) ?? [];
+  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every((id) => selectedIds.has(id));
+  const someSelected = !allSelected && allFilteredIds.some((id) => selectedIds.has(id));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allFilteredIds));
+    }
+  };
+
   const groupLabel = (key: string) => {
     if (key === "") {
       return groupBy === "company" ? "No Company" : "Unknown";
@@ -195,9 +233,16 @@ export default function AdminContacts() {
       <TableRow
         key={contact.id}
         data-testid={`row-contact-${contact.id}`}
-        className="cursor-pointer"
+        className={`cursor-pointer ${selectedIds.has(contact.id) ? "bg-primary/5" : ""}`}
         onClick={() => navigate(`/admin/contacts/${contact.id}`)}
       >
+        <TableCell onClick={(e) => e.stopPropagation()} className="w-10 pr-0">
+          <Checkbox
+            checked={selectedIds.has(contact.id)}
+            onCheckedChange={() => toggleSelect(contact.id)}
+            data-testid={`checkbox-contact-${contact.id}`}
+          />
+        </TableCell>
         <TableCell className="font-medium">
           {contact.companyName || <span className="text-muted-foreground/40">—</span>}
         </TableCell>
@@ -230,13 +275,24 @@ export default function AdminContacts() {
 
   function ContactCard({ contact }: { contact: Contact }) {
     const initials = contact.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+    const isSelected = selectedIds.has(contact.id);
     return (
       <Card
-        className="cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
+        className={`cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all relative ${isSelected ? "border-primary/50 bg-primary/5" : ""}`}
         data-testid={`card-contact-${contact.id}`}
         onClick={() => navigate(`/admin/contacts/${contact.id}`)}
       >
-        <CardContent className="p-4">
+        <span
+          className="absolute top-3 left-3 z-10"
+          onClick={(e) => { e.stopPropagation(); toggleSelect(contact.id); }}
+        >
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => toggleSelect(contact.id)}
+            data-testid={`checkbox-contact-${contact.id}`}
+          />
+        </span>
+        <CardContent className="p-4 pl-10">
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-semibold text-primary">{initials}</span>
@@ -396,6 +452,34 @@ export default function AdminContacts() {
         </div>
       </div>
 
+      {/* ── Selection toolbar ── */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+          <span className="text-sm font-medium text-primary">{selectedIds.size} selected</span>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-muted-foreground"
+            onClick={() => setSelectedIds(new Set())}
+            data-testid="button-clear-selection"
+          >
+            <X className="h-3.5 w-3.5 mr-1.5" />
+            Clear
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8"
+            onClick={() => setBulkDeleteOpen(true)}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+            Delete {selectedIds.size}
+          </Button>
+        </div>
+      )}
+
       {/* ── Table View ── */}
       {viewMode === "table" && (
         <Card>
@@ -404,6 +488,13 @@ export default function AdminContacts() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-10 pr-0">
+                      <Checkbox
+                        checked={allSelected || (someSelected ? "indeterminate" : false)}
+                        onCheckedChange={toggleSelectAll}
+                        data-testid="checkbox-select-all"
+                      />
+                    </TableHead>
                     {(["company", "name", "email", "status", "phone", "created"] as const).map((col) => (
                       <TableHead key={col}>
                         <button
@@ -434,7 +525,7 @@ export default function AdminContacts() {
                       grouped.map(([key, contacts]) => (
                         <Fragment key={`group-${key}`}>
                           <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={7} className="py-2 px-4 bg-muted/40 border-b">
+                            <TableCell colSpan={8} className="py-2 px-4 bg-muted/40 border-b">
                               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                 {groupLabel(key)}
                               </span>
@@ -453,7 +544,7 @@ export default function AdminContacts() {
                     )
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-36 text-center">
+                      <TableCell colSpan={8} className="h-36 text-center">
                         <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                         <p className="text-sm text-muted-foreground">No contacts found</p>
                         <p className="text-xs text-muted-foreground/60 mt-1">Contacts are created when Zoho CRM sends a webhook</p>
@@ -519,6 +610,29 @@ export default function AdminContacts() {
           )}
         </>
       )}
+
+      {/* Bulk Delete Confirmation */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""} and all their associated data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteMutation.isPending ? "Deleting…" : `Delete ${selectedIds.size}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Revoke Access Confirmation */}
       <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
