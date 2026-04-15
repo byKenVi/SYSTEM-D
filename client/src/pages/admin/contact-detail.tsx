@@ -431,7 +431,6 @@ export default function ContactDetail() {
                   {relatedContacts && (
                     <Badge variant="secondary" className="ml-auto">{relatedContacts.length}</Badge>
                   )}
-                  <span className="text-xs text-muted-foreground">at {contact.companyName}</span>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
