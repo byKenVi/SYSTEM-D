@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign, ExternalLink, ClipboardList } from "lucide-react";
+import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign, ExternalLink, ClipboardList, RefreshCw } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -892,6 +892,20 @@ export function AdminFormDetail({ id }: { id: number }) {
     },
   });
 
+  const createZohoSOMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/forms/${id}/create-zoho-so`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forms", id] });
+      toast({ title: "Bon de travail Zoho créé avec succès" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur Zoho", description: err.message || "Impossible de créer le bon de travail.", variant: "destructive" });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -1077,6 +1091,34 @@ export function AdminFormDetail({ id }: { id: number }) {
             >
               Modifier
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Work Order (Zoho Sales Order) — retry if approved but SO missing */}
+      {!form.zohoSalesOrderId && (form.status === "approved" || form.status === "completed") && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                <ClipboardList className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bon de travail Zoho</p>
+                <p className="text-sm text-amber-700 dark:text-amber-400">Non créé — la création automatique a échoué.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs border-amber-300 dark:border-amber-700"
+                onClick={() => createZohoSOMutation.mutate()}
+                disabled={createZohoSOMutation.isPending}
+                data-testid="button-retry-zoho-so"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${createZohoSOMutation.isPending ? "animate-spin" : ""}`} />
+                {createZohoSOMutation.isPending ? "Création…" : "Créer maintenant"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -1537,6 +1537,43 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/forms/:id/create-zoho-so", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Form not found" });
+      if (form.status !== "approved") return res.status(400).json({ message: "Form must be approved" });
+
+      const contact = await storage.getContact(form.contactId);
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+
+      const qty = form.approvedQuantity != null ? Number(form.approvedQuantity) : 1;
+      const rate = form.price != null ? Number(form.price) : 0;
+
+      const { salesOrderId, salesOrderNumber } = await createFormSalesOrder({
+        formNumber: form.formNumber,
+        formType: form.formType,
+        formData: form.data,
+        quantity: qty,
+        rate,
+        contact: { name: contact.name, email: contact.email, companyName: contact.companyName },
+      });
+      const region = await getZohoRegion();
+      const zohoSalesOrderUrl = getZohoSOUrl(region, salesOrderId);
+
+      await storage.updateFormSubmission(form.id, {
+        zohoSalesOrderId: salesOrderId,
+        zohoSalesOrderNumber: salesOrderNumber,
+        zohoSalesOrderUrl,
+      });
+
+      console.log(`[zoho] Manually created SO ${salesOrderNumber} for form ${form.formNumber}`);
+      res.json({ salesOrderId, salesOrderNumber, zohoSalesOrderUrl });
+    } catch (error: any) {
+      console.error(`[zoho] Failed to create SO:`, error.message);
+      res.status(500).json({ message: error.message || "Failed to create Zoho sales order" });
+    }
+  });
+
   app.get("/api/forms/:id/pdf", isAuthenticated, async (req: any, res) => {
     try {
       const form = await storage.getFormSubmission(Number(req.params.id));
