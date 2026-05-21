@@ -15,9 +15,12 @@ export function getZohoDomains(region: string = "us") {
 }
 
 export function getCallbackUrl(): string {
-  const domain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
-  if (domain) {
-    return `https://${domain}/api/auth/zoho/callback`;
+  const raw = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
+  if (raw) {
+    // REPLIT_DOMAINS may be comma-separated; prefer custom domain over *.replit.app
+    const domains = raw.split(",").map((d) => d.trim()).filter(Boolean);
+    const preferred = domains.find((d) => !d.endsWith(".replit.app")) || domains[0];
+    return `https://${preferred}/api/auth/zoho/callback`;
   }
   return "http://localhost:5000/api/auth/zoho/callback";
 }
