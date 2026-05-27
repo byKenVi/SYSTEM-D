@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import type { ParsedQs } from "qs";
 
-const SHOPIFY_API_VERSION = "2024-10";
+const SHOPIFY_API_VERSION = "2025-04";
 
 const SHOPIFY_SCOPES = [
   "read_products",
