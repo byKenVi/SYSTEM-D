@@ -99,7 +99,7 @@ export async function fetchZohoItems(): Promise<any[]> {
   while (hasMore) {
     const data = await zohoRequest(
       "GET",
-      `/items?per_page=200&page=${page}`,
+      `/items?per_page=200&page=${page}&filter_by=Status.All`,
       undefined,
       region
     );
@@ -110,7 +110,19 @@ export async function fetchZohoItems(): Promise<any[]> {
     page++;
   }
 
-  return items;
+  // The list endpoint doesn't return custom_fields — fetch each item individually to get them
+  const enriched = await Promise.all(
+    items.map(async (item) => {
+      try {
+        const detail = await zohoRequest("GET", `/items/${item.item_id}`, undefined, region);
+        return detail.item ?? item;
+      } catch {
+        return item;
+      }
+    })
+  );
+
+  return enriched;
 }
 
 // Push a single item to Zoho Inventory
@@ -202,6 +214,24 @@ export async function syncZohoItemsForContact(contactId: number): Promise<{
 }
 
 // Create or find a contact in Zoho Inventory
+export async function fetchZohoContactsMap(): Promise<Map<string, { name: string; email: string | null }>> {
+  const region = await getZohoRegion();
+  const map = new Map<string, { name: string; email: string | null }>();
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const data = await zohoRequest("GET", `/contacts?per_page=200&page=${page}&contact_type=customer`, undefined, region);
+    if (data.contacts && data.contacts.length > 0) {
+      for (const c of data.contacts) {
+        map.set(String(c.contact_id), { name: c.contact_name || c.display_name || "", email: c.email || null });
+      }
+    }
+    hasMore = data.page_context?.has_more_page === true;
+    page++;
+  }
+  return map;
+}
+
 export async function ensureZohoContact(contact: {
   name: string;
   email: string;

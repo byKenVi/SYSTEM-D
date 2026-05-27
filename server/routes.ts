@@ -1026,8 +1026,8 @@ export async function registerRoutes(
   // Fetch all Zoho Inventory items with cf_client custom field, enriched with contact info
   app.get("/api/zoho/inventory", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const { fetchZohoItems } = await import("./zoho-api");
-      const zohoItems = await fetchZohoItems();
+      const { fetchZohoItems, fetchZohoContactsMap } = await import("./zoho-api");
+      const [zohoItems, zohoContactsMap] = await Promise.all([fetchZohoItems(), fetchZohoContactsMap()]);
       const allContacts = await storage.getContacts();
 
       // Build a lookup map by company name / name (lowercase for fuzzy match)
@@ -1052,11 +1052,21 @@ export async function registerRoutes(
           const cf = item.custom_fields.find((f: any) => f.api_name === "cf_client" || f.label?.toLowerCase() === "client");
           if (cf) cfClient = cf.value ?? null;
         }
-        // Try to match to a contact
+        // cfClient may be a Zoho Inventory contact ID — resolve to name via zohoContactsMap
+        let resolvedClientName = cfClient;
+        if (cfClient && zohoContactsMap.has(cfClient)) {
+          resolvedClientName = zohoContactsMap.get(cfClient)!.name;
+        }
+        // Try to match to a local contact
         let contact: typeof allContacts[number] | undefined;
-        if (cfClient) {
-          const key = cfClient.toLowerCase().trim();
+        if (resolvedClientName) {
+          const key = resolvedClientName.toLowerCase().trim();
           contact = contactByCompany.get(key) || contactByName.get(key);
+        }
+        // Also try matching by Zoho contact email
+        if (!contact && cfClient && zohoContactsMap.has(cfClient)) {
+          const email = zohoContactsMap.get(cfClient)!.email;
+          if (email) contact = allContacts.find((c) => c.email?.toLowerCase() === email.toLowerCase());
         }
 
         return {
@@ -1068,7 +1078,7 @@ export async function registerRoutes(
           imageUrl: item.image_document_id ? null : null,
           price: item.rate != null ? String(item.rate) : null,
           inventoryQuantity: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
-          cfClient,
+          cfClient: resolvedClientName,
           contactId: contact?.id ?? null,
           contactName: contact ? (contact.companyName || contact.name) : null,
           status: item.status,
