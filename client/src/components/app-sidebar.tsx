@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -70,6 +71,7 @@ const clientItems = [
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   const [location, navigate] = useLocation();
   const { user, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
   const baseItems = role === "admin" ? adminItems : clientItems;
   const items = viewAsContactId
     ? baseItems.map((item) => ({
@@ -190,34 +192,49 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       {/* ── Footer ── */}
       <SidebarFooter className="border-t border-sidebar-border p-3">
         {/* Expanded */}
-        <div className="group-data-[collapsible=icon]:hidden space-y-2">
-          <div className="flex items-center gap-2.5 px-1">
+        <div className="group-data-[collapsible=icon]:hidden space-y-1">
+          {/* Clickable profile row */}
+          <button
+            onClick={() => setProfileOpen((o) => !o)}
+            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-sidebar-accent transition-colors"
+            data-testid="button-profile-toggle"
+          >
             <Avatar className="h-7 w-7 flex-shrink-0 ring-1 ring-sidebar-border">
               <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
               <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-foreground">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium leading-tight truncate text-sidebar-foreground" data-testid="text-sidebar-username">
                 {user?.firstName} {user?.lastName}
               </p>
               <p className="text-xs text-sidebar-foreground/50 truncate">{user?.email}</p>
             </div>
-          </div>
-          <div className="flex items-center gap-1 px-1">
-            <ThemeToggle />
-            <Button
-              size="sm"
-              variant="ghost"
-              className="flex-1 justify-start gap-2 h-8 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              onClick={() => logout()}
-              data-testid="button-logout"
+            <svg
+              className={`h-3.5 w-3.5 text-sidebar-foreground/40 flex-shrink-0 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             >
-              <LogOut className="h-3.5 w-3.5" />
-              Se déconnecter
-            </Button>
-          </div>
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {/* Collapsible actions */}
+          {profileOpen && (
+            <div className="flex items-center gap-1 px-1 pt-0.5">
+              <ThemeToggle />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="flex-1 justify-start gap-2 h-8 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                onClick={() => logout()}
+                data-testid="button-logout"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Se déconnecter
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Collapsed */}
@@ -233,7 +250,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             variant="ghost"
             className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
             onClick={() => logout()}
-            data-testid="button-logout"
+            data-testid="button-logout-icon"
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
