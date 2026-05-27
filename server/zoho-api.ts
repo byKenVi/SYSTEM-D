@@ -285,6 +285,11 @@ export async function getZohoItemStock(zohoItemId: string): Promise<number | nul
   }
 }
 
+export async function deleteZohoItem(zohoItemId: string): Promise<void> {
+  const region = await getZohoRegion();
+  await zohoRequest("DELETE", `/items/${zohoItemId}`, undefined, region);
+}
+
 export async function fetchZohoItemsMap(): Promise<Map<string, { stock: number; rate: number | null }>> {
   const items = await fetchZohoItems();
   const map = new Map<string, { stock: number; rate: number | null }>();

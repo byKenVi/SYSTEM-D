@@ -1149,6 +1149,21 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/zoho/items/:zohoItemId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { deleteZohoItem } = await import("./zoho-api");
+      const { zohoItemId } = req.params;
+      await deleteZohoItem(zohoItemId);
+      // Also delete the local product if one exists
+      const allProducts = await storage.getProducts();
+      const local = allProducts.find((p) => p.zohoItemId === zohoItemId);
+      if (local) await storage.deleteProduct(local.id);
+      res.json({ message: "Item deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to delete Zoho item" });
+    }
+  });
+
   app.post("/api/zoho/sync-inventory", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const allProducts = await storage.getProducts();

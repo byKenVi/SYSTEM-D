@@ -75,12 +75,12 @@ export default function AdminInventaire() {
   const [deleteTarget, setDeleteTarget] = useState<ZohoInventoryItem | null>(null);
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/products/${id}`),
+    mutationFn: (zohoItemId: string) => apiRequest("DELETE", `/api/zoho/items/${zohoItemId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/zoho/inventory"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setDeleteTarget(null);
-      toast({ title: "Produit supprimé de l'inventaire local" });
+      toast({ title: "Produit supprimé de Zoho Inventory" });
     },
     onError: () => toast({ title: "Erreur lors de la suppression", variant: "destructive" }),
   });
@@ -404,14 +404,14 @@ export default function AdminInventaire() {
             <DialogTitle>Supprimer ce produit ?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            « <strong>{deleteTarget?.name}</strong> » sera supprimé de l'inventaire local. Cela n'affecte pas Zoho Inventory.
+            « <strong>{deleteTarget?.name}</strong> » sera supprimé définitivement de Zoho Inventory{deleteTarget?.localProductId ? " et de l'inventaire local" : ""}.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} data-testid="button-cancel-delete-zoho">Annuler</Button>
             <Button
               variant="destructive"
               disabled={deleteMutation.isPending}
-              onClick={() => deleteTarget?.localProductId && deleteMutation.mutate(deleteTarget.localProductId)}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.zohoItemId)}
               data-testid="button-confirm-delete-zoho"
             >
               Supprimer
@@ -500,18 +500,16 @@ function ZohoItemRow({ item, hideClient, onDelete }: { item: ZohoInventoryItem; 
           >
             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
           </a>
-          {item.localProductId && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-              onClick={() => onDelete(item)}
-              data-testid={`button-delete-zoho-item-${item.zohoItemId}`}
-              title="Supprimer de l'inventaire local"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+            onClick={() => onDelete(item)}
+            data-testid={`button-delete-zoho-item-${item.zohoItemId}`}
+            title="Supprimer de Zoho Inventory"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </TableCell>
     </TableRow>
