@@ -1038,6 +1038,13 @@ export async function registerRoutes(
         contactByName.set(c.name.toLowerCase().trim(), c);
       }
 
+      // Build a lookup map of local products by zohoItemId
+      const allLocalProducts = await storage.getProducts();
+      const localProductByZohoId = new Map<string, number>();
+      for (const p of allLocalProducts) {
+        if (p.zohoItemId) localProductByZohoId.set(p.zohoItemId, p.id);
+      }
+
       const enriched = zohoItems.map((item: any) => {
         // Read the cf_client custom field value
         let cfClient: string | null = null;
@@ -1054,10 +1061,11 @@ export async function registerRoutes(
 
         return {
           zohoItemId: item.item_id,
+          localProductId: localProductByZohoId.get(item.item_id) ?? null,
           name: item.name,
           sku: item.sku || null,
           description: item.description || null,
-          imageUrl: item.image_document_id ? null : null, // Zoho items don't expose image URL directly
+          imageUrl: item.image_document_id ? null : null,
           price: item.rate != null ? String(item.rate) : null,
           inventoryQuantity: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
           cfClient,

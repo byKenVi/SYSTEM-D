@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Package,
   Search,
   RefreshCw,
@@ -31,12 +39,14 @@ import {
   AlertCircle,
   ExternalLink,
   BoxIcon,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contact } from "@shared/schema";
 
 interface ZohoInventoryItem {
   zohoItemId: string;
+  localProductId: number | null;
   name: string;
   sku: string | null;
   description: string | null;
@@ -62,6 +72,18 @@ export default function AdminInventaire() {
   const [clientFilter, setClientFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<boolean>(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<ZohoInventoryItem | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/products/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/zoho/inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setDeleteTarget(null);
+      toast({ title: "Produit supprimé de l'inventaire local" });
+    },
+    onError: () => toast({ title: "Erreur lors de la suppression", variant: "destructive" }),
+  });
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<InventoryResponse>({
     queryKey: ["/api/zoho/inventory"],
@@ -279,7 +301,7 @@ export default function AdminInventaire() {
                   </TableHeader>
                   <TableBody>
                     {filtered.map((item) => (
-                      <ZohoItemRow key={item.zohoItemId} item={item} />
+                      <ZohoItemRow key={item.zohoItemId} item={item} onDelete={setDeleteTarget} />
                     ))}
                   </TableBody>
                 </Table>
@@ -361,7 +383,7 @@ export default function AdminInventaire() {
                             </TableHeader>
                             <TableBody>
                               {group.items.map((item) => (
-                                <ZohoItemRow key={item.zohoItemId} item={item} hideClient />
+                                <ZohoItemRow key={item.zohoItemId} item={item} hideClient onDelete={setDeleteTarget} />
                               ))}
                             </TableBody>
                           </Table>
@@ -375,11 +397,33 @@ export default function AdminInventaire() {
           </CardContent>
         </Card>
       )}
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Supprimer ce produit ?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            « <strong>{deleteTarget?.name}</strong> » sera supprimé de l'inventaire local. Cela n'affecte pas Zoho Inventory.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} data-testid="button-cancel-delete-zoho">Annuler</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteTarget?.localProductId && deleteMutation.mutate(deleteTarget.localProductId)}
+              data-testid="button-confirm-delete-zoho"
+            >
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function ZohoItemRow({ item, hideClient }: { item: ZohoInventoryItem; hideClient?: boolean }) {
+function ZohoItemRow({ item, hideClient, onDelete }: { item: ZohoInventoryItem; hideClient?: boolean; onDelete: (item: ZohoInventoryItem) => void }) {
   const zohoUrl = `https://inventory.zoho.com/app#/inventory/items/${item.zohoItemId}`;
   return (
     <TableRow data-testid={`row-zoho-item-${item.zohoItemId}`} className="group">
@@ -446,16 +490,29 @@ function ZohoItemRow({ item, hideClient }: { item: ZohoInventoryItem; hideClient
         )}
       </TableCell>
       <TableCell>
-        <a
-          href={zohoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
-          data-testid={`link-zoho-item-${item.zohoItemId}`}
-          title="Voir dans Zoho Inventory"
-        >
-          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-        </a>
+        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <a
+            href={zohoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid={`link-zoho-item-${item.zohoItemId}`}
+            title="Voir dans Zoho Inventory"
+          >
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+          </a>
+          {item.localProductId && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(item)}
+              data-testid={`button-delete-zoho-item-${item.zohoItemId}`}
+              title="Supprimer de l'inventaire local"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
