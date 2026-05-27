@@ -46,3 +46,7 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "resend:1.0.0"]
 
 [userenv.shared]
 ADDITIONAL_ADMIN_IDS = "47369334"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
