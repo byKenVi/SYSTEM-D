@@ -212,3 +212,16 @@ export const notifications = pgTable("notifications", {
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  contactId: integer("contact_id").notNull(),
+  category: text("category").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+}, (table) => ({
+  uniq: unique().on(table.contactId, table.category),
+}));
+
+export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true });
+export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;

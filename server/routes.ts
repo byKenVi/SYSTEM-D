@@ -1632,14 +1632,19 @@ export async function registerRoutes(
             }).catch((err) => console.error("Form email error:", err));
           }
 
-          storage.createNotification({
-            contactId: form.contactId,
-            category: "compte",
-            type: "reception_soumission",
-            title: "Demande de soumission reçue",
-            message: `Votre demande ${form.formNumber} a bien été reçue et est en cours de traitement.`,
-            metadata: { formId: form.id, formNumber: form.formNumber, formType: form.formType },
-          }).catch((err) => console.error("Notification error:", err));
+          ;(async () => {
+            const enabled = await storage.isNotificationEnabled(form.contactId, "compte");
+            if (enabled) {
+              await storage.createNotification({
+                contactId: form.contactId,
+                category: "compte",
+                type: "reception_soumission",
+                title: "Demande de soumission reçue",
+                message: `Votre demande ${form.formNumber} a bien été reçue et est en cours de traitement.`,
+                metadata: { formId: form.id, formNumber: form.formNumber, formType: form.formType },
+              });
+            }
+          })().catch((err) => console.error("Notification error:", err));
 
           const settings = await storage.getAdminSettings();
           if (settings?.adminUserId) {
@@ -1700,8 +1705,12 @@ export async function registerRoutes(
 
           const notifData = buildStatusNotification(form.formType, form.status, status, form.formNumber, form.id);
           if (notifData) {
-            storage.createNotification({ contactId: form.contactId, ...notifData })
-              .catch((err) => console.error("Notification error:", err));
+            ;(async () => {
+              const enabled = await storage.isNotificationEnabled(form.contactId, notifData.category);
+              if (enabled) {
+                await storage.createNotification({ contactId: form.contactId, ...notifData });
+              }
+            })().catch((err) => console.error("Notification error:", err));
           }
 
           const statusLabels: Record<string, string> = { submitted: "Soumis", in_review: "En révision", approved: "Approuvé", completed: "Complété" };
@@ -2086,6 +2095,35 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error reordering form:", error);
       res.status(500).json({ message: error.message || "Failed to reorder" });
+    }
+  });
+
+  // ─── Notification Preferences ───────────────────────────────────
+  app.get("/api/portal/notifications/preferences", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (!role?.contactId) return res.json({});
+      const prefs = await storage.getNotificationPreferences(role.contactId);
+      const map: Record<string, boolean> = {};
+      prefs.forEach((p) => { map[p.category] = p.enabled; });
+      res.json(map);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/portal/notifications/preferences", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
+      const { category, enabled } = req.body;
+      if (!category || typeof enabled !== "boolean") {
+        return res.status(400).json({ message: "Missing category or enabled" });
+      }
+      await storage.upsertNotificationPreference(role.contactId, category, enabled);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 

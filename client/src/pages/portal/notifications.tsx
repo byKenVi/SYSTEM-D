@@ -1,19 +1,22 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Bell, Check, CheckCheck, Inbox } from "lucide-react";
+import { Bell, Check, CheckCheck, Inbox, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import type { Notification } from "@shared/schema";
 
-const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
-  compte:     { label: "Compte",     className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
-  livraison:  { label: "Livraison",  className: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
-  commande:   { label: "Commande",   className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
-  projet:     { label: "Projet",     className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300" },
-  inventaire: { label: "Inventaire", className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
+const CATEGORY_CONFIG: Record<string, { label: string; description: string; className: string }> = {
+  compte:     { label: "Compte",     description: "Soumissions, devis et mises à jour de dossier",   className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
+  livraison:  { label: "Livraison",  description: "Expédition, transit et confirmation de livraison", className: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
+  commande:   { label: "Commande",   description: "Co-packing et commandes de service",               className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
+  projet:     { label: "Projet",     description: "Projets en cours et jalons importants",            className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300" },
+  inventaire: { label: "Inventaire", description: "Alertes de stock et synchronisation",              className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
 };
+
+const CATEGORIES = Object.keys(CATEGORY_CONFIG);
 
 function fmt(d: string | null | undefined) {
   if (!d) return "—";
@@ -30,6 +33,11 @@ export default function PortalNotifications() {
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/portal/notifications"],
     refetchInterval: 30_000,
+  });
+
+  const { data: preferences, isLoading: prefsLoading } = useQuery<Record<string, boolean>>({
+    queryKey: ["/api/portal/notifications/preferences"],
+    staleTime: Infinity,
   });
 
   const markRead = useMutation({
@@ -51,8 +59,30 @@ export default function PortalNotifications() {
     },
   });
 
+  const togglePref = useMutation({
+    mutationFn: ({ category, enabled }: { category: string; enabled: boolean }) =>
+      apiRequest("PUT", "/api/portal/notifications/preferences", { category, enabled }).then((r) => r.json()),
+    onMutate: async ({ category, enabled }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/portal/notifications/preferences"] });
+      const prev = queryClient.getQueryData<Record<string, boolean>>(["/api/portal/notifications/preferences"]);
+      queryClient.setQueryData<Record<string, boolean>>(["/api/portal/notifications/preferences"], (old) => ({
+        ...old,
+        [category]: enabled,
+      }));
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      queryClient.setQueryData(["/api/portal/notifications/preferences"], ctx?.prev);
+      toast({ title: "Erreur lors de la mise à jour", variant: "destructive" });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications/preferences"] });
+    },
+  });
+
   const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
-  const cat = (c: string) => CATEGORY_CONFIG[c] ?? { label: c, className: "bg-muted text-muted-foreground" };
+  const cat = (c: string) => CATEGORY_CONFIG[c] ?? { label: c, description: "", className: "bg-muted text-muted-foreground" };
+  const isEnabled = (category: string) => preferences?.[category] ?? true;
 
   return (
     <div className="space-y-6 max-w-5xl" data-testid="page-portal-notifications">
@@ -87,7 +117,47 @@ export default function PortalNotifications() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Preferences panel */}
+      <div className="rounded-xl border border-border bg-card" data-testid="panel-notification-preferences">
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+          <Settings2 className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Préférences de notification</span>
+        </div>
+        <div className="divide-y divide-border">
+          {CATEGORIES.map((category) => {
+            const cfg = cat(category);
+            const enabled = isEnabled(category);
+            return (
+              <div
+                key={category}
+                className="flex items-center justify-between gap-4 px-4 py-3"
+                data-testid={`pref-row-${category}`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Badge className={`text-xs font-medium border-0 flex-shrink-0 ${cfg.className}`}>
+                    {cfg.label}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground truncate">
+                    {cfg.description}
+                  </span>
+                </div>
+                {prefsLoading ? (
+                  <Skeleton className="h-5 w-9 rounded-full" />
+                ) : (
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(val) => togglePref.mutate({ category, enabled: val })}
+                    disabled={togglePref.isPending}
+                    data-testid={`switch-pref-${category}`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Notifications table */}
       <div className="rounded-xl border border-border overflow-hidden bg-card">
         {isLoading ? (
           <div className="p-4 space-y-3">

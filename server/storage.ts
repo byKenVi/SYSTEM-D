@@ -9,6 +9,7 @@ import {
   formSubmissions, type FormSubmission, type InsertFormSubmission,
   formUploads, type FormUpload, type InsertFormUpload,
   notifications, type Notification, type InsertNotification,
+  notificationPreferences, type NotificationPreference,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray } from "drizzle-orm";
@@ -76,6 +77,10 @@ export interface IStorage {
   markNotificationRead(id: number): Promise<void>;
   markAllNotificationsRead(contactId: number): Promise<void>;
   deleteNotification(id: number): Promise<void>;
+
+  getNotificationPreferences(contactId: number): Promise<NotificationPreference[]>;
+  upsertNotificationPreference(contactId: number, category: string, enabled: boolean): Promise<void>;
+  isNotificationEnabled(contactId: number, category: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -415,6 +420,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotification(id: number): Promise<void> {
     await db.delete(notifications).where(eq(notifications.id, id));
+  }
+
+  async getNotificationPreferences(contactId: number): Promise<NotificationPreference[]> {
+    return db.select().from(notificationPreferences)
+      .where(eq(notificationPreferences.contactId, contactId));
+  }
+
+  async upsertNotificationPreference(contactId: number, category: string, enabled: boolean): Promise<void> {
+    await db.insert(notificationPreferences)
+      .values({ contactId, category, enabled })
+      .onConflictDoUpdate({
+        target: [notificationPreferences.contactId, notificationPreferences.category],
+        set: { enabled },
+      });
+  }
+
+  async isNotificationEnabled(contactId: number, category: string): Promise<boolean> {
+    const [pref] = await db.select()
+      .from(notificationPreferences)
+      .where(and(
+        eq(notificationPreferences.contactId, contactId),
+        eq(notificationPreferences.category, category)
+      ));
+    return pref?.enabled ?? true;
   }
 }
 
