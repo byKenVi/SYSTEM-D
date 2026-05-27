@@ -1,0 +1,1 @@
+- [Notification auto-trigger pattern](notification-triggers.md) — buildStatusNotification() maps (formType, fromStatus, toStatus) to category/type/title/message; fire-and-forget with .catch().

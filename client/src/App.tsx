@@ -30,9 +30,11 @@ import AdminInventaire from "@/pages/admin/inventaire";
 import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminLivraisons from "@/pages/admin/livraisons";
+import AdminNotifications from "@/pages/admin/notifications";
 import PortalForms from "@/pages/portal/forms";
 import PortalBoutique from "@/pages/portal/boutique";
 import PortalDashboard from "@/pages/portal/dashboard";
+import PortalNotifications from "@/pages/portal/notifications";
 import FormPrintPage from "@/pages/form-print";
 
 interface UserRole {
@@ -59,6 +61,7 @@ function AdminLayout() {
           <Route path="/admin/inventaire" component={AdminInventaire} />
           <Route path="/admin/commandes" component={AdminCommandes} />
           <Route path="/admin/livraisons" component={AdminLivraisons} />
+          <Route path="/admin/notifications" component={AdminNotifications} />
           <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
           <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
           <Route path="/admin/restock-requests"><Redirect to="/admin/commandes" /></Route>
@@ -116,6 +119,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
             </Route>
             <Route path="/portal/livraisons">
               <PortalLivraisons viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/notifications">
+              <PortalNotifications />
             </Route>
             <Route path="/portal/forms/:id?">
               <PortalForms viewAsContactId={viewAsContactId} />

@@ -21,6 +21,80 @@ import {
   fetchShopifyOrders,
 } from "./shopify-api";
 
+function buildStatusNotification(
+  formType: string,
+  fromStatus: string,
+  toStatus: string,
+  formNumber: string,
+  formId: number
+): { category: string; type: string; title: string; message: string; metadata: object } | null {
+  const meta = { formId, formNumber, formType };
+  if (toStatus === "in_review") {
+    return {
+      category: "compte",
+      type: "devis_preparation",
+      title: "Dossier en cours d'évaluation",
+      message: `Votre dossier ${formNumber} est actuellement en cours d'évaluation par notre équipe.`,
+      metadata: meta,
+    };
+  }
+  if (toStatus === "approved") {
+    if (formType === "livraison") {
+      return {
+        category: "livraison",
+        type: "colis_expedie",
+        title: "Colis expédié",
+        message: `Votre livraison ${formNumber} a été confirmée et est en route.`,
+        metadata: meta,
+      };
+    }
+    if (formType === "copacking") {
+      return {
+        category: "commande",
+        type: "commande_approuvee",
+        title: "Commande approuvée",
+        message: `Votre commande ${formNumber} a été approuvée et est en cours de préparation.`,
+        metadata: meta,
+      };
+    }
+    return {
+      category: "compte",
+      type: "nouveau_devis",
+      title: "Nouveau devis disponible",
+      message: `Votre devis pour ${formNumber} est prêt. Notre équipe vous contactera prochainement.`,
+      metadata: meta,
+    };
+  }
+  if (toStatus === "completed") {
+    if (formType === "livraison") {
+      return {
+        category: "livraison",
+        type: "colis_livre",
+        title: "Colis livré",
+        message: `Votre livraison ${formNumber} a été complétée avec succès.`,
+        metadata: meta,
+      };
+    }
+    if (formType === "copacking") {
+      return {
+        category: "commande",
+        type: "commande_expediee",
+        title: "Commande complétée",
+        message: `Votre commande ${formNumber} a été traitée et complétée.`,
+        metadata: meta,
+      };
+    }
+    return {
+      category: "compte",
+      type: "dossier_complete",
+      title: "Dossier complété",
+      message: `Votre dossier ${formNumber} a été complété. Merci de votre confiance.`,
+      metadata: meta,
+    };
+  }
+  return null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -1558,6 +1632,15 @@ export async function registerRoutes(
             }).catch((err) => console.error("Form email error:", err));
           }
 
+          storage.createNotification({
+            contactId: form.contactId,
+            category: "compte",
+            type: "reception_soumission",
+            title: "Demande de soumission reçue",
+            message: `Votre demande ${form.formNumber} a bien été reçue et est en cours de traitement.`,
+            metadata: { formId: form.id, formNumber: form.formNumber, formType: form.formType },
+          }).catch((err) => console.error("Notification error:", err));
+
           const settings = await storage.getAdminSettings();
           if (settings?.adminUserId) {
             const adminUsers = await db.select().from(usersTable).where(eq(usersTable.id, settings.adminUserId));
@@ -1613,6 +1696,12 @@ export async function registerRoutes(
               formNumber: form.formNumber,
               newStatus: status,
             }).catch((err) => console.error("Status email error:", err));
+          }
+
+          const notifData = buildStatusNotification(form.formType, form.status, status, form.formNumber, form.id);
+          if (notifData) {
+            storage.createNotification({ contactId: form.contactId, ...notifData })
+              .catch((err) => console.error("Notification error:", err));
           }
 
           const statusLabels: Record<string, string> = { submitted: "Soumis", in_review: "En révision", approved: "Approuvé", completed: "Complété" };
@@ -1997,6 +2086,89 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error reordering form:", error);
       res.status(500).json({ message: error.message || "Failed to reorder" });
+    }
+  });
+
+  // ─── Notifications ──────────────────────────────────────────────
+  app.get("/api/portal/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
+      const notifs = await storage.getNotificationsByContactId(role.contactId);
+      res.json(notifs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/portal/notifications/unread-count", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (!role?.contactId) return res.json({ count: 0 });
+      const count = await storage.getUnreadNotificationCount(role.contactId);
+      res.json({ count });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/portal/notifications/read-all", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
+      await storage.markAllNotificationsRead(role.contactId);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      await storage.markNotificationRead(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const notifs = await storage.getAllNotifications();
+      const contacts = await storage.getContacts();
+      const contactMap = Object.fromEntries(contacts.map((c) => [c.id, c]));
+      const enriched = notifs.map((n) => ({ ...n, contact: contactMap[n.contactId] || null }));
+      res.json(enriched);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const { contactId, category, type, title, message } = req.body;
+      if (!contactId || !category || !type || !title || !message) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      const notif = await storage.createNotification({ contactId: Number(contactId), category, type, title, message, metadata: {} });
+      res.status(201).json(notif);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/admin/notifications/:id", isAuthenticated, async (req, res) => {
+    try {
+      const role = await (req as any).getUserRole();
+      if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      await storage.deleteNotification(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 

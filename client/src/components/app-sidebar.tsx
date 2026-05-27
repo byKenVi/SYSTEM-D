@@ -28,10 +28,8 @@ import {
 } from "@/components/ui/select";
 import {
   Users,
-  Package,
   Settings,
   User,
-  Warehouse,
   LogOut,
   Eye,
   ClipboardList,
@@ -40,6 +38,7 @@ import {
   BoxIcon,
   PackageCheck,
   Truck,
+  Bell,
 } from "lucide-react";
 import logoSrc from "@assets/logo_no_bg.png";
 
@@ -50,22 +49,24 @@ interface AppSidebarProps {
 
 const adminItems = [
   { title: "Tableau de bord", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Clients", url: "/admin/contacts", icon: Users },
-  { title: "Boutique", url: "/admin/boutique", icon: ShoppingCart },
-  { title: "Inventaire", url: "/admin/inventaire", icon: BoxIcon },
-  { title: "Soumissions", url: "/admin/forms", icon: ClipboardList },
-  { title: "Commandes", url: "/admin/commandes", icon: PackageCheck },
-  { title: "Livraisons", url: "/admin/livraisons", icon: Truck },
-  { title: "Paramètres", url: "/admin/settings", icon: Settings },
+  { title: "Clients",         url: "/admin/contacts",      icon: Users },
+  { title: "Boutique",        url: "/admin/boutique",      icon: ShoppingCart },
+  { title: "Inventaire",      url: "/admin/inventaire",    icon: BoxIcon },
+  { title: "Soumissions",     url: "/admin/forms",         icon: ClipboardList },
+  { title: "Commandes",       url: "/admin/commandes",     icon: PackageCheck },
+  { title: "Livraisons",      url: "/admin/livraisons",    icon: Truck },
+  { title: "Notifications",   url: "/admin/notifications", icon: Bell },
+  { title: "Paramètres",      url: "/admin/settings",      icon: Settings },
 ];
 
 const clientItems = [
-  { title: "Tableau de bord", url: "/portal/dashboard", icon: LayoutDashboard },
-  { title: "Profil", url: "/portal/profile", icon: User },
-  { title: "Boutique", url: "/portal/boutique", icon: ShoppingCart },
-  { title: "Soumissions", url: "/portal/forms", icon: ClipboardList },
-  { title: "Commandes", url: "/portal/commandes", icon: PackageCheck },
-  { title: "Livraisons", url: "/portal/livraisons", icon: Truck },
+  { title: "Tableau de bord", url: "/portal/dashboard",      icon: LayoutDashboard },
+  { title: "Profil",          url: "/portal/profile",        icon: User },
+  { title: "Boutique",        url: "/portal/boutique",       icon: ShoppingCart },
+  { title: "Soumissions",     url: "/portal/forms",          icon: ClipboardList },
+  { title: "Commandes",       url: "/portal/commandes",      icon: PackageCheck },
+  { title: "Livraisons",      url: "/portal/livraisons",     icon: Truck },
+  { title: "Notifications",   url: "/portal/notifications",  icon: Bell },
 ];
 
 export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
@@ -76,7 +77,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   const items = viewAsContactId
     ? baseItems.map((item) => ({
         ...item,
-        url: `${item.url}?viewAs=${viewAsContactId}`,
+        url: item.url.startsWith("/portal") ? `${item.url}?viewAs=${viewAsContactId}` : item.url,
       }))
     : baseItems;
   const initials = user
@@ -87,6 +88,14 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
     queryKey: ["/api/contacts"],
     enabled: role === "admin",
   });
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/portal/notifications/unread-count"],
+    enabled: role === "client" && !viewAsContactId,
+    refetchInterval: 30_000,
+    staleTime: 0,
+  });
+  const unreadCount = unreadData?.count ?? 0;
 
   function handleViewAsChange(value: string) {
     if (value === "__admin__") {
@@ -124,9 +133,12 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => {
+                const basePath = item.url.split("?")[0];
                 const isActive =
-                  location === item.url.split("?")[0] ||
-                  location.startsWith(item.url.split("?")[0] + "/");
+                  location === basePath || location.startsWith(basePath + "/");
+                const isNotifications = item.title === "Notifications" && role === "client";
+                const showBadge = isNotifications && unreadCount > 0 && !viewAsContactId;
+
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -138,8 +150,23 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                         href={item.url}
                         data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                       >
-                        <item.icon className="h-4 w-4" />
+                        <div className="relative flex-shrink-0">
+                          <item.icon className="h-4 w-4" />
+                          {showBadge && (
+                            <span
+                              className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center leading-none"
+                              data-testid="badge-unread-count"
+                            >
+                              {unreadCount > 9 ? "9+" : unreadCount}
+                            </span>
+                          )}
+                        </div>
                         <span>{item.title}</span>
+                        {showBadge && (
+                          <span className="ml-auto text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-1.5 py-0.5 leading-none">
+                            {unreadCount}
+                          </span>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -193,7 +220,6 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       <SidebarFooter className="border-t border-sidebar-border p-3">
         {/* Expanded */}
         <div className="group-data-[collapsible=icon]:hidden space-y-1">
-          {/* Clickable profile row */}
           <button
             onClick={() => setProfileOpen((o) => !o)}
             className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-sidebar-accent transition-colors"
@@ -219,7 +245,6 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             </svg>
           </button>
 
-          {/* Collapsible actions */}
           {profileOpen && (
             <div className="flex items-center gap-1 px-1 pt-0.5">
               <ThemeToggle />
