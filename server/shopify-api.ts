@@ -7,6 +7,7 @@ const SHOPIFY_SCOPES = [
   "read_products",
   "read_inventory",
   "write_inventory",
+  "read_customers",
 ].join(",");
 
 function normalizeDomain(storeUrl: string): string {
@@ -369,6 +370,52 @@ export async function fetchShopifyLocations(
   }
   const data = await res.json();
   return (data.locations || []).map((loc: any) => ({ id: loc.id, name: loc.name }));
+}
+
+export interface ShopifyCustomer {
+  id: number;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  orders_count: number;
+  total_spent: string;
+  state: string;
+  verified_email: boolean;
+  tags: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  default_address?: {
+    city: string | null;
+    province: string | null;
+    country: string | null;
+  };
+}
+
+export async function fetchShopifyCustomers(
+  storeUrl: string,
+  accessToken: string,
+  limit = 250
+): Promise<ShopifyCustomer[]> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const allCustomers: ShopifyCustomer[] = [];
+  let nextPageUrl: string | null = `${baseUrl}/customers.json?limit=250`;
+
+  while (nextPageUrl && allCustomers.length < limit) {
+    const res = await fetch(nextPageUrl, { headers: buildHeaders(accessToken) });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify Customers API error ${res.status}: ${text}`);
+    }
+    const data = await res.json();
+    allCustomers.push(...(data.customers || []));
+    const linkHeader = res.headers.get("link");
+    nextPageUrl = parseLinkHeaderNext(linkHeader);
+    if (allCustomers.length >= limit) break;
+  }
+
+  return allCustomers.slice(0, limit);
 }
 
 export async function setShopifyInventoryLevel(

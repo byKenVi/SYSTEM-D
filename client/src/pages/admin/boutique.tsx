@@ -24,6 +24,9 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
+  Mail,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,6 +55,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SiShopify } from "react-icons/si";
+
+/* ── Customer type ── */
+interface ShopifyCustomer {
+  id: number;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  orders_count: number;
+  total_spent: string;
+  state: string;
+  verified_email: boolean;
+  tags: string;
+  created_at: string;
+  default_address?: { city: string | null; province: string | null; country: string | null };
+  contactId: number;
+  contactName: string | null;
+  companyName: string | null;
+  shopName: string | null;
+  storeUrl: string;
+}
+interface CustomersResponse { customers: ShopifyCustomer[]; totalCount: number }
 
 /* ── Orders helpers ── */
 interface ShopifyOrder {
@@ -122,6 +147,10 @@ export default function AdminBoutique() {
   const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
   const [orderClientFilter, setOrderClientFilter] = useState("all");
 
+  /* Customers state */
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerClientFilter, setCustomerClientFilter] = useState("all");
+
   /* Data */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
@@ -130,8 +159,14 @@ export default function AdminBoutique() {
     queryFn: () => fetch("/api/admin/orders", { credentials: "include" }).then((r) => r.json()),
     staleTime: 60 * 1000,
   });
+  const { data: customersData, isLoading: customersLoading } = useQuery<CustomersResponse>({
+    queryKey: ["/api/admin/customers"],
+    queryFn: () => fetch("/api/admin/customers", { credentials: "include" }).then((r) => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const orders = ordersData?.orders ?? [];
+  const customers = customersData?.customers ?? [];
 
   /* Products mutations */
   const pushToZohoMutation = useMutation({
@@ -209,6 +244,23 @@ export default function AdminBoutique() {
     return { total, paid, fulfilled, pending, revenue };
   }, [orders]);
 
+  /* Customers helpers */
+  const filteredCustomers = useMemo(() => customers.filter((c) => {
+    if (customerClientFilter !== "all" && String(c.contactId) !== customerClientFilter) return false;
+    if (customerSearch) {
+      const q = customerSearch.toLowerCase();
+      const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+      if (!name.toLowerCase().includes(q) && !(c.email ?? "").toLowerCase().includes(q) && !(c.phone ?? "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }), [customers, customerSearch, customerClientFilter]);
+
+  const customerClients = useMemo(() => {
+    const seen = new Map<number, string>();
+    for (const c of customers) { if (c.contactId && !seen.has(c.contactId)) seen.set(c.contactId, c.companyName ?? c.contactName ?? `Contact #${c.contactId}`); }
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [customers]);
+
   /* ── Render ── */
   return (
     <div className="space-y-4">
@@ -226,6 +278,10 @@ export default function AdminBoutique() {
           <TabsTrigger value="orders" data-testid="tab-orders">
             <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
             Commandes
+          </TabsTrigger>
+          <TabsTrigger value="customers" data-testid="tab-customers">
+            <Users className="h-3.5 w-3.5 mr-1.5" />
+            Clients
           </TabsTrigger>
         </TabsList>
 
@@ -672,6 +728,133 @@ export default function AdminBoutique() {
                         );
                       })
                     )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ══ CLIENTS TAB ══ */}
+        <TabsContent value="customers" className="mt-4 space-y-4">
+          {!customersLoading && customers.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><Users className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Total clients</span></div><p className="text-2xl font-bold tabular-nums">{customers.length}</p></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /><span className="text-xs text-muted-foreground">Email vérifié</span></div><p className="text-2xl font-bold tabular-nums">{customers.filter((c) => c.verified_email).length}</p></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><ShoppingCart className="h-3.5 w-3.5 text-primary" /><span className="text-xs text-muted-foreground">Commandes totales</span></div><p className="text-2xl font-bold tabular-nums">{customers.reduce((s, c) => s + c.orders_count, 0).toLocaleString()}</p></CardContent></Card>
+              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><span className="text-xs text-muted-foreground">Revenus totaux</span></div><p className="text-2xl font-bold tabular-nums">${customers.reduce((s, c) => s + Number(c.total_spent), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p></CardContent></Card>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input placeholder="Rechercher client, email, téléphone…" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} className="pl-8 h-9" data-testid="input-search-customers" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={customerClientFilter} onValueChange={setCustomerClientFilter}>
+                    <SelectTrigger className="h-9 w-44 text-xs" data-testid="select-customer-client-filter"><SelectValue placeholder="Tous les clients" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les clients</SelectItem>
+                      {customerClients.map(([id, name]) => <SelectItem key={id} value={String(id)}>{name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {(customerSearch || customerClientFilter !== "all") && (
+                    <Badge variant="secondary" className="tabular-nums">{filteredCustomers.length} résultat{filteredCustomers.length !== 1 ? "s" : ""}</Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Client</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Boutique</TableHead>
+                      <TableHead>Localisation</TableHead>
+                      <TableHead className="text-right">Commandes</TableHead>
+                      <TableHead className="text-right">Dépensé</TableHead>
+                      <TableHead>Inscrit le</TableHead>
+                      <TableHead className="w-8" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customersLoading ? (
+                      Array.from({ length: 6 }).map((_, i) => (
+                        <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                      ))
+                    ) : filteredCustomers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-40 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <Users className="h-8 w-8 text-muted-foreground/20" />
+                            <p className="text-sm font-medium text-muted-foreground">{customers.length === 0 ? "Aucun client Shopify trouvé" : "Aucun client ne correspond à vos filtres"}</p>
+                            {customers.length === 0 && <p className="text-xs text-muted-foreground/60">Les clients des boutiques Shopify connectées apparaîtront ici</p>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredCustomers.map((c) => {
+                      const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ") || "—";
+                      const location = [c.default_address?.city, c.default_address?.province, c.default_address?.country].filter(Boolean).join(", ");
+                      const shopifyCustomerUrl = `https://${c.storeUrl}/admin/customers/${c.id}`;
+                      const dateStr = new Date(c.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" });
+                      return (
+                        <TableRow key={`${c.storeUrl}-${c.id}`} data-testid={`row-customer-${c.id}`} className="group">
+                          <TableCell>
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 text-xs font-semibold text-muted-foreground">
+                                {(c.first_name?.[0] ?? c.email?.[0] ?? "?").toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm" data-testid={`text-customer-name-${c.id}`}>{fullName}</p>
+                                {c.tags && <p className="text-xs text-muted-foreground truncate max-w-[140px]">{c.tags}</p>}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              {c.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3 flex-shrink-0" /><span className="truncate max-w-[160px]">{c.email}</span></div>}
+                              {c.phone && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="h-3 w-3 flex-shrink-0" /><span>{c.phone}</span></div>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {c.contactId ? (
+                              <Link href={`/admin/contacts/${c.contactId}`}>
+                                <div className="flex items-center gap-1.5 text-xs cursor-pointer hover:underline">
+                                  <SiShopify className="h-3 w-3 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                  <span className="truncate max-w-[120px]">{c.companyName ?? c.contactName ?? c.shopName}</span>
+                                </div>
+                              </Link>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <SiShopify className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[120px]">{c.shopName}</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {location ? (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[120px]">{location}</span>
+                              </div>
+                            ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm font-medium">{c.orders_count}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">{Number(c.total_spent) > 0 ? `$${Number(c.total_spent).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-muted-foreground/40">—</span>}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{dateStr}</TableCell>
+                          <TableCell>
+                            <a href={shopifyCustomerUrl} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`link-customer-shopify-${c.id}`}>
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                            </a>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

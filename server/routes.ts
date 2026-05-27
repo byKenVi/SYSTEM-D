@@ -410,6 +410,43 @@ export async function registerRoutes(
     }
   });
 
+  // Fetch Shopify customers across all active integrations (admin)
+  app.get("/api/admin/customers", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { fetchShopifyCustomers } = await import("./shopify-api");
+      const integrations = await storage.getShopifyIntegrations();
+      const active = integrations.filter((i) => i.isActive);
+      const allContacts = await storage.getContacts();
+      const contactMap = new Map(allContacts.map((c) => [c.id, c]));
+
+      const results: any[] = [];
+      for (const integration of active) {
+        const contact = contactMap.get(integration.contactId);
+        try {
+          const customers = await fetchShopifyCustomers(integration.storeUrl, integration.accessToken);
+          for (const c of customers) {
+            results.push({
+              ...c,
+              contactId: integration.contactId,
+              contactName: contact?.name ?? null,
+              companyName: contact?.companyName ?? null,
+              shopName: integration.shopName ?? integration.storeUrl,
+              storeUrl: integration.storeUrl,
+            });
+          }
+        } catch (err: any) {
+          console.error(`Failed to fetch customers from ${integration.storeUrl}: ${err.message}`);
+        }
+      }
+
+      results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      res.json({ customers: results, totalCount: results.length });
+    } catch (error: any) {
+      console.error("Error fetching admin customers:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch customers" });
+    }
+  });
+
   app.get("/api/contacts/:id/shopify-orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.id);
@@ -1383,6 +1420,39 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching portal orders:", error);
       res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  // Fetch Shopify customers for the authenticated client (portal)
+  app.get("/api/portal/customers", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) {
+        return res.json({ customers: [] });
+      }
+      const { fetchShopifyCustomers } = await import("./shopify-api");
+      const integrations = await storage.getShopifyIntegrations();
+      const active = integrations.filter((i) => i.isActive && i.contactId === role.contactId);
+      const results: any[] = [];
+      for (const integration of active) {
+        try {
+          const customers = await fetchShopifyCustomers(integration.storeUrl, integration.accessToken);
+          for (const c of customers) {
+            results.push({
+              ...c,
+              shopName: integration.shopName ?? integration.storeUrl,
+              storeUrl: integration.storeUrl,
+            });
+          }
+        } catch (err: any) {
+          console.error(`Failed to fetch portal customers from ${integration.storeUrl}: ${err.message}`);
+        }
+      }
+      results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      res.json({ customers: results, totalCount: results.length });
+    } catch (error: any) {
+      console.error("Error fetching portal customers:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch customers" });
     }
   });
 
