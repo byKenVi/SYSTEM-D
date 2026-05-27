@@ -131,6 +131,11 @@ export default function AdminSettingsPage() {
     queryKey: ["/api/admin-settings"],
   });
 
+  const { data: zohoCallbackUrlData } = useQuery<{ callbackUrl: string }>({
+    queryKey: ["/api/auth/zoho/callback-url"],
+    staleTime: Infinity,
+  });
+
   const { data: pendingOrgs } = useQuery<{ organizations: any[] }>({
     queryKey: ["/api/auth/zoho/pending-organizations"],
     enabled: orgSelectOpen,
@@ -500,7 +505,7 @@ export default function AdminSettingsPage() {
                       <p className="font-medium text-foreground">Configuration requise</p>
                       <p>Vous serez redirigé vers Zoho pour autoriser l'accès. Assurez-vous que votre application Zoho API Console a cet URI de redirection :</p>
                       <code className="block mt-1 text-xs bg-muted rounded px-2 py-1 break-all">
-                        {window.location.origin}/api/auth/zoho/callback
+                        {zohoCallbackUrlData?.callbackUrl ?? `${window.location.origin}/api/auth/zoho/callback`}
                       </code>
                     </div>
                     <div className="space-y-2">

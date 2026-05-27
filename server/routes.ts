@@ -879,6 +879,10 @@ export async function registerRoutes(
   // ====== ZOHO INVENTORY OAUTH ======
 
   // Step 1: Generate OAuth URL and redirect user
+  app.get("/api/auth/zoho/callback-url", isAuthenticated, isAdmin, (req, res) => {
+    res.json({ callbackUrl: getCallbackUrl() });
+  });
+
   app.post("/api/auth/zoho/connect", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const region = req.body.region || "us";
