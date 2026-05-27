@@ -2101,7 +2101,7 @@ export async function registerRoutes(
   // ─── Notification Preferences ───────────────────────────────────
   app.get("/api/portal/notifications/preferences", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (!role?.contactId) return res.json({});
       const prefs = await storage.getNotificationPreferences(role.contactId);
       const map: Record<string, boolean> = {};
@@ -2114,7 +2114,7 @@ export async function registerRoutes(
 
   app.put("/api/portal/notifications/preferences", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
       const { category, enabled } = req.body;
       if (!category || typeof enabled !== "boolean") {
@@ -2130,7 +2130,7 @@ export async function registerRoutes(
   // ─── Notifications ──────────────────────────────────────────────
   app.get("/api/portal/notifications", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
       const notifs = await storage.getNotificationsByContactId(role.contactId);
       res.json(notifs);
@@ -2141,7 +2141,7 @@ export async function registerRoutes(
 
   app.get("/api/portal/notifications/unread-count", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (!role?.contactId) return res.json({ count: 0 });
       const count = await storage.getUnreadNotificationCount(role.contactId);
       res.json({ count });
@@ -2152,7 +2152,7 @@ export async function registerRoutes(
 
   app.patch("/api/portal/notifications/read-all", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
       await storage.markAllNotificationsRead(role.contactId);
       res.json({ ok: true });
@@ -2172,7 +2172,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/notifications", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
       const notifs = await storage.getAllNotifications();
       const contacts = await storage.getContacts();
@@ -2186,7 +2186,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/notifications", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
       const { contactId, category, type, title, message } = req.body;
       if (!contactId || !category || !type || !title || !message) {
@@ -2201,7 +2201,7 @@ export async function registerRoutes(
 
   app.delete("/api/admin/notifications/:id", isAuthenticated, async (req, res) => {
     try {
-      const role = await (req as any).getUserRole();
+      const role = await getUserRole(req);
       if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
       await storage.deleteNotification(Number(req.params.id));
       res.json({ ok: true });

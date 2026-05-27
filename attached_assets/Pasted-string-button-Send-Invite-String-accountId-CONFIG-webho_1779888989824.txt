@@ -1,0 +1,107 @@
+string button.Send_Invite(String accountId)
+{
+// --- CONFIG ---
+webhookUrl = "https://acac36a4-42fa-4b48-8a6d-5e8e6c26d871-00-1d2p4j4fwlcoz.picard.replit.dev/api/webhooks/zoho-crm";
+// 1. Fetch the Account record
+accountRecord = zoho.crm.getRecordById("Accounts",accountId);
+companyName = accountRecord.get("Account_Name");
+// Build company address from account fields
+street = accountRecord.get("Billing_Street");
+city = accountRecord.get("Billing_City");
+state = accountRecord.get("Billing_State");
+zip = accountRecord.get("Billing_Code");
+country = accountRecord.get("Billing_Country");
+addressParts = list();
+if(street != null && street != "")
+{
+	addressParts.add(street);
+}
+if(city != null && city != "")
+{
+	addressParts.add(city);
+}
+if(state != null && state != "")
+{
+	addressParts.add(state);
+}
+if(zip != null && zip != "")
+{
+	addressParts.add(zip);
+}
+if(country != null && country != "")
+{
+	addressParts.add(country);
+}
+companyAddress = addressParts.toString(", ");
+// 2. Fetch all Contacts related to this Account
+contactRecords = zoho.crm.getRelatedRecords("Contacts","Accounts",accountId);
+if(contactRecords == null || contactRecords.size() == 0)
+{
+	info "No contacts found for account: " + accountId;
+	return "ERROR: No contacts found for this account.";
+}
+// 3. Build payload as raw JSON string
+jsonItems = list();
+contactIdsToUpdate = list();
+for each  contact in contactRecords
+{
+	contactId = contact.get("id").toString();
+	contactName = contact.get("Full_Name");
+	email = contact.get("Email");
+	phone = contact.get("Phone");
+	if(contactName == null)
+	{
+		contactName = "";
+	}
+	if(email == null)
+	{
+		email = "";
+	}
+	if(phone == null)
+	{
+		phone = "";
+	}
+	if(companyName == null)
+	{
+		companyName = "";
+	}
+	if(companyAddress == null)
+	{
+		companyAddress = "";
+	}
+	// Escape any quotes in string values
+	contactName = contactName.replaceAll("\"","\\\"");
+	email = email.replaceAll("\"","\\\"");
+	phone = phone.replaceAll("\"","\\\"");
+	companyName = companyName.replaceAll("\"","\\\"");
+	companyAddress = companyAddress.replaceAll("\"","\\\"");
+	itemJson = "{\"zoho_contact_id\":\"" + contactId + "\"," + "\"zoho_account_id\":\"" + accountId + "\"," + "\"name\":\"" + contactName + "\"," + "\"email\":\"" + email + "\"," + "\"phone\":\"" + phone + "\"," + "\"company_name\":\"" + companyName + "\"," + "\"company_address\":\"" + companyAddress + "\"}";
+	jsonItems.add(itemJson);
+	contactIdsToUpdate.add(contactId);
+}
+payloadJson = "[" + jsonItems.toString(", ") + "]";
+info "Payload: " + payloadJson;
+// 4. Send webhook
+headers = Map();
+headers.put("Content-Type","application/json");
+response = invokeurl
+[
+	url :webhookUrl
+	type :POST
+	parameters:payloadJson
+	headers:headers
+];
+info "Webhook response: " + response;
+// 5. Update Account status
+accountUpdate = Map();
+accountUpdate.put("Invite_Status","Invite Sent");
+zoho.crm.updateRecord("Accounts",accountId,accountUpdate);
+// 6. Update each Contact status
+for each  cId in contactIdsToUpdate
+{
+	contactUpdate = Map();
+	contactUpdate.put("Invite_Status","Invite Sent");
+	zoho.crm.updateRecord("Contacts",cId,contactUpdate);
+}
+return "SUCCESS: " + contactIdsToUpdate.size() + " contact(s) invited successfully.";
+}
