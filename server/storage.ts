@@ -114,6 +114,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteContact(id: number): Promise<void> {
+    // Delete form uploads first (child of form_submissions)
+    const forms = await db.select({ id: formSubmissions.id }).from(formSubmissions).where(eq(formSubmissions.contactId, id));
+    if (forms.length > 0) {
+      const formIds = forms.map((f) => f.id);
+      await db.delete(formUploads).where(inArray(formUploads.formSubmissionId, formIds));
+    }
+    // Delete all child records before the contact itself
+    await db.delete(formSubmissions).where(eq(formSubmissions.contactId, id));
+    await db.delete(notificationPreferences).where(eq(notificationPreferences.contactId, id));
+    await db.delete(notifications).where(eq(notifications.contactId, id));
+    await db.delete(restockRequests).where(eq(restockRequests.contactId, id));
+    await db.delete(shopifyOrders).where(eq(shopifyOrders.contactId, id));
+    await db.delete(shopifyIntegrations).where(eq(shopifyIntegrations.contactId, id));
+    await db.delete(products).where(eq(products.contactId, id));
     await db.delete(contacts).where(eq(contacts.id, id));
   }
 
