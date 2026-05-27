@@ -60,7 +60,7 @@ export async function sendFormSubmissionEmail(data: {
     const { client, fromEmail } = await getUncachableResendClient();
     const appUrl = process.env.REPLIT_DEV_DOMAIN
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : 'https://workspace.masdouk1.replit.app';
+      : 'https://servicessystemed.app';
     const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
 
     await client.emails.send({
@@ -128,7 +128,7 @@ export async function sendFormAdminNotificationEmail(data: {
     const { client, fromEmail } = await getUncachableResendClient();
     const appUrl = process.env.REPLIT_DEV_DOMAIN
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : 'https://workspace.masdouk1.replit.app';
+      : 'https://servicessystemed.app';
     const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
 
     await client.emails.send({
@@ -160,7 +160,7 @@ export async function sendInviteEmail(contact: {
   const { client, fromEmail } = await getUncachableResendClient();
   const appUrl = process.env.REPLIT_DEV_DOMAIN
     ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : 'https://workspace.masdouk1.replit.app';
+    : 'https://servicessystemed.app';
 
   await client.emails.send({
     from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
