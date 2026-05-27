@@ -1053,8 +1053,15 @@ export async function registerRoutes(
           if (cf) cfClient = cf.value ?? null;
         }
         // cfClient may be a Zoho Inventory contact ID — resolve to name via zohoContactsMap
-        let resolvedClientName = cfClient;
-        if (cfClient && zohoContactsMap.has(cfClient)) {
+        // Zoho IDs are long numeric strings (≥10 digits); if the value looks like one, always resolve via the map
+        const looksLikeZohoId = (v: string | null) => !!v && /^\d{10,}$/.test(v.trim());
+        let resolvedClientName: string | null = cfClient;
+        if (cfClient && looksLikeZohoId(cfClient)) {
+          // It's a Zoho contact ID — resolve to name or discard if not found
+          const mapped = zohoContactsMap.get(cfClient);
+          resolvedClientName = mapped ? mapped.name : null;
+        } else if (cfClient && zohoContactsMap.has(cfClient)) {
+          // Exact match by ID even if it doesn't look numeric
           resolvedClientName = zohoContactsMap.get(cfClient)!.name;
         }
         // Try to match to a local contact
