@@ -116,16 +116,26 @@ export default function AdminInventaire() {
     if (!groupBy) return [];
     const groups = new Map<string, ZohoInventoryItem[]>();
     for (const item of filtered) {
-      const key = item.contactId ? String(item.contactId) : "__unmatched__";
+      const key = item.contactId
+        ? `contact-${item.contactId}`
+        : item.cfClient
+        ? `cf-${item.cfClient}`
+        : "__unmatched__";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(item);
     }
-    return Array.from(groups.entries()).map(([key, groupItems]) => ({
-      key,
-      label: groupItems[0].contactName ?? groupItems[0].cfClient ?? "Sans client",
-      contactId: groupItems[0].contactId,
-      items: groupItems,
-    }));
+    return Array.from(groups.entries())
+      .map(([key, groupItems]) => ({
+        key,
+        label: groupItems[0].contactName ?? groupItems[0].cfClient ?? "Sans client",
+        contactId: groupItems[0].contactId,
+        items: groupItems,
+      }))
+      .sort((a, b) => {
+        if (a.key === "__unmatched__") return 1;
+        if (b.key === "__unmatched__") return -1;
+        return a.label.localeCompare(b.label);
+      });
   }, [filtered, groupBy]);
 
   const toggleCollapse = (key: string) => {
