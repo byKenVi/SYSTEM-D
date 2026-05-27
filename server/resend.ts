@@ -7,7 +7,7 @@ async function getCredentials() {
   if (process.env.RESEND_API_KEY) {
     return {
       apiKey: process.env.RESEND_API_KEY,
-      fromEmail: process.env.RESEND_FROM_EMAIL || 'SYSTEM D <noreply@servicessystemed.app>',
+      fromEmail: process.env.RESEND_FROM_EMAIL || 'SYSTEM D <onboarding@resend.dev>',
     };
   }
 
