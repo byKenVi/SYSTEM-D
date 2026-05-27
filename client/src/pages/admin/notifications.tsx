@@ -122,7 +122,7 @@ export default function AdminNotifications() {
   const cat = (c: string) => CATEGORY_CONFIG[c] ?? { label: c, className: "bg-muted text-muted-foreground" };
 
   return (
-    <div className="space-y-6 max-w-6xl" data-testid="page-admin-notifications">
+    <div className="space-y-6" data-testid="page-admin-notifications">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
