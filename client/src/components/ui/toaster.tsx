@@ -13,17 +13,29 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {toasts.map(function ({ id, title, description, action, onClick, ...props }) {
+        const content = (
+          <div className="grid gap-1">
+            {title && <ToastTitle>{title}</ToastTitle>}
+            {description && (
+              <ToastDescription>{description}</ToastDescription>
+            )}
+          </div>
+        )
+
         return (
           <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
-            </div>
+            {onClick ? (
+              <button
+                className="grid gap-1 text-left flex-1 min-w-0"
+                onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
+                data-testid="button-notification-toast"
+              >
+                {content}
+              </button>
+            ) : content}
             {action}
-            <ToastClose />
+            <ToastClose onClick={(e) => e.stopPropagation()} />
           </Toast>
         )
       })}

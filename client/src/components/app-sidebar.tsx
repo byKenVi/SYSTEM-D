@@ -3,6 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import type { Contact } from "@shared/schema";
+import { useNotificationToast } from "@/hooks/use-notification-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Sidebar,
@@ -96,6 +97,8 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
     staleTime: 0,
   });
   const unreadCount = unreadData?.count ?? 0;
+
+  useNotificationToast(role === "client" && !viewAsContactId);
 
   function handleViewAsChange(value: string) {
     if (value === "__admin__") {
