@@ -174,19 +174,19 @@ export async function sendInviteEmail(contact: {
   await client.emails.send({
     from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
     to: contact.email,
-    subject: `You've been invited to SYSTEM D`,
+    subject: `Votre invitation au portail client – Services Système-D`,
     html: `
       <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
-        <h2 style="margin: 0 0 8px;">You're invited to SYSTEM D</h2>
+        <h2 style="margin: 0 0 8px; color: #111;">Bienvenue sur le portail client de Services Système-D</h2>
         <p style="margin: 0 0 24px; color: #555;">
-          Hi ${contact.name},${contact.companyName ? ` your account for <strong>${contact.companyName}</strong> is ready.` : ''} 
-          Click the button below to sign in and access your client portal.
+          Bonjour ${contact.name},${contact.companyName ? ` votre compte pour <strong>${contact.companyName}</strong> est prêt.` : ''}<br/>
+          Cliquez sur le bouton ci-dessous pour vous connecter et accéder à votre portail client.
         </p>
-        <a href="${appUrl}/api/login" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
-          Sign in to SYSTEM D
+        <a href="${appUrl}/api/login" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+          Accéder au portail
         </a>
         <p style="margin: 24px 0 0; font-size: 13px; color: #888;">
-          If you weren't expecting this invitation, you can ignore this email.
+          Si vous n'attendiez pas cette invitation, vous pouvez ignorer ce message.
         </p>
       </div>
     `,
