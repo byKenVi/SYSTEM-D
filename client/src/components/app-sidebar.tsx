@@ -122,7 +122,6 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               data-testid="link-sidebar-home"
             >
               <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain drop-shadow-[0_0_8px_rgba(239,95,24,0.3)]" />
-              <span className="font-bold text-sm tracking-widest uppercase text-sidebar-foreground">Système-D</span>
             </div>
           </Link>
           <SidebarTrigger className="text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle" />
