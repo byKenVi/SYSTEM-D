@@ -1,35 +1,36 @@
-const SHOP = process.env.SHOPIFY_SHOP;
-const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
-const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
+import pg from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { shopifyIntegrations } from "../shared/schema";
+import { eq } from "drizzle-orm";
 
-if (!SHOP || !CLIENT_ID || !CLIENT_SECRET) {
-  console.error("Missing SHOPIFY_SHOP, SHOPIFY_CLIENT_ID, or SHOPIFY_CLIENT_SECRET env vars.");
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("Missing DATABASE_URL env var.");
   process.exit(1);
 }
 
-const GQL_URL = `https://${SHOP}.myshopify.com/admin/api/2026-04/graphql.json`;
-const TOKEN_URL = `https://${SHOP}.myshopify.com/admin/oauth/access_token`;
+const TARGET_STORE = "tnt5ar-ki.myshopify.com";
 
-async function getToken(): Promise<string> {
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: CLIENT_ID!,
-      client_secret: CLIENT_SECRET!,
-    }),
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Token exchange failed (${res.status}): ${t}`);
+async function getTokenFromDb(): Promise<{ storeUrl: string; accessToken: string }> {
+  const pool = new pg.Pool({ connectionString: DATABASE_URL! });
+  const db = drizzle(pool);
+  try {
+    const rows = await db
+      .select()
+      .from(shopifyIntegrations)
+      .where(eq(shopifyIntegrations.storeUrl, TARGET_STORE));
+    if (rows.length === 0) {
+      throw new Error(`No Shopify integration found for ${TARGET_STORE}. Connect the store first in Settings.`);
+    }
+    return { storeUrl: rows[0].storeUrl, accessToken: rows[0].accessToken };
+  } finally {
+    await pool.end();
   }
-  const data = await res.json() as { access_token: string };
-  return data.access_token;
 }
 
-async function gql(token: string, query: string, variables: Record<string, unknown>) {
-  const res = await fetch(GQL_URL, {
+async function gql(storeUrl: string, token: string, query: string, variables: Record<string, unknown>) {
+  const url = `https://${storeUrl}/admin/api/2025-04/graphql.json`;
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -47,14 +48,14 @@ async function gql(token: string, query: string, variables: Record<string, unkno
 }
 
 async function main() {
-  console.log("Fetching Shopify access token...");
-  const token = await getToken();
-  console.log("Token obtained.");
+  console.log(`Loading Shopify access token for ${TARGET_STORE} from database...`);
+  const { storeUrl, accessToken } = await getTokenFromDb();
+  console.log(`Token loaded. Store: ${storeUrl}`);
 
   const TEST_EMAIL = "storecredit-test@systemd-internal.test";
 
   console.log(`\nLooking for test customer (${TEST_EMAIL})...`);
-  const searchData = await gql(token, `
+  const searchData = await gql(storeUrl, accessToken, `
     query findCustomer($q: String!) {
       customers(first: 1, query: $q) {
         edges { node { id email } }
@@ -68,7 +69,7 @@ async function main() {
     console.log(`Found existing test customer: ${customerId}`);
   } else {
     console.log("Creating test customer...");
-    const createData = await gql(token, `
+    const createData = await gql(storeUrl, accessToken, `
       mutation customerCreate($input: CustomerInput!) {
         customerCreate(input: $input) {
           customer { id email }
@@ -86,10 +87,8 @@ async function main() {
   }
 
   console.log("\nAttempting storeCreditAccountCredit for $0.01 CAD...");
-  let newBalance: string;
-  let accountId: string;
   try {
-    const creditData = await gql(token, `
+    const creditData = await gql(storeUrl, accessToken, `
       mutation storeCreditAccountCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
         storeCreditAccountCredit(id: $id, creditInput: $creditInput) {
           storeCreditAccountTransaction {
@@ -114,8 +113,7 @@ async function main() {
 
     if (creditData.storeCreditAccountCredit.userErrors.length > 0) {
       const msg = creditData.storeCreditAccountCredit.userErrors.map((e) => e.message).join(", ");
-      const planMsg = /plan|not supported|plus|upgrade/i.test(msg);
-      if (planMsg) {
+      if (/plan|not supported|plus|upgrade/i.test(msg)) {
         console.error(`\n❌ Store Credit NOT enabled on this Shopify plan.\nShopify says: ${msg}`);
         console.error("You need to upgrade the Shopify plan or contact Shopify support.");
         process.exit(1);
@@ -124,10 +122,38 @@ async function main() {
     }
 
     const txn = creditData.storeCreditAccountCredit.storeCreditAccountTransaction!;
-    newBalance = `${txn.account.balance.amount} ${txn.account.balance.currencyCode}`;
-    accountId = txn.account.id;
+    const newBalance = `${txn.account.balance.amount} ${txn.account.balance.currencyCode}`;
+    const accountId = txn.account.id;
     console.log(`✅ Store Credit ENABLED on this Shopify plan!`);
     console.log(`   New balance after $0.01 credit: ${newBalance}`);
+
+    console.log("\nCleaning up: debiting $0.01 CAD...");
+    const debitData = await gql(storeUrl, accessToken, `
+      mutation storeCreditAccountDebit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {
+        storeCreditAccountDebit(id: $id, debitInput: $debitInput) {
+          storeCreditAccountTransaction {
+            amount { amount currencyCode }
+            account { id balance { amount currencyCode } }
+          }
+          userErrors { field message }
+        }
+      }
+    `, {
+      id: accountId,
+      debitInput: { debitAmount: { amount: "0.01", currencyCode: "CAD" } },
+    }) as {
+      storeCreditAccountDebit: {
+        storeCreditAccountTransaction: { account: { balance: { amount: string; currencyCode: string } } } | null;
+        userErrors: Array<{ message: string }>;
+      };
+    };
+
+    if (debitData.storeCreditAccountDebit.userErrors.length > 0) {
+      console.warn(`Cleanup debit failed (non-fatal): ${debitData.storeCreditAccountDebit.userErrors.map((e) => e.message).join(", ")}`);
+    } else {
+      const bal = debitData.storeCreditAccountDebit.storeCreditAccountTransaction!.account.balance;
+      console.log(`Cleaned up. Balance after debit: ${bal.amount} ${bal.currencyCode}`);
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/plan|not supported|plus|upgrade/i.test(msg)) {
@@ -135,34 +161,6 @@ async function main() {
       process.exit(1);
     }
     throw err;
-  }
-
-  console.log("\nCleaning up: debiting $0.01 CAD...");
-  const debitData = await gql(token, `
-    mutation storeCreditAccountDebit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {
-      storeCreditAccountDebit(id: $id, debitInput: $debitInput) {
-        storeCreditAccountTransaction {
-          amount { amount currencyCode }
-          account { id balance { amount currencyCode } }
-        }
-        userErrors { field message }
-      }
-    }
-  `, {
-    id: customerId,
-    debitInput: { debitAmount: { amount: "0.01", currencyCode: "CAD" } },
-  }) as {
-    storeCreditAccountDebit: {
-      storeCreditAccountTransaction: { account: { balance: { amount: string; currencyCode: string } } } | null;
-      userErrors: Array<{ message: string }>;
-    };
-  };
-
-  if (debitData.storeCreditAccountDebit.userErrors.length > 0) {
-    console.warn(`Cleanup debit failed (non-fatal): ${debitData.storeCreditAccountDebit.userErrors.map((e) => e.message).join(", ")}`);
-  } else {
-    const bal = debitData.storeCreditAccountDebit.storeCreditAccountTransaction!.account.balance;
-    console.log(`Cleaned up. Balance after debit: ${bal.amount} ${bal.currencyCode}`);
   }
 
   console.log("\n✅ Plan check PASSED. You can proceed with the MAPI Rep Budgets feature.");
