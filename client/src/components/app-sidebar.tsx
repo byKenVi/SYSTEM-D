@@ -125,7 +125,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
           <SidebarTrigger className="text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle" />
         </div>
         {/* Collapsed */}
-        <div className="hidden group-data-[collapsible=icon]:flex justify-center pt-2">
+        <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center">
           <SidebarTrigger className="text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle-collapsed" />
         </div>
       </SidebarHeader>
@@ -133,7 +133,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       {/* ── Navigation ── */}
       <SidebarContent className="px-3 pt-4 scrollbar-hide group-data-[collapsible=icon]:px-0">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-bold text-sidebar-foreground/40 uppercase tracking-widest mb-2 px-2">
+          <SidebarGroupLabel className="text-[10px] font-bold text-sidebar-foreground/40 uppercase tracking-widest mb-2 px-2 group-data-[collapsible=icon]:hidden">
             Menu Principal
           </SidebarGroupLabel>
           <SidebarGroupContent>
