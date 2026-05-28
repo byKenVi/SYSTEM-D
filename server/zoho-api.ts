@@ -319,6 +319,13 @@ export async function getZohoItemStock(zohoItemId: string): Promise<number | nul
   }
 }
 
+export async function updateZohoItemClient(itemId: string, clientName: string): Promise<void> {
+  const region = await getZohoRegion();
+  await zohoRequest("PUT", `/items/${itemId}`, {
+    custom_fields: [{ api_name: "cf_client", value: clientName }],
+  }, region);
+}
+
 export async function deleteZohoItem(zohoItemId: string): Promise<void> {
   const region = await getZohoRegion();
   await zohoRequest("DELETE", `/items/${zohoItemId}`, undefined, region);

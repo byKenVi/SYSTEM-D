@@ -12,7 +12,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
-import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion } from "./zoho-api";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion } from "./zoho-api";
 import { generateFormPdf } from "./pdf-generator";
 import {
   fetchAllProducts,
@@ -759,15 +759,24 @@ export async function registerRoutes(
         const product = await storage.getProduct(id);
         if (!product) continue;
 
-        if (product.pushedToZoho && product.zohoItemId) {
-          updated.push(product);
-          continue;
-        }
-
         if (isZohoConnected) {
           try {
             const contact = product.contactId ? await storage.getContact(product.contactId) : null;
             const clientName = contact?.companyName || contact?.name || null;
+
+            // Already pushed with a real Zoho ID → just update the cf_client field
+            if (product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-")) {
+              if (clientName) await updateZohoItemClient(product.zohoItemId, clientName);
+              updated.push(product);
+              continue;
+            }
+
+            // Not yet pushed (or pending) → create the item in Zoho
+            if (product.pushedToZoho && product.zohoItemId) {
+              updated.push(product);
+              continue;
+            }
+
             const { item_id } = await pushItemToZoho({
               name: product.name,
               sku: product.sku,

@@ -27,6 +27,7 @@ import {
   Mail,
   Phone,
   MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -380,6 +381,7 @@ export default function AdminBoutique() {
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1.5">
                                 {!product.pushedToZoho && <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}><Upload className="h-3.5 w-3.5 mr-1" />Pousser</Button>}
+                                {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
                                 <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                               </div>
                             </TableCell>
@@ -450,6 +452,7 @@ export default function AdminBoutique() {
                                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex items-center justify-end gap-1.5">
                                           {!product.pushedToZoho && <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}><Upload className="h-3.5 w-3.5 mr-1" />Pousser</Button>}
+                                          {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
                                           <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                                         </div>
                                       </TableCell>
@@ -505,6 +508,7 @@ export default function AdminBoutique() {
                         </div>
                         <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                           {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Pousser</Button>}
+                          {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
@@ -550,6 +554,7 @@ export default function AdminBoutique() {
                                   </div>
                                   <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                     {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Pousser</Button>}
+                                    {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
                                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                                   </div>
                                 </div>
