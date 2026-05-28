@@ -50,8 +50,8 @@ interface AppSidebarProps {
 
 const adminItems = [
   { title: "Tableau de bord", url: "/admin/dashboard",     icon: LayoutDashboard },
-  { title: "Clients",         url: "/admin/contacts",      icon: Users },
-  { title: "Boutique",        url: "/admin/boutique",      icon: ShoppingCart },
+  { title: "Clients",         url: "/admin/contacts",      icon: Users,        matchPaths: ["/admin/contacts"] },
+  { title: "Boutique",        url: "/admin/boutique",      icon: ShoppingCart, matchPaths: ["/admin/boutique", "/admin/customers", "/admin/orders", "/admin/products"] },
   { title: "Inventaire",      url: "/admin/inventaire",    icon: BoxIcon },
   { title: "Soumissions",     url: "/admin/forms",         icon: ClipboardList },
   { title: "Commandes",       url: "/admin/commandes",     icon: PackageCheck },
@@ -63,7 +63,7 @@ const adminItems = [
 const clientItems = [
   { title: "Tableau de bord", url: "/portal/dashboard",      icon: LayoutDashboard },
   { title: "Profil",          url: "/portal/profile",        icon: User },
-  { title: "Boutique",        url: "/portal/boutique",       icon: ShoppingCart },
+  { title: "Boutique",        url: "/portal/boutique",       icon: ShoppingCart, matchPaths: ["/portal/boutique", "/portal/customers", "/portal/orders", "/portal/products"] },
   { title: "Soumissions",     url: "/portal/forms",          icon: ClipboardList },
   { title: "Commandes",       url: "/portal/commandes",      icon: PackageCheck },
   { title: "Livraisons",      url: "/portal/livraisons",     icon: Truck },
@@ -140,8 +140,10 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
             <SidebarMenu className="space-y-1">
               {items.map((item) => {
                 const basePath = item.url.split("?")[0];
-                const isActive =
-                  location === basePath || location.startsWith(basePath + "/");
+                const pathsToMatch = (item as any).matchPaths ?? [basePath];
+                const isActive = pathsToMatch.some(
+                  (p: string) => location === p || location.startsWith(p + "/")
+                );
                 const isNotifications = item.title === "Notifications" && role === "client";
                 const showBadge = isNotifications && unreadCount > 0 && !viewAsContactId;
 
