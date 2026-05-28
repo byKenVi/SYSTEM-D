@@ -144,8 +144,8 @@ export async function pushItemToZoho(item: {
     product_type: "goods",
   };
   if (item.opening_stock != null && item.opening_stock > 0) {
-    body.opening_stock = item.opening_stock;
-    body.opening_stock_rate_per_unit = item.rate || 0;
+    body.initial_stock = item.opening_stock;
+    body.initial_stock_rate = item.rate || 0;
   }
   if (item.clientId) {
     body.custom_fields = [{ api_name: "cf_client", value: item.clientId }];
@@ -342,6 +342,22 @@ export async function updateZohoItemClient(itemId: string, clientId: string, ite
   };
   if (itemName) body.name = itemName;
   await zohoRequest("PUT", `/items/${itemId}`, body, region);
+}
+
+// Set Zoho item stock to a specific quantity via inventory adjustment
+export async function setZohoItemStock(itemId: string, targetQty: number): Promise<void> {
+  const region = await getZohoRegion();
+  // Get current stock to compute the delta
+  const currentQty = await getZohoItemStock(itemId) ?? 0;
+  const delta = targetQty - currentQty;
+  if (delta === 0) return;
+  const today = new Date().toISOString().split("T")[0];
+  await zohoRequest("POST", "/inventoryadjustments", {
+    date: today,
+    reason: "Stock sync from SYSTEM D",
+    adjustment_type: "quantity",
+    line_items: [{ item_id: itemId, quantity_adjusted: delta }],
+  }, region);
 }
 
 export async function deleteZohoItem(zohoItemId: string): Promise<void> {

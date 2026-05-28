@@ -12,7 +12,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
-import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion, ensureZohoContact } from "./zoho-api";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, setZohoItemStock, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion, ensureZohoContact } from "./zoho-api";
 import { generateFormPdf } from "./pdf-generator";
 import {
   fetchAllProducts,
@@ -764,7 +764,7 @@ export async function registerRoutes(
         if (isZohoConnected) {
           const contact = product.contactId ? await storage.getContact(product.contactId) : null;
 
-          // Already pushed with a real Zoho ID → ensure contact exists in Zoho, then update cf_client
+          // Already pushed with a real Zoho ID → update cf_client + sync inventory
           if (product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-")) {
             if (contact?.email) {
               try {
@@ -773,6 +773,13 @@ export async function registerRoutes(
               } catch (err: any) {
                 console.error(`[zoho] update cf_client failed for item ${product.zohoItemId}: ${err.message}`);
                 errors.push(`${product.name}: ${err.message}`);
+              }
+            }
+            if (product.inventoryQuantity > 0) {
+              try {
+                await setZohoItemStock(product.zohoItemId, product.inventoryQuantity);
+              } catch (err: any) {
+                console.error(`[zoho] setZohoItemStock failed for item ${product.zohoItemId}: ${err.message}`);
               }
             }
             updated.push(product);
