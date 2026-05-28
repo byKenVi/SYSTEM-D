@@ -169,9 +169,6 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
       queryClient.setQueryData(["/api/portal/notifications/preferences"], ctx?.prev);
       toast({ title: "Erreur lors de la mise à jour", variant: "destructive" });
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications/preferences"] });
-    },
   });
 
   const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
