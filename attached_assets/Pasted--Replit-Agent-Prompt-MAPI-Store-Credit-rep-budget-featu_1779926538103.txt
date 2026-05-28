@@ -1,0 +1,435 @@
+# Replit Agent Prompt — MAPI Store Credit (rep budget) feature
+
+Copy everything below the "BEGIN PROMPT" line into Replit.
+
+---
+
+## BEGIN PROMPT
+
+You are extending the Système D platform (this Replit app) with a new feature called **MAPI Rep Budgets**. Read the entire spec before writing code. Ask me clarifying questions if anything is ambiguous — do not guess on business rules.
+
+---
+
+### 1. Business context (this is new, you don't know it yet)
+
+**Système D** is a 3PL company (warehousing, picking, packing, shipping). I'm building this Replit app as their custom client portal — clients log in, manage orders, view inventory, request services.
+
+**MAPI** is one of Système D's clients. MAPI does NOT run a normal e-commerce business. Instead, they have **20 sales representatives** ("reps") in the field. Each rep needs to send physical product samples to their own clients (architects, designers, end customers) so those clients can see/touch the samples before placing a real wholesale order.
+
+MAPI runs a private Shopify store (`tnt5ar-ki.myshopify.com`) that acts as a **sample-ordering catalog**. The Shopify store is NOT public — only the 20 reps have customer accounts on it. The catalog has a few hundred sample products (tile, flooring, etc.). Each product has a price like `$8.50` — but **this is not a real price**, it's a synthetic value MAPI uses to ration how many samples each rep can request per month.
+
+**The budget pattern:**
+- Each rep is given a monthly "sample budget" (e.g. $500 CAD/month).
+- Reps shop the Shopify store with their budget. Each "purchase" deducts from their budget. When they hit zero, they can't order more until next month's top-up.
+- No real money changes hands. The synthetic prices are just a rationing mechanism.
+- Système D's warehouse team receives the rep's "order" from Shopify, picks/packs the samples, and ships them to the rep's end client.
+
+**Who manages this:** MAPI managers log into the **Système D** platform (this app), NOT the Shopify admin. They never need to touch Shopify directly. Système D is the hub; Shopify runs in the background.
+
+What MAPI managers need to do in Système D:
+1. Add a new rep (creates a Shopify Customer behind the scenes)
+2. Set / view / top up that rep's monthly budget
+3. See every rep's current balance in one list
+4. See per-rep transaction history (credits + debits + expirations)
+5. Manually adjust a balance (give a bonus, claw back funds, etc.)
+6. Deactivate a rep (final debit to zero, optionally delete the Customer in Shopify)
+
+---
+
+### 2. Architecture decision (important — read carefully)
+
+I originally thought we'd use **Shopify Gift Cards** for this. **We are NOT using gift cards.** Reason: Shopify's Gift Card Admin API does not support topping up the balance of an existing gift card. The `giftCardUpdate` mutation can only change `customerId`, `expiresOn`, `note`, `recipientAttributes`, `templateSuffix` — there is no `giftCardCredit` mutation. This is a hard limit of the API.
+
+**We are using Shopify Store Credit Accounts instead.** Store Credit is Shopify's purpose-built primitive for this exact pattern:
+
+| Feature | Gift Cards | Store Credit |
+|---|---|---|
+| Top-up balance | ❌ Impossible | ✅ `storeCreditAccountCredit` |
+| Manual debit | ❌ | ✅ `storeCreditAccountDebit` |
+| Per-customer (no codes) | Code-based | Customer-bound |
+| Auto-applies at checkout | Type code | Auto if logged in |
+| Per-credit expiration | Whole card | Per credit transaction |
+| Auto-create account | n/a | Yes, on first credit |
+
+**One important constraint:** Store Credit only applies at checkout when the rep is authenticated via Shopify's **new customer accounts** auth (the email-code login). I will ensure this is enabled on the Shopify side — you do not need to handle storefront auth.
+
+---
+
+### 3. What's already in place — do not rebuild
+
+- **Shopify store**: `tnt5ar-ki.myshopify.com` (Dev Dashboard app, client_credentials grant).
+- **Access token flow**: I have credentials (`SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`) in Replit Secrets. The token endpoint is `POST https://${SHOPIFY_SHOP}.myshopify.com/admin/oauth/access_token` with form-encoded body `grant_type=client_credentials&client_id=...&client_secret=...`. Returns a `shpat_...` token valid for ~24h (86399 seconds).
+- **GraphQL endpoint**: `https://${SHOPIFY_SHOP}.myshopify.com/admin/api/2026-04/graphql.json` with `X-Shopify-Access-Token: <token>` header.
+- **WooCommerce → Shopify product migration**: already done. Don't touch products.
+- **Custom domain**: connected.
+
+If a Shopify client module / service file already exists in this codebase, extend it. Otherwise create `lib/shopify/client.ts` (or `.js` matching the project's language) with:
+- `getShopifyAccessToken()` — exchanges credentials for a token, caches in-memory until ~1 min before expiry, auto-refreshes
+- `shopifyGraphQL(query, variables)` — wrapper that adds the token header, parses errors, throws on `userErrors`
+
+---
+
+### 4. What to build (deliverables)
+
+#### 4.1 Backend — Shopify service layer
+
+Create `lib/mapi/repBudget.ts` (or equivalent for the project's language/framework) exposing these functions. All Shopify calls go through the GraphQL Admin API v2026-04.
+
+```ts
+createRep({ email, firstName, lastName }): Promise<{ shopifyCustomerId: string }>
+// GraphQL: customerCreate
+// Tags the customer with "mapi-rep" so they're filterable later
+
+creditRep({ shopifyCustomerId, amount, currencyCode, expiresAt? }):
+  Promise<{ accountId: string, newBalance: { amount, currencyCode } }>
+// GraphQL: storeCreditAccountCredit (auto-creates account on first call)
+// Throws if amount <= 0 or exceeds account credit limit
+
+debitRep({ shopifyCustomerId, amount, currencyCode, reason }):
+  Promise<{ accountId: string, newBalance: { amount, currencyCode } }>
+// GraphQL: storeCreditAccountDebit
+// Throws if amount <= 0 or exceeds current balance
+
+getRepBalance({ shopifyCustomerId }):
+  Promise<Array<{ accountId, balance: { amount, currencyCode } }>>
+// GraphQL: customer(id) { storeCreditAccounts { edges { node { id balance { amount currencyCode } } } } }
+// Returns array because a customer can have multiple accounts (one per currency)
+
+getRepTransactionHistory({ shopifyCustomerId, limit = 100 }):
+  Promise<Array<{ type, amount, currency, createdAt, expiresAt? }>>
+// GraphQL: customer.storeCreditAccounts.edges.node.transactions
+// Maps the 4 transaction types: Credit, Debit, Expiration, DebitRevert
+
+listReps({ cursor?, pageSize = 50 }):
+  Promise<{ reps: Array<RepSummary>, nextCursor?: string }>
+// GraphQL: customers(query: "tag:mapi-rep") with storeCreditAccounts inlined
+// RepSummary = { shopifyCustomerId, email, firstName, lastName, balances: Array<{amount, currencyCode}> }
+
+deactivateRep({ shopifyCustomerId, finalDebitReason }): Promise<void>
+// Step 1: debit balance to zero (if > 0)
+// Step 2: customerUpdate to remove "mapi-rep" tag and add "mapi-rep-archived"
+// Do NOT delete the customer — keep history
+```
+
+For every Shopify mutation, check the `userErrors` array in the response. If non-empty, throw an error with the full message. Shopify returns HTTP 200 even when there are business-logic failures.
+
+#### 4.2 Database schema (Système D's Postgres / whatever DB the app uses)
+
+Add a `mapi_reps` table that mirrors the Shopify Customer + caches their current state for fast dashboard reads:
+
+```sql
+CREATE TABLE mapi_reps (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shopify_customer_gid     TEXT UNIQUE NOT NULL,    -- "gid://shopify/Customer/123..."
+  email                    TEXT NOT NULL,
+  first_name               TEXT,
+  last_name                TEXT,
+  status                   TEXT NOT NULL DEFAULT 'active', -- 'active' | 'archived'
+  monthly_budget_amount    NUMERIC,                  -- default budget (e.g. 500)
+  monthly_budget_currency  TEXT DEFAULT 'CAD',
+  current_balance          NUMERIC,                  -- cached from Shopify
+  current_balance_currency TEXT,
+  last_balance_refresh_at  TIMESTAMPTZ,
+  created_at               TIMESTAMPTZ DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_mapi_reps_status ON mapi_reps(status);
+
+CREATE TABLE mapi_rep_credit_log (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rep_id                UUID REFERENCES mapi_reps(id),
+  shopify_customer_gid  TEXT NOT NULL,
+  action                TEXT NOT NULL,              -- 'credit' | 'debit' | 'monthly_renewal'
+  amount                NUMERIC NOT NULL,
+  currency              TEXT NOT NULL,
+  expires_at            TIMESTAMPTZ,
+  reason                TEXT,
+  performed_by_user_id  UUID,                       -- the Système D admin who did it
+  shopify_transaction_id TEXT,
+  created_at            TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_credit_log_rep ON mapi_rep_credit_log(rep_id, created_at DESC);
+```
+
+The `current_balance` column is a **cache** — refresh it whenever you credit/debit, and add a background job that re-syncs all reps' balances every 15 minutes from Shopify (in case checkout debits happened on Shopify directly).
+
+#### 4.3 Backend endpoints (REST or whatever the app uses)
+
+Mount under `/api/mapi/reps`. All require an authenticated Système D **admin** user (use whatever auth middleware the app already has).
+
+```
+POST   /api/mapi/reps                              create rep (+ optional initial credit)
+GET    /api/mapi/reps                              list with cached balances
+GET    /api/mapi/reps/:id                          rep detail + live balance + history
+POST   /api/mapi/reps/:id/credit                   add funds  { amount, currency, expiresAt?, reason }
+POST   /api/mapi/reps/:id/debit                    remove funds { amount, currency, reason }
+POST   /api/mapi/reps/:id/monthly-renewal          apply monthly budget (uses monthly_budget_amount)
+POST   /api/mapi/reps/:id/deactivate               final debit + archive
+POST   /api/mapi/reps/bulk-monthly-renewal         apply monthly renewal to all active reps
+```
+
+Each endpoint:
+1. Calls the corresponding `lib/mapi/repBudget` function
+2. Writes to `mapi_rep_credit_log`
+3. Updates `mapi_reps.current_balance`
+4. Returns the updated rep state
+
+#### 4.4 Admin UI (in the MAPI section of the Système D dashboard)
+
+Build a `Reps` page accessible to MAPI admins. Match the existing UI patterns/components in this codebase — don't introduce a new design system.
+
+**List view:**
+- Table of all reps: email, name, current balance (with currency), last activity, monthly budget, status badge
+- Search by name/email
+- "Add new rep" button → modal
+- Per-row actions: View, Credit, Debit, Deactivate
+- Bulk action: "Run monthly renewal for all active reps" (with confirmation)
+
+**Detail view:**
+- Rep info (email, name, Shopify Customer ID, status)
+- Big current balance card (with currency)
+- Monthly budget setting (editable)
+- "Add credit" form (amount, currency, optional expiry, reason)
+- "Debit" form (amount, currency, reason) — confirmation required
+- Transaction history table (chronological, with type badges: Credit/Debit/Expiration)
+- "Deactivate rep" button at the bottom (red, requires confirmation)
+
+**Add rep modal:**
+- Email (required)
+- First name, Last name
+- Initial budget amount + currency (optional but suggested)
+- Set as recurring monthly budget (checkbox)
+- On submit: create the Shopify Customer, save to `mapi_reps`, optionally apply the initial credit
+
+---
+
+### 5. GraphQL reference (paste these into the service layer)
+
+#### Create a Shopify customer (used in `createRep`)
+
+```graphql
+mutation customerCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer { id email firstName lastName tags }
+    userErrors { field message }
+  }
+}
+```
+Variables:
+```json
+{
+  "input": {
+    "email": "jean.tremblay@mapi.com",
+    "firstName": "Jean",
+    "lastName": "Tremblay",
+    "tags": ["mapi-rep"]
+  }
+}
+```
+
+#### Credit a rep (used in `creditRep`)
+
+```graphql
+mutation storeCreditAccountCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
+  storeCreditAccountCredit(id: $id, creditInput: $creditInput) {
+    storeCreditAccountTransaction {
+      amount { amount currencyCode }
+      account { id balance { amount currencyCode } }
+    }
+    userErrors { message field }
+  }
+}
+```
+Variables (pass the **Customer ID** — Shopify auto-creates the credit account on first call):
+```json
+{
+  "id": "gid://shopify/Customer/544365967",
+  "creditInput": {
+    "creditAmount": { "amount": "500.00", "currencyCode": "CAD" },
+    "expiresAt": "2026-06-30"
+  }
+}
+```
+
+#### Debit a rep (used in `debitRep`)
+
+```graphql
+mutation storeCreditAccountDebit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {
+  storeCreditAccountDebit(id: $id, debitInput: $debitInput) {
+    storeCreditAccountTransaction {
+      amount { amount currencyCode }
+      account { id balance { amount currencyCode } }
+    }
+    userErrors { field message }
+  }
+}
+```
+Variables:
+```json
+{
+  "id": "gid://shopify/Customer/544365967",
+  "debitInput": {
+    "debitAmount": { "amount": "100.00", "currencyCode": "CAD" }
+  }
+}
+```
+
+#### Read a rep's balance and history (used in `getRepBalance`, `getRepTransactionHistory`)
+
+```graphql
+query repDetail($customerId: ID!) {
+  customer(id: $customerId) {
+    id email firstName lastName tags
+    storeCreditAccounts(first: 5) {
+      edges {
+        node {
+          id
+          balance { amount currencyCode }
+          transactions(first: 100, reverse: true, sortKey: CREATED_AT) {
+            edges {
+              node {
+                __typename
+                ... on StoreCreditAccountCreditTransaction {
+                  amount { amount currencyCode }
+                  createdAt
+                  expiresAt
+                }
+                ... on StoreCreditAccountDebitTransaction {
+                  amount { amount currencyCode }
+                  createdAt
+                }
+                ... on StoreCreditAccountExpirationTransaction {
+                  amount { amount currencyCode }
+                  createdAt
+                }
+                ... on StoreCreditAccountDebitRevertTransaction {
+                  amount { amount currencyCode }
+                  createdAt
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### List all reps with balances (used in `listReps`)
+
+```graphql
+query listReps($cursor: String) {
+  customers(first: 50, after: $cursor, query: "tag:mapi-rep") {
+    pageInfo { hasNextPage endCursor }
+    edges {
+      node {
+        id email firstName lastName
+        storeCreditAccounts(first: 5) {
+          edges { node { id balance { amount currencyCode } } }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### 6. Error handling — non-negotiable
+
+For every Shopify mutation:
+1. Check HTTP status. Non-2xx → throw with status + body.
+2. Parse `errors` array (GraphQL-level errors). Non-empty → throw.
+3. Parse `userErrors` array on the payload. Non-empty → throw with the human message.
+
+Known business-logic errors to handle explicitly with friendly UI messages:
+- `"A positive amount must be used to credit a store credit account"` → user UI: "Amount must be greater than zero."
+- `"The operation would cause the account's credit limit to be exceeded"` → user UI: "Maximum balance reached for this rep. Cap the credit or contact support."
+- Insufficient balance on debit → user UI: "Cannot debit more than current balance ($X.XX)."
+- Customer not found → user UI: "Rep not found in Shopify — record may be stale, refresh page."
+
+Wrap the token exchange in a retry-once-on-401 (in case the token was just revoked by a rotation). Don't infinite-loop.
+
+---
+
+### 7. Plan check — REQUIRED first step before any feature work
+
+Before building anything else, write a one-off script `scripts/verify-store-credit-enabled.ts` that:
+1. Gets a token.
+2. Picks any existing customer (or creates a throwaway test customer with email `storecredit-test@systemd-internal.test`).
+3. Calls `storeCreditAccountCredit` with `creditAmount: { amount: "0.01", currencyCode: "CAD" }`.
+4. If success: prints "Store Credit ENABLED on this Shopify plan ✅" and the new balance.
+5. If error mentions "plan", "not supported", "Plus", or similar: prints "Store Credit NOT enabled. Need to upgrade Shopify plan or contact Shopify support." and exits non-zero.
+6. Calls `storeCreditAccountDebit` for the same `0.01` to clean up.
+
+Run this script before writing the rest. If it fails, STOP and tell me — I'll work with MAPI on the plan upgrade before we build the rest.
+
+---
+
+### 8. Environment variables (Replit Secrets)
+
+I have these set up already:
+- `SHOPIFY_SHOP` = `tnt5ar-ki`
+- `SHOPIFY_CLIENT_ID` = (set)
+- `SHOPIFY_CLIENT_SECRET` = (set)
+
+Use these exact variable names. Do NOT hardcode anything.
+
+If you need additional secrets, tell me what they are and what they're for — don't invent them silently.
+
+---
+
+### 9. Acceptance criteria (how I'll know you're done)
+
+1. `scripts/verify-store-credit-enabled.ts` runs and confirms the plan supports Store Credit.
+2. From the MAPI admin UI in Système D, I can:
+   - Add a new rep (with email, name) → Shopify Customer is created and tagged `mapi-rep`
+   - See the new rep in the list with $0 balance
+   - Credit them $500 CAD → see balance update both in Système D and (if I check) in Shopify admin
+   - Open their detail view → see the credit in the transaction history
+   - Debit $50 → balance shows $450, history shows the debit
+   - Run "monthly renewal for all" → all active reps get topped up
+   - Deactivate a rep → final debit to zero, rep moves to archived
+3. Negative credit amount → friendly error message in UI, no Shopify call wasted
+4. Background job runs every 15 minutes, refreshes `mapi_reps.current_balance` for all active reps
+5. Token auto-refreshes — I should NOT have to manually re-paste a token at any point
+
+---
+
+### 10. What NOT to do
+
+- Do not modify products, orders, inventory, or anything outside the rep-budget feature.
+- Do not use the legacy REST Admin API. Use GraphQL Admin API v2026-04 only.
+- Do not store the access token in the database — only in memory with auto-refresh.
+- Do not delete Shopify customers when reps are archived — keep history.
+- Do not implement webhook handling yet (that's a separate task — dashboard KPIs).
+- Do not use Shopify Gift Cards anywhere. We explicitly decided against them.
+
+---
+
+### 11. Questions to ask me before starting
+
+Confirm with me:
+1. Should monthly renewals **replace** the previous balance (reset to monthly_budget_amount) or **add** the monthly_budget_amount on top of any remaining balance? (Affects whether each credit has `expiresAt` set to end-of-month.)
+2. Should currency be CAD-only initially, or do we need USD support from day one?
+3. Default monthly budget per rep — confirm $500 CAD or different?
+4. When a rep is created, should an initial credit auto-apply, or stay at $0 until admin credits them manually?
+
+Get my answers before writing code on those four points.
+
+## END PROMPT
+
+---
+
+## How to use this
+
+1. Open your Replit Système D project.
+2. Open the Replit Agent.
+3. Paste everything between "BEGIN PROMPT" and "END PROMPT" above.
+4. The Agent will likely ask you the four clarifying questions in section 11 — answer them based on what Ridgie wants.
+5. The Agent will run the plan-check script first. **If that script fails, STOP and tell me** — we'll need to upgrade MAPI's Shopify plan before building anything else.
+6. The Agent will then build the feature in a few iterations.
+7. When it's done, run through the section 9 acceptance criteria yourself to validate.

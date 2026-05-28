@@ -440,7 +440,9 @@ export async function registerRoutes(
       }
 
       results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      res.json({ customers: results, totalCount: results.length });
+      const contactIdFilter = req.query.contactId ? Number(req.query.contactId) : null;
+      const filtered = contactIdFilter ? results.filter((c) => c.contactId === contactIdFilter) : results;
+      res.json({ customers: filtered, totalCount: filtered.length });
     } catch (error: any) {
       console.error("Error fetching admin customers:", error);
       res.status(500).json({ message: error.message || "Failed to fetch customers" });

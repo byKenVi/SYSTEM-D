@@ -137,11 +137,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     },
     staleTime: 60 * 1000,
   });
+  const customersUrl = isViewAs
+    ? `/api/admin/customers?contactId=${viewAsContactId}`
+    : "/api/portal/customers";
   const { data: customersData, isLoading: customersLoading } = useQuery<CustomersResponse>({
-    queryKey: ["/api/portal/customers"],
-    queryFn: () => fetch("/api/portal/customers", { credentials: "include" }).then((r) => r.json()),
+    queryKey: isViewAs ? ["/api/admin/customers", viewAsContactId] : ["/api/portal/customers"],
+    queryFn: () => fetch(customersUrl, { credentials: "include" }).then((r) => r.json()),
     staleTime: 5 * 60 * 1000,
-    enabled: !isViewAs,
   });
 
   const orders: ShopifyOrder[] = ordersData?.orders ?? [];
@@ -231,12 +233,10 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
             Commandes
           </TabsTrigger>
-          {!isViewAs && (
-            <TabsTrigger value="customers" data-testid="tab-customers">
-              <Users className="h-3.5 w-3.5 mr-1.5" />
-              Clients
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="customers" data-testid="tab-customers">
+            <Users className="h-3.5 w-3.5 mr-1.5" />
+            Clients
+          </TabsTrigger>
         </TabsList>
 
         {/* ══ PRODUITS TAB ══ */}
@@ -512,8 +512,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
         </TabsContent>
 
         {/* ══ CLIENTS TAB ══ */}
-        {!isViewAs && (
-          <TabsContent value="customers" className="mt-4 space-y-4">
+        <TabsContent value="customers" className="mt-4 space-y-4">
             {!customersLoading && customers.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><Users className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Total clients</span></div><p className="text-2xl font-bold tabular-nums">{customers.length}</p></CardContent></Card>
@@ -605,7 +604,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               </CardContent>
             </Card>
           </TabsContent>
-        )}
       </Tabs>
     </div>
   );
