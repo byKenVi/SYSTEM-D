@@ -766,6 +766,8 @@ export async function registerRoutes(
 
         if (isZohoConnected) {
           try {
+            const contact = product.contactId ? await storage.getContact(product.contactId) : null;
+            const clientName = contact?.companyName || contact?.name || null;
             const { item_id } = await pushItemToZoho({
               name: product.name,
               sku: product.sku,
@@ -773,6 +775,7 @@ export async function registerRoutes(
               rate: product.price ? Number(product.price) : undefined,
               opening_stock: product.inventoryQuantity,
               imageUrl: product.imageUrl,
+              clientName,
             });
             const updatedProduct = await storage.updateProduct(id, {
               pushedToZoho: true,
@@ -1360,6 +1363,8 @@ export async function registerRoutes(
     try {
       const product = await storage.getProduct(Number(req.params.productId));
       if (!product) return res.status(404).json({ message: "Product not found" });
+      const contact = product.contactId ? await storage.getContact(product.contactId) : null;
+      const clientName = contact?.companyName || contact?.name || null;
       const { item_id } = await pushItemToZoho({
         name: product.name,
         sku: product.sku,
@@ -1367,6 +1372,7 @@ export async function registerRoutes(
         rate: product.price ? Number(product.price) : undefined,
         opening_stock: product.inventoryQuantity,
         imageUrl: product.imageUrl,
+        clientName,
       });
       await storage.updateProduct(product.id, {
         zohoItemId: item_id,
