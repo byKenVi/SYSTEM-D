@@ -181,7 +181,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      className={`h-9 px-3 rounded-md transition-all duration-200 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center ${
+                      className={`h-9 px-3 rounded-md transition-all duration-200 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:mx-auto ${
                         isActive 
                           ? "bg-primary text-primary-foreground font-semibold shadow-sm" 
                           : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium"
@@ -190,7 +190,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                       <Link
                         href={item.url}
                         data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                        className="flex items-center gap-3 w-full"
+                        className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
                       >
                         <div className="relative flex-shrink-0">
                           <item.icon className="h-4 w-4" strokeWidth={isActive ? 2.5 : 2} />
@@ -201,9 +201,9 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                             />
                           )}
                         </div>
-                        <span className="truncate">{item.title}</span>
+                        <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
                         {showBadge && (
-                          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary text-primary-foreground"}`}>
+                          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none group-data-[collapsible=icon]:hidden ${isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary text-primary-foreground"}`}>
                             {unreadCount}
                           </span>
                         )}
