@@ -28,6 +28,7 @@ import {
   Phone,
   MapPin,
   RefreshCw,
+  Link2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -174,6 +175,23 @@ export default function AdminBoutique() {
     mutationFn: async (productIds: number[]) => { await apiRequest("POST", "/api/products/push-to-zoho", { productIds }); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/products"] }); setSelected(new Set()); toast({ title: "Succès", description: "Produits envoyés vers Zoho Inventory." }); },
     onError: () => toast({ title: "Erreur", description: "Échec de l'envoi des produits.", variant: "destructive" }),
+  });
+
+  const [relinkProduct, setRelinkProduct] = useState<Product | null>(null);
+  const [relinkZohoId, setRelinkZohoId] = useState("");
+
+  const relinkMutation = useMutation({
+    mutationFn: async ({ id, zohoItemId }: { id: number; zohoItemId: string }) => {
+      const res = await apiRequest("PUT", `/api/products/${id}/zoho-link`, { zohoItemId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setRelinkProduct(null);
+      setRelinkZohoId("");
+      toast({ title: "Lien Zoho restauré", description: "Le produit est à nouveau lié à Zoho Inventory." });
+    },
+    onError: () => toast({ title: "Erreur", description: "Impossible de mettre à jour le lien Zoho.", variant: "destructive" }),
   });
 
   const deleteProductMutation = useMutation({
@@ -382,6 +400,7 @@ export default function AdminBoutique() {
                               <div className="flex items-center justify-end gap-1.5">
                                 {!product.pushedToZoho && <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}><Upload className="h-3.5 w-3.5 mr-1" />Pousser</Button>}
                                 {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
+                                {product.pushedToZoho && product.zohoItemId?.startsWith("pending-") && <Button size="sm" variant="ghost" className="text-amber-500 hover:text-amber-600" title="Re-lier à Zoho Inventory" onClick={() => { setRelinkProduct(product); setRelinkZohoId(""); }} data-testid={`button-relink-zoho-${product.id}`}><Link2 className="h-3.5 w-3.5" /></Button>}
                                 <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                               </div>
                             </TableCell>
@@ -453,6 +472,7 @@ export default function AdminBoutique() {
                                         <div className="flex items-center justify-end gap-1.5">
                                           {!product.pushedToZoho && <Button size="sm" variant="outline" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-push-zoho-${product.id}`}><Upload className="h-3.5 w-3.5 mr-1" />Pousser</Button>}
                                           {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
+                                          {product.pushedToZoho && product.zohoItemId?.startsWith("pending-") && <Button size="sm" variant="ghost" className="text-amber-500 hover:text-amber-600" title="Re-lier à Zoho Inventory" onClick={() => { setRelinkProduct(product); setRelinkZohoId(""); }} data-testid={`button-relink-zoho-${product.id}`}><Link2 className="h-3.5 w-3.5" /></Button>}
                                           <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-delete-product-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                                         </div>
                                       </TableCell>
@@ -509,6 +529,7 @@ export default function AdminBoutique() {
                         <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                           {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Pousser</Button>}
                           {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
+                          {product.pushedToZoho && product.zohoItemId?.startsWith("pending-") && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-amber-500 hover:text-amber-600" title="Re-lier à Zoho Inventory" onClick={() => { setRelinkProduct(product); setRelinkZohoId(""); }} data-testid={`button-card-relink-zoho-${product.id}`}><Link2 className="h-3.5 w-3.5" /></Button>}
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
@@ -555,6 +576,7 @@ export default function AdminBoutique() {
                                   <div className="px-3 pb-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                     {!product.pushedToZoho && <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-push-zoho-${product.id}`}><Upload className="h-3 w-3 mr-1" />Pousser</Button>}
                                     {product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-") && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Mettre à jour le client Zoho" onClick={() => pushToZohoMutation.mutate([product.id])} disabled={pushToZohoMutation.isPending} data-testid={`button-card-refresh-zoho-${product.id}`}><RefreshCw className="h-3.5 w-3.5" /></Button>}
+                                    {product.pushedToZoho && product.zohoItemId?.startsWith("pending-") && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-amber-500 hover:text-amber-600" title="Re-lier à Zoho Inventory" onClick={() => { setRelinkProduct(product); setRelinkZohoId(""); }} data-testid={`button-card-relink-zoho-${product.id}`}><Link2 className="h-3.5 w-3.5" /></Button>}
                                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive ml-auto" onClick={() => handleDeleteClick(product)} disabled={deleteProductMutation.isPending} data-testid={`button-card-delete-${product.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                                   </div>
                                 </div>
@@ -586,6 +608,20 @@ export default function AdminBoutique() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)} data-testid="button-cancel-bulk-delete">Annuler</Button>
                 <Button variant="destructive" onClick={() => bulkDeleteMutation.mutate(Array.from(selected))} disabled={bulkDeleteMutation.isPending} data-testid="button-confirm-bulk-delete">Supprimer {selected.size} produit{selected.size !== 1 ? "s" : ""}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={!!relinkProduct} onOpenChange={(open) => { if (!open) { setRelinkProduct(null); setRelinkZohoId(""); } }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Restaurer le lien Zoho</DialogTitle>
+                <DialogDescription>Entrez l'identifiant Zoho Inventory (item_id) pour re-lier « {relinkProduct?.name} ».</DialogDescription>
+              </DialogHeader>
+              <Input placeholder="ex: 7272576000000419002" value={relinkZohoId} onChange={(e) => setRelinkZohoId(e.target.value)} data-testid="input-relink-zoho-id" />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setRelinkProduct(null); setRelinkZohoId(""); }}>Annuler</Button>
+                <Button onClick={() => relinkProduct && relinkZohoId.trim() && relinkMutation.mutate({ id: relinkProduct.id, zohoItemId: relinkZohoId.trim() })} disabled={relinkMutation.isPending || !relinkZohoId.trim()} data-testid="button-confirm-relink">Restaurer</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

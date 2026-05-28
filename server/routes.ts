@@ -760,23 +760,31 @@ export async function registerRoutes(
         if (!product) continue;
 
         if (isZohoConnected) {
+          const contact = product.contactId ? await storage.getContact(product.contactId) : null;
+          const clientName = contact?.companyName || contact?.name || null;
+
+          // Already pushed with a real Zoho ID → update cf_client only, never touch zohoItemId
+          if (product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-")) {
+            if (clientName) {
+              try {
+                await updateZohoItemClient(product.zohoItemId, clientName, product.name);
+              } catch (err: any) {
+                console.error(`[zoho] updateZohoItemClient failed for item ${product.zohoItemId}: ${err.message}`);
+                errors.push(`${product.name}: ${err.message}`);
+              }
+            }
+            updated.push(product);
+            continue;
+          }
+
+          // Pending → skip, nothing to do
+          if (product.pushedToZoho && product.zohoItemId) {
+            updated.push(product);
+            continue;
+          }
+
+          // New item → create in Zoho
           try {
-            const contact = product.contactId ? await storage.getContact(product.contactId) : null;
-            const clientName = contact?.companyName || contact?.name || null;
-
-            // Already pushed with a real Zoho ID → just update the cf_client field
-            if (product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-")) {
-              if (clientName) await updateZohoItemClient(product.zohoItemId, clientName);
-              updated.push(product);
-              continue;
-            }
-
-            // Not yet pushed (or pending) → create the item in Zoho
-            if (product.pushedToZoho && product.zohoItemId) {
-              updated.push(product);
-              continue;
-            }
-
             const { item_id } = await pushItemToZoho({
               name: product.name,
               sku: product.sku,
@@ -1395,6 +1403,20 @@ export async function registerRoutes(
       await storage.createActivityLog({ type: "zoho_push", status: "error", message: `Failed to push product to Zoho: ${error.message}` }).catch(() => {});
       console.error("Push to Zoho error:", error);
       res.status(500).json({ message: error.message || "Push failed" });
+    }
+  });
+
+  app.put("/api/products/:id/zoho-link", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { zohoItemId } = req.body;
+      if (!zohoItemId || typeof zohoItemId !== "string") return res.status(400).json({ message: "zohoItemId requis" });
+      const product = await storage.getProduct(id);
+      if (!product) return res.status(404).json({ message: "Produit introuvable" });
+      const updated = await storage.updateProduct(id, { zohoItemId, pushedToZoho: true, lastSyncedAt: new Date() });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Erreur serveur" });
     }
   });
 
