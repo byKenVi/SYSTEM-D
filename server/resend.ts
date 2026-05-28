@@ -172,7 +172,7 @@ export async function sendInviteEmail(contact: {
     : 'https://servicessystemed.app';
 
   await client.emails.send({
-    from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
+    from: fromEmail ? `Services Système-D <${fromEmail}>` : 'Services Système-D <onboarding@resend.dev>',
     to: contact.email,
     subject: `Votre invitation au portail client – Services Système-D`,
     html: `
