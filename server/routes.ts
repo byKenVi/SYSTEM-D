@@ -2543,7 +2543,7 @@ export async function registerRoutes(
   app.put("/api/portal/notifications/preferences", isAuthenticated, async (req, res) => {
     try {
       const role = await getUserRole(req);
-      if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
+      if (!role?.contactId) return res.json({ ok: true });
       const { category, enabled } = req.body;
       if (!category || typeof enabled !== "boolean") {
         return res.status(400).json({ message: "Missing category or enabled" });
