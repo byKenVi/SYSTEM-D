@@ -1625,16 +1625,22 @@ export async function registerRoutes(
   app.get("/api/portal/orders/:shopifyOrderId", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
-      if (!role?.contactId) return res.status(403).json({ message: "Forbidden" });
+      if (!role) return res.status(403).json({ message: "Forbidden" });
 
       const { shopifyOrderId } = req.params;
       const storeUrl = req.query.store as string;
       if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
 
       const integrations = await storage.getShopifyIntegrations();
-      const integration = integrations.find(
-        (i) => i.isActive && i.storeUrl === storeUrl && i.contactId === role.contactId
-      );
+      let integration;
+      if (role.role === "admin") {
+        integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
+      } else {
+        if (!role.contactId) return res.status(403).json({ message: "Forbidden" });
+        integration = integrations.find(
+          (i) => i.isActive && i.storeUrl === storeUrl && i.contactId === role.contactId
+        );
+      }
       if (!integration) {
         return res.status(404).json({ message: "Shopify integration not found for this store" });
       }
