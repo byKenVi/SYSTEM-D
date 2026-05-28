@@ -2,7 +2,7 @@ import { useParams, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft, ExternalLink, Mail, Phone, MapPin, ShoppingBag, DollarSign,
-  Calendar, Tag, Shield, User, CreditCard, CheckCircle, XCircle, Package, Truck, AlertCircle,
+  Calendar, Tag, Shield, User, CreditCard, CheckCircle, XCircle, Package, Truck, AlertCircle, ShoppingCart
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -30,46 +30,46 @@ function money(amount: string | number | null | undefined, currency = "CAD") {
 
 function StateBadge({ state }: { state?: string }) {
   if (state === "enabled")
-    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-0 text-xs">Actif</Badge>;
+    return <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Actif</Badge>;
   if (state === "disabled")
-    return <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-0 text-xs">Inactif</Badge>;
+    return <Badge className="bg-muted text-muted-foreground border-border text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Inactif</Badge>;
   if (state === "invited")
-    return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">Invité</Badge>;
+    return <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Invité</Badge>;
   if (state === "declined")
-    return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-0 text-xs">Refusé</Badge>;
-  return <Badge variant="secondary" className="text-xs">{state ?? "—"}</Badge>;
+    return <Badge className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Refusé</Badge>;
+  return <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">{state ?? "—"}</Badge>;
 }
 
 function FinancialStatusBadge({ status }: { status?: string }) {
   const map: Record<string, string> = {
-    paid: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-    partially_paid: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    pending: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-    refunded: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-    voided: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-    partially_refunded: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+    paid: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    partially_paid: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    refunded: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    voided: "bg-muted text-muted-foreground border-border",
+    partially_refunded: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
   };
-  const cls = map[status ?? ""] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
-  return <Badge className={`${cls} border-0 text-xs`}>{status ?? "—"}</Badge>;
+  const cls = map[status ?? ""] ?? "bg-muted text-muted-foreground border-border";
+  return <Badge className={`${cls} text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md`}>{status ?? "—"}</Badge>;
 }
 
 function FulfillmentStatusBadge({ status }: { status?: string | null }) {
-  if (!status) return <Badge variant="secondary" className="text-xs">Non expédié</Badge>;
+  if (!status) return <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-muted text-muted-foreground">Non expédié</Badge>;
   const map: Record<string, string> = {
-    fulfilled: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-    partial: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    unfulfilled: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-    restocked: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+    fulfilled: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    partial: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    unfulfilled: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    restocked: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
   };
-  const cls = map[status] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+  const cls = map[status] ?? "bg-muted text-muted-foreground border-border";
   const labels: Record<string, string> = {
     fulfilled: "Expédié", partial: "Partiel", unfulfilled: "À expédier", restocked: "Remis en stock",
   };
-  return <Badge className={`${cls} border-0 text-xs`}>{labels[status] ?? status}</Badge>;
+  return <Badge className={`${cls} text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md`}>{labels[status] ?? status}</Badge>;
 }
 
 function AddressBlock({ address }: { address: any }) {
-  if (!address) return <span className="text-muted-foreground/40 text-sm">—</span>;
+  if (!address) return <span className="text-muted-foreground/40 text-sm font-medium">—</span>;
   const lines = [
     [address.first_name, address.last_name].filter(Boolean).join(" "),
     address.company,
@@ -80,8 +80,9 @@ function AddressBlock({ address }: { address: any }) {
     address.phone,
   ].filter(Boolean);
   return (
-    <div className="text-sm space-y-0.5">
-      {lines.map((l, i) => <p key={i} className="text-foreground/90">{l}</p>)}
+    <div className="text-sm space-y-1">
+      <p className="font-bold text-foreground">{lines[0]}</p>
+      {lines.slice(1).map((l, i) => <p key={i} className="text-muted-foreground font-medium">{l}</p>)}
     </div>
   );
 }
@@ -116,146 +117,189 @@ export default function PortalCustomerDetail() {
   const emailConsent: any = c.email_marketing_consent ?? {};
   const smsConsent: any = c.sms_marketing_consent ?? {};
 
-  return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto">
-      {/* Back + Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mt-0.5 flex-shrink-0"
-            onClick={() => navigate("/portal/boutique")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-4 w-4" />
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto animate-in">
+        <Link href="/portal/boutique">
+          <Button variant="ghost" size="sm" className="mb-6 h-10 px-4 font-bold text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4 mr-2" /> Retour à la boutique
           </Button>
+        </Link>
+        <Card className="border-dashed border-2 bg-transparent shadow-none">
+          <CardContent className="flex flex-col items-center justify-center p-16 text-center">
+            <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight mb-2">Erreur de chargement</h3>
+            <p className="text-muted-foreground max-w-sm mb-6">
+              Impossible de charger les données du client depuis Shopify. {(error as Error).message}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 animate-in w-full pb-12">
+      
+      {/* ── Action Header (Sticky) ── */}
+      <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/portal/boutique">
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted shrink-0" data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          
           <div>
             {isLoading ? (
-              <Skeleton className="h-8 w-56 mb-2" />
+              <Skeleton className="h-8 w-56 mb-1" />
             ) : (
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground flex-shrink-0">
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
                   {initials}
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight" data-testid="text-customer-name">{fullName}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground" data-testid="text-customer-name">
+                  {fullName}
+                </h1>
+                <StateBadge state={c.state} />
+                {c.verified_email && (
+                  <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 px-2 py-0.5 rounded-md">
+                    Email Vérifié
+                  </Badge>
+                )}
+                {c.tax_exempt && (
+                  <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-2 py-0.5 rounded-md">
+                    Exonéré
+                  </Badge>
+                )}
               </div>
             )}
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {isLoading ? (
-                <Skeleton className="h-5 w-32" />
-              ) : (
-                <>
-                  <StateBadge state={c.state} />
-                  {c.verified_email && (
-                    <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">
-                      <CheckCircle className="h-3 w-3 mr-1" />Email vérifié
-                    </Badge>
-                  )}
-                  {c.tax_exempt && (
-                    <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0 text-xs">
-                      Exonéré de taxes
-                    </Badge>
-                  )}
-                  {data?.shopName && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <SiShopify className="h-3 w-3" /> {data.shopName}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
+            
+            {isLoading ? (
+              <Skeleton className="h-4 w-32" />
+            ) : (
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground ml-11">
+                <SiShopify className="h-3.5 w-3.5 text-[#95bf47]" />
+                <span>{data?.shopName ?? store}</span>
+              </div>
+            )}
           </div>
         </div>
+
         {shopifyCustomerUrl && (
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" asChild className="shrink-0 font-bold border-border/50 bg-card hover:bg-muted">
             <a href={shopifyCustomerUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-customer">
-              <SiShopify className="h-3.5 w-3.5 mr-1.5 text-green-600" />
-              Voir dans Shopify
-              <ExternalLink className="h-3 w-3 ml-1.5" />
+              Ouvrir dans Shopify <ExternalLink className="h-4 w-4 ml-2" />
             </a>
           </Button>
         )}
       </div>
 
-      {error && (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="pt-5 flex items-center gap-2 text-destructive text-sm">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            Impossible de charger le client : {(error as Error).message}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Summary metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Commandes", value: isLoading ? null : c.orders_count ?? 0, icon: <ShoppingBag className="h-4 w-4 text-muted-foreground" /> },
-          { label: "Dépenses totales", value: isLoading ? null : money(c.total_spent, c.currency ?? "CAD"), icon: <DollarSign className="h-4 w-4 text-muted-foreground" /> },
-          { label: "Dernière commande", value: isLoading ? null : (c.last_order_name ?? "—"), icon: <Package className="h-4 w-4 text-muted-foreground" /> },
-          { label: "Devise", value: isLoading ? null : (c.currency ?? "—"), icon: <CreditCard className="h-4 w-4 text-muted-foreground" /> },
-        ].map(({ label, value, icon }) => (
-          <Card key={label}>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                {icon}
+          { label: "Commandes", value: isLoading ? null : c.orders_count ?? 0, icon: <ShoppingCart className="h-5 w-5 text-primary" /> },
+          { label: "Dépenses Totales", value: isLoading ? null : money(c.total_spent, c.currency ?? "CAD"), icon: <DollarSign className="h-5 w-5 text-primary" /> },
+          { label: "Dernier Achat", value: isLoading ? null : (c.last_order_name ?? "Aucun"), icon: <Package className="h-5 w-5 text-primary" /> },
+          { label: "Devise par défaut", value: isLoading ? null : (c.currency ?? "—"), icon: <CreditCard className="h-5 w-5 text-primary" /> },
+        ].map(({ label, value, icon }, i) => (
+          <Card key={i} className="border-border/50 shadow-sm bg-card hover:border-primary/30 transition-colors">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                  {icon}
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground leading-tight">{label}</span>
               </div>
-              {isLoading ? <Skeleton className="h-6 w-20 mt-1" /> : (
-                <p className="text-lg font-semibold">{value}</p>
+              {isLoading ? <Skeleton className="h-8 w-20" /> : (
+                <p className="text-2xl font-mono font-bold text-foreground truncate">{value}</p>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         {/* Contact info */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />Informations de contact
+        <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" /> Informations de contact
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {isLoading ? <Skeleton className="h-20 w-full" /> : (
+          <CardContent className="p-6 space-y-6">
+            {isLoading ? <Skeleton className="h-32 w-full" /> : (
               <>
-                {c.email && (
-                  <div className="flex items-start gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-mono text-sm break-all">{c.email}</p>
+                <div className="space-y-4">
+                  {c.email && (
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <Mail className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Email</p>
+                        <p className="font-mono font-bold text-sm text-foreground truncate">{c.email}</p>
+                      </div>
                       {c.verified_email !== undefined && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{c.verified_email ? "✓ Vérifié" : "✗ Non vérifié"}</p>
+                        <Badge variant="outline" className={`shrink-0 border-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${c.verified_email ? 'bg-blue-500/10 text-blue-600' : 'bg-muted text-muted-foreground'}`}>
+                          {c.verified_email ? "Vérifié" : "Non Vérifié"}
+                        </Badge>
                       )}
+                    </div>
+                  )}
+                  
+                  {c.phone && (
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <Phone className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Téléphone</p>
+                        <p className="font-mono font-bold text-sm text-foreground">{c.phone}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {c.default_address && (
+                    <div className="flex items-start gap-4">
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <MapPin className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 bg-muted/30 p-4 rounded-xl border border-border/50">
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Adresse Principale</p>
+                        <AddressBlock address={c.default_address} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {(c.note || c.tags) && <Separator className="border-border/50" />}
+
+                {c.note && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+                      <AlertCircle className="h-3.5 w-3.5" /> Note Interne
+                    </p>
+                    <div className="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-4 rounded-xl text-sm font-medium whitespace-pre-wrap leading-relaxed">
+                      {c.note}
                     </div>
                   </div>
                 )}
-                {c.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>{c.phone}</span>
-                  </div>
-                )}
-                {c.default_address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <AddressBlock address={c.default_address} />
-                  </div>
-                )}
-                {c.note && (
-                  <div className="pt-1">
-                    <p className="text-xs text-muted-foreground mb-1">Note</p>
-                    <p className="text-sm whitespace-pre-wrap bg-muted/40 rounded p-2">{c.note}</p>
-                  </div>
-                )}
+                
                 {c.tags && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {String(c.tags).split(",").map((t: string) => t.trim()).filter(Boolean).map((t: string) => (
-                      <Badge key={t} variant="secondary" className="text-xs">
-                        <Tag className="h-3 w-3 mr-1" />{t}
-                      </Badge>
-                    ))}
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+                      <Tag className="h-3.5 w-3.5" /> Tags Shopify
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {String(c.tags).split(",").map((t: string) => t.trim()).filter(Boolean).map((t: string) => (
+                        <Badge key={t} variant="secondary" className="bg-muted text-foreground hover:bg-muted/80 px-2.5 py-1 text-xs">
+                          {t}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
               </>
@@ -263,64 +307,117 @@ export default function PortalCustomerDetail() {
           </CardContent>
         </Card>
 
-        {/* Marketing consent */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Mail className="h-4 w-4" />Consentement marketing
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            {isLoading ? <Skeleton className="h-24 w-full" /> : (
-              <>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">Email</p>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      {emailConsent.state === "subscribed"
-                        ? <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-                        : <XCircle className="h-3.5 w-3.5 text-muted-foreground" />}
-                      <span className="capitalize">{emailConsent.state ?? "—"}</span>
+        <div className="space-y-6">
+          {/* Marketing consent */}
+          <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+                <Shield className="h-4 w-4 text-primary" /> Préférences Marketing
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {isLoading ? <Skeleton className="h-24 w-full" /> : (
+                <>
+                  <div className="flex items-start justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-1.5">
+                        <Mail className="h-3.5 w-3.5" /> Communications Email
+                      </p>
+                      {emailConsent.opt_in_level && <p className="text-sm font-bold text-foreground capitalize mb-0.5">{emailConsent.opt_in_level.replace(/_/g, " ")}</p>}
+                      {emailConsent.consent_updated_at && <p className="text-xs font-medium text-muted-foreground">Mis à jour le {fmt(emailConsent.consent_updated_at)}</p>}
                     </div>
-                    {emailConsent.opt_in_level && <p className="text-xs text-muted-foreground pl-5">{emailConsent.opt_in_level.replace(/_/g, " ")}</p>}
-                    {emailConsent.consent_updated_at && <p className="text-xs text-muted-foreground pl-5">{fmt(emailConsent.consent_updated_at)}</p>}
+                    <Badge variant="outline" className={`border-0 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md mt-1 ${emailConsent.state === "subscribed" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                      {emailConsent.state ?? "—"}
+                    </Badge>
                   </div>
-                </div>
-                <Separator />
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">SMS</p>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      {smsConsent.state === "subscribed"
-                        ? <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-                        : <XCircle className="h-3.5 w-3.5 text-muted-foreground" />}
-                      <span className="capitalize">{smsConsent.state ?? "—"}</span>
+                  
+                  <div className="flex items-start justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-1.5">
+                        <Phone className="h-3.5 w-3.5" /> Communications SMS
+                      </p>
+                      {smsConsent.opt_in_level && <p className="text-sm font-bold text-foreground capitalize mb-0.5">{smsConsent.opt_in_level.replace(/_/g, " ")}</p>}
+                      {smsConsent.consent_updated_at && <p className="text-xs font-medium text-muted-foreground">Mis à jour le {fmt(smsConsent.consent_updated_at)}</p>}
                     </div>
-                    {smsConsent.opt_in_level && <p className="text-xs text-muted-foreground pl-5">{smsConsent.opt_in_level.replace(/_/g, " ")}</p>}
-                    {smsConsent.consent_updated_at && <p className="text-xs text-muted-foreground pl-5">{fmt(smsConsent.consent_updated_at)}</p>}
+                    <Badge variant="outline" className={`border-0 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md mt-1 ${smsConsent.state === "subscribed" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                      {smsConsent.state ?? "—"}
+                    </Badge>
                   </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Metadata */}
+          {!isLoading && (
+            <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+              <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" /> Métadonnées
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border/50">
+                  {[
+                    ["ID Shopify", c.id],
+                    ["Créé le", fmt(c.created_at)],
+                    ["Mis à jour le", fmt(c.updated_at)],
+                    ["Boutique Source", data?.shopName ?? store],
+                  ].map(([label, value], i) => (
+                    <div key={i} className="flex justify-between items-center px-6 py-3">
+                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+                      <span className="font-mono text-sm font-medium text-right text-foreground max-w-[200px] truncate">{String(value ?? "—")}</span>
+                    </div>
+                  ))}
                 </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tax exemptions */}
+          {!isLoading && c.tax_exempt && (
+            <Card className="border-amber-500/20 shadow-sm bg-amber-500/5 overflow-hidden">
+              <CardHeader className="border-b border-amber-500/10 bg-amber-500/10 px-6 py-4">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <Shield className="h-4 w-4" /> Exonérations Fiscales
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {Array.isArray(c.tax_exemptions) && c.tax_exemptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {c.tax_exemptions.map((ex: string) => (
+                      <Badge key={ex} variant="secondary" className="bg-amber-500/20 text-amber-700 dark:text-amber-400 border-0 hover:bg-amber-500/30 px-3 py-1 font-bold">{ex}</Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-amber-700/70 dark:text-amber-400/70">Exonération générale (aucun code spécifique attribué)</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       {/* All Addresses */}
       {!isLoading && Array.isArray(c.addresses) && c.addresses.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <MapPin className="h-4 w-4" />Adresses ({c.addresses.length})
+        <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" /> Adresses du compte ({c.addresses.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {c.addresses.map((addr: any) => (
-                <div key={addr.id} className={`rounded-lg border p-3 ${addr.default ? "border-primary/50 bg-primary/5" : "border-border"}`}>
-                  {addr.default && (
-                    <Badge className="mb-2 text-xs bg-primary/10 text-primary border-0">Par défaut</Badge>
-                  )}
+                <div key={addr.id} className={`rounded-2xl border p-5 ${addr.default ? "border-primary/40 bg-primary/5 shadow-sm" : "border-border/50 bg-muted/20"}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="h-10 w-10 rounded-full bg-background border flex items-center justify-center shrink-0">
+                      <MapPin className={`h-4 w-4 ${addr.default ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    {addr.default && (
+                      <Badge variant="outline" className="border-primary/30 text-primary bg-primary/10 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5">Défaut</Badge>
+                    )}
+                  </div>
                   <AddressBlock address={addr} />
                 </div>
               ))}
@@ -329,85 +426,42 @@ export default function PortalCustomerDetail() {
         </Card>
       )}
 
-      {/* Tax exemptions */}
-      {!isLoading && c.tax_exempt && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Shield className="h-4 w-4" />Exonérations de taxes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {Array.isArray(c.tax_exemptions) && c.tax_exemptions.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {c.tax_exemptions.map((ex: string) => (
-                  <Badge key={ex} variant="secondary" className="text-xs">{ex}</Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Exonération générale (aucun code spécifique)</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Metadata */}
-      {!isLoading && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />Métadonnées
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-              {[
-                ["ID Shopify", c.id],
-                ["Créé le", fmt(c.created_at)],
-                ["Mis à jour le", fmt(c.updated_at)],
-                ["Boutique", data?.shopName ?? store],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="flex justify-between gap-4 border-b border-border/40 pb-1.5">
-                  <span className="text-muted-foreground">{label}</span>
-                  <span className="font-mono text-xs text-right break-all">{String(value ?? "—")}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Order History */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <ShoppingBag className="h-4 w-4" />
+      <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+          <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+            <ShoppingBag className="h-4 w-4 text-primary" />
             Historique des commandes
-            {!isLoading && <Badge variant="secondary" className="text-xs ml-1">{orders.length}</Badge>}
+            {!isLoading && <Badge variant="secondary" className="ml-2 bg-background border-border text-foreground font-mono">{orders.length}</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-2">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            <div className="p-6 space-y-4">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
             </div>
           ) : orders.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              Aucune commande trouvée
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                <ShoppingBag className="h-10 w-10 text-muted-foreground/50" />
+              </div>
+              <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande</h3>
+              <p className="text-muted-foreground max-w-sm">
+                Ce client n'a pas encore passé de commande sur la boutique.
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto scrollbar-hide">
+              <Table className="min-w-[800px]">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Commande</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Statut paiement</TableHead>
-                    <TableHead>Expédition</TableHead>
-                    <TableHead className="text-right">Articles</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead></TableHead>
+                  <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
+                    <TableHead className="py-4 pl-6 text-xs font-bold uppercase tracking-widest text-muted-foreground">Commande</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Date</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Paiement</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Expédition</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Articles</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Total</TableHead>
+                    <TableHead className="py-4 pr-6 w-12" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -416,32 +470,30 @@ export default function PortalCustomerDetail() {
                     return (
                       <TableRow
                         key={order.id}
-                        className="cursor-pointer group"
+                        className="cursor-pointer group hover:bg-muted/50 transition-colors"
                         data-testid={`row-order-${order.id}`}
                         onClick={() => navigate(detailUrl)}
                       >
-                        <TableCell className="pl-6 font-medium font-mono text-sm">{order.name}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                        <TableCell className="pl-6 py-4 font-bold font-mono text-base text-foreground">{order.name}</TableCell>
+                        <TableCell className="py-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
                           {new Date(order.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" })}
                         </TableCell>
-                        <TableCell><FinancialStatusBadge status={order.financial_status} /></TableCell>
-                        <TableCell><FulfillmentStatusBadge status={order.fulfillment_status} /></TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">
-                          {(order.line_items as any[] | undefined)?.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0) ?? "—"}
+                        <TableCell className="py-4"><FinancialStatusBadge status={order.financial_status} /></TableCell>
+                        <TableCell className="py-4"><FulfillmentStatusBadge status={order.fulfillment_status} /></TableCell>
+                        <TableCell className="py-4 text-right">
+                          <span className="font-mono font-bold text-sm bg-muted/50 border border-border/50 px-2 py-0.5 rounded-md">
+                            {(order.line_items as any[] | undefined)?.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0) ?? "—"}
+                          </span>
                         </TableCell>
-                        <TableCell className="text-right text-sm font-medium tabular-nums">
+                        <TableCell className="py-4 text-right text-base font-mono font-bold text-foreground">
                           {money(order.total_price, order.currency ?? "CAD")}
                         </TableCell>
-                        <TableCell className="pr-4">
-                          <a
-                            href={`https://${store}/admin/orders/${order.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                          </a>
+                        <TableCell className="pr-6 py-4 text-right">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" asChild onClick={(e) => e.stopPropagation()}>
+                            <a href={`https://${store}/admin/orders/${order.id}`} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );

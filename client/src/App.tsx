@@ -49,14 +49,14 @@ interface UserRole {
 
 function AdminLayout() {
   const style = {
-    "--sidebar-width": "13rem",
+    "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="admin" />
-      <SidebarInset className="overflow-y-auto scrollbar-hide p-4">
+      <SidebarInset className="overflow-y-auto scrollbar-hide bg-background">
         <Switch>
           <Route path="/admin/dashboard" component={AdminDashboard} />
           <Route path="/admin/contacts/:id" component={AdminContactDetail} />
@@ -93,16 +93,16 @@ function AdminLayout() {
 
 function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
   const style = {
-    "--sidebar-width": "13rem",
+    "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
-      <SidebarInset className="overflow-hidden">
+      <SidebarInset className="overflow-hidden bg-background">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-4">
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
           <Switch>
             <Route path="/portal/dashboard">
               <PortalDashboard viewAsContactId={viewAsContactId} />
@@ -157,18 +157,18 @@ function ViewAsBanner({ contactId }: { contactId: number }) {
   });
 
   return (
-    <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between gap-4 flex-wrap" data-testid="banner-view-as">
+    <div className="bg-primary border-b border-primary/20 px-6 py-2.5 flex items-center justify-between gap-4 flex-wrap" data-testid="banner-view-as">
       <div className="flex items-center gap-2 text-sm">
-        <Eye className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-        <span className="text-amber-800 dark:text-amber-200">
-          Aperçu en tant que <span className="font-semibold">{contact?.name || `Contact #${contactId}`}</span>
-          {contact?.companyName && <span className="text-amber-700 dark:text-amber-300"> ({contact.companyName})</span>}
+        <Eye className="h-4 w-4 text-primary-foreground flex-shrink-0" />
+        <span className="text-primary-foreground font-medium">
+          Aperçu en tant que <span className="font-bold">{contact?.name || `Contact #${contactId}`}</span>
+          {contact?.companyName && <span className="opacity-80 font-normal"> ({contact.companyName})</span>}
         </span>
       </div>
       <Link href="/admin/contacts">
-        <Button size="sm" variant="outline" data-testid="button-exit-view-as">
+        <Button size="sm" variant="secondary" className="h-8 text-xs font-semibold" data-testid="button-exit-view-as">
           <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-          Retour à l'admin
+          Quitter l'aperçu
         </Button>
       </Link>
     </div>
@@ -179,19 +179,21 @@ function AccessDenied() {
   const { logout } = useAuth();
 
   return (
-    <div className="flex items-center justify-center h-screen" data-testid="access-denied-screen">
-      <div className="max-w-md text-center space-y-4 px-6">
-        <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-          <ShieldAlert className="h-7 w-7 text-destructive" />
+    <div className="flex items-center justify-center h-screen bg-background" data-testid="access-denied-screen">
+      <div className="max-w-md text-center space-y-6 px-6">
+        <div className="h-16 w-16 rounded-xl bg-destructive/10 flex items-center justify-center mx-auto ring-1 ring-destructive/20">
+          <ShieldAlert className="h-8 w-8 text-destructive" />
         </div>
-        <h1 className="text-2xl font-bold" data-testid="text-access-denied-title">Accès refusé</h1>
-        <p className="text-muted-foreground">
-          Votre adresse e-mail n'est pas associée à un compte invité. Seuls les utilisateurs ayant reçu une invitation peuvent accéder à cette plateforme.
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-access-denied-title">Accès refusé</h1>
+          <p className="text-muted-foreground mt-2 leading-relaxed">
+            Votre adresse e-mail n'est pas associée à un compte invité. Seuls les utilisateurs ayant reçu une invitation peuvent accéder à cette plateforme.
+          </p>
+        </div>
+        <p className="text-sm font-medium text-muted-foreground bg-muted/50 p-4 rounded-lg">
+          Si vous pensez qu'il s'agit d'une erreur, veuillez contacter votre administrateur Système D.
         </p>
-        <p className="text-sm text-muted-foreground">
-          Si vous pensez qu'il s'agit d'une erreur, veuillez contacter votre administrateur.
-        </p>
-        <Button variant="outline" onClick={() => logout()} data-testid="button-sign-out-denied">
+        <Button variant="outline" className="w-full" onClick={() => logout()} data-testid="button-sign-out-denied">
           Se déconnecter
         </Button>
       </div>
@@ -211,10 +213,10 @@ function AuthenticatedApp() {
 
   if (roleLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="space-y-4 text-center">
-          <Skeleton className="h-10 w-10 rounded-md mx-auto" />
-          <Skeleton className="h-4 w-32 mx-auto" />
+          <Skeleton className="h-12 w-12 rounded-xl mx-auto animate-pulse bg-primary/20" />
+          <Skeleton className="h-3 w-32 mx-auto bg-muted" />
         </div>
       </div>
     );
@@ -226,12 +228,17 @@ function AuthenticatedApp() {
       return <AccessDenied />;
     }
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="max-w-md text-center space-y-4 px-6">
-          <h1 className="text-xl font-bold">Une erreur est survenue</h1>
-          <p className="text-muted-foreground">Impossible de charger votre compte. Veuillez réessayer.</p>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            Réessayer
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="max-w-md text-center space-y-6 px-6">
+          <div className="h-16 w-16 rounded-xl bg-destructive/10 flex items-center justify-center mx-auto">
+            <ShieldAlert className="h-8 w-8 text-destructive" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Erreur système</h1>
+            <p className="text-muted-foreground mt-2">Impossible de charger votre session. Veuillez réessayer.</p>
+          </div>
+          <Button variant="default" className="w-full" onClick={() => window.location.reload()}>
+            Actualiser
           </Button>
         </div>
       </div>
@@ -273,10 +280,10 @@ function Router() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="space-y-4 text-center">
-          <Skeleton className="h-10 w-10 rounded-md mx-auto" />
-          <Skeleton className="h-4 w-32 mx-auto" />
+          <Skeleton className="h-12 w-12 rounded-xl mx-auto animate-pulse bg-primary/20" />
+          <Skeleton className="h-3 w-32 mx-auto bg-muted" />
         </div>
       </div>
     );

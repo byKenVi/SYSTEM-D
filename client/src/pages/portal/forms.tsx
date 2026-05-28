@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, FileText, ChevronRight, ArrowLeftRight, Warehouse, Package2, Truck } from "lucide-react";
+import { Plus, FileText, ChevronRight, ArrowLeftRight, Warehouse, Package2, Truck, ClipboardList, ClipboardEdit } from "lucide-react";
 import { useState } from "react";
 import FormEditor from "@/pages/form-editor";
 
@@ -30,11 +30,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  in_review: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  completed: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  draft: "bg-muted text-muted-foreground border-border",
+  submitted: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  in_review: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  approved: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  completed: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
 };
 
 const FORM_TYPES = [
@@ -44,7 +44,7 @@ const FORM_TYPES = [
     desc: "Demande de service de tri",
     icon: ArrowLeftRight,
     color: "bg-blue-500",
-    light: "bg-blue-50 dark:bg-blue-950/40",
+    light: "bg-blue-500/10",
     text: "text-blue-600 dark:text-blue-400",
   },
   {
@@ -53,7 +53,7 @@ const FORM_TYPES = [
     desc: "Demande d'entreposage et de stockage",
     icon: Warehouse,
     color: "bg-amber-500",
-    light: "bg-amber-50 dark:bg-amber-950/40",
+    light: "bg-amber-500/10",
     text: "text-amber-600 dark:text-amber-400",
   },
   {
@@ -62,7 +62,7 @@ const FORM_TYPES = [
     desc: "Bon de travail co-packing",
     icon: Package2,
     color: "bg-violet-500",
-    light: "bg-violet-50 dark:bg-violet-950/40",
+    light: "bg-violet-500/10",
     text: "text-violet-600 dark:text-violet-400",
   },
   {
@@ -71,7 +71,7 @@ const FORM_TYPES = [
     desc: "Demande de livraison",
     icon: Truck,
     color: "bg-emerald-500",
-    light: "bg-emerald-50 dark:bg-emerald-950/40",
+    light: "bg-emerald-500/10",
     text: "text-emerald-600 dark:text-emerald-400",
   },
 ];
@@ -124,111 +124,160 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Mes soumissions</h1>
-          <p className="text-muted-foreground mt-1">Soumettez et suivez vos demandes de service</p>
+    <div className="space-y-6 animate-in w-full max-w-full">
+      {/* Header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
+        <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3">
+          <div className="h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
         </div>
-        <Button
-          onClick={() => setNewFormOpen(true)}
-          data-testid="button-new-form-portal"
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Nouveau formulaire
-        </Button>
+        
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
+              <ClipboardEdit className="h-3.5 w-3.5" /> Centre de Formulaires
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
+              Mes Soumissions
+            </h1>
+            <p className="text-muted-foreground mt-3 text-lg">
+              Créez de nouvelles demandes de services et suivez leur état d'avancement.
+            </p>
+          </div>
+          <Button
+            size="lg"
+            className="shadow-lg shadow-primary/20 shrink-0 font-bold"
+            onClick={() => setNewFormOpen(true)}
+            data-testid="button-new-form-portal"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Nouveau Formulaire
+          </Button>
+        </div>
       </div>
 
-      <Card>
+      {/* Main List */}
+      <Card className="border-border shadow-sm overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            <div className="p-6 space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
           ) : !forms || forms.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p>Aucun formulaire soumis pour l'instant</p>
+            <div className="flex flex-col items-center justify-center p-16 text-center">
+              <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                <FileText className="h-10 w-10 text-muted-foreground/50" />
+              </div>
+              <h3 className="text-xl font-bold tracking-tight mb-2">Aucun formulaire</h3>
+              <p className="text-muted-foreground max-w-sm mb-6">
+                Commencez par créer votre première demande de service.
+              </p>
               <Button
-                className="mt-4"
+                size="lg"
                 onClick={() => setNewFormOpen(true)}
                 data-testid="button-new-form-empty"
+                className="font-bold shadow-md shadow-primary/20"
               >
-                <Plus className="h-4 w-4 mr-1.5" />
+                <Plus className="h-4 w-4 mr-2" />
                 Créer un formulaire
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Formulaire #</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Créé</TableHead>
-                  <TableHead>Dernière mise à jour</TableHead>
-                  <TableHead className="w-8" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {forms.map((form) => (
-                  <TableRow
-                    key={form.id}
-                    className="cursor-pointer"
-                    onClick={() => goToForm(form.id)}
-                    data-testid={`row-form-${form.id}`}
-                  >
-                    <TableCell className="font-semibold font-mono">{form.formNumber}</TableCell>
-                    <TableCell className="text-muted-foreground">{TYPE_LABELS[form.formType] || form.formType}</TableCell>
-                    <TableCell>
-                      <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>
-                        {STATUS_LABELS[form.status] || form.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {form.createdAt ? new Date(form.createdAt).toLocaleString("fr-CA", { dateStyle: "short", timeStyle: "short" }) : "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { dateStyle: "short", timeStyle: "short" }) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </TableCell>
+            <div className="overflow-x-auto scrollbar-hide">
+              <Table className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Numéro</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Type</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Statut</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Date de Création</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Dernière Modif.</TableHead>
+                    <TableHead className="w-12 py-4" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {forms.map((form) => {
+                    const typeCfg = FORM_TYPES.find(t => t.value === form.formType);
+                    const TypeIcon = typeCfg?.icon || FileText;
+                    return (
+                      <TableRow
+                        key={form.id}
+                        className="cursor-pointer group hover:bg-muted/50 transition-colors"
+                        onClick={() => goToForm(form.id)}
+                        data-testid={`row-form-${form.id}`}
+                      >
+                        <TableCell className="py-4">
+                          <span className="font-mono font-bold text-base text-foreground">{form.formNumber}</span>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border ${typeCfg?.light || "bg-muted"} border-border`}>
+                              <TypeIcon className={`h-4 w-4 ${typeCfg?.text || "text-muted-foreground"}`} />
+                            </div>
+                            <span className="font-bold text-sm text-foreground">{TYPE_LABELS[form.formType] || form.formType}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Badge variant="outline" className={`font-bold border px-2.5 py-1 uppercase tracking-wide text-[10px] ${STATUS_COLORS[form.status]}`}>
+                            {STATUS_LABELS[form.status] || form.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
+                          {form.createdAt ? new Date(form.createdAt).toLocaleString("fr-CA", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                        </TableCell>
+                        <TableCell className="py-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
+                          {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                        </TableCell>
+                        <TableCell className="py-4 text-right">
+                          <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Nouvelle demande de service</DialogTitle>
-            <p className="text-sm text-muted-foreground">Choisissez le type de service dont vous avez besoin</p>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-1">
-            {FORM_TYPES.map((t) => {
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.value}
-                  onClick={() => createFormMutation.mutate(t.value)}
-                  disabled={createFormMutation.isPending}
-                  data-testid={`button-create-${t.value}`}
-                  className={`group flex flex-col items-start gap-3 rounded-xl border p-4 text-left transition-all hover:shadow-md hover:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${t.light}`}
-                >
-                  <div className={`h-9 w-9 rounded-lg ${t.color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                    <Icon className="h-[18px] w-[18px] text-white" />
-                  </div>
-                  <div>
-                    <p className={`font-semibold text-sm ${t.text}`}>{t.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{t.desc}</p>
-                  </div>
-                </button>
-              );
-            })}
+        <DialogContent className="sm:max-w-xl p-0 overflow-hidden border-border/50 shadow-2xl">
+          <div className="bg-primary/5 p-6 border-b border-border/50 flex gap-4 items-start">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+              <ClipboardList className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold tracking-tight mb-2">Nouvelle demande de service</DialogTitle>
+              <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                Sélectionnez le type de formulaire que vous souhaitez créer. Un brouillon sera automatiquement sauvegardé.
+              </p>
+            </div>
+          </div>
+          
+          <div className="p-6 bg-background">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {FORM_TYPES.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => createFormMutation.mutate(t.value)}
+                    disabled={createFormMutation.isPending}
+                    data-testid={`button-create-${t.value}`}
+                    className={`group flex items-start gap-4 rounded-xl border border-border/50 p-4 text-left transition-all hover:border-primary/40 hover:shadow-md bg-card disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <div className={`h-10 w-10 rounded-lg ${t.color} flex items-center justify-center flex-shrink-0 shadow-sm text-white`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className={`font-bold text-sm text-foreground mb-1 group-hover:text-primary transition-colors`}>{t.label}</p>
+                      <p className="text-[11px] font-medium text-muted-foreground leading-snug">{t.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

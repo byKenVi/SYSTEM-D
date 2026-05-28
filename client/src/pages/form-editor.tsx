@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download, User, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download, User, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData, type TriFormData } from "@/components/forms/tri-form";
@@ -36,11 +36,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  in_review: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  completed: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  draft: "bg-muted text-muted-foreground border-border",
+  submitted: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  in_review: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  approved: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  completed: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
 };
 
 interface FormEditorProps {
@@ -151,6 +151,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
+      toast({ title: "Brouillon sauvegardé" });
     },
   });
 
@@ -171,9 +172,9 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   if (isLoading || !form) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
+      <div className="max-w-5xl mx-auto space-y-6 w-full">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-[600px] w-full rounded-2xl" />
       </div>
     );
   }
@@ -183,198 +184,254 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const formFieldsDisabled = role === "client" && !isDraft;
   const revisionHistory = Array.isArray(form.revisionHistory) ? form.revisionHistory : (typeof form.revisionHistory === "string" ? JSON.parse(form.revisionHistory) : []);
 
-  const statusBorderColor: Record<string, string> = {
-    draft: "border-l-gray-400",
-    submitted: "border-l-blue-500",
-    in_review: "border-l-amber-500",
-    approved: "border-l-emerald-500",
-    completed: "border-l-purple-500",
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Header card */}
-      <div className={`rounded-xl border bg-card shadow-sm border-l-4 ${statusBorderColor[form.status] || "border-l-gray-300"}`}>
-        <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
-
-          {/* Left: back + identity */}
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 mt-0.5 flex-shrink-0"
-              data-testid="button-back-forms"
-              onClick={async () => {
-                if (isDraft) {
-                  await save();
-                  queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/admin/forms"] });
-                }
-                navigate(backUrl);
-              }}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold font-mono tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
-                <Badge className={`${STATUS_COLORS[form.status]} text-xs`}>{STATUS_LABELS[form.status] || form.status}</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-                {FORM_TYPE_LABELS[form.formType] || form.formType}
-              </p>
+    <div className="max-w-5xl mx-auto space-y-8 animate-in pb-20 w-full">
+      
+      {/* ── Action Header (Sticky) ── */}
+      <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-full hover:bg-muted shrink-0"
+            data-testid="button-back-forms"
+            onClick={async () => {
+              if (isDraft) {
+                await save();
+                queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
+                queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/admin/forms"] });
+              }
+              navigate(backUrl);
+            }}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-mono font-bold tracking-tight text-foreground" data-testid="text-form-number">
+                {form.formNumber}
+              </h1>
+              <Badge variant="outline" className={`px-2.5 py-1 text-[10px] uppercase font-bold tracking-widest border ${STATUS_COLORS[form.status] || "border-border text-muted-foreground"}`}>
+                {STATUS_LABELS[form.status] || form.status}
+              </Badge>
+            </div>
+            
+            <div className="flex items-center gap-2 mt-1 text-sm font-medium text-muted-foreground">
+              <FileText className="h-4 w-4" />
+              {FORM_TYPE_LABELS[form.formType] || form.formType}
+              
               {contact && (
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                  <User className="h-3 w-3 flex-shrink-0" />
-                  {contact.name}{contact.companyName ? ` · ${contact.companyName}` : ""}
-                </p>
+                <>
+                  <span className="text-border mx-2">•</span>
+                  <User className="h-4 w-4" />
+                  <span className="text-foreground">
+                    {contact.name}
+                    {contact.companyName && <span className="opacity-60 ml-1">({contact.companyName})</span>}
+                  </span>
+                </>
               )}
             </div>
           </div>
+        </div>
 
-          {/* Right: actions */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
-            {/* Auto-save indicator */}
+        <div className="flex items-center gap-3 w-full sm:w-auto shrink-0">
+          
+          {/* Status Indicators */}
+          <div className="hidden sm:flex items-center px-4">
             {isDraft && saveStatus === "saving" && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />Enregistrement…
+              <span className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Auto-save...
               </span>
             )}
             {isDraft && saveStatus === "saved" && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Cloud className="h-3 w-3" />Enregistré
+              <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <Cloud className="h-3.5 w-3.5" /> À jour
               </span>
             )}
             {isDraft && saveStatus === "error" && (
-              <span className="text-xs text-destructive flex items-center gap-1">
-                <CloudOff className="h-3 w-3" />Erreur d'enregistrement
+              <span className="text-xs font-bold uppercase tracking-widest text-destructive flex items-center gap-2">
+                <CloudOff className="h-3.5 w-3.5" /> Hors ligne
               </span>
             )}
-
-            {/* Draft actions */}
-            {!isDisabled && isDraft && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => saveDraftMutation.mutate()} disabled={saveDraftMutation.isPending} data-testid="button-save-draft">
-                  <Save className="h-3.5 w-3.5 mr-1.5" />
-                  {saveDraftMutation.isPending ? "Enregistrement…" : "Enregistrer"}
-                </Button>
-                <Button size="sm" onClick={() => setSubmitDialogOpen(true)} data-testid="button-submit-form">
-                  <Send className="h-3.5 w-3.5 mr-1.5" />
-                  Soumettre
-                </Button>
-              </>
+            {!isDraft && (
+              <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Verrouillé
+              </span>
             )}
+          </div>
 
-            {/* Admin save (non-draft) */}
-            {role === "admin" && !isDraft && (
-              <Button variant="outline" size="sm" onClick={() => {
+          {/* Actions */}
+          {!isDisabled && isDraft && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => saveDraftMutation.mutate()} 
+                disabled={saveDraftMutation.isPending || saveStatus === "saving"} 
+                className="font-bold flex-1 sm:flex-none"
+                data-testid="button-save-draft"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {saveDraftMutation.isPending ? "..." : "Enregistrer"}
+              </Button>
+              <Button 
+                onClick={() => setSubmitDialogOpen(true)} 
+                className="font-bold shadow-lg shadow-primary/20 flex-1 sm:flex-none"
+                data-testid="button-submit-form"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Soumettre
+              </Button>
+            </>
+          )}
+
+          {role === "admin" && !isDraft && (
+            <Button 
+              variant="default" 
+              onClick={() => {
                 apiRequest("PUT", `/api/forms/${formId}`, { data: formData, revisionDescription: "Admin edit" })
                   .then(() => {
                     queryClient.invalidateQueries({ queryKey: ["/api/forms", formId] });
                     toast({ title: "Modifications enregistrées" });
                   })
                   .catch(() => toast({ title: "Erreur", variant: "destructive" }));
-              }} data-testid="button-admin-save">
-                <Save className="h-3.5 w-3.5 mr-1.5" />
-                Enregistrer
-              </Button>
-            )}
+              }} 
+              className="font-bold shadow-md shadow-primary/20 flex-1 sm:flex-none"
+              data-testid="button-admin-save"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Forcer sauvegarde
+            </Button>
+          )}
 
-            {/* PDF export */}
-            {!isDraft && (
-              <a href={`/api/forms/${formId}/pdf`} download data-testid="button-download-pdf">
-                <Button variant="outline" size="sm">
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  PDF
-                </Button>
+          {!isDraft && (
+            <Button variant="outline" asChild className="font-bold flex-1 sm:flex-none" data-testid="button-download-pdf">
+              <a href={`/api/forms/${formId}/pdf`} download>
+                <Download className="h-4 w-4 mr-2" />
+                PDF
               </a>
-            )}
-          </div>
+            </Button>
+          )}
         </div>
       </div>
 
-      {form.linkedFormId && (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <LinkIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-sm text-blue-700 dark:text-blue-300">
-            Formulaire lié :
-          </span>
-          <Link href={`${backUrl.includes("admin") ? "/admin" : "/portal"}/forms/${form.linkedFormId}`}>
-            <Button variant="ghost" size="sm" className="text-blue-600 p-0 h-auto underline" data-testid="link-linked-form">
-              Voir le formulaire lié
+      {/* ── Banners ── */}
+      <div className="space-y-4">
+        {form.linkedFormId && (
+          <div className="flex items-center justify-between p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+                <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5">Liaison de document</p>
+                <p className="text-sm font-medium text-foreground">Ce document est lié à une autre demande de service.</p>
+              </div>
+            </div>
+            <Button variant="outline" asChild className="shrink-0 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10">
+              <Link href={`${backUrl.includes("admin") ? "/admin" : "/portal"}/forms/${form.linkedFormId}`} data-testid="link-linked-form">
+                Voir le document lié
+              </Link>
             </Button>
-          </Link>
-        </div>
-      )}
+          </div>
+        )}
 
-      {form.formType === "copacking" && !form.linkedFormId && role === "admin" && (
-        <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <span className="text-sm text-amber-700 dark:text-amber-300">
-            Créer un formulaire de livraison lié à ce bon de travail
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => createLinkedLivraisonMutation.mutate()}
-            disabled={createLinkedLivraisonMutation.isPending}
-            data-testid="button-create-linked-livraison"
-          >
-            <Truck className="h-3.5 w-3.5 mr-1" />
-            {createLinkedLivraisonMutation.isPending ? "Création..." : "Créer livraison"}
-          </Button>
-        </div>
-      )}
+        {form.formType === "copacking" && !form.linkedFormId && role === "admin" && (
+          <div className="flex items-center justify-between p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                <Truck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-0.5">Action Admin</p>
+                <p className="text-sm font-medium text-foreground">Générer un bon de livraison à partir de ce Co-packing.</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="shrink-0 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-bold"
+              onClick={() => createLinkedLivraisonMutation.mutate()}
+              disabled={createLinkedLivraisonMutation.isPending}
+              data-testid="button-create-linked-livraison"
+            >
+              <Truck className="h-4 w-4 mr-2" />
+              {createLinkedLivraisonMutation.isPending ? "Création..." : "Créer Livraison"}
+            </Button>
+          </div>
+        )}
+      </div>
 
-      {formData !== null && (
-        <>
-          {form.formType === "tri" && (
-            <TriForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
-          )}
-          {form.formType === "inspection" && (
-            <InspectionForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
-          )}
-          {form.formType === "entreposage" && (
-            <EntreposageForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
-          )}
-          {form.formType === "copacking" && (
-            <CopackingForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
-          )}
-          {form.formType === "livraison" && (
-            <LivraisonForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
-          )}
-        </>
-      )}
+      {/* ── Form Render ── */}
+      <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+        {formData !== null && (
+          <div className="p-6 sm:p-8">
+            {form.formType === "tri" && (
+              <TriForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
+            )}
+            {form.formType === "inspection" && (
+              <InspectionForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
+            )}
+            {form.formType === "entreposage" && (
+              <EntreposageForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
+            )}
+            {form.formType === "copacking" && (
+              <CopackingForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
+            )}
+            {form.formType === "livraison" && (
+              <LivraisonForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
+            )}
+          </div>
+        )}
+      </div>
 
+      {/* ── Submit Dialog ── */}
       <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Soumettre le formulaire</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Une fois soumis, vous ne pourrez plus modifier ce formulaire. L'équipe Système-D le révisera.
-            </p>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 shadow-2xl">
+          <div className="bg-primary/5 p-6 border-b border-border/50 flex gap-4 items-start">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <AlertCircle className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold tracking-tight mb-2">Verrouiller et soumettre</DialogTitle>
+              <DialogDescription className="text-sm font-medium text-muted-foreground leading-relaxed">
+                Une fois soumis, ce document passera en mode lecture seule. L'équipe Système-D sera notifiée et procédera à l'évaluation de votre demande.
+              </DialogDescription>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-4 bg-background">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Note de soumission (optionnelle)</label>
+              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Note pour l'administration (optionnel)
+              </label>
               <Input
                 value={revisionDesc}
                 onChange={(e) => setRevisionDesc(e.target.value)}
-                placeholder="Décrivez les changements..."
+                placeholder="Ex: Urgent, commande client en attente..."
+                className="h-12 text-base font-medium shadow-none focus-visible:ring-1"
                 data-testid="input-revision-desc"
               />
             </div>
+            
+            <DialogFooter className="pt-4 gap-2 sm:gap-0">
+              <Button variant="ghost" className="font-bold" onClick={() => setSubmitDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button 
+                className="font-bold shadow-lg shadow-primary/20" 
+                onClick={() => submitMutation.mutate()} 
+                disabled={submitMutation.isPending} 
+                data-testid="button-confirm-submit"
+              >
+                {submitMutation.isPending ? "Validation en cours..." : "Soumettre définitivement"}
+              </Button>
+            </DialogFooter>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSubmitDialogOpen(false)}>Annuler</Button>
-            <Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending} data-testid="button-confirm-submit">
-              {submitMutation.isPending ? "Soumission..." : "Confirmer la soumission"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

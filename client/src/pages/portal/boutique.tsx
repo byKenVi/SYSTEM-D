@@ -1,14 +1,14 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product } from "@shared/schema";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -19,11 +19,10 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
-  ExternalLink,
   Users,
-  Mail,
-  Phone,
-  MapPin,
+  Box,
+  Filter,
+  ArrowRight
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -37,7 +36,12 @@ import {
 } from "@/components/ui/table";
 import { SiShopify } from "react-icons/si";
 
-/* ── Customer type ── */
+function money(amount: number | string | null | undefined, currency = "CAD") {
+  if (amount === null || amount === undefined) return "—";
+  return Number(amount).toLocaleString("fr-CA", { style: "currency", currency });
+}
+
+/* ── Types ── */
 interface ShopifyCustomer {
   id: number;
   email: string | null;
@@ -56,7 +60,6 @@ interface ShopifyCustomer {
 }
 interface CustomersResponse { customers: ShopifyCustomer[]; totalCount: number }
 
-/* ── Order badge helpers (same as admin) ── */
 interface ShopifyOrder {
   id: number;
   name: string;
@@ -74,29 +77,30 @@ interface ShopifyOrder {
 }
 interface OrdersResponse { orders: ShopifyOrder[] }
 
+/* ── Badges ── */
 function FinancialBadge({ status }: { status: string | null }) {
-  if (!status) return <span className="text-muted-foreground/40 text-xs">—</span>;
+  if (!status) return <span className="text-muted-foreground/40 text-xs font-mono">—</span>;
   const map: Record<string, { label: string; cls: string }> = {
-    paid:               { label: "Payé",             cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
-    pending:            { label: "En attente",       cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
-    refunded:           { label: "Remboursé",        cls: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
-    partially_refunded: { label: "Part. remboursé",  cls: "text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
+    paid:               { label: "Payé",             cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20" },
+    pending:            { label: "En attente",       cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20" },
+    refunded:           { label: "Remboursé",        cls: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-500/10 dark:border-blue-500/20" },
+    partially_refunded: { label: "Part. remboursé",  cls: "text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-500/10 dark:border-blue-500/20" },
     voided:             { label: "Annulé",           cls: "text-muted-foreground bg-muted border-border" },
-    authorized:         { label: "Autorisé",         cls: "text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-950/30 dark:border-violet-800" },
+    authorized:         { label: "Autorisé",         cls: "text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-500/10 dark:border-violet-500/20" },
   };
   const cfg = map[status] ?? { label: status, cls: "text-muted-foreground bg-muted border-border" };
-  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}>{cfg.label}</span>;
+  return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${cfg.cls}`}>{cfg.label}</span>;
 }
 
 function FulfillmentBadge({ status }: { status: string | null }) {
-  if (!status) return <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted border-border">Non traité</span>;
+  if (!status) return <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted border-border">Non traité</span>;
   const map: Record<string, { label: string; cls: string }> = {
-    fulfilled: { label: "Traité",  cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
-    partial:   { label: "Partiel", cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
-    restocked: { label: "Restocké",cls: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-800" },
+    fulfilled: { label: "Traité",  cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20" },
+    partial:   { label: "Partiel", cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20" },
+    restocked: { label: "Restocké",cls: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-500/10 dark:border-blue-500/20" },
   };
   const cfg = map[status] ?? { label: status, cls: "text-muted-foreground bg-muted border-border" };
-  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}>{cfg.label}</span>;
+  return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${cfg.cls}`}>{cfg.label}</span>;
 }
 
 export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -118,7 +122,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   /* Customers state */
   const [customerSearch, setCustomerSearch] = useState("");
 
-  /* Data */
+  /* Data fetching */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: viewAsContactId
       ? ["/api/admin/view-as", viewAsContactId, "products"]
@@ -137,6 +141,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     },
     staleTime: 60 * 1000,
   });
+
   const customersUrl = isViewAs
     ? `/api/admin/customers?contactId=${viewAsContactId}`
     : "/api/portal/customers";
@@ -149,7 +154,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const orders: ShopifyOrder[] = ordersData?.orders ?? [];
   const customers: ShopifyCustomer[] = customersData?.customers ?? [];
 
-  /* Products helpers */
+  /* Filtering & Sorting */
   const filteredProducts = products
     ?.filter((p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -161,28 +166,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
       return a.name.localeCompare(b.name);
     });
 
-  const restockMutation = useMutation({
-    mutationFn: async () => {
-      if (!restockProduct) return;
-      await apiRequest("POST", "/api/portal/restock-requests", {
-        productId: restockProduct.id,
-        requestedQuantity: Number(restockQty),
-        contactId: restockProduct.contactId,
-        status: "Processing",
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/restock-requests"] });
-      setRestockProduct(null);
-      setRestockQty("");
-      toast({ title: "Bon de travail soumis", description: "Votre bon de travail a été créé." });
-    },
-    onError: () => {
-      toast({ title: "Erreur", description: "Échec de la soumission du bon de travail.", variant: "destructive" });
-    },
-  });
-
-  /* Orders helpers */
   const filteredOrders = useMemo(() => orders.filter((o) => {
     if (paymentFilter !== "all" && o.financialStatus !== paymentFilter) return false;
     if (fulfillmentFilter !== "all") {
@@ -201,13 +184,33 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     return true;
   }), [orders, orderSearch, paymentFilter, fulfillmentFilter]);
 
-  /* Customers helpers */
   const filteredCustomers = useMemo(() => customers.filter((c) => {
     if (!customerSearch) return true;
     const q = customerSearch.toLowerCase();
     const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
     return name.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q) || (c.phone ?? "").toLowerCase().includes(q);
   }), [customers, customerSearch]);
+
+  const restockMutation = useMutation({
+    mutationFn: async () => {
+      if (!restockProduct) return;
+      await apiRequest("POST", "/api/portal/restock-requests", {
+        productId: restockProduct.id,
+        requestedQuantity: Number(restockQty),
+        contactId: restockProduct.contactId,
+        status: "Processing",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/restock-requests"] });
+      setRestockProduct(null);
+      setRestockQty("");
+      toast({ title: "Bon de travail soumis", description: "Votre bon de travail a été créé avec succès." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Échec de la soumission du bon de travail.", variant: "destructive" });
+    },
+  });
 
   const stats = useMemo(() => ({
     total: orders.length,
@@ -217,71 +220,96 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   }), [orders]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Boutique</h1>
-        <p className="text-muted-foreground mt-1">Vos produits et commandes Shopify</p>
+    <div className="space-y-6 animate-in w-full max-w-full">
+      {/* Header section with gradient */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
+        <div className="absolute -top-24 -right-24">
+          <div className="h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
+        </div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
+              <SiShopify className="h-3.5 w-3.5" /> Synchronisation E-commerce
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
+              Boutique & Inventaire
+            </h1>
+            <p className="text-muted-foreground mt-3 text-lg">
+              Visualisation en temps réel de votre catalogue, de vos commandes Shopify et de votre base clients.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <Tabs defaultValue="products">
-        <TabsList data-testid="tabs-boutique">
-          <TabsTrigger value="products" data-testid="tab-products">
-            <Package className="h-3.5 w-3.5 mr-1.5" />
+      <Tabs defaultValue="products" className="w-full">
+        <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl mb-6 overflow-x-auto overflow-y-hidden" data-testid="tabs-boutique">
+          <TabsTrigger value="products" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-products">
+            <Package className="h-4 w-4 mr-2" />
             Produits
+            {products && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{products.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="orders" data-testid="tab-orders">
-            <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
+          <TabsTrigger value="orders" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-orders">
+            <ShoppingCart className="h-4 w-4 mr-2" />
             Commandes
+            {orders.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{orders.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="customers" data-testid="tab-customers">
-            <Users className="h-3.5 w-3.5 mr-1.5" />
+          <TabsTrigger value="customers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-customers">
+            <Users className="h-4 w-4 mr-2" />
             Clients
+            {customers.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{customers.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
         {/* ══ PRODUITS TAB ══ */}
-        <TabsContent value="products" className="mt-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-2 flex-1">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher des produits..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                  data-testid="input-search-portal-products"
-                />
+        <TabsContent value="products" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+          <Card className="border-border/50 shadow-sm">
+            <CardContent className="p-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1 group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Input
+                    placeholder="Rechercher par nom, SKU..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-12 h-12 text-base bg-transparent border-transparent hover:border-border focus:border-border transition-all shadow-none"
+                    data-testid="input-search-portal-products"
+                  />
+                </div>
+                <div className="h-px sm:h-8 w-full sm:w-px bg-border my-1 sm:my-0" />
+                <div className="px-2 pb-2 sm:pb-0">
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="h-10 w-full sm:w-[180px] bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-sort-products">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="name">Nom A-Z</SelectItem>
+                      <SelectItem value="stock-asc">Stock : Croissant</SelectItem>
+                      <SelectItem value="stock-desc">Stock : Décroissant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[150px]" data-testid="select-sort-products">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Nom A-Z</SelectItem>
-                  <SelectItem value="stock-asc">Stock : Croissant</SelectItem>
-                  <SelectItem value="stock-desc">Stock : Décroissant</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <Card>
+          <Card className="border-border shadow-sm overflow-hidden">
             <CardContent className="p-0">
               {productsLoading ? (
-                <div className="p-6 space-y-3">
-                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+                <div className="p-6 space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
                 </div>
               ) : filteredProducts && filteredProducts.length > 0 ? (
                 <div className="overflow-x-auto scrollbar-hide">
-                  <Table className="min-w-[600px]">
+                  <Table className="min-w-[800px]">
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Produit</TableHead>
-                        <TableHead>SKU</TableHead>
-                        <TableHead className="text-right">Prix</TableHead>
-                        <TableHead className="text-right">Stock</TableHead>
-                        {!isViewAs && <TableHead className="text-right">Actions</TableHead>}
+                      <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
+                        {!isViewAs && <TableHead className="w-48 py-4" />}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -289,7 +317,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                         <TableRow
                           key={product.id}
                           data-testid={`row-portal-product-${product.id}`}
-                          className="cursor-pointer"
+                          className="cursor-pointer group hover:bg-muted/50 transition-colors"
                           onClick={() => {
                             const path = viewAsContactId
                               ? `/portal/products/${product.id}?viewAs=${viewAsContactId}`
@@ -297,35 +325,48 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             navigate(path);
                           }}
                         >
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              {product.imageUrl ? (
-                                <img src={product.imageUrl} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" />
-                              ) : (
-                                <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                                  <Package className="h-4 w-4 text-muted-foreground" />
-                                </div>
-                              )}
-                              <div>
-                                <span className="font-medium">{product.name}</span>
+                          <TableCell className="py-4">
+                            <div className="flex items-center gap-4">
+                              <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center shrink-0 overflow-hidden bg-white shadow-sm">
+                                {product.imageUrl ? (
+                                  <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+                                ) : (
+                                  <Package className="h-5 w-5 text-muted-foreground/50" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-base text-foreground block truncate">{product.name}</span>
                                 {product.description && (
-                                  <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{product.description}</p>
+                                  <p className="text-xs font-medium text-muted-foreground line-clamp-1 mt-0.5">{product.description}</p>
                                 )}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground font-mono text-sm">{product.sku || "—"}</TableCell>
-                          <TableCell className="text-right font-mono">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums">{product.inventoryQuantity}</TableCell>
+                          <TableCell className="py-4">
+                            {product.sku ? (
+                              <Badge variant="outline" className="font-mono text-xs border-dashed bg-muted/30">{product.sku}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground/40 font-mono">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right py-4 font-mono font-bold">
+                            {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
+                          </TableCell>
+                          <TableCell className="text-right py-4">
+                            <Badge variant="secondary" className={`font-mono text-sm px-2.5 py-1 rounded-md border-0 ${product.inventoryQuantity <= 5 ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-muted text-foreground"}`}>
+                              {product.inventoryQuantity} un.
+                            </Badge>
+                          </TableCell>
                           {!isViewAs && (
-                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="text-right py-4" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className="font-bold opacity-0 group-hover:opacity-100 transition-opacity border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
                                 onClick={() => { setRestockProduct(product); setRestockQty(""); }}
                                 data-testid={`button-request-restock-${product.id}`}
                               >
-                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                <RefreshCw className="h-3.5 w-3.5 mr-2" />
                                 Bon de travail
                               </Button>
                             </TableCell>
@@ -336,48 +377,81 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   </Table>
                 </div>
               ) : (
-                <div className="p-12 text-center">
-                  <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
-                  <p className="text-sm text-muted-foreground mt-1">Votre administrateur importera les produits depuis votre boutique Shopify.</p>
+                <div className="flex flex-col items-center justify-center p-16 text-center">
+                  <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                    <Package className="h-10 w-10 text-muted-foreground/50" />
+                  </div>
+                  <h3 className="text-xl font-bold tracking-tight mb-2">Catalogue vide</h3>
+                  <p className="text-muted-foreground max-w-sm">
+                    Les produits apparaîtront ici une fois synchronisés avec votre boutique Shopify par l'administration.
+                  </p>
                 </div>
               )}
             </CardContent>
           </Card>
 
+          {/* Restock Dialog */}
           <Dialog open={!!restockProduct} onOpenChange={() => setRestockProduct(null)}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Soumettre un bon de travail</DialogTitle>
-              </DialogHeader>
+            <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 shadow-2xl">
+              <div className="bg-primary/5 p-6 border-b border-border/50 flex gap-4 items-start">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                  <RefreshCw className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold tracking-tight mb-2">Créer un bon de travail</DialogTitle>
+                  <DialogDescription className="text-sm font-medium text-muted-foreground leading-relaxed">
+                    Demandez une intervention ou un réapprovisionnement pour ce produit spécifique.
+                  </DialogDescription>
+                </div>
+              </div>
+              
               {restockProduct && (
-                <div className="space-y-4 mt-2">
-                  <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50">
-                    <Package className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                <div className="p-6 space-y-6 bg-background">
+                  <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm">
+                    <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center shrink-0 overflow-hidden bg-white">
+                      {restockProduct.imageUrl ? (
+                        <img src={restockProduct.imageUrl} alt={restockProduct.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <Package className="h-5 w-5 text-muted-foreground/50" />
+                      )}
+                    </div>
                     <div>
-                      <p className="font-medium text-sm">{restockProduct.name}</p>
-                      <p className="text-xs text-muted-foreground">Stock actuel : {restockProduct.inventoryQuantity}</p>
+                      <p className="font-bold text-sm text-foreground line-clamp-1">{restockProduct.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="font-mono text-[10px]">{restockProduct.sku || "Sans SKU"}</Badge>
+                        <span className="text-xs font-medium text-muted-foreground">Stock: <span className="font-mono font-bold text-foreground">{restockProduct.inventoryQuantity}</span></span>
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Quantité</Label>
+                  
+                  <div className="space-y-3">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Quantité à traiter
+                    </Label>
                     <Input
                       type="number"
                       min="1"
                       value={restockQty}
                       onChange={(e) => setRestockQty(e.target.value)}
-                      placeholder="Entrer la quantité"
+                      placeholder="Entrez le nombre d'unités..."
+                      className="h-12 text-base font-medium font-mono shadow-none focus-visible:ring-1"
                       data-testid="input-restock-quantity"
                     />
                   </div>
-                  <Button
-                    className="w-full"
-                    onClick={() => restockMutation.mutate()}
-                    disabled={!restockQty || Number(restockQty) < 1 || restockMutation.isPending}
-                    data-testid="button-submit-restock"
-                  >
-                    {restockMutation.isPending ? "Envoi…" : "Soumettre le bon de travail"}
-                  </Button>
+                  
+                  <DialogFooter className="pt-2 gap-2 sm:gap-0">
+                    <Button variant="ghost" className="font-bold" onClick={() => setRestockProduct(null)}>
+                      Annuler
+                    </Button>
+                    <Button
+                      className="font-bold shadow-lg shadow-primary/20"
+                      onClick={() => restockMutation.mutate()}
+                      disabled={!restockQty || Number(restockQty) < 1 || restockMutation.isPending}
+                      data-testid="button-submit-restock"
+                    >
+                      {restockMutation.isPending ? "Création..." : "Soumettre la demande"}
+                    </Button>
+                  </DialogFooter>
                 </div>
               )}
             </DialogContent>
@@ -385,125 +459,136 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
         </TabsContent>
 
         {/* ══ COMMANDES TAB ══ */}
-        <TabsContent value="orders" className="mt-4 space-y-4">
+        <TabsContent value="orders" className="space-y-6 focus-visible:outline-none focus-visible:ring-0">
           {!ordersLoading && orders.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Total commandes</span></div><p className="text-2xl font-bold tabular-nums">{stats.total}</p></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /><span className="text-xs text-muted-foreground">Payées</span></div><p className="text-2xl font-bold tabular-nums">{stats.paid}</p></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><Clock className="h-3.5 w-3.5 text-amber-500" /><span className="text-xs text-muted-foreground">Non traitées</span></div><p className="text-2xl font-bold tabular-nums">{stats.pending}</p></CardContent></Card>
-              <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><span className="text-xs text-muted-foreground">Revenus</span></div><p className="text-2xl font-bold tabular-nums">${stats.revenue.toLocaleString("fr-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p></CardContent></Card>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border-border/50 shadow-sm"><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><ShoppingCart className="h-4 w-4 text-muted-foreground" /><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Total Commandes</span></div><p className="text-3xl font-mono font-bold">{stats.total}</p></CardContent></Card>
+              <Card className="border-border/50 shadow-sm"><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" /><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Paiements Reçus</span></div><p className="text-3xl font-mono font-bold text-emerald-600 dark:text-emerald-400">{stats.paid}</p></CardContent></Card>
+              <Card className="border-border/50 shadow-sm"><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><Clock className="h-4 w-4 text-amber-500" /><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Non Traitées</span></div><p className="text-3xl font-mono font-bold text-amber-600 dark:text-amber-400">{stats.pending}</p></CardContent></Card>
+              <Card className="border-border/50 shadow-sm"><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-primary" /><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Chiffre d'affaires</span></div><p className="text-3xl font-mono font-bold">{money(stats.revenue)}</p></CardContent></Card>
             </div>
           )}
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Card className="border-border/50 shadow-sm">
+            <CardContent className="p-2">
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                <div className="relative flex-1 group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                   <Input
-                    placeholder="Rechercher commande, acheteur…"
+                    placeholder="Rechercher numéro, client, email..."
                     value={orderSearch}
                     onChange={(e) => setOrderSearch(e.target.value)}
-                    className="pl-8 h-9"
+                    className="pl-12 h-12 text-base bg-transparent border-transparent hover:border-border focus:border-border transition-all shadow-none"
                     data-testid="input-search-orders"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                
+                <div className="h-px lg:h-8 w-full lg:w-px bg-border my-1 lg:my-0" />
+                
+                <div className="flex items-center gap-2 px-2 pb-2 lg:pb-0 overflow-x-auto scrollbar-hide">
+                  <Filter className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:block" />
                   <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-                    <SelectTrigger className="h-9 w-36 text-xs" data-testid="select-payment-filter"><SelectValue placeholder="Paiement" /></SelectTrigger>
+                    <SelectTrigger className="h-10 w-[150px] shrink-0 bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-payment-filter"><SelectValue placeholder="Paiement" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tous les paiements</SelectItem>
+                      <SelectItem value="all">Tous paiements</SelectItem>
                       <SelectItem value="paid">Payé</SelectItem>
                       <SelectItem value="pending">En attente</SelectItem>
                       <SelectItem value="authorized">Autorisé</SelectItem>
                       <SelectItem value="refunded">Remboursé</SelectItem>
-                      <SelectItem value="partially_refunded">Part. remboursé</SelectItem>
                       <SelectItem value="voided">Annulé</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={fulfillmentFilter} onValueChange={setFulfillmentFilter}>
-                    <SelectTrigger className="h-9 w-36 text-xs" data-testid="select-fulfillment-filter"><SelectValue placeholder="Traitement" /></SelectTrigger>
+                    <SelectTrigger className="h-10 w-[150px] shrink-0 bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-fulfillment-filter"><SelectValue placeholder="Traitement" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="all">Tous statuts</SelectItem>
                       <SelectItem value="unfulfilled">Non traité</SelectItem>
                       <SelectItem value="partial">Partiel</SelectItem>
                       <SelectItem value="fulfilled">Traité</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(orderSearch || paymentFilter !== "all" || fulfillmentFilter !== "all") && (
-                    <Badge variant="secondary" className="tabular-nums">{filteredOrders.length} résultat{filteredOrders.length !== 1 ? "s" : ""}</Badge>
-                  )}
                 </div>
               </div>
-            </CardHeader>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border shadow-sm overflow-hidden">
             <CardContent className="p-0">
               <div className="overflow-x-auto scrollbar-hide">
-                <Table className="min-w-[600px]">
+                <Table className="min-w-[800px]">
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Commande</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Acheteur</TableHead>
-                      <TableHead>Articles</TableHead>
-                      <TableHead>Paiement</TableHead>
-                      <TableHead>Traitement</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="w-8" />
+                    <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Commande</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Acheteur</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Articles</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Paiement</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Traitement</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Total</TableHead>
+                      <TableHead className="w-12 py-4" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ordersLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                        <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j} className="py-4"><Skeleton className="h-6 w-full" /></TableCell>)}</TableRow>
                       ))
                     ) : filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="h-40 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            {orders.length === 0 ? (
-                              <>
-                                <SiShopify className="h-8 w-8 text-muted-foreground/20" />
-                                <p className="text-sm font-medium text-muted-foreground">Aucune commande disponible</p>
-                                <p className="text-xs text-muted-foreground/60">Les commandes de votre boutique Shopify apparaîtront ici après synchronisation</p>
-                              </>
-                            ) : (
-                              <>
-                                <ShoppingCart className="h-7 w-7 text-muted-foreground/30" />
-                                <p className="text-sm text-muted-foreground">Aucune commande ne correspond à vos filtres</p>
-                              </>
-                            )}
+                        <TableCell colSpan={7} className="h-[400px] text-center">
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                              <ShoppingCart className="h-10 w-10 text-muted-foreground/50" />
+                            </div>
+                            <h3 className="text-xl font-bold tracking-tight">Aucune commande</h3>
+                            <p className="text-sm text-muted-foreground max-w-sm">
+                              Les commandes de votre boutique Shopify apparaîtront ici.
+                            </p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredOrders.map((order) => {
-                        const storeUrl = order.storeUrl ?? "";
-                        const shopifyOrderUrl = storeUrl ? `https://${storeUrl}/admin/orders/${order.id}` : null;
-                        const dateStr = order.shopifyCreatedAt
-                          ? new Date(order.shopifyCreatedAt).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" })
-                          : "—";
-                        const customer = [order.customerFirstName, order.customerLastName].filter(Boolean).join(" ") || order.email;
-                        const lineCount = Array.isArray(order.lineItems) ? order.lineItems.length : 0;
+                        const customerName = `${order.customerFirstName || ""} ${order.customerLastName || ""}`.trim();
+                        const itemsCount = order.lineItems?.reduce((sum, i) => sum + (i.quantity || 1), 0) || 0;
                         return (
-                          <TableRow
+                          <TableRow 
                             key={order.id}
-                            data-testid={`row-order-${order.id}`}
-                            className="group cursor-pointer"
-                            onClick={() => navigate(`/portal/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}`)}
+                            className="cursor-pointer group hover:bg-muted/50 transition-colors"
+                            onClick={() => {
+                              const path = viewAsContactId
+                                ? `/portal/orders/${order.id}?viewAs=${viewAsContactId}`
+                                : `/portal/orders/${order.id}`;
+                              navigate(path);
+                            }}
                           >
-                            <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{dateStr}</TableCell>
-                            <TableCell className="text-sm max-w-[160px] truncate">{customer ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground tabular-nums">{lineCount} article{lineCount !== 1 ? "s" : ""}</TableCell>
-                            <TableCell><FinancialBadge status={order.financialStatus} /></TableCell>
-                            <TableCell><FulfillmentBadge status={order.fulfillmentStatus} /></TableCell>
-                            <TableCell className="text-right font-medium text-sm tabular-nums">{order.currency} {Number(order.totalPrice ?? 0).toFixed(2)}</TableCell>
-                            <TableCell>
-                              {shopifyOrderUrl && (
-                                <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`link-order-shopify-${order.id}`}>
-                                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                                </a>
-                              )}
+                            <TableCell className="py-4">
+                              <div className="flex flex-col">
+                                <span className="font-mono font-bold text-base text-foreground">{order.name}</span>
+                                {order.shopifyCreatedAt && (
+                                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
+                                    {new Date(order.shopifyCreatedAt).toLocaleDateString("fr-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-sm text-foreground truncate max-w-[150px]">{customerName || "—"}</span>
+                                {order.email && <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[150px] mt-0.5">{order.email}</span>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className="font-mono font-bold text-sm bg-muted px-2 py-0.5 rounded-md">{itemsCount}</span>
+                            </TableCell>
+                            <TableCell className="py-4"><FinancialBadge status={order.financialStatus} /></TableCell>
+                            <TableCell className="py-4"><FulfillmentBadge status={order.fulfillmentStatus} /></TableCell>
+                            <TableCell className="py-4 text-right">
+                              <span className="font-mono font-bold text-foreground">
+                                {money(Number(order.totalPrice), order.currency)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-4 text-right">
+                              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                             </TableCell>
                           </TableRow>
                         );
@@ -517,103 +602,108 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
         </TabsContent>
 
         {/* ══ CLIENTS TAB ══ */}
-        <TabsContent value="customers" className="mt-4 space-y-4">
-            {!customersLoading && customers.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><Users className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Total clients</span></div><p className="text-2xl font-bold tabular-nums">{customers.length}</p></CardContent></Card>
-                <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /><span className="text-xs text-muted-foreground">Email vérifié</span></div><p className="text-2xl font-bold tabular-nums">{customers.filter((c) => c.verified_email).length}</p></CardContent></Card>
-                <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><ShoppingCart className="h-3.5 w-3.5 text-primary" /><span className="text-xs text-muted-foreground">Commandes totales</span></div><p className="text-2xl font-bold tabular-nums">{customers.reduce((s, c) => s + c.orders_count, 0).toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><span className="text-xs text-muted-foreground">Revenus totaux</span></div><p className="text-2xl font-bold tabular-nums">${customers.reduce((s, c) => s + Number(c.total_spent), 0).toLocaleString("fr-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p></CardContent></Card>
+        <TabsContent value="customers" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+          <Card className="border-border/50 shadow-sm">
+            <CardContent className="p-2">
+              <div className="relative w-full group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                <Input
+                  placeholder="Rechercher par nom, email, téléphone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="pl-12 h-12 text-base bg-transparent border-transparent hover:border-border focus:border-border transition-all shadow-none"
+                  data-testid="input-search-customers"
+                />
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="relative max-w-sm">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input placeholder="Rechercher client, email, téléphone…" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} className="pl-8 h-9" data-testid="input-search-customers" />
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto scrollbar-hide">
-                  <Table className="min-w-[600px]">
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Client</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Localisation</TableHead>
-                        <TableHead className="text-right">Commandes</TableHead>
-                        <TableHead className="text-right">Dépensé</TableHead>
-                        <TableHead>Inscrit le</TableHead>
-                        <TableHead className="w-8" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {customersLoading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                          <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
-                        ))
-                      ) : filteredCustomers.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="h-40 text-center">
-                            <div className="flex flex-col items-center gap-2">
-                              <Users className="h-8 w-8 text-muted-foreground/20" />
-                              <p className="text-sm font-medium text-muted-foreground">{customers.length === 0 ? "Aucun client trouvé" : "Aucun client ne correspond à votre recherche"}</p>
-                              {customers.length === 0 && <p className="text-xs text-muted-foreground/60">Les clients de votre boutique Shopify apparaîtront ici</p>}
+          <Card className="border-border shadow-sm overflow-hidden">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto scrollbar-hide">
+                <Table className="min-w-[800px]">
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Client</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Localisation</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Commandes</TableHead>
+                      <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Total Dépensé</TableHead>
+                      <TableHead className="w-12 py-4" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customersLoading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j} className="py-4"><Skeleton className="h-6 w-full" /></TableCell>)}</TableRow>
+                      ))
+                    ) : filteredCustomers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-[400px] text-center">
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                              <Users className="h-10 w-10 text-muted-foreground/50" />
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ) : filteredCustomers.map((c) => {
-                        const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ") || "—";
-                        const location = [c.default_address?.city, c.default_address?.province, c.default_address?.country].filter(Boolean).join(", ");
-                        const shopifyCustomerUrl = `https://${c.storeUrl}/admin/customers/${c.id}`;
-                        const dateStr = new Date(c.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" });
+                            <h3 className="text-xl font-bold tracking-tight">Aucun client trouvé</h3>
+                            <p className="text-sm text-muted-foreground max-w-sm">
+                              Votre base de données clients Shopify.
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredCustomers.map((customer) => {
+                        const name = `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
+                        const initials = name ? name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase() : "C";
+                        const location = [customer.default_address?.city, customer.default_address?.province].filter(Boolean).join(", ");
+                        
                         return (
-                          <TableRow
-                            key={c.id}
-                            data-testid={`row-customer-${c.id}`}
-                            className="group cursor-pointer"
-                            onClick={() => navigate(`/portal/customers/${c.id}?store=${encodeURIComponent(c.storeUrl)}`)}
+                          <TableRow 
+                            key={customer.id}
+                            className="cursor-pointer group hover:bg-muted/50 transition-colors"
+                            onClick={() => {
+                              const path = viewAsContactId
+                                ? `/portal/customers/${customer.id}?viewAs=${viewAsContactId}`
+                                : `/portal/customers/${customer.id}`;
+                              navigate(path);
+                            }}
                           >
-                            <TableCell>
-                              <div className="flex items-center gap-2.5">
-                                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 text-xs font-semibold text-muted-foreground">
-                                  {(c.first_name?.[0] ?? c.email?.[0] ?? "?").toUpperCase()}
+                            <TableCell className="py-4">
+                              <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                                  <span className="text-sm font-bold text-primary">{initials}</span>
                                 </div>
-                                <div>
-                                  <p className="font-medium text-sm">{fullName}</p>
-                                  {c.tags && <p className="text-xs text-muted-foreground truncate max-w-[140px]">{c.tags}</p>}
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-sm text-foreground">{name || "Client Anonyme"}</span>
+                                  <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 mt-0.5">
+                                    {customer.email || "Pas d'email"}
+                                  </span>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell>
-                              <div className="space-y-0.5">
-                                {c.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3 flex-shrink-0" /><span className="truncate max-w-[160px]">{c.email}</span></div>}
-                                {c.phone && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="h-3 w-3 flex-shrink-0" /><span>{c.phone}</span></div>}
-                              </div>
+                            <TableCell className="py-4">
+                              <span className="text-sm font-medium text-foreground">{location || "—"}</span>
                             </TableCell>
-                            <TableCell>
-                              {location ? (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3 flex-shrink-0" /><span className="truncate max-w-[120px]">{location}</span></div>
-                              ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                            <TableCell className="py-4 text-center">
+                              <Badge variant="outline" className="font-mono text-xs border-dashed bg-muted/30">{customer.orders_count}</Badge>
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-sm font-medium">{c.orders_count}</TableCell>
-                            <TableCell className="text-right tabular-nums text-sm">{Number(c.total_spent) > 0 ? `$${Number(c.total_spent).toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-muted-foreground/40">—</span>}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{dateStr}</TableCell>
-                            <TableCell>
-                              <a href={shopifyCustomerUrl} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`link-customer-shopify-${c.id}`}>
-                                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                              </a>
+                            <TableCell className="py-4 text-right">
+                              <span className="font-mono font-bold text-foreground">
+                                ${Number(customer.total_spent).toFixed(2)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-4 text-right">
+                              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                             </TableCell>
                           </TableRow>
                         );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );

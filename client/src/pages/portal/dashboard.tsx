@@ -21,14 +21,18 @@ import {
   TrendingDown,
   Minus,
   BarChart3,
+  Activity,
+  Layers,
+  ArrowUpRight,
+  FileText
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  in_review: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  completed: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  draft: "bg-muted text-muted-foreground border-border",
+  submitted: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  in_review: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  approved: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  completed: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,11 +51,19 @@ const TYPE_LABELS: Record<string, string> = {
   livraison: "Livraison",
 };
 
+const TYPE_ICONS: Record<string, any> = {
+  entreposage: Layers,
+  tri: RefreshCw,
+  inspection: ClipboardList,
+  copacking: Package,
+  livraison: ArrowRight,
+};
+
 function TrendBadge({ value }: { value: number | null }) {
   if (value === null) return null;
-  if (value > 0) return <span className="flex items-center gap-0.5 text-xs text-emerald-600 dark:text-emerald-400"><TrendingUp className="h-3 w-3" />+{value}%</span>;
-  if (value < 0) return <span className="flex items-center gap-0.5 text-xs text-red-500 dark:text-red-400"><TrendingDown className="h-3 w-3" />{value}%</span>;
-  return <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Minus className="h-3 w-3" />0%</span>;
+  if (value > 0) return <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"><TrendingUp className="h-3 w-3" />+{value}%</span>;
+  if (value < 0) return <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10 text-[10px] font-bold text-red-600 dark:text-red-400"><TrendingDown className="h-3 w-3" />{value}%</span>;
+  return <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-[10px] font-bold text-muted-foreground"><Minus className="h-3 w-3" />0%</span>;
 }
 
 function money(amount: number, currency = "CAD") {
@@ -115,239 +127,250 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
   const hasShopifyData = (kpis?.ordersThisMonth ?? 0) > 0 || (kpis?.ordersLast30Days ?? 0) > 0 || (kpis?.topProducts?.length ?? 0) > 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
-          {greeting()}, {contact?.name?.split(" ")[0] || user?.firstName || "there"}
-        </h1>
-        {contact?.companyName && (
-          <p className="text-muted-foreground mt-1 flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5" />
-            {contact.companyName}
-          </p>
-        )}
+    <div className="space-y-6 animate-in w-full max-w-full">
+      {/* Header section with gradient background */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
+        <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3">
+          <div className="h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
+        </div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
+              <Activity className="h-3.5 w-3.5" /> Centre de Commandement
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
+              {greeting()}, {contact?.name?.split(" ")[0] || user?.firstName || "there"}
+            </h1>
+            {contact?.companyName && (
+              <p className="text-muted-foreground mt-3 text-lg flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                {contact.companyName}
+              </p>
+            )}
+          </div>
+          
+          {!viewAsContactId && (
+            <Button asChild size="lg" className="shadow-lg shadow-primary/20 shrink-0">
+              <Link href="/portal/forms">
+                <Plus className="h-5 w-5 mr-2" />
+                Nouvelle Demande
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Stat Cards — row 1: warehousing */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card data-testid="stat-card-products">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Produits</p>
-                {loadingProducts ? <Skeleton className="h-8 w-10 mt-1" /> : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-products">{products?.length ?? 0}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">en entrepôt</p>
+      {/* Primary Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-card border-border/50 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group" data-testid="stat-card-products">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors" />
+          <CardContent className="p-6 relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                <Package className="h-6 w-6 text-primary" />
               </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Package className="h-5 w-5 text-primary" />
-              </div>
+              <Badge variant="outline" className="bg-background border-border text-[10px] uppercase font-bold tracking-widest">Inventaire</Badge>
+            </div>
+            <div>
+              {loadingProducts ? <Skeleton className="h-10 w-16 mb-1" /> : (
+                <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-products">{products?.length ?? 0}</p>
+              )}
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Produits Actifs</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-card-restock">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Réapprovisionnements</p>
-                {loadingRestock ? <Skeleton className="h-8 w-10 mt-1" /> : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-restock">{pendingRestock}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">en attente</p>
+        <Card className="bg-card border-border/50 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group" data-testid="stat-card-restock">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
+          <CardContent className="p-6 relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20">
+                <RefreshCw className="h-6 w-6 text-amber-500" />
               </div>
-              <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                <RefreshCw className="h-5 w-5 text-amber-500" />
-              </div>
+              <Badge variant="outline" className="bg-background border-border text-[10px] uppercase font-bold tracking-widest">Logistique</Badge>
+            </div>
+            <div>
+              {loadingRestock ? <Skeleton className="h-10 w-16 mb-1" /> : (
+                <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-restock">{pendingRestock}</p>
+              )}
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">En Attente</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-card-forms">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Demandes actives</p>
-                {loadingForms ? <Skeleton className="h-8 w-10 mt-1" /> : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-forms">{activeForms.length}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">en cours</p>
+        <Card className="bg-card border-border/50 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group" data-testid="stat-card-forms">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition-colors" />
+          <CardContent className="p-6 relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0 border border-purple-500/20">
+                <ClipboardList className="h-6 w-6 text-purple-500" />
               </div>
-              <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                <ClipboardList className="h-5 w-5 text-purple-500" />
-              </div>
+              <Badge variant="outline" className="bg-background border-border text-[10px] uppercase font-bold tracking-widest">Services</Badge>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Stat Cards — row 2: Shopify / boutique KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card data-testid="stat-card-orders-month">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Commandes ce mois</p>
-                {loadingKpis ? <Skeleton className="h-8 w-10 mt-1" /> : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-orders-month">{kpis?.ordersThisMonth ?? 0}</p>
-                )}
-                <div className="mt-1">
-                  {loadingKpis ? <Skeleton className="h-3 w-16" /> : <TrendBadge value={kpis?.ordersTrend ?? null} />}
-                </div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                <ShoppingCart className="h-5 w-5 text-blue-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="stat-card-value-month">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Valeur ce mois</p>
-                {loadingKpis ? <Skeleton className="h-8 w-20 mt-1" /> : (
-                  <p className="text-2xl font-bold mt-1 truncate" data-testid="stat-value-value-month">{money(kpis?.valueThisMonth ?? 0, kpis?.currency)}</p>
-                )}
-                <div className="mt-1">
-                  {loadingKpis ? <Skeleton className="h-3 w-16" /> : <TrendBadge value={kpis?.valueTrend ?? null} />}
-                </div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-                <DollarSign className="h-5 w-5 text-emerald-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="stat-card-low-stock">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Stock faible</p>
-                {loadingKpis || loadingProducts ? <Skeleton className="h-8 w-10 mt-1" /> : (
-                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-low-stock">{kpis?.lowStockProducts?.length ?? 0}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">produits &lt; 5 unités</p>
-              </div>
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${(kpis?.lowStockProducts?.length ?? 0) > 0 ? "bg-red-500/10" : "bg-muted"}`}>
-                <AlertTriangle className={`h-5 w-5 ${(kpis?.lowStockProducts?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
-              </div>
+            <div>
+              {loadingForms ? <Skeleton className="h-10 w-16 mb-1" /> : (
+                <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-forms">{activeForms.length}</p>
+              )}
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Demandes En Cours</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Forms */}
+        {/* Left Column - Main Activity */}
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Mes demandes</CardTitle>
+          
+          {/* E-commerce KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <Card className="border-border/50 shadow-sm" data-testid="stat-card-orders-month">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <ShoppingCart className="h-3.5 w-3.5" /> Ventes Mensuelles
+                    </p>
+                    {loadingKpis ? <Skeleton className="h-8 w-24" /> : (
+                      <div className="flex items-baseline gap-3">
+                        <p className="text-3xl font-mono font-bold text-foreground" data-testid="stat-value-orders-month">{kpis?.ordersThisMonth ?? 0}</p>
+                        <TrendBadge value={kpis?.ordersTrend ?? null} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 shadow-sm" data-testid="stat-card-value-month">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <DollarSign className="h-3.5 w-3.5" /> Revenus Mensuels
+                    </p>
+                    {loadingKpis ? <Skeleton className="h-8 w-32" /> : (
+                      <div className="flex items-baseline gap-3">
+                        <p className="text-3xl font-mono font-bold text-foreground truncate" data-testid="stat-value-value-month">{money(kpis?.valueThisMonth ?? 0, kpis?.currency)}</p>
+                        <TrendBadge value={kpis?.valueTrend ?? null} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Forms Activity */}
+          <Card className="border-border/50 shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-bold uppercase tracking-widest">Services Récents</CardTitle>
               <Link href={`/portal/forms${qs}`}>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="link-view-all-forms">
-                  Tout afficher <ArrowRight className="h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 text-xs font-bold hover:bg-muted" data-testid="link-view-all-forms">
+                  Voir tout <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
                 </Button>
               </Link>
             </CardHeader>
             <CardContent className="p-0">
               {loadingForms ? (
-                <div className="px-6 pb-4 space-y-3">
-                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+                <div className="divide-y divide-border/50">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-4 flex gap-4"><Skeleton className="h-10 w-10 rounded-lg" /><div className="space-y-2 flex-1"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-3 w-1/4" /></div></div>
+                  ))}
                 </div>
               ) : recentForms.length === 0 ? (
-                <div className="px-6 py-8 text-center text-muted-foreground">
-                  <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Aucun formulaire pour l'instant</p>
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                    <ClipboardList className="h-8 w-8 text-muted-foreground/50" />
+                  </div>
+                  <h3 className="text-lg font-bold tracking-tight mb-2">Aucun service en cours</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-sm">Vos demandes de services et bons de travail apparaîtront ici.</p>
                   {!viewAsContactId && (
-                    <Link href="/portal/forms">
-                      <Button size="sm" className="mt-3" data-testid="button-create-first-form">
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Créer votre premier formulaire
-                      </Button>
-                    </Link>
+                    <Button asChild size="sm" className="shadow-md shadow-primary/10">
+                      <Link href="/portal/forms" data-testid="button-create-first-form">
+                        <Plus className="h-4 w-4 mr-2" /> Créer une demande
+                      </Link>
+                    </Button>
                   )}
                 </div>
               ) : (
-                <div className="divide-y divide-border">
-                  {recentForms.map((form) => (
-                    <Link key={form.id} href={`/portal/forms/${form.id}${qs}`}>
-                      <div className="px-6 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors cursor-pointer" data-testid={`row-recent-form-${form.id}`}>
-                        <div>
-                          <p className="text-sm font-medium">{form.formNumber}</p>
-                          <p className="text-xs text-muted-foreground">{TYPE_LABELS[form.formType] || form.formType}</p>
+                <div className="divide-y divide-border/50">
+                  {recentForms.map((form) => {
+                    const Icon = TYPE_ICONS[form.formType] || FileText;
+                    return (
+                      <Link key={form.id} href={`/portal/forms/${form.id}${qs}`}>
+                        <div className="px-6 py-4 flex items-center justify-between hover:bg-muted/40 transition-colors group cursor-pointer" data-testid={`row-recent-form-${form.id}`}>
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-background border flex items-center justify-center shrink-0 group-hover:border-primary/30 transition-colors">
+                              <Icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                            </div>
+                            <div>
+                              <p className="font-mono font-bold text-sm text-foreground">{form.formNumber}</p>
+                              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-0.5">{TYPE_LABELS[form.formType] || form.formType}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <Badge variant="outline" className={`font-bold border px-2.5 py-0.5 uppercase tracking-wide text-[10px] ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
+                            <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Top Products this month */}
-          {(loadingKpis || (kpis?.topProducts?.length ?? 0) > 0) && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  Produits les plus commandés ce mois
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {loadingKpis ? (
-                  <div className="px-6 pb-4 space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {(kpis?.topProducts ?? []).map((p: any, i: number) => {
-                      const maxQty = kpis.topProducts[0]?.quantity ?? 1;
-                      const pct = Math.round((p.quantity / maxQty) * 100);
-                      return (
-                        <div key={i} className="px-6 py-2.5 flex items-center gap-3" data-testid={`row-top-product-${i}`}>
-                          <span className="text-xs font-mono text-muted-foreground w-4 text-right flex-shrink-0">{i + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{p.title}</p>
-                            {p.sku && <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>}
-                            <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                          <span className="text-sm font-semibold tabular-nums flex-shrink-0">{p.quantity}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+        {/* Right Column - Secondary Info */}
+        <div className="space-y-6">
+          {/* Quick Actions */}
+          <Card className="border-border/50 shadow-sm bg-primary/5 border-primary/10">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary">Accès Rapide</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {!viewAsContactId && (
+                <Button asChild size="lg" className="w-full justify-start gap-3 h-12 shadow-sm font-bold" data-testid="link-quick-new-form">
+                  <Link href="/portal/forms">
+                    <Plus className="h-4 w-4" /> Nouvelle Demande
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="outline" size="lg" className="w-full justify-start gap-3 h-12 font-bold bg-background/50 hover:bg-background border-border/50" data-testid="link-quick-products">
+                <Link href={`/portal/boutique${qs}`}>
+                  <ShoppingCart className="h-4 w-4 text-muted-foreground" /> E-commerce
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="w-full justify-start gap-3 h-12 font-bold bg-background/50 hover:bg-background border-border/50" data-testid="link-quick-profile">
+                <Link href={`/portal/profile${qs}`}>
+                  <Building2 className="h-4 w-4 text-muted-foreground" /> Paramètres Compte
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* Low stock alerts */}
           {!loadingKpis && (kpis?.lowStockProducts?.length ?? 0) > 0 && (
-            <Card className="border-red-200 dark:border-red-900/40">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold flex items-center gap-2 text-red-600 dark:text-red-400">
+            <Card className="border-red-200 dark:border-red-900/40 shadow-sm overflow-hidden bg-red-50/50 dark:bg-red-900/10">
+              <CardHeader className="pb-3 border-b border-red-100 dark:border-red-900/20 bg-red-100/50 dark:bg-red-900/20">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-red-600 dark:text-red-400">
                   <AlertTriangle className="h-4 w-4" />
-                  Alertes stock faible
+                  Rupture Imminente
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {(kpis?.lowStockProducts ?? []).map((p: any) => (
-                    <div key={p.id} className="px-6 py-2.5 flex items-center justify-between" data-testid={`row-low-stock-${p.id}`}>
-                      <div>
-                        <p className="text-sm font-medium">{p.name}</p>
-                        {p.sku && <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>}
+                <div className="divide-y divide-red-100 dark:divide-red-900/20">
+                  {(kpis?.lowStockProducts ?? []).slice(0, 5).map((p: any) => (
+                    <div key={p.id} className="px-5 py-3 flex items-center justify-between" data-testid={`row-low-stock-${p.id}`}>
+                      <div className="min-w-0 pr-4">
+                        <p className="text-sm font-bold truncate text-foreground">{p.name}</p>
+                        {p.sku && <p className="text-[10px] font-mono font-medium text-muted-foreground mt-0.5">{p.sku}</p>}
                       </div>
-                      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-0 text-xs tabular-nums">
-                        {p.inventoryQuantity} unité{p.inventoryQuantity !== 1 ? "s" : ""}
+                      <Badge variant="outline" className="shrink-0 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 text-[10px] font-bold tabular-nums">
+                        {p.inventoryQuantity} un.
                       </Badge>
                     </div>
                   ))}
@@ -355,95 +378,40 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               </CardContent>
             </Card>
           )}
-        </div>
 
-        {/* Right column */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Actions rapides</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {!viewAsContactId && (
-                <Link href="/portal/forms">
-                  <Button size="sm" className="w-full justify-start gap-2" data-testid="link-quick-new-form">
-                    <Plus className="h-3.5 w-3.5" /> Nouvelle demande
-                  </Button>
-                </Link>
-              )}
-              <Link href={`/portal/boutique${qs}`}>
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-products">
-                  <Package className="h-3.5 w-3.5" /> Voir les produits
-                </Button>
-              </Link>
-              <Link href={`/portal/restock${qs}`}>
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-restock">
-                  <RefreshCw className="h-3.5 w-3.5" /> Bons de travail
-                </Button>
-              </Link>
-              <Link href={`/portal/profile${qs}`}>
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" data-testid="link-quick-profile">
-                  <Building2 className="h-3.5 w-3.5" /> Mon profil
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* 30-day comparison */}
-          {!loadingKpis && ((kpis?.ordersLast30Days ?? 0) > 0 || (kpis?.valueLast30Days ?? 0) > 0) && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">30 derniers jours</CardTitle>
+          {/* Top Products this month */}
+          {(loadingKpis || (kpis?.topProducts?.length ?? 0) > 0) && (
+            <Card className="border-border/50 shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Top Ventes (30j)
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Commandes</span>
-                  <span className="font-semibold tabular-nums">{kpis?.ordersLast30Days ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Valeur</span>
-                  <span className="font-semibold tabular-nums">{money(kpis?.valueLast30Days ?? 0, kpis?.currency)}</span>
-                </div>
-                {kpis?.lastOrderAt && (
-                  <div className="flex items-center justify-between pt-1 border-t border-border">
-                    <span className="text-muted-foreground">Dernière commande</span>
-                    <span className="text-xs text-right">{new Date(kpis.lastOrderAt).toLocaleDateString("fr-CA", { month: "short", day: "numeric" })}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {contact && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Informations du compte</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {loadingContact ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </div>
+              <CardContent className="p-0">
+                {loadingKpis ? (
+                  <div className="p-4 space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
                 ) : (
-                  <>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Nom</p>
-                      <p className="font-medium" data-testid="text-contact-name">{contact.name}</p>
-                    </div>
-                    {contact.companyName && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Entreprise</p>
-                        <p className="font-medium">{contact.companyName}</p>
-                      </div>
-                    )}
-                    {contact.phone && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Téléphone</p>
-                        <p className="font-medium">{contact.phone}</p>
-                      </div>
-                    )}
-                  </>
+                  <div className="divide-y divide-border/50 p-2">
+                    {(kpis?.topProducts ?? []).map((p: any, i: number) => {
+                      const maxQty = kpis.topProducts[0]?.quantity ?? 1;
+                      const pct = Math.round((p.quantity / maxQty) * 100);
+                      return (
+                        <div key={i} className="px-3 py-3 flex items-center gap-3" data-testid={`row-top-product-${i}`}>
+                          <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
+                            <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold truncate mb-1">{p.title}</p>
+                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                          <span className="text-xs font-mono font-bold shrink-0">{p.quantity}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </CardContent>
             </Card>
