@@ -2523,5 +2523,287 @@ export async function registerRoutes(
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MAPI Rep Budgets
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    const {
+      createRep,
+      creditRep,
+      debitRep,
+      getRepBalance,
+      getRepTransactionHistory,
+      renewRepBudget,
+      deactivateRepInShopify,
+    } = await import("./mapi-rep-budget");
+
+    // List all reps
+    app.get("/api/mapi/reps", isAuthenticated, isAdmin, async (req, res) => {
+      try {
+        const reps = await storage.getMapiReps();
+        res.json(reps);
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    // Create a new rep
+    app.post("/api/mapi/reps", isAuthenticated, isAdmin, async (req: any, res) => {
+      try {
+        const { email, firstName, lastName } = req.body;
+        if (!email) return res.status(400).json({ message: "Email requis" });
+
+        const { shopifyCustomerId } = await createRep({ email, firstName, lastName });
+
+        const rep = await storage.createMapiRep({
+          shopifyCustomerGid: shopifyCustomerId,
+          email,
+          firstName: firstName ?? null,
+          lastName: lastName ?? null,
+          status: "active",
+          currentBalance: "0.00",
+          currentBalanceCurrency: "CAD",
+        });
+
+        res.json({ rep });
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    // Bulk monthly renewal for all active reps with a budget set
+    app.post("/api/mapi/reps/bulk-monthly-renewal", isAuthenticated, isAdmin, async (req: any, res) => {
+      try {
+        const userId = req.user?.id ?? null;
+        const reps = await storage.getMapiReps("active");
+        const eligible = reps.filter((r) => r.monthlyBudgetAmount && parseFloat(r.monthlyBudgetAmount) > 0);
+        let renewed = 0;
+        const errors: string[] = [];
+
+        for (const rep of eligible) {
+          try {
+            const result = await renewRepBudget({
+              shopifyCustomerId: rep.shopifyCustomerGid,
+              monthlyBudgetAmount: rep.monthlyBudgetAmount!,
+              currencyCode: rep.monthlyBudgetCurrency ?? "CAD",
+            });
+            const newBalance = result.newBalance.amount;
+            await storage.updateMapiRep(rep.id, {
+              currentBalance: newBalance,
+              lastBalanceRefreshAt: new Date(),
+            });
+            await storage.createMapiRepCreditLog({
+              repId: rep.id,
+              shopifyCustomerGid: rep.shopifyCustomerGid,
+              action: "monthly_renewal",
+              amount: rep.monthlyBudgetAmount!,
+              currency: rep.monthlyBudgetCurrency ?? "CAD",
+              reason: "Renouvellement mensuel global",
+              performedByUserId: userId,
+            });
+            renewed++;
+          } catch (e: any) {
+            errors.push(`${rep.email}: ${e.message}`);
+          }
+        }
+
+        res.json({ renewed, errors });
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    // Get rep detail with live balance + history
+    app.get("/api/mapi/reps/:id", isAuthenticated, isAdmin, async (req, res) => {
+      try {
+        const rep = await storage.getMapiRep(req.params.id);
+        if (!rep) return res.status(404).json({ message: "Rep introuvable" });
+
+        const [logs, shopifyTransactions] = await Promise.all([
+          storage.getMapiRepCreditLogs(rep.id),
+          getRepTransactionHistory(rep.shopifyCustomerGid).catch(() => []),
+        ]);
+
+        // Refresh balance from Shopify
+        try {
+          const balances = await getRepBalance(rep.shopifyCustomerGid);
+          const cad = balances.find((b) => b.currencyCode === "CAD") ?? balances[0];
+          if (cad) {
+            await storage.updateMapiRep(rep.id, {
+              currentBalance: cad.amount,
+              lastBalanceRefreshAt: new Date(),
+            });
+            rep.currentBalance = cad.amount;
+          }
+        } catch (_) {}
+
+        res.json({ rep, logs, shopifyTransactions });
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    // Credit a rep
+    app.post("/api/mapi/reps/:id/credit", isAuthenticated, isAdmin, async (req: any, res) => {
+      try {
+        const { amount, currency = "CAD", reason } = req.body;
+        if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ message: "Montant invalide" });
+
+        const rep = await storage.getMapiRep(req.params.id);
+        if (!rep) return res.status(404).json({ message: "Rep introuvable" });
+
+        const result = await creditRep({
+          shopifyCustomerId: rep.shopifyCustomerGid,
+          amount: parseFloat(amount).toFixed(2),
+          currencyCode: currency,
+        });
+
+        const updatedRep = await storage.updateMapiRep(rep.id, {
+          currentBalance: result.newBalance.amount,
+          lastBalanceRefreshAt: new Date(),
+        });
+
+        await storage.createMapiRepCreditLog({
+          repId: rep.id,
+          shopifyCustomerGid: rep.shopifyCustomerGid,
+          action: "credit",
+          amount: parseFloat(amount).toFixed(2),
+          currency,
+          reason: reason ?? null,
+          performedByUserId: req.user?.id ?? null,
+          shopifyTransactionId: result.accountId,
+        });
+
+        res.json({ rep: updatedRep });
+      } catch (err: any) {
+        res.status(400).json({ message: err.message });
+      }
+    });
+
+    // Debit a rep
+    app.post("/api/mapi/reps/:id/debit", isAuthenticated, isAdmin, async (req: any, res) => {
+      try {
+        const { amount, currency = "CAD", reason } = req.body;
+        if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ message: "Montant invalide" });
+
+        const rep = await storage.getMapiRep(req.params.id);
+        if (!rep) return res.status(404).json({ message: "Rep introuvable" });
+
+        const result = await debitRep({
+          shopifyCustomerId: rep.shopifyCustomerGid,
+          amount: parseFloat(amount).toFixed(2),
+          currencyCode: currency,
+        });
+
+        const updatedRep = await storage.updateMapiRep(rep.id, {
+          currentBalance: result.newBalance.amount,
+          lastBalanceRefreshAt: new Date(),
+        });
+
+        await storage.createMapiRepCreditLog({
+          repId: rep.id,
+          shopifyCustomerGid: rep.shopifyCustomerGid,
+          action: "debit",
+          amount: parseFloat(amount).toFixed(2),
+          currency,
+          reason: reason ?? null,
+          performedByUserId: req.user?.id ?? null,
+          shopifyTransactionId: result.accountId,
+        });
+
+        res.json({ rep: updatedRep });
+      } catch (err: any) {
+        res.status(400).json({ message: err.message });
+      }
+    });
+
+    // Monthly renewal for a single rep (RESET: debit to zero, then credit budget)
+    app.post("/api/mapi/reps/:id/monthly-renewal", isAuthenticated, isAdmin, async (req: any, res) => {
+      try {
+        const rep = await storage.getMapiRep(req.params.id);
+        if (!rep) return res.status(404).json({ message: "Rep introuvable" });
+        if (!rep.monthlyBudgetAmount || parseFloat(rep.monthlyBudgetAmount) <= 0) {
+          return res.status(400).json({ message: "Aucun budget mensuel configuré pour ce rep" });
+        }
+
+        const result = await renewRepBudget({
+          shopifyCustomerId: rep.shopifyCustomerGid,
+          monthlyBudgetAmount: rep.monthlyBudgetAmount,
+          currencyCode: rep.monthlyBudgetCurrency ?? "CAD",
+        });
+
+        const updatedRep = await storage.updateMapiRep(rep.id, {
+          currentBalance: result.newBalance.amount,
+          lastBalanceRefreshAt: new Date(),
+        });
+
+        await storage.createMapiRepCreditLog({
+          repId: rep.id,
+          shopifyCustomerGid: rep.shopifyCustomerGid,
+          action: "monthly_renewal",
+          amount: rep.monthlyBudgetAmount,
+          currency: rep.monthlyBudgetCurrency ?? "CAD",
+          reason: "Renouvellement mensuel",
+          performedByUserId: req.user?.id ?? null,
+        });
+
+        res.json({ rep: updatedRep });
+      } catch (err: any) {
+        res.status(400).json({ message: err.message });
+      }
+    });
+
+    // Update monthly budget
+    app.post("/api/mapi/reps/:id/budget", isAuthenticated, isAdmin, async (req, res) => {
+      try {
+        const { monthlyBudgetAmount } = req.body;
+        const rep = await storage.getMapiRep(req.params.id);
+        if (!rep) return res.status(404).json({ message: "Rep introuvable" });
+
+        const updatedRep = await storage.updateMapiRep(rep.id, {
+          monthlyBudgetAmount: monthlyBudgetAmount ? parseFloat(monthlyBudgetAmount).toFixed(2) : null,
+        });
+        res.json({ rep: updatedRep });
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    // Deactivate a rep
+    app.post("/api/mapi/reps/:id/deactivate", isAuthenticated, isAdmin, async (req: any, res) => {
+      try {
+        const rep = await storage.getMapiRep(req.params.id);
+        if (!rep) return res.status(404).json({ message: "Rep introuvable" });
+        if (rep.status === "archived") return res.status(400).json({ message: "Rep déjà archivé" });
+
+        const currentBalance = parseFloat(rep.currentBalance ?? "0");
+
+        await deactivateRepInShopify(rep.shopifyCustomerGid);
+
+        if (currentBalance > 0.005) {
+          await storage.createMapiRepCreditLog({
+            repId: rep.id,
+            shopifyCustomerGid: rep.shopifyCustomerGid,
+            action: "deactivate",
+            amount: currentBalance.toFixed(2),
+            currency: rep.currentBalanceCurrency ?? "CAD",
+            reason: "Désactivation — solde final débité",
+            performedByUserId: req.user?.id ?? null,
+          });
+        }
+
+        const updatedRep = await storage.updateMapiRep(rep.id, {
+          status: "archived",
+          currentBalance: "0.00",
+          lastBalanceRefreshAt: new Date(),
+        });
+
+        res.json({ rep: updatedRep });
+      } catch (err: any) {
+        res.status(400).json({ message: err.message });
+      }
+    });
+  }
+
   return httpServer;
 }

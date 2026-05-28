@@ -33,6 +33,7 @@ import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminLivraisons from "@/pages/admin/livraisons";
 import AdminNotifications from "@/pages/admin/notifications";
+import MapiRepsPage from "@/pages/admin/mapi-reps";
 import PortalForms from "@/pages/portal/forms";
 import PortalBoutique from "@/pages/portal/boutique";
 import PortalDashboard from "@/pages/portal/dashboard";
@@ -76,6 +77,7 @@ function AdminLayout() {
             {(params) => <AdminFormDetail id={Number(params?.id)} />}
           </Route>
           <Route path="/admin/forms" component={AdminForms} />
+          <Route path="/admin/mapi-reps" component={MapiRepsPage} />
           <Route path="/admin/settings" component={AdminSettingsPage} />
           <Route path="/admin">
             <Redirect to="/admin/dashboard" />

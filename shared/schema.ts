@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb, unique, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -225,3 +225,43 @@ export const notificationPreferences = pgTable("notification_preferences", {
 export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true });
 export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+
+// ─── MAPI Rep Budgets ─────────────────────────────────────────────────────────
+
+export const mapiReps = pgTable("mapi_reps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  shopifyCustomerGid: text("shopify_customer_gid").unique().notNull(),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  status: text("status").notNull().default("active"), // 'active' | 'archived'
+  monthlyBudgetAmount: decimal("monthly_budget_amount", { precision: 10, scale: 2 }),
+  monthlyBudgetCurrency: text("monthly_budget_currency").default("CAD"),
+  currentBalance: decimal("current_balance", { precision: 10, scale: 2 }),
+  currentBalanceCurrency: text("current_balance_currency").default("CAD"),
+  lastBalanceRefreshAt: timestamp("last_balance_refresh_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertMapiRepSchema = createInsertSchema(mapiReps).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMapiRep = z.infer<typeof insertMapiRepSchema>;
+export type MapiRep = typeof mapiReps.$inferSelect;
+
+export const mapiRepCreditLog = pgTable("mapi_rep_credit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  repId: uuid("rep_id").references(() => mapiReps.id),
+  shopifyCustomerGid: text("shopify_customer_gid").notNull(),
+  action: text("action").notNull(), // 'credit' | 'debit' | 'monthly_renewal' | 'deactivate'
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("CAD"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  reason: text("reason"),
+  performedByUserId: text("performed_by_user_id"),
+  shopifyTransactionId: text("shopify_transaction_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertMapiRepCreditLogSchema = createInsertSchema(mapiRepCreditLog).omit({ id: true, createdAt: true });
+export type InsertMapiRepCreditLog = z.infer<typeof insertMapiRepCreditLogSchema>;
+export type MapiRepCreditLog = typeof mapiRepCreditLog.$inferSelect;

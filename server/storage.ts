@@ -10,6 +10,8 @@ import {
   formUploads, type FormUpload, type InsertFormUpload,
   notifications, type Notification, type InsertNotification,
   notificationPreferences, type NotificationPreference,
+  mapiReps, type MapiRep, type InsertMapiRep,
+  mapiRepCreditLog, type MapiRepCreditLog, type InsertMapiRepCreditLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray } from "drizzle-orm";
@@ -81,6 +83,15 @@ export interface IStorage {
   getNotificationPreferences(contactId: number): Promise<NotificationPreference[]>;
   upsertNotificationPreference(contactId: number, category: string, enabled: boolean): Promise<void>;
   isNotificationEnabled(contactId: number, category: string): Promise<boolean>;
+
+  // MAPI Reps
+  getMapiReps(status?: string): Promise<MapiRep[]>;
+  getMapiRep(id: string): Promise<MapiRep | undefined>;
+  getMapiRepByGid(gid: string): Promise<MapiRep | undefined>;
+  createMapiRep(data: InsertMapiRep): Promise<MapiRep>;
+  updateMapiRep(id: string, data: Partial<InsertMapiRep>): Promise<MapiRep | undefined>;
+  createMapiRepCreditLog(data: InsertMapiRepCreditLog): Promise<MapiRepCreditLog>;
+  getMapiRepCreditLogs(repId: string, limit?: number): Promise<MapiRepCreditLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -458,6 +469,53 @@ export class DatabaseStorage implements IStorage {
         eq(notificationPreferences.category, category)
       ));
     return pref?.enabled ?? true;
+  }
+
+  // ─── MAPI Reps ────────────────────────────────────────────────────────────
+
+  async getMapiReps(status?: string): Promise<MapiRep[]> {
+    if (status) {
+      return db.select().from(mapiReps).where(eq(mapiReps.status, status)).orderBy(desc(mapiReps.createdAt));
+    }
+    return db.select().from(mapiReps).orderBy(desc(mapiReps.createdAt));
+  }
+
+  async getMapiRep(id: string): Promise<MapiRep | undefined> {
+    const [rep] = await db.select().from(mapiReps).where(eq(mapiReps.id, id));
+    return rep;
+  }
+
+  async getMapiRepByGid(gid: string): Promise<MapiRep | undefined> {
+    const [rep] = await db.select().from(mapiReps).where(eq(mapiReps.shopifyCustomerGid, gid));
+    return rep;
+  }
+
+  async createMapiRep(data: InsertMapiRep): Promise<MapiRep> {
+    const [rep] = await db.insert(mapiReps).values(data).returning();
+    return rep;
+  }
+
+  async updateMapiRep(id: string, data: Partial<InsertMapiRep>): Promise<MapiRep | undefined> {
+    const [rep] = await db
+      .update(mapiReps)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(mapiReps.id, id))
+      .returning();
+    return rep;
+  }
+
+  async createMapiRepCreditLog(data: InsertMapiRepCreditLog): Promise<MapiRepCreditLog> {
+    const [log] = await db.insert(mapiRepCreditLog).values(data).returning();
+    return log;
+  }
+
+  async getMapiRepCreditLogs(repId: string, limit = 100): Promise<MapiRepCreditLog[]> {
+    return db
+      .select()
+      .from(mapiRepCreditLog)
+      .where(eq(mapiRepCreditLog.repId, repId))
+      .orderBy(desc(mapiRepCreditLog.createdAt))
+      .limit(limit);
   }
 }
 

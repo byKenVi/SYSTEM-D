@@ -7,6 +7,7 @@ import { startShopifySyncScheduler } from "./shopify-sync";
 import { startShopifyOrdersSyncScheduler } from "./shopify-orders-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
 import { startShopifyWritebackScheduler } from "./shopify-writeback";
+import { startMapiBalanceRefreshScheduler } from "./mapi-balance-refresh";
 import { pool } from "./db";
 
 const app = express();
@@ -111,6 +112,7 @@ app.use((req, res, next) => {
       startShopifyOrdersSyncScheduler();
       startZohoSyncScheduler();
       startShopifyWritebackScheduler();
+      startMapiBalanceRefreshScheduler();
     },
   );
 })();
