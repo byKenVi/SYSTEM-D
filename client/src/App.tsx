@@ -57,7 +57,7 @@ function AdminLayout() {
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="admin" />
       <SidebarInset className="overflow-y-auto scrollbar-hide bg-background">
-        <div className="p-6 lg:p-8 min-h-full">
+        <div className="p-6 lg:p-8 min-h-full w-full">
           <Switch>
             <Route path="/admin/dashboard" component={AdminDashboard} />
             <Route path="/admin/contacts/:id" component={AdminContactDetail} />
@@ -105,7 +105,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
       <SidebarInset className="overflow-hidden bg-background">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="p-6 lg:p-8 min-h-full">
+          <div className="p-6 lg:p-8 min-h-full w-full">
             <Switch>
               <Route path="/portal/dashboard">
                 <PortalDashboard viewAsContactId={viewAsContactId} />
