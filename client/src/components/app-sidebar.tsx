@@ -162,9 +162,6 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       {/* ── Navigation ── */}
       <SidebarContent className="px-3 pt-4 scrollbar-hide group-data-[collapsible=icon]:px-0">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-bold text-sidebar-foreground/40 uppercase tracking-widest mb-2 px-2 group-data-[collapsible=icon]:hidden">
-            Menu Principal
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {items.map((item) => {
