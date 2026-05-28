@@ -130,7 +130,7 @@ export default function PortalCustomerDetail() {
   const searchParams = new URLSearchParams(window.location.search);
   const store = searchParams.get("store") ?? "";
   const viewAs = searchParams.get("viewAs");
-  const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}` : "/portal/boutique";
+  const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}&tab=customers` : "/portal/boutique?tab=customers";
   const shopifyCustomerId = params.id;
   const isAdminViewAs = !!viewAs;
 

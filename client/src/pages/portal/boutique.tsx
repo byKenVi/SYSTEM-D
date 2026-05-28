@@ -106,6 +106,7 @@ function FulfillmentBadge({ status }: { status: string | null }) {
 export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "products";
 
   /* Products state */
   const [search, setSearch] = useState("");
@@ -243,7 +244,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
         </div>
       </div>
 
-      <Tabs defaultValue="products" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl mb-6 overflow-x-auto overflow-y-hidden" data-testid="tabs-boutique">
           <TabsTrigger value="products" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-products">
             <Package className="h-4 w-4 mr-2" />
