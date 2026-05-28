@@ -1622,6 +1622,33 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/portal/orders/:shopifyOrderId", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role?.contactId) return res.status(403).json({ message: "Forbidden" });
+
+      const { shopifyOrderId } = req.params;
+      const storeUrl = req.query.store as string;
+      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
+
+      const integrations = await storage.getShopifyIntegrations();
+      const integration = integrations.find(
+        (i) => i.isActive && i.storeUrl === storeUrl && i.contactId === role.contactId
+      );
+      if (!integration) {
+        return res.status(404).json({ message: "Shopify integration not found for this store" });
+      }
+
+      const { fetchShopifyOrderDetail } = await import("./shopify-api");
+      const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
+
+      res.json({ order, shopName: integration.shopName, storeUrl });
+    } catch (error: any) {
+      console.error("Error fetching portal order detail:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch order detail" });
+    }
+  });
+
   // Fetch Shopify customers for the authenticated client (portal)
   app.get("/api/portal/customers", isAuthenticated, async (req: any, res) => {
     try {

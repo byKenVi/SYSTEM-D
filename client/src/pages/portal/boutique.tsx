@@ -485,7 +485,12 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                         const customer = [order.customerFirstName, order.customerLastName].filter(Boolean).join(" ") || order.email;
                         const lineCount = Array.isArray(order.lineItems) ? order.lineItems.length : 0;
                         return (
-                          <TableRow key={order.id} data-testid={`row-order-${order.id}`} className="group">
+                          <TableRow
+                            key={order.id}
+                            data-testid={`row-order-${order.id}`}
+                            className="group cursor-pointer"
+                            onClick={() => navigate(`/portal/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}`)}
+                          >
                             <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
                             <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{dateStr}</TableCell>
                             <TableCell className="text-sm max-w-[160px] truncate">{customer ?? <span className="text-muted-foreground/40">—</span>}</TableCell>

@@ -34,6 +34,7 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminLivraisons from "@/pages/admin/livraisons";
 import AdminNotifications from "@/pages/admin/notifications";
 import MapiRepsPage from "@/pages/admin/mapi-reps";
+import PortalOrderDetail from "@/pages/portal/order-detail";
 import PortalForms from "@/pages/portal/forms";
 import PortalBoutique from "@/pages/portal/boutique";
 import PortalDashboard from "@/pages/portal/dashboard";
@@ -110,6 +111,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
             </Route>
             <Route path="/portal/products/:id">
               <PortalProductDetail viewAsContactId={viewAsContactId} />
+            </Route>
+            <Route path="/portal/orders/:id">
+              <PortalOrderDetail />
             </Route>
             <Route path="/portal/boutique">
               <PortalBoutique viewAsContactId={viewAsContactId} />
