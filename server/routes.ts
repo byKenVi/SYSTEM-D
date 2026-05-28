@@ -248,9 +248,11 @@ export async function registerRoutes(
       });
       await storage.createActivityLog({ type: "contact_invite", status: "success", message: `Invite sent to ${contact.name} (${contact.email})` });
       res.json({ message: "Invite resent", contactId: contact.id });
-    } catch (error) {
-      console.error("Error resending invite:", error);
-      res.status(500).json({ message: "Failed to resend invite" });
+    } catch (error: any) {
+      const msg = error?.message || "Unknown error";
+      console.error("Error resending invite:", msg);
+      await storage.createActivityLog({ type: "contact_invite", status: "error", message: `Invite failed for ${req.params.id}: ${msg}` }).catch(() => {});
+      res.status(500).json({ message: `Failed to resend invite: ${msg}` });
     }
   });
 
