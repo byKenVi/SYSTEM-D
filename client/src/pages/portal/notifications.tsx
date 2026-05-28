@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Bell, Check, CheckCheck, Inbox, Settings2, ShieldAlert } from "lucide-react";
@@ -70,6 +71,27 @@ function timeAgo(dateString: string | null | undefined) {
   return fmt(dateString);
 }
 
+function playNotificationSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+
+    [880, 1108, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.08);
+      osc.connect(gain);
+      osc.start(ctx.currentTime + i * 0.08);
+      osc.stop(ctx.currentTime + i * 0.08 + 0.35);
+    });
+  } catch (_) {}
+}
+
 export default function PortalNotifications() {
   const { toast } = useToast();
 
@@ -85,6 +107,23 @@ export default function PortalNotifications() {
     refetchInterval: 30_000,
     enabled: role !== undefined,
   });
+
+  const seenIds = useRef<Set<number>>(new Set());
+  const initialLoad = useRef(true);
+
+  useEffect(() => {
+    if (!notifications) return;
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      notifications.forEach((n) => seenIds.current.add(n.id));
+      return;
+    }
+    const newOnes = notifications.filter((n) => !seenIds.current.has(n.id));
+    if (newOnes.length > 0) {
+      playNotificationSound();
+      newOnes.forEach((n) => seenIds.current.add(n.id));
+    }
+  }, [notifications]);
 
   const { data: preferences, isLoading: prefsLoading } = useQuery<Record<string, boolean>>({
     queryKey: ["/api/portal/notifications/preferences"],
