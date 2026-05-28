@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Bell, Check, CheckCheck, Inbox, Settings2, ShieldAlert } from "lucide-react";
+import { Bell, BellOff, Check, CheckCheck, Inbox, Settings2, ShieldAlert, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -112,6 +112,19 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
     enabled: role !== undefined && notifKey !== null,
   });
 
+  const [soundPrefs, setSoundPrefs] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("notif-sound-prefs") || "{}"); }
+    catch { return {}; }
+  });
+
+  const isSoundOn = (category: string) => soundPrefs[category] !== false;
+
+  const toggleSound = (category: string) => {
+    const next = { ...soundPrefs, [category]: !isSoundOn(category) };
+    setSoundPrefs(next);
+    try { localStorage.setItem("notif-sound-prefs", JSON.stringify(next)); } catch {}
+  };
+
   const seenIds = useRef<Set<number>>(new Set());
   const initialLoad = useRef(true);
 
@@ -124,7 +137,8 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
     }
     const newOnes = notifications.filter((n) => !seenIds.current.has(n.id));
     if (newOnes.length > 0) {
-      playNotificationSound();
+      const shouldRing = newOnes.some((n) => soundPrefs[n.category] !== false);
+      if (shouldRing) playNotificationSound();
       newOnes.forEach((n) => seenIds.current.add(n.id));
     }
   }, [notifications]);
@@ -350,28 +364,55 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
               <h3 className="font-bold">Canaux d'alertes</h3>
               <p className="text-xs text-muted-foreground mt-1">Configurez les événements qui déclenchent une notification.</p>
             </div>
+
+            {/* Column headers */}
+            <div className="px-4 py-2 flex items-center justify-end gap-5 border-b border-border/30 bg-muted/10">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                <Volume2 className="h-3 w-3" /> Son
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-9 text-center">Actif</span>
+            </div>
             
             <div className="divide-y divide-border/50">
               {CATEGORIES.map((category) => {
                 const cfg = cat(category);
                 const enabled = isEnabled(category);
+                const soundOn = isSoundOn(category);
                 return (
                   <div
                     key={category}
-                    className="p-4 transition-colors hover:bg-muted/10 flex items-start gap-4"
+                    className="px-4 py-3.5 transition-colors hover:bg-muted/10 flex items-center gap-4"
                     data-testid={`pref-row-${category}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`h-2 w-2 rounded-full ${cfg.iconBg}`} />
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${cfg.iconBg}`} />
                         <span className="text-sm font-bold text-foreground">{cfg.label}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed pl-4">
                         {cfg.description}
                       </p>
                     </div>
                     
-                    <div className="shrink-0 mt-1">
+                    {/* Sound toggle */}
+                    <button
+                      onClick={() => toggleSound(category)}
+                      className={`shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors
+                        ${soundOn
+                          ? "bg-primary/10 text-primary hover:bg-primary/20"
+                          : "bg-muted/50 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground"
+                        }`}
+                      title={soundOn ? "Son activé — cliquer pour désactiver" : "Son désactivé — cliquer pour activer"}
+                      data-testid={`button-sound-${category}`}
+                    >
+                      {soundOn
+                        ? <Bell className="h-3.5 w-3.5" />
+                        : <BellOff className="h-3.5 w-3.5" />
+                      }
+                    </button>
+
+                    {/* Notification toggle */}
+                    <div className="shrink-0 w-9 flex justify-center">
                       {prefsLoading ? (
                         <Skeleton className="h-5 w-9 rounded-full" />
                       ) : (
