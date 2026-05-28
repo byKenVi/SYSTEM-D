@@ -75,7 +75,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
 
   if (isLoading) {
     return (
-      <div className="space-y-6 w-full max-w-6xl mx-auto">
+      <div className="space-y-6 w-full">
         <Skeleton className="h-48 rounded-2xl" />
         <Skeleton className="h-[400px] rounded-2xl" />
       </div>
@@ -83,7 +83,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
   }
 
   return (
-    <div className="space-y-8 animate-in w-full max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 animate-in w-full pb-12">
       
       {/* Header section with gradient background */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">

@@ -95,7 +95,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-8 w-full">
+      <div className="space-y-8 w-full">
         <Skeleton className="h-10 w-48" />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-5"><Skeleton className="aspect-square rounded-2xl w-full" /></div>
@@ -112,7 +112,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
 
   if (!product) {
     return (
-      <div className="max-w-6xl mx-auto animate-in">
+      <div className="animate-in">
         <Link href={backHref}>
           <Button variant="ghost" size="sm" className="mb-6 h-10 px-4 font-bold text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4 mr-2" /> Retour à la boutique
@@ -145,7 +145,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   const isLowStock = product.inventoryQuantity <= 5;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in w-full pb-12">
+    <div className="space-y-8 animate-in w-full pb-12">
       
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">

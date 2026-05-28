@@ -123,7 +123,7 @@ export default function AdminCustomerDetail() {
   const smsConsent: any = c.sms_marketing_consent ?? {};
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-6">
       {/* Back + Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">

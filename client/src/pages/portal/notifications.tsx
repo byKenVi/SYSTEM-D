@@ -128,7 +128,7 @@ export default function PortalNotifications() {
   const isEnabled = (category: string) => preferences?.[category] ?? true;
 
   return (
-    <div className="space-y-8 animate-in w-full max-w-5xl mx-auto" data-testid="page-portal-notifications">
+    <div className="space-y-8 animate-in w-full" data-testid="page-portal-notifications">
       
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-6 border-b border-border/50">

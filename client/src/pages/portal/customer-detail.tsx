@@ -119,7 +119,7 @@ export default function PortalCustomerDetail() {
 
   if (error) {
     return (
-      <div className="max-w-5xl mx-auto animate-in">
+      <div className="animate-in">
         <Link href="/portal/boutique">
           <Button variant="ghost" size="sm" className="mb-6 h-10 px-4 font-bold text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4 mr-2" /> Retour à la boutique
@@ -141,7 +141,7 @@ export default function PortalCustomerDetail() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in w-full pb-12">
+    <div className="space-y-8 animate-in w-full pb-12">
       
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">

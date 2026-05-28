@@ -172,7 +172,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   if (isLoading || !form) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6 w-full">
+      <div className="space-y-6 w-full">
         <Skeleton className="h-32 w-full rounded-2xl" />
         <Skeleton className="h-[600px] w-full rounded-2xl" />
       </div>
@@ -185,7 +185,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const revisionHistory = Array.isArray(form.revisionHistory) ? form.revisionHistory : (typeof form.revisionHistory === "string" ? JSON.parse(form.revisionHistory) : []);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in pb-20 w-full">
+    <div className="space-y-8 animate-in pb-20 w-full">
       
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">

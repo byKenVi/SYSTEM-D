@@ -274,7 +274,7 @@ export default function AdminOrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
@@ -287,7 +287,7 @@ export default function AdminOrderDetail() {
 
   if (error || data?.order === undefined) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div>
         <Link href="/admin/boutique">
           <Button variant="ghost" size="sm" className="mb-4 -ml-2">
             <ArrowLeft className="h-4 w-4 mr-1.5" />Retour
@@ -311,7 +311,7 @@ export default function AdminOrderDetail() {
   const shippingTotal = order.total_shipping_price_set?.shop_money?.amount;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
