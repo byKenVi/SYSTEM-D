@@ -73,6 +73,11 @@ function timeAgo(dateString: string | null | undefined) {
 export default function PortalNotifications() {
   const { toast } = useToast();
 
+  const { data: role } = useQuery<{ role: string }>({
+    queryKey: ["/api/auth/role"],
+  });
+  const isAdmin = role?.role === "admin";
+
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/portal/notifications"],
     refetchInterval: 30_000,
@@ -280,56 +285,58 @@ export default function PortalNotifications() {
           </div>
         </div>
 
-        {/* Sidebar: Preferences */}
-        <div className="lg:col-span-4 sticky top-6">
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2 mb-4">
-            <Settings2 className="h-4 w-4" /> Paramètres
-          </h2>
-          
-          <Card className="border-border/50 shadow-sm bg-card overflow-hidden" data-testid="panel-notification-preferences">
-            <div className="p-5 border-b border-border/50 bg-muted/20">
-              <h3 className="font-bold">Canaux d'alertes</h3>
-              <p className="text-xs text-muted-foreground mt-1">Configurez les événements qui déclenchent une notification.</p>
-            </div>
+        {/* Sidebar: Preferences — hidden for admin */}
+        {!isAdmin && (
+          <div className="lg:col-span-4 sticky top-6">
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2 mb-4">
+              <Settings2 className="h-4 w-4" /> Paramètres
+            </h2>
             
-            <div className="divide-y divide-border/50">
-              {CATEGORIES.map((category) => {
-                const cfg = cat(category);
-                const enabled = isEnabled(category);
-                return (
-                  <div
-                    key={category}
-                    className="p-4 transition-colors hover:bg-muted/10 flex items-start gap-4"
-                    data-testid={`pref-row-${category}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`h-2 w-2 rounded-full ${cfg.iconBg}`} />
-                        <span className="text-sm font-bold text-foreground">{cfg.label}</span>
+            <Card className="border-border/50 shadow-sm bg-card overflow-hidden" data-testid="panel-notification-preferences">
+              <div className="p-5 border-b border-border/50 bg-muted/20">
+                <h3 className="font-bold">Canaux d'alertes</h3>
+                <p className="text-xs text-muted-foreground mt-1">Configurez les événements qui déclenchent une notification.</p>
+              </div>
+              
+              <div className="divide-y divide-border/50">
+                {CATEGORIES.map((category) => {
+                  const cfg = cat(category);
+                  const enabled = isEnabled(category);
+                  return (
+                    <div
+                      key={category}
+                      className="p-4 transition-colors hover:bg-muted/10 flex items-start gap-4"
+                      data-testid={`pref-row-${category}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`h-2 w-2 rounded-full ${cfg.iconBg}`} />
+                          <span className="text-sm font-bold text-foreground">{cfg.label}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {cfg.description}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {cfg.description}
-                      </p>
+                      
+                      <div className="shrink-0 mt-1">
+                        {prefsLoading ? (
+                          <Skeleton className="h-5 w-9 rounded-full" />
+                        ) : (
+                          <Switch
+                            checked={enabled}
+                            onCheckedChange={(val) => togglePref.mutate({ category, enabled: val })}
+                            disabled={togglePref.isPending}
+                            data-testid={`switch-pref-${category}`}
+                          />
+                        )}
+                      </div>
                     </div>
-                    
-                    <div className="shrink-0 mt-1">
-                      {prefsLoading ? (
-                        <Skeleton className="h-5 w-9 rounded-full" />
-                      ) : (
-                        <Switch
-                          checked={enabled}
-                          onCheckedChange={(val) => togglePref.mutate({ category, enabled: val })}
-                          disabled={togglePref.isPending}
-                          data-testid={`switch-pref-${category}`}
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        )}
         
       </div>
     </div>
