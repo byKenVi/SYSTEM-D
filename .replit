@@ -46,6 +46,7 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "resend:1.0.0"]
 
 [userenv.shared]
 ADDITIONAL_ADMIN_IDS = "47369334"
+RESEND_FROM_EMAIL = "noreply@appvibed.com"
 
 [postMerge]
 path = "scripts/post-merge.sh"
