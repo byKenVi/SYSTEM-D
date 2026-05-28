@@ -556,9 +556,10 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             key={order.id}
                             className="cursor-pointer group hover:bg-muted/50 transition-colors"
                             onClick={() => {
+                              const store = encodeURIComponent(order.storeUrl ?? "");
                               const path = viewAsContactId
-                                ? `/portal/orders/${order.id}?viewAs=${viewAsContactId}`
-                                : `/portal/orders/${order.id}`;
+                                ? `/portal/orders/${order.shopifyOrderId}?viewAs=${viewAsContactId}&store=${store}`
+                                : `/portal/orders/${order.shopifyOrderId}?store=${store}`;
                               navigate(path);
                             }}
                           >
