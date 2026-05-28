@@ -133,7 +133,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       </SidebarHeader>
 
       {/* ── Navigation ── */}
-      <SidebarContent className="px-3 pt-4 scrollbar-hide">
+      <SidebarContent className="px-3 pt-4 scrollbar-hide group-data-[collapsible=icon]:px-0">
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] font-bold text-sidebar-foreground/40 uppercase tracking-widest mb-2 px-2">
             Menu Principal
@@ -152,7 +152,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      className={`h-9 px-3 rounded-md transition-all duration-200 ${
+                      className={`h-9 px-3 rounded-md transition-all duration-200 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center ${
                         isActive 
                           ? "bg-primary text-primary-foreground font-semibold shadow-sm" 
                           : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium"
