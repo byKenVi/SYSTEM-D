@@ -119,7 +119,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
               className="flex items-center gap-3 rounded-lg px-2 py-1.5 cursor-pointer transition-colors hover:bg-sidebar-accent/50"
               data-testid="link-sidebar-home"
             >
-              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain drop-shadow-[0_0_8px_rgba(239,95,24,0.3)]" />
+              <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain brightness-110 drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
             </div>
           </Link>
           <SidebarTrigger className="text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="button-sidebar-toggle" />
