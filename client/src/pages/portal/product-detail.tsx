@@ -201,11 +201,6 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
               </div>
             )}
             
-            {isLowStock && (
-              <Badge className="absolute top-6 left-6 z-20 bg-red-500 text-white font-bold tracking-widest uppercase border-0 shadow-lg px-3 py-1 text-xs animate-pulse">
-                Stock Faible
-              </Badge>
-            )}
           </div>
         </div>
 
