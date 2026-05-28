@@ -111,7 +111,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar-background">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       {/* ── Header ── */}
       <SidebarHeader className="p-4 pt-6 pb-6 group-data-[collapsible=icon]:p-2 border-b border-sidebar-border/50">
         {/* Expanded */}
@@ -168,7 +168,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                           <item.icon className="h-4 w-4" strokeWidth={isActive ? 2.5 : 2} />
                           {showBadge && !isActive && (
                             <span
-                              className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-sidebar-background"
+                              className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-sidebar"
                               data-testid="badge-unread-count-dot"
                             />
                           )}
@@ -202,12 +202,12 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                 onValueChange={handleViewAsChange}
               >
                 <SelectTrigger
-                  className="w-full h-9 text-xs font-medium border-primary/20 bg-primary/10 text-primary ring-offset-sidebar-background focus:ring-primary/30"
+                  className="w-full h-9 text-xs font-medium border-primary/20 bg-primary/10 text-primary ring-offset-sidebar focus:ring-primary/30"
                   data-testid="select-view-as-contact"
                 >
                   <SelectValue placeholder="Voir en tant que client..." />
                 </SelectTrigger>
-                <SelectContent className="border-sidebar-border bg-sidebar-background text-sidebar-foreground">
+                <SelectContent className="border-sidebar-border bg-sidebar text-sidebar-foreground">
                   <SelectItem value="__admin__" className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent" data-testid="option-view-as-admin">
                     — Revenir à la vue admin
                   </SelectItem>
