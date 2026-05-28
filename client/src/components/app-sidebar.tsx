@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import type { Contact } from "@shared/schema";
 import { useNotificationToast } from "@/hooks/use-notification-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -40,6 +41,7 @@ import {
   PackageCheck,
   Truck,
   Bell,
+  Camera,
 } from "lucide-react";
 import logoSrc from "@assets/logo_no_bg.png";
 
@@ -74,6 +76,33 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   const [location, navigate] = useLocation();
   const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const avatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("avatar", file);
+      const res = await fetch("/api/auth/avatar", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Photo de profil mise à jour" });
+    },
+    onError: () => {
+      toast({ title: "Erreur lors du téléchargement", variant: "destructive" });
+    },
+  });
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) avatarMutation.mutate(file);
+    e.target.value = "";
+  }
+
   const baseItems = role === "admin" ? adminItems : clientItems;
   const items = viewAsContactId
     ? baseItems.map((item) => ({
@@ -232,30 +261,53 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       <SidebarFooter className="border-t border-sidebar-border/50 p-4">
         {/* Expanded */}
         <div className="group-data-[collapsible=icon]:hidden space-y-2">
-          <button
-            onClick={() => setProfileOpen((o) => !o)}
-            className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-sidebar-accent/50 transition-colors"
-            data-testid="button-profile-toggle"
-          >
-            <Avatar className="h-9 w-9 flex-shrink-0 ring-2 ring-sidebar-border/50">
-              <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
-              <AvatarFallback className="text-xs font-bold bg-sidebar-accent text-sidebar-foreground">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-bold leading-tight truncate text-sidebar-foreground" data-testid="text-sidebar-username">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-xs text-sidebar-foreground/50 font-medium truncate mt-0.5">{user?.email}</p>
-            </div>
-            <svg
-              className={`h-4 w-4 text-sidebar-foreground/40 flex-shrink-0 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handleAvatarChange}
+            data-testid="input-avatar"
+          />
+          <div className="w-full flex items-center gap-3 px-2 py-1 rounded-lg hover:bg-sidebar-accent/50 transition-colors">
+            <div
+              className="relative flex-shrink-0 group/avatar cursor-pointer"
+              onClick={() => avatarInputRef.current?.click()}
+              title="Changer la photo"
+              data-testid="button-avatar-change"
             >
-              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+              <Avatar className="h-9 w-9 ring-2 ring-sidebar-border/50">
+                <AvatarImage src={(user as any)?.customAvatarUrl || user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
+                <AvatarFallback className="text-xs font-bold bg-sidebar-accent text-sidebar-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                {avatarMutation.isPending
+                  ? <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Camera className="h-3.5 w-3.5 text-white" />}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProfileOpen((o) => !o)}
+              className="flex-1 min-w-0 flex items-center gap-2 text-left py-1"
+              data-testid="button-profile-toggle"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold leading-tight truncate text-sidebar-foreground" data-testid="text-sidebar-username">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-sidebar-foreground/50 font-medium truncate mt-0.5">{user?.email}</p>
+              </div>
+              <svg
+                className={`h-4 w-4 text-sidebar-foreground/40 flex-shrink-0 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              >
+                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
 
           {profileOpen && (
             <div className="flex items-center gap-2 px-1 pt-2 border-t border-sidebar-border/30">
@@ -276,12 +328,22 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
 
         {/* Collapsed */}
         <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-3">
-          <Avatar className="h-8 w-8 ring-2 ring-sidebar-border/50">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
-            <AvatarFallback className="text-[10px] font-bold bg-sidebar-accent text-sidebar-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative group/avatar">
+            <Avatar className="h-8 w-8 ring-2 ring-sidebar-border/50">
+              <AvatarImage src={(user as any)?.customAvatarUrl || user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
+              <AvatarFallback className="text-[10px] font-bold bg-sidebar-accent text-sidebar-foreground">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 group-hover/avatar:opacity-100 transition-opacity"
+              title="Changer la photo"
+            >
+              <Camera className="h-3 w-3 text-white" />
+            </button>
+          </div>
           <Button
             size="icon"
             variant="ghost"

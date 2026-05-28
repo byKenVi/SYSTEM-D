@@ -2,6 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { authStorage } from "./replit_integrations/auth/storage";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
 import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail } from "./resend";
 import { db } from "./db";
@@ -1780,6 +1781,51 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching activity logs:", error);
       res.status(500).json({ message: "Failed to fetch activity logs" });
+    }
+  });
+
+  // ====== AVATAR UPLOAD ======
+
+  const avatarsDir = path.join(process.cwd(), "uploads", "avatars");
+  if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
+
+  const avatarUpload = multer({
+    storage: multer.diskStorage({
+      destination: avatarsDir,
+      filename: (_req, file, cb) => {
+        const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        cb(null, `${unique}${path.extname(file.originalname)}`);
+      },
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, allowed.includes(ext));
+    },
+  });
+
+  app.post("/api/auth/avatar", isAuthenticated, avatarUpload.single("avatar"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const userId = req.user.claims.sub;
+      const url = `/api/avatars/${req.file.filename}`;
+      const user = await authStorage.updateUserAvatar(userId, url);
+      res.json(user);
+    } catch (error: any) {
+      console.error("Avatar upload error:", error);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  app.get("/api/avatars/:filename", async (req, res) => {
+    try {
+      const sanitized = path.basename(req.params.filename);
+      const filePath = path.join(avatarsDir, sanitized);
+      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "Not found" });
+      res.sendFile(filePath);
+    } catch (error) {
+      res.status(500).json({ message: "Error serving avatar" });
     }
   });
 
