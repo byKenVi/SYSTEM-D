@@ -10,12 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { User, Mail, Phone, Building2, MapPin, Save, Users, Shield, Briefcase, Camera } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: number }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const isViewAs = !!viewAsContactId;
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const { data: contact, isLoading } = useQuery<Contact>({
     queryKey: viewAsContactId
@@ -62,6 +64,29 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
       toast({ title: "Erreur", description: "Impossible de mettre à jour le profil.", variant: "destructive" });
     },
   });
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("avatar", file);
+      const res = await fetch("/api/auth/avatar", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Photo de profil mise à jour" });
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de mettre à jour la photo.", variant: "destructive" });
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
 
   const displayName = isViewAs
     ? (contact?.name || `Contact #${viewAsContactId}`)
@@ -131,15 +156,29 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
             <div className="h-32 bg-muted border-b border-border/50 absolute top-0 left-0 right-0" />
             <CardContent className="p-8 pt-16 flex flex-col items-center text-center relative z-10">
               <div className="relative group mb-6">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                  data-testid="input-avatar-upload"
+                />
                 <Avatar className="h-32 w-32 ring-4 ring-background shadow-xl">
-                  <AvatarImage src={isViewAs ? undefined : (user?.profileImageUrl || undefined)} className="object-cover" />
+                  <AvatarImage src={isViewAs ? undefined : ((user as any)?.customAvatarUrl || user?.profileImageUrl || undefined)} className="object-cover" />
                   <AvatarFallback className="text-4xl font-bold bg-primary/10 text-primary">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 {!isViewAs && (
-                  <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <Camera className="h-8 w-8 text-white" />
+                  <div
+                    className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    onClick={() => avatarInputRef.current?.click()}
+                    data-testid="button-avatar-upload"
+                  >
+                    {avatarUploading
+                      ? <div className="h-8 w-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <Camera className="h-8 w-8 text-white" />}
                   </div>
                 )}
               </div>
