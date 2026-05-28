@@ -78,9 +78,12 @@ export default function PortalNotifications() {
   });
   const isAdmin = role?.role === "admin";
 
+  const notifKey = isAdmin ? "/api/admin/notifications" : "/api/portal/notifications";
+
   const { data: notifications, isLoading } = useQuery<Notification[]>({
-    queryKey: ["/api/portal/notifications"],
+    queryKey: [notifKey],
     refetchInterval: 30_000,
+    enabled: role !== undefined,
   });
 
   const { data: preferences, isLoading: prefsLoading } = useQuery<Record<string, boolean>>({
@@ -92,7 +95,7 @@ export default function PortalNotifications() {
     mutationFn: (id: number) =>
       apiRequest("PATCH", `/api/notifications/${id}/read`).then((r) => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications"] });
+      queryClient.invalidateQueries({ queryKey: [notifKey] });
       queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications/unread-count"] });
     },
   });
@@ -101,7 +104,7 @@ export default function PortalNotifications() {
     mutationFn: () =>
       apiRequest("PATCH", "/api/portal/notifications/read-all").then((r) => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications"] });
+      queryClient.invalidateQueries({ queryKey: [notifKey] });
       queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications/unread-count"] });
       toast({ title: "Toutes les notifications marquées comme lues" });
     },
