@@ -88,6 +88,8 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
     }
   }
 
+  const canEdit = !!contact && !isViewAs;
+
   const displayName = isViewAs
     ? (contact?.name || `Contact #${viewAsContactId}`)
     : `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "";
@@ -130,22 +132,18 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
             </p>
           </div>
           
-          <Button 
-            size="lg" 
-            className="shadow-lg shadow-primary/20 font-bold shrink-0"
-            onClick={() => {
-              if (isViewAs) {
-                toast({ title: "Mode Aperçu", description: "Les modifications ne sont pas sauvegardées en mode aperçu." });
-                return;
-              }
-              updateMutation.mutate();
-            }}
-            disabled={updateMutation.isPending}
-            data-testid="button-save-profile"
-          >
-            <Save className="h-5 w-5 mr-2" />
-            {updateMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
-          </Button>
+          {canEdit && (
+            <Button 
+              size="lg" 
+              className="shadow-lg shadow-primary/20 font-bold shrink-0"
+              onClick={() => updateMutation.mutate()}
+              disabled={updateMutation.isPending}
+              data-testid="button-save-profile"
+            >
+              <Save className="h-5 w-5 mr-2" />
+              {updateMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -257,6 +255,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    disabled={!canEdit}
                     className="h-12 text-base font-medium shadow-none focus-visible:ring-1"
                     data-testid="input-profile-name"
                   />
@@ -281,6 +280,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+1 (555) 000-0000"
+                      disabled={!canEdit}
                       className="pl-11 h-12 text-base font-medium shadow-none focus-visible:ring-1"
                       data-testid="input-profile-phone"
                     />
@@ -306,6 +306,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="Nom de l'entité légale"
+                      disabled={!canEdit}
                       className="pl-11 h-12 text-base font-medium shadow-none focus-visible:ring-1"
                       data-testid="input-profile-company"
                     />
@@ -319,6 +320,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
                       value={companyAddress}
                       onChange={(e) => setCompanyAddress(e.target.value)}
                       placeholder="Adresse complète"
+                      disabled={!canEdit}
                       className="pl-11 h-12 text-base font-medium shadow-none focus-visible:ring-1"
                       data-testid="input-profile-address"
                     />
