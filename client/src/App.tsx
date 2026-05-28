@@ -136,7 +136,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
                 <PortalLivraisons viewAsContactId={viewAsContactId} />
               </Route>
               <Route path="/portal/notifications">
-                <PortalNotifications />
+                <PortalNotifications viewAsContactId={viewAsContactId} />
               </Route>
               <Route path="/portal/forms/:id?">
                 <PortalForms viewAsContactId={viewAsContactId} />

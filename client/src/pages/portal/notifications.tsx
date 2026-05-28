@@ -92,7 +92,7 @@ function playNotificationSound() {
   } catch (_) {}
 }
 
-export default function PortalNotifications() {
+export default function PortalNotifications({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
 
   const { data: role } = useQuery<{ role: string }>({
@@ -100,12 +100,16 @@ export default function PortalNotifications() {
   });
   const isAdmin = role?.role === "admin";
 
-  const notifKey = isAdmin ? "/api/admin/notifications" : "/api/portal/notifications";
+  const notifKey = isAdmin
+    ? viewAsContactId
+      ? `/api/admin/view-as/${viewAsContactId}/notifications`
+      : null
+    : "/api/portal/notifications";
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({
-    queryKey: [notifKey],
+    queryKey: [notifKey!],
     refetchInterval: 30_000,
-    enabled: role !== undefined,
+    enabled: role !== undefined && notifKey !== null,
   });
 
   const seenIds = useRef<Set<number>>(new Set());
@@ -237,10 +241,21 @@ export default function PortalNotifications() {
                   <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
                     <Inbox className="h-8 w-8 text-muted-foreground/50" />
                   </div>
-                  <h3 className="text-lg font-bold tracking-tight mb-1">Boîte de réception vide</h3>
-                  <p className="text-sm text-muted-foreground max-w-sm">
-                    Vous n'avez aucune notification pour le moment. L'activité de votre compte apparaîtra ici.
-                  </p>
+                  {isAdmin && !viewAsContactId ? (
+                    <>
+                      <h3 className="text-lg font-bold tracking-tight mb-1">Vue client requise</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        Pour voir les notifications d'un client, ouvrez son portail via "Voir en tant que". Pour gérer toutes les notifications, consultez le panneau admin.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-bold tracking-tight mb-1">Boîte de réception vide</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        Vous n'avez aucune notification pour le moment. L'activité de votre compte apparaîtra ici.
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             ) : (

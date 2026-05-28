@@ -1454,6 +1454,16 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/view-as/:contactId/notifications", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const notifs = await storage.getNotificationsByContactId(contactId);
+      res.json(notifs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/admin/view-as/:contactId/restock-requests", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.contactId);
