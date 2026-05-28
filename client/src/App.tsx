@@ -57,35 +57,37 @@ function AdminLayout() {
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="admin" />
       <SidebarInset className="overflow-y-auto scrollbar-hide bg-background">
-        <Switch>
-          <Route path="/admin/dashboard" component={AdminDashboard} />
-          <Route path="/admin/contacts/:id" component={AdminContactDetail} />
-          <Route path="/admin/contacts" component={AdminContacts} />
-          <Route path="/admin/products/:id" component={AdminProductDetail} />
-          <Route path="/admin/boutique" component={AdminBoutique} />
-          <Route path="/admin/orders/:id" component={AdminOrderDetail} />
-          <Route path="/admin/customers/:id" component={AdminCustomerDetail} />
-          <Route path="/admin/inventaire" component={AdminInventaire} />
-          <Route path="/admin/commandes" component={AdminCommandes} />
-          <Route path="/admin/livraisons" component={AdminLivraisons} />
-          <Route path="/admin/notifications" component={AdminNotifications} />
-          <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
-          <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
-          <Route path="/admin/restock-requests"><Redirect to="/admin/commandes" /></Route>
-          <Route path="/admin/forms/:id/edit">
-            {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
-          </Route>
-          <Route path="/admin/forms/:id">
-            {(params) => <AdminFormDetail id={Number(params?.id)} />}
-          </Route>
-          <Route path="/admin/forms" component={AdminForms} />
-          <Route path="/admin/mapi-reps" component={MapiRepsPage} />
-          <Route path="/admin/settings" component={AdminSettingsPage} />
-          <Route path="/admin">
-            <Redirect to="/admin/dashboard" />
-          </Route>
-          <Route component={NotFound} />
-        </Switch>
+        <div className="p-6 lg:p-8 min-h-full">
+          <Switch>
+            <Route path="/admin/dashboard" component={AdminDashboard} />
+            <Route path="/admin/contacts/:id" component={AdminContactDetail} />
+            <Route path="/admin/contacts" component={AdminContacts} />
+            <Route path="/admin/products/:id" component={AdminProductDetail} />
+            <Route path="/admin/boutique" component={AdminBoutique} />
+            <Route path="/admin/orders/:id" component={AdminOrderDetail} />
+            <Route path="/admin/customers/:id" component={AdminCustomerDetail} />
+            <Route path="/admin/inventaire" component={AdminInventaire} />
+            <Route path="/admin/commandes" component={AdminCommandes} />
+            <Route path="/admin/livraisons" component={AdminLivraisons} />
+            <Route path="/admin/notifications" component={AdminNotifications} />
+            <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
+            <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
+            <Route path="/admin/restock-requests"><Redirect to="/admin/commandes" /></Route>
+            <Route path="/admin/forms/:id/edit">
+              {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}
+            </Route>
+            <Route path="/admin/forms/:id">
+              {(params) => <AdminFormDetail id={Number(params?.id)} />}
+            </Route>
+            <Route path="/admin/forms" component={AdminForms} />
+            <Route path="/admin/mapi-reps" component={MapiRepsPage} />
+            <Route path="/admin/settings" component={AdminSettingsPage} />
+            <Route path="/admin">
+              <Redirect to="/admin/dashboard" />
+            </Route>
+            <Route component={NotFound} />
+          </Switch>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -103,48 +105,50 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
       <SidebarInset className="overflow-hidden bg-background">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <Switch>
-            <Route path="/portal/dashboard">
-              <PortalDashboard viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal/profile">
-              <PortalProfile viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal/products/:id">
-              <PortalProductDetail viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal/orders/:id">
-              <PortalOrderDetail />
-            </Route>
-            <Route path="/portal/customers/:id">
-              <PortalCustomerDetail />
-            </Route>
-            <Route path="/portal/boutique">
-              <PortalBoutique viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal/products">
-              <Redirect to={`/portal/boutique${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
-            </Route>
-            <Route path="/portal/restock">
-              <Redirect to={`/portal/commandes${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
-            </Route>
-            <Route path="/portal/commandes">
-              <PortalCommandes viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal/livraisons">
-              <PortalLivraisons viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal/notifications">
-              <PortalNotifications />
-            </Route>
-            <Route path="/portal/forms/:id?">
-              <PortalForms viewAsContactId={viewAsContactId} />
-            </Route>
-            <Route path="/portal">
-              <Redirect to={`/portal/dashboard${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
-            </Route>
-            <Route component={NotFound} />
-          </Switch>
+          <div className="p-6 lg:p-8 min-h-full">
+            <Switch>
+              <Route path="/portal/dashboard">
+                <PortalDashboard viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/profile">
+                <PortalProfile viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/products/:id">
+                <PortalProductDetail viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/orders/:id">
+                <PortalOrderDetail />
+              </Route>
+              <Route path="/portal/customers/:id">
+                <PortalCustomerDetail />
+              </Route>
+              <Route path="/portal/boutique">
+                <PortalBoutique viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/products">
+                <Redirect to={`/portal/boutique${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
+              </Route>
+              <Route path="/portal/restock">
+                <Redirect to={`/portal/commandes${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
+              </Route>
+              <Route path="/portal/commandes">
+                <PortalCommandes viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/livraisons">
+                <PortalLivraisons viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/notifications">
+                <PortalNotifications />
+              </Route>
+              <Route path="/portal/forms/:id?">
+                <PortalForms viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal">
+                <Redirect to={`/portal/dashboard${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`} />
+              </Route>
+              <Route component={NotFound} />
+            </Switch>
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>
