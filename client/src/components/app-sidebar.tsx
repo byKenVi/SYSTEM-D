@@ -40,7 +40,6 @@ import {
   PackageCheck,
   Truck,
   Bell,
-  UserCheck,
 } from "lucide-react";
 import logoSrc from "@assets/logo_no_bg.png";
 
@@ -50,10 +49,9 @@ interface AppSidebarProps {
 }
 
 const adminItems = [
-  { title: "Tableau de bord", url: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Tableau de bord", url: "/admin/dashboard",     icon: LayoutDashboard },
   { title: "Clients",         url: "/admin/contacts",      icon: Users },
   { title: "Boutique",        url: "/admin/boutique",      icon: ShoppingCart },
-  { title: "Reps MAPI",       url: "/admin/mapi-reps",     icon: UserCheck },
   { title: "Inventaire",      url: "/admin/inventaire",    icon: BoxIcon },
   { title: "Soumissions",     url: "/admin/forms",         icon: ClipboardList },
   { title: "Commandes",       url: "/admin/commandes",     icon: PackageCheck },

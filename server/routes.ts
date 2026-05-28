@@ -2668,6 +2668,34 @@ export async function registerRoutes(
       }
     });
 
+    // Lookup rep by Shopify numeric customer ID (returns full detail with logs + transactions)
+    app.get("/api/mapi/reps/by-shopify-customer/:customerId", isAuthenticated, isAdmin, async (req, res) => {
+      try {
+        const gid = `gid://shopify/Customer/${req.params.customerId}`;
+        const allReps = await storage.getMapiReps();
+        const rep = allReps.find((r) => r.shopifyCustomerGid === gid);
+        if (!rep) return res.status(404).json({ message: "Aucun rep trouvé pour ce client" });
+
+        const [logs, shopifyTransactions] = await Promise.all([
+          storage.getMapiRepCreditLogs(rep.id),
+          getRepTransactionHistory(rep.shopifyCustomerGid).catch(() => []),
+        ]);
+
+        try {
+          const balances = await getRepBalance(rep.shopifyCustomerGid);
+          const cad = balances.find((b: any) => b.currencyCode === "CAD") ?? balances[0];
+          if (cad) {
+            await storage.updateMapiRep(rep.id, { currentBalance: cad.amount, lastBalanceRefreshAt: new Date() });
+            rep.currentBalance = cad.amount;
+          }
+        } catch (_) {}
+
+        res.json({ rep, logs, shopifyTransactions });
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
     // Get rep detail with live balance + history
     app.get("/api/mapi/reps/:id", isAuthenticated, isAdmin, async (req, res) => {
       try {
