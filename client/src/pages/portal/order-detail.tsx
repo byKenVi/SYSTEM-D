@@ -75,6 +75,8 @@ export default function PortalOrderDetail() {
   const shopifyOrderId = pathParts[pathParts.length - 1];
   const searchParams = new URLSearchParams(window.location.search);
   const storeUrl = searchParams.get("store") ?? "";
+  const viewAs = searchParams.get("viewAs");
+  const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}` : "/portal/boutique";
 
   const { data, isLoading, error } = useQuery<{ order: any; shopName: string | null; storeUrl: string }>({
     queryKey: ["/api/portal/orders", shopifyOrderId, storeUrl],
@@ -106,7 +108,7 @@ export default function PortalOrderDetail() {
   if (error || !order) {
     return (
       <div className="animate-in">
-        <Link href="/portal/boutique">
+        <Link href={backHref}>
           <Button variant="ghost" size="sm" className="mb-6 h-10 px-4 font-bold text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4 mr-2" /> Retour à la boutique
           </Button>
@@ -137,7 +139,7 @@ export default function PortalOrderDetail() {
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/portal/boutique">
+          <Link href={backHref}>
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted shrink-0" data-testid="button-back-orders">
               <ArrowLeft className="h-5 w-5" />
             </Button>
