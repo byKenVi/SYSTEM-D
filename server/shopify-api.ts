@@ -332,6 +332,23 @@ export interface ShopifyOrder {
   };
 }
 
+export async function fetchShopifyOrderDetail(
+  storeUrl: string,
+  accessToken: string,
+  orderId: string
+): Promise<Record<string, unknown>> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const res = await fetch(`${baseUrl}/orders/${orderId}.json`, {
+    headers: buildHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Shopify Order detail error ${res.status}: ${text}`);
+  }
+  const data = await res.json() as { order: Record<string, unknown> };
+  return data.order;
+}
+
 export async function fetchShopifyOrders(
   storeUrl: string,
   accessToken: string,

@@ -410,6 +410,30 @@ export async function registerRoutes(
     }
   });
 
+  // Fetch full single order from Shopify (live)
+  app.get("/api/admin/orders/:shopifyOrderId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { shopifyOrderId } = req.params;
+      const storeUrl = req.query.store as string;
+      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
+
+      const integrations = await storage.getShopifyIntegrations();
+      const integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
+      if (!integration) return res.status(404).json({ message: "Shopify integration not found for this store" });
+
+      const { fetchShopifyOrderDetail } = await import("./shopify-api");
+      const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
+
+      const allContacts = await storage.getContacts();
+      const contact = allContacts.find((c) => c.id === integration.contactId);
+
+      res.json({ order, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl });
+    } catch (error: any) {
+      console.error("Error fetching order detail:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch order detail" });
+    }
+  });
+
   // Fetch Shopify customers across all active integrations (admin)
   app.get("/api/admin/customers", isAuthenticated, isAdmin, async (req, res) => {
     try {

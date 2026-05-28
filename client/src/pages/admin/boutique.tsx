@@ -697,8 +697,9 @@ export default function AdminBoutique() {
                       filteredOrders.map((order) => {
                         const customer = order.customer ? `${order.customer.first_name} ${order.customer.last_name}`.trim() : order.email ?? null;
                         const shopifyOrderUrl = `https://${order.storeUrl}/admin/orders/${order.id}`;
+                        const detailUrl = `/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}`;
                         return (
-                          <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group">
+                          <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer" onClick={() => navigate(detailUrl)}>
                             <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
                             <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(order.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
                             <TableCell>
