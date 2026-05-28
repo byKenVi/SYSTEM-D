@@ -763,14 +763,13 @@ export async function registerRoutes(
 
         if (isZohoConnected) {
           const contact = product.contactId ? await storage.getContact(product.contactId) : null;
-          const clientName = contact?.companyName || contact?.name || null;
 
           // Already pushed with a real Zoho ID → ensure contact exists in Zoho, then update cf_client
           if (product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-")) {
-            if (clientName && contact?.email) {
+            if (contact?.email) {
               try {
-                await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
-                await updateZohoItemClient(product.zohoItemId, clientName, product.name);
+                const zohoContactId = await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+                await updateZohoItemClient(product.zohoItemId, zohoContactId, product.name);
               } catch (err: any) {
                 console.error(`[zoho] update cf_client failed for item ${product.zohoItemId}: ${err.message}`);
                 errors.push(`${product.name}: ${err.message}`);
@@ -788,9 +787,10 @@ export async function registerRoutes(
 
           // New item → ensure contact exists in Zoho first, then create item
           try {
+            let zohoContactId: string | null = null;
             if (contact?.email) {
               try {
-                await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+                zohoContactId = await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
               } catch (contactErr: any) {
                 console.error(`[zoho] ensureZohoContact failed (non-fatal): ${contactErr.message}`);
               }
@@ -802,7 +802,7 @@ export async function registerRoutes(
               rate: product.price ? Number(product.price) : undefined,
               opening_stock: product.inventoryQuantity,
               imageUrl: product.imageUrl,
-              clientName,
+              clientId: zohoContactId,
             });
             const updatedProduct = await storage.updateProduct(id, {
               pushedToZoho: true,
@@ -1391,10 +1391,10 @@ export async function registerRoutes(
       const product = await storage.getProduct(Number(req.params.productId));
       if (!product) return res.status(404).json({ message: "Product not found" });
       const contact = product.contactId ? await storage.getContact(product.contactId) : null;
-      const clientName = contact?.companyName || contact?.name || null;
+      let zohoContactId: string | null = null;
       if (contact?.email) {
         try {
-          await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+          zohoContactId = await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
         } catch (contactErr: any) {
           console.error(`[zoho] ensureZohoContact failed (non-fatal): ${contactErr.message}`);
         }
@@ -1406,7 +1406,7 @@ export async function registerRoutes(
         rate: product.price ? Number(product.price) : undefined,
         opening_stock: product.inventoryQuantity,
         imageUrl: product.imageUrl,
-        clientName,
+        clientId: zohoContactId,
       });
       await storage.updateProduct(product.id, {
         zohoItemId: item_id,

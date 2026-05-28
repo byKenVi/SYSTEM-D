@@ -133,7 +133,7 @@ export async function pushItemToZoho(item: {
   rate?: number;
   opening_stock?: number;
   imageUrl?: string | null;
-  clientName?: string | null;
+  clientId?: string | null;
 }): Promise<{ item_id: string }> {
   const region = await getZohoRegion();
   const body: Record<string, any> = {
@@ -147,8 +147,8 @@ export async function pushItemToZoho(item: {
     body.opening_stock = item.opening_stock;
     body.opening_stock_rate_per_unit = item.rate || 0;
   }
-  if (item.clientName) {
-    body.custom_fields = [{ api_name: "cf_client", value: item.clientName }];
+  if (item.clientId) {
+    body.custom_fields = [{ api_name: "cf_client", value: item.clientId }];
   }
   const data = await zohoRequest("POST", "/items", body, region);
   const itemId = data.item?.item_id;
@@ -335,10 +335,10 @@ export async function getZohoItemStock(zohoItemId: string): Promise<number | nul
   }
 }
 
-export async function updateZohoItemClient(itemId: string, clientName: string, itemName?: string): Promise<void> {
+export async function updateZohoItemClient(itemId: string, clientId: string, itemName?: string): Promise<void> {
   const region = await getZohoRegion();
   const body: Record<string, any> = {
-    custom_fields: [{ api_name: "cf_client", value: clientName }],
+    custom_fields: [{ api_name: "cf_client", value: clientId }],
   };
   if (itemName) body.name = itemName;
   await zohoRequest("PUT", `/items/${itemId}`, body, region);
