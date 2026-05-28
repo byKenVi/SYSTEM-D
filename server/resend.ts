@@ -67,13 +67,13 @@ export async function sendFormSubmissionEmail(data: {
 }) {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
-    const appUrl = process.env.REPLIT_DEV_DOMAIN
+    const appUrl = process.env.NODE_ENV === 'development'
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : 'https://servicessystemed.app';
     const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
 
     await client.emails.send({
-      from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
+      from: fromEmail ? `Services Système-D <${fromEmail}>` : 'Services Système-D <onboarding@resend.dev>',
       to: data.email,
       subject: `Formulaire ${data.formNumber} reçu — Système-D`,
       html: `
@@ -135,13 +135,13 @@ export async function sendFormAdminNotificationEmail(data: {
 }) {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
-    const appUrl = process.env.REPLIT_DEV_DOMAIN
+    const appUrl = process.env.NODE_ENV === 'development'
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : 'https://servicessystemed.app';
     const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
 
     await client.emails.send({
-      from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
+      from: fromEmail ? `Services Système-D <${fromEmail}>` : 'Services Système-D <onboarding@resend.dev>',
       to: data.adminEmail,
       subject: `Nouveau formulaire ${data.formNumber} soumis — ${data.clientName}`,
       html: `
@@ -167,7 +167,7 @@ export async function sendInviteEmail(contact: {
   companyName?: string | null;
 }) {
   const { client, fromEmail } = await getUncachableResendClient();
-  const appUrl = process.env.REPLIT_DEV_DOMAIN
+  const appUrl = process.env.NODE_ENV === 'development'
     ? `https://${process.env.REPLIT_DEV_DOMAIN}`
     : 'https://servicessystemed.app';
 
