@@ -804,7 +804,7 @@ export default function AdminBoutique() {
                       const shopifyCustomerUrl = `https://${c.storeUrl}/admin/customers/${c.id}`;
                       const dateStr = new Date(c.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" });
                       return (
-                        <TableRow key={`${c.storeUrl}-${c.id}`} data-testid={`row-customer-${c.id}`} className="group">
+                        <TableRow key={`${c.storeUrl}-${c.id}`} data-testid={`row-customer-${c.id}`} className="group cursor-pointer" onClick={() => navigate(`/admin/customers/${c.id}?store=${encodeURIComponent(c.storeUrl)}`)}>
                           <TableCell>
                             <div className="flex items-center gap-2.5">
                               <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 text-xs font-semibold text-muted-foreground">

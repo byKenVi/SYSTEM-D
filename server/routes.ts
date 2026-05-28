@@ -473,6 +473,41 @@ export async function registerRoutes(
     }
   });
 
+  // Fetch full single customer from Shopify (live) + their orders
+  app.get("/api/admin/customers/:shopifyCustomerId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { shopifyCustomerId } = req.params;
+      const storeUrl = req.query.store as string;
+      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
+
+      const integrations = await storage.getShopifyIntegrations();
+      const integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
+      if (!integration) return res.status(404).json({ message: "Shopify integration not found" });
+
+      const { fetchShopifyCustomerDetail, fetchShopifyCustomerOrders } = await import("./shopify-api");
+      const [customer, orders] = await Promise.all([
+        fetchShopifyCustomerDetail(storeUrl, integration.accessToken, shopifyCustomerId),
+        fetchShopifyCustomerOrders(storeUrl, integration.accessToken, shopifyCustomerId),
+      ]);
+
+      const allContacts = await storage.getContacts();
+      const contact = allContacts.find((c) => c.id === integration.contactId);
+
+      res.json({
+        customer,
+        orders,
+        contactId: integration.contactId,
+        contactName: contact?.name ?? null,
+        companyName: contact?.companyName ?? null,
+        shopName: integration.shopName,
+        storeUrl,
+      });
+    } catch (error: any) {
+      console.error("Error fetching customer detail:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch customer detail" });
+    }
+  });
+
   app.get("/api/contacts/:id/shopify-orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.id);

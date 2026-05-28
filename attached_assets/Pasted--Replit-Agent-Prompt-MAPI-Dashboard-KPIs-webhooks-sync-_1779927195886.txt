@@ -1,0 +1,549 @@
+# Replit Agent Prompt — MAPI Dashboard KPIs (webhooks + sync)
+
+Copy everything below the "BEGIN PROMPT" line into Replit.
+
+**Prerequisite:** Part 1 (MAPI rep budgets / Store Credit) should be done first. This task assumes the `mapi_reps` table and the Shopify client wrapper already exist.
+
+---
+
+## BEGIN PROMPT
+
+You are extending the Système D platform with a new feature: **MAPI Dashboard KPIs**. This builds on the MAPI Rep Budget feature you (or I) already implemented. Read the entire spec before writing any code. Ask me clarifying questions if anything is ambiguous.
+
+---
+
+### 1. Business context (refresher + new piece)
+
+**Recap:** Système D is a 3PL platform. MAPI is one of their clients. MAPI has 20 reps who order product samples through a private Shopify store (`tnt5ar-ki.myshopify.com`) using a monthly budget. The rep-budget management already exists in this app (see `lib/mapi/repBudget.ts` and the `mapi_reps` table).
+
+**What's new:** MAPI managers need a **dashboard** inside Système D that gives them a live view of what's happening in their Shopify store, without ever logging into Shopify. They asked for these KPIs (in plain terms):
+
+- How many orders this month? Per rep?
+- What's the $-value of samples shipped this month? Per rep?
+- Which products are being sampled most often?
+- For each rep — how much of their monthly budget have they used?
+- Is anything running low in stock?
+- When did each rep last place an order? (activity check — silent reps may need follow-up)
+
+The dashboard is **read-only** for MAPI managers. No actions on Shopify happen from this view (those live in the Rep Budget UI from Part 1).
+
+**Performance expectation:** Near real-time. Ridgie originally said "scheduled exports a few times a day is fine," but webhooks give us seconds-level freshness for free, so we should do that.
+
+---
+
+### 2. Architecture decision (important — read carefully)
+
+**We are using webhooks + a local mirror of Shopify data**, NOT live GraphQL queries on every dashboard page load. Reasoning:
+
+| Approach | Why we're not using it |
+|---|---|
+| Live GraphQL on each page load | Slow (multi-second dashboards), eats rate limit, breaks if Shopify is down |
+| Periodic polling (cron every 15min) | Wasteful re-pulls, 15-min staleness, no event audit trail |
+| ShopifyQL Reports API | Requires `read_reports` scope (not in our current token); 12h data lag |
+| **Webhooks + local mirror** ✅ | Near-realtime, low rate-limit cost, audit trail, dashboard reads from local DB (fast) |
+
+**The pattern:**
+1. On integration setup: subscribe to a fixed set of Shopify webhook topics.
+2. On every webhook delivery: verify HMAC signature, upsert into local mirror tables, recompute affected KPI rows.
+3. On initial setup (one time): backfill last 90 days of orders/customers/inventory via GraphQL pagination.
+4. Nightly: a reconciliation job re-queries the last 25 hours and upserts everything, so any webhook delivery failures get caught.
+
+The dashboard reads from local mirror tables + a `mapi_rep_kpis` cache table. **No Shopify call happens on dashboard page load.**
+
+---
+
+### 3. What's already in place — do not rebuild
+
+- **Shopify client layer**: `lib/shopify/client.ts` (or equivalent) with `getShopifyAccessToken()` and `shopifyGraphQL(query, variables)`. Use these.
+- **Rep budget service**: `lib/mapi/repBudget.ts` from Part 1. Don't duplicate.
+- **`mapi_reps` table**: from Part 1. Reference its `shopify_customer_gid` for joins.
+- **Custom domain**: connected. The app has a stable HTTPS URL — confirm with me what the public base URL is before subscribing webhooks (Shopify rejects HTTP, ngrok, or unstable Replit dev URLs).
+- **Shopify access token**: ~24h, auto-refreshing. Use the existing flow.
+
+If the existing Shopify client doesn't already cache the access token with a margin (e.g. refresh 1 minute before expiry), upgrade it — webhook-driven workloads + backfill loops will exhaust a non-cached token fast.
+
+---
+
+### 4. What to build (deliverables)
+
+#### 4.1 Database schema — Shopify mirror tables
+
+Add these tables. Match the project's existing migration style.
+
+```sql
+-- Raw mirror of Shopify customers (a superset of mapi_reps)
+CREATE TABLE shopify_customers (
+  id                  BIGINT PRIMARY KEY,                       -- Shopify customer ID (numeric)
+  gid                 TEXT GENERATED ALWAYS AS ('gid://shopify/Customer/' || id::text) STORED,
+  email               TEXT,
+  first_name          TEXT,
+  last_name           TEXT,
+  tags                TEXT[] DEFAULT '{}',
+  is_mapi_rep         BOOLEAN GENERATED ALWAYS AS ('mapi-rep' = ANY(tags)) STORED,
+  shopify_created_at  TIMESTAMPTZ,
+  shopify_updated_at  TIMESTAMPTZ,
+  raw_payload         JSONB,
+  mirror_updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_shopify_customers_mapi_rep ON shopify_customers(is_mapi_rep) WHERE is_mapi_rep;
+
+CREATE TABLE shopify_orders (
+  id                   BIGINT PRIMARY KEY,
+  name                 TEXT,                                    -- "#1042"
+  customer_id          BIGINT REFERENCES shopify_customers(id),
+  total_price          NUMERIC,
+  subtotal_price       NUMERIC,
+  total_tax            NUMERIC,
+  currency             TEXT,
+  financial_status     TEXT,
+  fulfillment_status   TEXT,
+  cancelled_at         TIMESTAMPTZ,
+  shopify_created_at   TIMESTAMPTZ,
+  shopify_updated_at   TIMESTAMPTZ,
+  raw_payload          JSONB,
+  mirror_updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_shopify_orders_customer ON shopify_orders(customer_id, shopify_created_at DESC);
+CREATE INDEX idx_shopify_orders_created ON shopify_orders(shopify_created_at DESC);
+
+CREATE TABLE shopify_order_line_items (
+  id                BIGINT PRIMARY KEY,
+  order_id          BIGINT REFERENCES shopify_orders(id) ON DELETE CASCADE,
+  product_id        BIGINT,
+  variant_id        BIGINT,
+  title             TEXT,
+  variant_title     TEXT,
+  sku               TEXT,
+  quantity          INT,
+  price             NUMERIC,
+  total_discount    NUMERIC
+);
+CREATE INDEX idx_line_items_order ON shopify_order_line_items(order_id);
+CREATE INDEX idx_line_items_product ON shopify_order_line_items(product_id);
+
+CREATE TABLE shopify_products (
+  id                BIGINT PRIMARY KEY,
+  title             TEXT,
+  handle            TEXT,
+  product_type      TEXT,
+  vendor            TEXT,
+  status            TEXT,                                       -- 'active' | 'archived' | 'draft'
+  shopify_updated_at TIMESTAMPTZ,
+  raw_payload       JSONB,
+  mirror_updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE shopify_inventory_levels (
+  inventory_item_id  BIGINT,
+  location_id        BIGINT,
+  available          INT,
+  shopify_updated_at TIMESTAMPTZ,
+  mirror_updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (inventory_item_id, location_id)
+);
+CREATE INDEX idx_inventory_low ON shopify_inventory_levels(available) WHERE available < 10;
+
+-- KPI hot-cache for fast dashboard reads
+CREATE TABLE mapi_rep_kpis (
+  shopify_customer_id      BIGINT PRIMARY KEY REFERENCES shopify_customers(id),
+  orders_this_month        INT DEFAULT 0,
+  orders_last_30_days      INT DEFAULT 0,
+  total_value_this_month   NUMERIC DEFAULT 0,
+  total_value_last_30_days NUMERIC DEFAULT 0,
+  last_order_at            TIMESTAMPTZ,
+  current_credit_balance   NUMERIC,
+  current_credit_currency  TEXT,
+  initial_monthly_budget   NUMERIC,
+  utilization_pct          NUMERIC,
+  refreshed_at             TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Top products this month — used by the "Most-requested products" KPI
+CREATE TABLE mapi_top_products (
+  shopify_product_id  BIGINT PRIMARY KEY,
+  title               TEXT,
+  units_this_month    INT,
+  refreshed_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Raw webhook log — for auditing and replay (NEVER trust webhooks 100% without this)
+CREATE TABLE shopify_webhook_events (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  topic                TEXT NOT NULL,
+  shopify_resource_id  BIGINT,                                  -- order ID, customer ID, etc.
+  hmac_valid           BOOLEAN,
+  processed_at         TIMESTAMPTZ,
+  processing_error     TEXT,
+  raw_payload          JSONB,
+  received_at          TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_webhook_events_topic ON shopify_webhook_events(topic, received_at DESC);
+```
+
+#### 4.2 Webhook receiver — `routes/webhooks/shopify/*.ts`
+
+Mount under `/webhooks/shopify/*`. **Critical security requirements:**
+
+1. **Capture the raw request body before any JSON parsing.** Shopify computes HMAC over the raw bytes; if your framework parses the body first, the HMAC check will fail. In Express:
+   ```ts
+   app.use('/webhooks/shopify', express.raw({ type: 'application/json' }));
+   ```
+2. **Verify HMAC on every webhook before doing anything else.** Use timing-safe comparison. Reject 401 if it fails.
+3. **Return 200 within 5 seconds.** Shopify retries delivery if you take too long. Acknowledge immediately, process async (worker queue, or just `setImmediate`).
+4. **Idempotent processing.** Shopify can redeliver the same webhook. Always upsert, never insert.
+5. **Always log the raw payload to `shopify_webhook_events`** before processing — gives you a replay log if something goes wrong.
+
+Topics to handle:
+
+| Endpoint | Topic | Action |
+|---|---|---|
+| `/webhooks/shopify/orders-create` | `ORDERS_CREATE` | Upsert order + line items, update KPI cache for that customer |
+| `/webhooks/shopify/orders-updated` | `ORDERS_UPDATED` | Upsert (status changes, total adjustments) |
+| `/webhooks/shopify/orders-cancelled` | `ORDERS_CANCELLED` | Set `cancelled_at`, recompute KPIs |
+| `/webhooks/shopify/orders-paid` | `ORDERS_PAID` | Update `financial_status` |
+| `/webhooks/shopify/customers-create` | `CUSTOMERS_CREATE` | Upsert customer (catches reps created outside Système D) |
+| `/webhooks/shopify/customers-update` | `CUSTOMERS_UPDATE` | Upsert customer |
+| `/webhooks/shopify/inventory-levels-update` | `INVENTORY_LEVELS_UPDATE` | Upsert inventory level |
+| `/webhooks/shopify/products-update` | `PRODUCTS_UPDATE` | Upsert product (titles, status) |
+
+**Reference implementation pattern (Node/Express — adapt to whatever the app uses):**
+
+```ts
+import crypto from 'node:crypto';
+
+function verifyHmac(rawBody: Buffer, hmacHeader: string | undefined): boolean {
+  if (!hmacHeader) return false;
+  const computed = crypto
+    .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET!)
+    .update(rawBody)
+    .digest('base64');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hmacHeader), Buffer.from(computed));
+  } catch {
+    return false;
+  }
+}
+
+app.post('/webhooks/shopify/orders-create', async (req, res) => {
+  const rawBody = req.body as Buffer;                          // raw, NOT parsed
+  const hmac = req.headers['x-shopify-hmac-sha256'] as string;
+  const topic = req.headers['x-shopify-topic'] as string;
+  const shopDomain = req.headers['x-shopify-shop-domain'] as string;
+
+  const hmacValid = verifyHmac(rawBody, hmac);
+
+  // Log every delivery — even invalid ones (security audit trail)
+  const order = hmacValid ? JSON.parse(rawBody.toString('utf8')) : null;
+  const eventId = await db.shopifyWebhookEvents.insert({
+    topic,
+    shopify_resource_id: order?.id ?? null,
+    hmac_valid: hmacValid,
+    raw_payload: order ?? { invalid: true },
+  });
+
+  if (!hmacValid) return res.status(401).send('Invalid signature');
+
+  // ACK fast, process async
+  res.status(200).send('OK');
+
+  // Process (run in background — use a queue if you have one)
+  setImmediate(async () => {
+    try {
+      await processOrderCreate(order);
+      await db.shopifyWebhookEvents.update({ id: eventId }, { processed_at: new Date() });
+    } catch (err) {
+      await db.shopifyWebhookEvents.update({ id: eventId }, {
+        processed_at: new Date(),
+        processing_error: err.message,
+      });
+      // Don't throw — Shopify already got the 200
+    }
+  });
+});
+```
+
+#### 4.3 KPI computation — `lib/mapi/kpis.ts`
+
+After every order webhook (create / updated / cancelled), refresh the KPI cache row for the affected customer. Don't recompute all reps — only the one that changed.
+
+```ts
+async function refreshRepKpi(shopifyCustomerId: bigint): Promise<void>
+async function refreshAllRepKpis(): Promise<void>          // for the cron + reconciliation
+async function refreshTopProducts(): Promise<void>          // monthly aggregation refresh
+```
+
+Computation logic (one rep at a time):
+```sql
+-- For one customer:
+WITH agg AS (
+  SELECT
+    customer_id,
+    COUNT(*) FILTER (WHERE shopify_created_at >= date_trunc('month', NOW())) AS orders_this_month,
+    COUNT(*) FILTER (WHERE shopify_created_at >= NOW() - INTERVAL '30 days') AS orders_last_30_days,
+    COALESCE(SUM(total_price) FILTER (WHERE shopify_created_at >= date_trunc('month', NOW())), 0) AS total_value_this_month,
+    COALESCE(SUM(total_price) FILTER (WHERE shopify_created_at >= NOW() - INTERVAL '30 days'), 0) AS total_value_last_30_days,
+    MAX(shopify_created_at) AS last_order_at
+  FROM shopify_orders
+  WHERE customer_id = $1 AND cancelled_at IS NULL
+  GROUP BY customer_id
+)
+INSERT INTO mapi_rep_kpis (shopify_customer_id, ...)
+SELECT customer_id, ... FROM agg
+ON CONFLICT (shopify_customer_id) DO UPDATE SET ...;
+```
+
+The credit balance / utilization fields are pulled from `mapi_reps.current_balance` (the rep budget feature's cache) — no Shopify call needed.
+
+#### 4.4 Webhook subscription bootstrap — `scripts/setup-webhooks.ts`
+
+A one-shot script (also runnable as `npm run setup:webhooks`) that:
+
+1. Reads the public base URL from `SYSTEME_D_PUBLIC_URL` env var. Validates it's `https://` (Shopify rejects HTTP).
+2. Lists current Shopify webhook subscriptions via `webhookSubscriptions` query.
+3. For each required topic (the 8 above):
+   - If a subscription already exists for that topic + the correct URL: skip.
+   - If a subscription exists for that topic but a stale URL: update it via `webhookSubscriptionUpdate`.
+   - If no subscription exists: create via `webhookSubscriptionCreate`.
+4. Stores the `webhookSubscription.endpoint.callbackUrl` HMAC secret in Replit Secrets via printing — tell me what to copy in.
+
+GraphQL:
+```graphql
+mutation webhookSubscriptionCreate(
+  $topic: WebhookSubscriptionTopic!,
+  $webhookSubscription: WebhookSubscriptionInput!
+) {
+  webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+    webhookSubscription {
+      id topic
+      endpoint { ... on WebhookHttpEndpoint { callbackUrl } }
+    }
+    userErrors { field message }
+  }
+}
+```
+Variables example:
+```json
+{
+  "topic": "ORDERS_CREATE",
+  "webhookSubscription": {
+    "callbackUrl": "https://app.systeme-d.example.com/webhooks/shopify/orders-create",
+    "format": "JSON"
+  }
+}
+```
+
+The script must be **idempotent** — running it twice does nothing the second time. Useful so we can re-run after every deploy without thinking.
+
+#### 4.5 Initial backfill — `scripts/backfill-shopify.ts`
+
+A one-shot script that pulls the last 90 days of orders + all customers + all products + current inventory levels via paginated GraphQL queries, upserts into the mirror tables, and finally calls `refreshAllRepKpis()` and `refreshTopProducts()`.
+
+Pagination pattern (loop until `hasNextPage: false`):
+
+```graphql
+query backfillOrders($cursor: String, $sinceQuery: String!) {
+  orders(first: 250, after: $cursor, query: $sinceQuery, sortKey: CREATED_AT) {
+    pageInfo { hasNextPage endCursor }
+    edges {
+      node {
+        id legacyResourceId name createdAt updatedAt cancelledAt
+        displayFinancialStatus displayFulfillmentStatus
+        totalPriceSet { shopMoney { amount currencyCode } }
+        subtotalPriceSet { shopMoney { amount currencyCode } }
+        totalTaxSet { shopMoney { amount currencyCode } }
+        customer { id legacyResourceId email firstName lastName tags }
+        lineItems(first: 50) {
+          edges {
+            node {
+              id title variantTitle sku quantity
+              originalUnitPriceSet { shopMoney { amount } }
+              totalDiscountSet { shopMoney { amount } }
+              variant { id legacyResourceId product { id legacyResourceId title handle productType vendor status } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+Variables: `{"sinceQuery": "created_at:>=2026-03-01", "cursor": null}` then page.
+
+`legacyResourceId` gives the numeric BIGINT ID for the mirror tables. The `id` field is the GraphQL `gid://`.
+
+Throttle: insert a 200ms sleep between pages to stay well under rate limits. For MAPI volume this is plenty.
+
+#### 4.6 Nightly reconciliation — `jobs/shopify-reconcile.ts`
+
+Cron-scheduled job (3am every night). Re-queries the **last 25 hours** of orders/customers/inventory updates and upserts — catches any webhook delivery failures. The 25-hour window has 1h overlap with the previous run for safety.
+
+```ts
+async function reconcileShopify(): Promise<{
+  ordersScanned: number,
+  ordersUpserted: number,
+  webhookDriftDetected: number,
+}>
+```
+
+Use `updated_at:>=<timestamp>` filter in the GraphQL query, not `created_at` — so we also catch order updates (status changes) that webhook handlers may have missed.
+
+After reconciliation, run `refreshAllRepKpis()` and `refreshTopProducts()`.
+
+#### 4.7 Periodic KPI refresh — `jobs/refresh-kpis.ts`
+
+Cron every 15 minutes. Re-computes `mapi_rep_kpis` for all active reps + refreshes `mapi_top_products`. Safety net for any KPI drift between the per-webhook refreshes and the nightly reconciliation.
+
+#### 4.8 Dashboard UI — `pages/mapi/dashboard.tsx` (or matching path)
+
+A page accessible to MAPI admins inside the existing MAPI section. Match the existing UI patterns in this codebase. Reads exclusively from local DB — no Shopify calls on page load.
+
+**Top metrics row** (4 KPI cards):
+- Total orders this month
+- Total $-value this month
+- Active reps count (where `current_balance > 0`)
+- Reps who haven't ordered in 14+ days (warning count)
+
+**Per-rep table** (sortable, searchable):
+| Rep | Email | Balance | Budget used | Orders this month | Last order |
+|---|---|---|---|---|---|
+
+Each row clickable → opens rep detail view (existing from Part 1).
+
+**Top products this month** (right column):
+- Top 10 product titles by units shipped this month — sourced from `mapi_top_products`.
+
+**Inventory alerts** (right column, below top products):
+- Products with `available < threshold` (default threshold 10 — make it configurable in the UI via a small "Settings" gear).
+- Join `shopify_inventory_levels` with `shopify_products` for titles.
+
+**Last refreshed indicator** (footer of dashboard):
+- "Last updated: X minutes ago" — show `MAX(mirror_updated_at)` from `shopify_orders`.
+- Manual "Refresh now" button → triggers `refreshAllRepKpis()` + `refreshTopProducts()` (don't pull from Shopify — that's reconciliation's job).
+
+---
+
+### 5. Webhook subscription topics (full list, for reference)
+
+Subscribe to these topics in the bootstrap script:
+
+| Topic constant | When it fires |
+|---|---|
+| `ORDERS_CREATE` | New order placed |
+| `ORDERS_UPDATED` | Any field change on an order |
+| `ORDERS_CANCELLED` | Order cancelled |
+| `ORDERS_PAID` | Financial status flips to paid (synthetic for MAPI but still fires) |
+| `CUSTOMERS_CREATE` | New customer created in Shopify |
+| `CUSTOMERS_UPDATE` | Customer field changed (tags etc.) |
+| `INVENTORY_LEVELS_UPDATE` | Inventory level changed at a location |
+| `PRODUCTS_UPDATE` | Product title/status/etc. changed |
+
+---
+
+### 6. Error handling — non-negotiable
+
+**Webhook receiver:**
+- Always log to `shopify_webhook_events` BEFORE processing (regardless of HMAC validity).
+- HMAC fail → 401, log it, never process.
+- Processing error → catch internally, log to `shopify_webhook_events.processing_error`, NEVER re-throw out of the handler (Shopify already got the 200).
+- Always upsert, never insert. Use the Shopify ID as the primary key conflict target.
+
+**GraphQL calls (backfill, reconcile, KPI refresh):**
+- Check HTTP status, then GraphQL `errors`, then `userErrors`. Throw on any.
+- On 429 (rate limited) — read `Retry-After` header (or check `extensions.cost.throttleStatus.restoreRate`), wait, retry once.
+- On token expiry (401 mid-batch) — let the cached client auto-refresh and retry the page.
+
+**Reconciliation:**
+- Wrap in a try/finally that always logs the outcome (orders scanned, upserts done, errors) to a `shopify_sync_log` table or to your structured logger.
+
+---
+
+### 7. Plan / scope verification — first thing to do
+
+Before writing any code, run a one-off `scripts/verify-webhook-readiness.ts` that:
+1. Confirms `SYSTEME_D_PUBLIC_URL` is set and starts with `https://`.
+2. Calls `webhookSubscriptions(first: 50)` query against Shopify to confirm webhook scope is available.
+3. Creates a throwaway `ORDERS_CREATE` subscription pointing at `${SYSTEME_D_PUBLIC_URL}/webhooks/shopify/_verify`.
+4. Deletes it immediately.
+5. Reports success / specific failure (e.g. "URL is not HTTPS", "scope missing", "URL not reachable").
+
+Run this BEFORE building anything else. If it fails, STOP and tell me.
+
+---
+
+### 8. Environment variables (Replit Secrets)
+
+Existing (from Part 1):
+- `SHOPIFY_SHOP` = `tnt5ar-ki`
+- `SHOPIFY_CLIENT_ID` = (set)
+- `SHOPIFY_CLIENT_SECRET` = (set)
+
+New (you'll need these):
+- `SHOPIFY_WEBHOOK_SECRET` = the HMAC signing key. Shopify provides this when you create the first webhook subscription. The bootstrap script will print it — I'll copy it into Replit Secrets manually.
+- `SYSTEME_D_PUBLIC_URL` = the stable HTTPS base URL of this app (e.g. `https://app.systeme-d.example.com`). I'll set this — ask me what value to use if it's not already in Secrets.
+
+Do NOT hardcode any of these. Do NOT invent additional secrets without telling me.
+
+---
+
+### 9. Acceptance criteria
+
+1. `scripts/verify-webhook-readiness.ts` passes.
+2. `scripts/setup-webhooks.ts` runs idempotently — running twice in a row reports "all subscriptions up to date."
+3. `scripts/backfill-shopify.ts` populates the mirror tables with the last 90 days of orders. Counts match (within a known reason) what's in Shopify.
+4. When I manually place a test order in the Shopify storefront:
+   - The webhook fires within seconds
+   - `shopify_webhook_events` records the delivery with `hmac_valid = true` and `processed_at` set
+   - `shopify_orders` and `shopify_order_line_items` show the new order
+   - `mapi_rep_kpis` for that rep updates: `orders_this_month` incremented, `last_order_at` set
+   - The dashboard reflects the change on next page load
+5. When I cancel that test order in Shopify:
+   - `ORDERS_CANCELLED` webhook fires
+   - `shopify_orders.cancelled_at` is set
+   - KPIs exclude cancelled orders from counts
+6. Nightly reconciliation job runs on schedule (test by triggering manually) and reports drift count of 0 in steady state.
+7. The dashboard page loads in <500ms (because it reads from local DB only).
+8. HMAC verification rejects a malformed webhook with 401 and logs it.
+
+---
+
+### 10. What NOT to do
+
+- Do not call Shopify GraphQL on dashboard page load. Read from mirror tables only.
+- Do not parse the webhook body before HMAC verification.
+- Do not skip the `shopify_webhook_events` log — it's the audit trail.
+- Do not store webhook secrets in code or DB. Only in Replit Secrets.
+- Do not subscribe to topics not listed in section 5 without asking me first.
+- Do not modify or delete Shopify data from webhook handlers. Webhooks are read-only signal — actions on Shopify happen elsewhere.
+- Do not assume webhooks always arrive — that's why reconciliation exists.
+- Do not delete the raw `raw_payload` JSONB column to "save space." It's invaluable for debugging.
+
+---
+
+### 11. Questions to ask me before starting
+
+Confirm with me:
+
+1. **Stable public URL** — what's the production HTTPS URL for this app? (I'll set `SYSTEME_D_PUBLIC_URL`.)
+2. **Inventory low-stock threshold** — default 10. Per-product or global? (Recommend: global, configurable from the dashboard's Settings gear, stored in a `mapi_settings` table.)
+3. **Backfill window** — 90 days as proposed, or different? (MAPI just migrated from WooCommerce so the Shopify side may have less than 90 days of history — make the backfill query gracefully handle "no orders found.")
+4. **"Inactive rep" threshold** — count reps as "needs follow-up" if no order in 14 days. Use 14 or different?
+5. **Multi-currency** — should KPIs be per-currency or summed (with conversion)? Recommend: per-currency separately. Most MAPI volume should be CAD initially.
+6. **Worker queue** — does this project already use BullMQ / Inngest / similar for background jobs? If not, `setImmediate` + cron is fine for MAPI volume.
+
+Get my answers before writing code. Don't assume defaults.
+
+## END PROMPT
+
+---
+
+## How to use this
+
+1. **Finish Part 1 first.** This prompt assumes `lib/mapi/repBudget.ts`, `lib/shopify/client.ts`, and the `mapi_reps` table all exist.
+2. Open your Replit Système D project → open the Replit Agent.
+3. Paste everything between `BEGIN PROMPT` and `END PROMPT`.
+4. The Agent will ask you the six clarifying questions in section 11. Answer them based on what Ridgie wants (and the recommendations I baked in).
+5. The Agent will run `scripts/verify-webhook-readiness.ts` first. If that fails, STOP and tell me — most likely cause is `SYSTEME_D_PUBLIC_URL` not being set, or Replit's dev URL being unstable (need the custom domain).
+6. Then the Agent runs the bootstrap (`scripts/setup-webhooks.ts`) — it'll print the HMAC secret. Copy it into Replit Secrets as `SHOPIFY_WEBHOOK_SECRET`.
+7. Then the Agent runs `scripts/backfill-shopify.ts` to populate 90 days of history.
+8. Then the Agent builds the receiver endpoints, KPI computation, reconciliation, and dashboard UI.
+9. Validate against the acceptance criteria in section 9.

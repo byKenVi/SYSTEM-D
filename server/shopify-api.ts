@@ -410,6 +410,47 @@ export interface ShopifyCustomer {
   };
 }
 
+export async function fetchShopifyCustomerDetail(
+  storeUrl: string,
+  accessToken: string,
+  customerId: string
+): Promise<Record<string, unknown>> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const res = await fetch(`${baseUrl}/customers/${customerId}.json`, {
+    headers: buildHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Shopify Customer detail error ${res.status}: ${text}`);
+  }
+  const data = await res.json() as { customer: Record<string, unknown> };
+  return data.customer;
+}
+
+export async function fetchShopifyCustomerOrders(
+  storeUrl: string,
+  accessToken: string,
+  customerId: string,
+  limit = 250
+): Promise<Record<string, unknown>[]> {
+  const baseUrl = buildBaseUrl(storeUrl);
+  const allOrders: Record<string, unknown>[] = [];
+  let nextUrl: string | null = `${baseUrl}/customers/${customerId}/orders.json?status=any&limit=250`;
+  while (nextUrl && allOrders.length < limit) {
+    const res = await fetch(nextUrl, { headers: buildHeaders(accessToken) });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify customer orders error ${res.status}: ${text}`);
+    }
+    const data = await res.json() as { orders: Record<string, unknown>[] };
+    allOrders.push(...(data.orders ?? []));
+    const linkHeader = res.headers.get("link");
+    nextUrl = parseLinkHeaderNext(linkHeader);
+    if (allOrders.length >= limit) break;
+  }
+  return allOrders.slice(0, limit);
+}
+
 export async function fetchShopifyCustomers(
   storeUrl: string,
   accessToken: string,

@@ -27,6 +27,7 @@ import PortalLivraisons from "@/pages/portal/livraisons";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
 import AdminBoutique from "@/pages/admin/boutique";
 import AdminOrderDetail from "@/pages/admin/order-detail";
+import AdminCustomerDetail from "@/pages/admin/customer-detail";
 import AdminInventaire from "@/pages/admin/inventaire";
 import FormEditor from "@/pages/form-editor";
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -60,6 +61,7 @@ function AdminLayout() {
           <Route path="/admin/products/:id" component={AdminProductDetail} />
           <Route path="/admin/boutique" component={AdminBoutique} />
           <Route path="/admin/orders/:id" component={AdminOrderDetail} />
+          <Route path="/admin/customers/:id" component={AdminCustomerDetail} />
           <Route path="/admin/inventaire" component={AdminInventaire} />
           <Route path="/admin/commandes" component={AdminCommandes} />
           <Route path="/admin/livraisons" component={AdminLivraisons} />
