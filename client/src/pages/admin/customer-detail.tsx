@@ -1,19 +1,28 @@
+import { useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, ExternalLink, Mail, Phone, MapPin, ShoppingBag, DollarSign,
-  Calendar, Tag, Shield, User, CreditCard, CheckCircle, XCircle, RefreshCw,
-  Package, Truck, AlertCircle, SirenIcon,
+  Calendar, Tag, Shield, User, CreditCard, CheckCircle, XCircle,
+  Package, AlertCircle, Wallet, TrendingUp, TrendingDown, RotateCcw, Clock,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import type { MapiRep, MapiRepCreditLog } from "@shared/schema";
 
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
@@ -73,6 +82,29 @@ function FulfillmentStatusBadge({ status }: { status?: string | null }) {
   return <Badge className={`${cls} border-0 text-xs`}>{labels[status] ?? status}</Badge>;
 }
 
+function mapiMoney(amount: string | number | null | undefined, currency = "CAD") {
+  const n = parseFloat(String(amount ?? "0"));
+  return n.toLocaleString("fr-CA", { style: "currency", currency, minimumFractionDigits: 2 });
+}
+
+function TxnTypeBadge({ type }: { type: string }) {
+  const map: Record<string, { label: string; cls: string; Icon: any }> = {
+    credit:          { label: "Crédit",         cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", Icon: TrendingUp },
+    debit:           { label: "Débit",          cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",                Icon: TrendingDown },
+    monthly_renewal: { label: "Renouvellement", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",            Icon: RotateCcw },
+    Credit:          { label: "Crédit",         cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", Icon: TrendingUp },
+    Debit:           { label: "Débit",          cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",                Icon: TrendingDown },
+    Expiration:      { label: "Expiré",         cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",        Icon: Clock },
+    DebitRevert:     { label: "Réversion",      cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",    Icon: RotateCcw },
+  };
+  const cfg = map[type] ?? { label: type, cls: "bg-muted text-muted-foreground", Icon: Clock };
+  return (
+    <Badge className={`${cfg.cls} border-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md flex items-center gap-1`}>
+      <cfg.Icon className="h-3 w-3" />{cfg.label}
+    </Badge>
+  );
+}
+
 function AddressBlock({ address }: { address: any }) {
   if (!address) return <span className="text-muted-foreground/40 text-sm">—</span>;
   const lines = [
@@ -94,11 +126,19 @@ function AddressBlock({ address }: { address: any }) {
 export default function AdminCustomerDetail() {
   const params = useParams<{ id: string }>();
   const [location, navigate] = useLocation();
+  const { toast } = useToast();
 
   const searchParams = new URLSearchParams(window.location.search);
   const store = searchParams.get("store") ?? "";
 
   const shopifyCustomerId = params.id;
+
+  const [showCreditDialog, setShowCreditDialog] = useState(false);
+  const [showDebitDialog, setShowDebitDialog] = useState(false);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditReason, setCreditReason] = useState("");
+  const [debitAmount, setDebitAmount] = useState("");
+  const [debitReason, setDebitReason] = useState("");
 
   const { data, isLoading, error } = useQuery<any>({
     queryKey: ["/api/admin/customers", shopifyCustomerId, store],
@@ -110,6 +150,45 @@ export default function AdminCustomerDetail() {
       return res.json();
     },
     enabled: !!shopifyCustomerId && !!store,
+  });
+
+  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[] } | null>({
+    queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/mapi/reps/by-shopify-customer/${shopifyCustomerId}`, { credentials: "include" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    enabled: !!shopifyCustomerId,
+  });
+
+  const creditMutation = useMutation({
+    mutationFn: async () => {
+      if (!mapiData?.rep) throw new Error("Rep introuvable");
+      const res = await apiRequest("POST", `/api/mapi/reps/${mapiData.rep.id}/credit`, { amount: creditAmount, currency: "CAD", reason: creditReason });
+      return res.json();
+    },
+    onSuccess: (d) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId] });
+      toast({ title: "Crédit ajouté", description: `Nouveau solde : ${mapiMoney(d.rep?.currentBalance)}` });
+      setCreditAmount(""); setCreditReason(""); setShowCreditDialog(false);
+    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  });
+
+  const debitMutation = useMutation({
+    mutationFn: async () => {
+      if (!mapiData?.rep) throw new Error("Rep introuvable");
+      const res = await apiRequest("POST", `/api/mapi/reps/${mapiData.rep.id}/debit`, { amount: debitAmount, currency: "CAD", reason: debitReason });
+      return res.json();
+    },
+    onSuccess: (d) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId] });
+      toast({ title: "Débit effectué", description: `Nouveau solde : ${mapiMoney(d.rep?.currentBalance)}` });
+      setDebitAmount(""); setDebitReason(""); setShowDebitDialog(false);
+    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
   const c: any = data?.customer ?? {};
@@ -494,6 +573,154 @@ export default function AdminCustomerDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── MAPI Credit Section ── */}
+      <Card>
+        <CardHeader className="pb-3 border-b border-border/50">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Wallet className="h-4 w-4" /> Compte représentant MAPI
+            </CardTitle>
+            {mapiData?.rep && mapiData.rep.status === "active" && (
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="font-bold text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => setShowCreditDialog(true)} data-testid="button-credit-rep">
+                  <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Créditer
+                </Button>
+                <Button size="sm" variant="outline" className="font-bold text-red-500 border-red-500/30 hover:bg-red-500/10" onClick={() => setShowDebitDialog(true)} disabled={parseFloat(mapiData.rep.currentBalance ?? "0") <= 0} data-testid="button-debit-rep">
+                  <TrendingDown className="h-3.5 w-3.5 mr-1.5" />Débiter
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {mapiLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : !mapiData?.rep ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Wallet className="h-8 w-8 text-muted-foreground/30 mb-3" />
+              <p className="text-sm font-medium text-foreground mb-1">Ce client n'est pas un rep MAPI</p>
+              <p className="text-xs text-muted-foreground">Les représentants sont identifiés par le tag <code className="bg-muted px-1 rounded">mapi-rep</code> dans Shopify.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground mb-1">Solde actuel</p>
+                    <p className="text-xl font-mono font-bold tabular-nums" data-testid="text-rep-balance">{mapiMoney(mapiData.rep.currentBalance)}</p>
+                    {mapiData.rep.lastBalanceRefreshAt && (
+                      <p className="text-[10px] text-muted-foreground mt-1">Mis à jour {new Date(String(mapiData.rep.lastBalanceRefreshAt)).toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" })}</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground mb-1">Budget mensuel</p>
+                    <p className="text-xl font-mono font-bold tabular-nums">
+                      {mapiData.rep.monthlyBudgetAmount && parseFloat(mapiData.rep.monthlyBudgetAmount) > 0 ? mapiMoney(mapiData.rep.monthlyBudgetAmount) : "—"}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground mb-1">Transactions</p>
+                    <p className="text-xl font-mono font-bold">{(mapiData.logs?.length ?? 0) + (mapiData.shopifyTransactions?.length ?? 0)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className={mapiData.rep.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0 text-xs" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-0 text-xs"}>
+                  {mapiData.rep.status === "active" ? "Actif" : "Archivé"}
+                </Badge>
+                <span className="text-xs text-muted-foreground font-mono">{mapiData.rep.shopifyCustomerGid}</span>
+              </div>
+              {(mapiData.shopifyTransactions?.length ?? 0) + (mapiData.logs?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Historique des transactions</p>
+                  <div className="border border-border/50 rounded-lg divide-y divide-border/50 overflow-hidden">
+                    {(mapiData.shopifyTransactions ?? []).map((txn: any, i: number) => (
+                      <div key={`shopify-${i}`} className="px-4 py-3 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <TxnTypeBadge type={txn.type} />
+                          <div>
+                            <p className="text-xs text-muted-foreground">{new Date(txn.createdAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" })}</p>
+                            {txn.expiresAt && <p className="text-xs text-amber-600">Expire : {new Date(txn.expiresAt).toLocaleString("fr-CA")}</p>}
+                          </div>
+                        </div>
+                        <span className={`font-semibold tabular-nums text-sm ${txn.type === "Credit" || txn.type === "DebitRevert" ? "text-emerald-600" : "text-red-500"}`}>
+                          {txn.type === "Credit" || txn.type === "DebitRevert" ? "+" : "-"}{mapiMoney(txn.amount, txn.currency)}
+                        </span>
+                      </div>
+                    ))}
+                    {(mapiData.logs ?? []).map((log: MapiRepCreditLog) => (
+                      <div key={log.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <TxnTypeBadge type={log.action} />
+                          <div>
+                            {log.reason && <p className="text-sm font-medium">{log.reason}</p>}
+                            <p className="text-xs text-muted-foreground">{new Date(String(log.createdAt)).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" })}</p>
+                          </div>
+                        </div>
+                        <span className={`font-semibold tabular-nums text-sm ${log.action === "credit" || log.action === "monthly_renewal" ? "text-emerald-600" : "text-red-500"}`}>
+                          {log.action === "credit" || log.action === "monthly_renewal" ? "+" : "-"}{mapiMoney(log.amount, log.currency)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Credit Dialog */}
+      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Créditer le rep</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Montant (CAD)</Label>
+              <Input type="number" min="0.01" step="0.01" placeholder="50.00" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} data-testid="input-credit-amount" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Raison (optionnel)</Label>
+              <Input placeholder="Bonus, ajustement..." value={creditReason} onChange={(e) => setCreditReason(e.target.value)} data-testid="input-credit-reason" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreditDialog(false)}>Annuler</Button>
+            <Button onClick={() => creditMutation.mutate()} disabled={!creditAmount || creditMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-confirm-credit">
+              {creditMutation.isPending ? "En cours..." : "Créditer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Debit Dialog */}
+      <Dialog open={showDebitDialog} onOpenChange={setShowDebitDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Débiter le rep</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            {mapiData?.rep && <p className="text-sm text-muted-foreground">Solde actuel : <span className="font-semibold text-foreground">{mapiMoney(mapiData.rep.currentBalance)}</span></p>}
+            <div className="space-y-1.5">
+              <Label>Montant (CAD)</Label>
+              <Input type="number" min="0.01" step="0.01" max={parseFloat(mapiData?.rep?.currentBalance ?? "0")} placeholder="50.00" value={debitAmount} onChange={(e) => setDebitAmount(e.target.value)} data-testid="input-debit-amount" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Raison *</Label>
+              <Input placeholder="Remboursement client..." value={debitReason} onChange={(e) => setDebitReason(e.target.value)} data-testid="input-debit-reason" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDebitDialog(false)}>Annuler</Button>
+            <Button onClick={() => debitMutation.mutate()} disabled={!debitAmount || !debitReason || debitMutation.isPending} variant="destructive" data-testid="button-confirm-debit">
+              {debitMutation.isPending ? "En cours..." : "Débiter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
