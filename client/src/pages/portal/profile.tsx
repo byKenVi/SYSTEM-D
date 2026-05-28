@@ -155,7 +155,7 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
           <Card className="border-border/50 shadow-sm overflow-hidden bg-card relative">
             <div className="h-32 bg-muted border-b border-border/50 absolute top-0 left-0 right-0" />
             <CardContent className="p-8 pt-16 flex flex-col items-center text-center relative z-10">
-              <div className="relative group mb-6">
+              <div className="relative mb-6">
                 <input
                   ref={avatarInputRef}
                   type="file"
@@ -171,15 +171,18 @@ export default function PortalProfile({ viewAsContactId }: { viewAsContactId?: n
                   </AvatarFallback>
                 </Avatar>
                 {!isViewAs && (
-                  <div
-                    className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  <button
+                    type="button"
                     onClick={() => avatarInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="absolute bottom-1 right-1 h-9 w-9 rounded-full bg-primary text-white shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors border-2 border-background"
                     data-testid="button-avatar-upload"
+                    title="Changer la photo"
                   >
                     {avatarUploading
-                      ? <div className="h-8 w-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      : <Camera className="h-8 w-8 text-white" />}
-                  </div>
+                      ? <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <Camera className="h-4 w-4" />}
+                  </button>
                 )}
               </div>
               

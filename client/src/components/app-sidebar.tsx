@@ -268,10 +268,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
           />
           <div className="w-full flex items-center gap-3 px-2 py-1 rounded-lg hover:bg-sidebar-accent/50 transition-colors">
             <div
-              className="relative flex-shrink-0 group/avatar cursor-pointer"
-              onClick={() => avatarInputRef.current?.click()}
-              title="Changer la photo"
-              data-testid="button-avatar-change"
+              className="relative flex-shrink-0"
             >
               <Avatar className="h-9 w-9 ring-2 ring-sidebar-border/50">
                 <AvatarImage src={(user as any)?.customAvatarUrl || user?.profileImageUrl || undefined} alt={user?.firstName || "Utilisateur"} />
@@ -279,11 +276,18 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarMutation.isPending}
+                className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors border border-sidebar-background shadow-sm"
+                title="Changer la photo"
+                data-testid="button-avatar-change"
+              >
                 {avatarMutation.isPending
-                  ? <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <Camera className="h-3.5 w-3.5 text-white" />}
-              </div>
+                  ? <span className="h-2.5 w-2.5 border border-white border-t-transparent rounded-full animate-spin" />
+                  : <Camera className="h-2.5 w-2.5" />}
+              </button>
             </div>
             <button
               type="button"
