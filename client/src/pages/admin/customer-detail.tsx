@@ -95,7 +95,7 @@ export default function AdminCustomerDetail() {
   const params = useParams<{ id: string }>();
   const [location, navigate] = useLocation();
 
-  const searchParams = new URLSearchParams(location.split("?")[1] ?? "");
+  const searchParams = new URLSearchParams(window.location.search);
   const store = searchParams.get("store") ?? "";
 
   const shopifyCustomerId = params.id;

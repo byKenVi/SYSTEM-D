@@ -254,10 +254,9 @@ function money(amount?: string | number | null, currency?: string) {
 
 export default function AdminOrderDetail() {
   const [location] = useLocation();
-  const parts = location.split("?");
-  const pathParts = parts[0].split("/");
+  const pathParts = location.split("/");
   const shopifyOrderId = pathParts[pathParts.length - 1];
-  const searchParams = new URLSearchParams(parts[1] ?? "");
+  const searchParams = new URLSearchParams(window.location.search);
   const storeUrl = searchParams.get("store") ?? "";
 
   const { data, isLoading, error } = useQuery<OrderDetailResponse>({
