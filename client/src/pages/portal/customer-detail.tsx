@@ -157,12 +157,17 @@ export default function PortalCustomerDetail() {
   const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[] } | null>({
     queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId],
     queryFn: async () => {
-      const res = await fetch(`/api/mapi/reps/by-shopify-customer/${shopifyCustomerId}`, { credentials: "include" });
+      const customer = data?.customer;
+      const params = new URLSearchParams();
+      if (customer?.email) params.set("email", customer.email);
+      if (customer?.first_name) params.set("firstName", customer.first_name);
+      if (customer?.last_name) params.set("lastName", customer.last_name);
+      const res = await fetch(`/api/mapi/reps/by-shopify-customer/${shopifyCustomerId}?${params}`, { credentials: "include" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: isAdminViewAs && !!shopifyCustomerId,
+    enabled: isAdminViewAs && !!shopifyCustomerId && !!data,
   });
 
   const creditMutation = useMutation({

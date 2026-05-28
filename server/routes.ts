@@ -2687,8 +2687,23 @@ export async function registerRoutes(
       try {
         const gid = `gid://shopify/Customer/${req.params.customerId}`;
         const allReps = await storage.getMapiReps();
-        const rep = allReps.find((r) => r.shopifyCustomerGid === gid);
-        if (!rep) return res.status(404).json({ message: "Aucun rep trouvé pour ce client" });
+        let rep = allReps.find((r) => r.shopifyCustomerGid === gid);
+
+        // Auto-create rep record if not found — all Shopify customers are treated as reps
+        if (!rep) {
+          const email = (req.query.email as string) || `customer-${req.params.customerId}@placeholder.local`;
+          const firstName = (req.query.firstName as string) || null;
+          const lastName = (req.query.lastName as string) || null;
+          rep = await storage.createMapiRep({
+            shopifyCustomerGid: gid,
+            email,
+            firstName,
+            lastName,
+            status: "active",
+            currentBalance: "0.00",
+            currentBalanceCurrency: "CAD",
+          });
+        }
 
         const [logs, shopifyTransactions] = await Promise.all([
           storage.getMapiRepCreditLogs(rep.id),
