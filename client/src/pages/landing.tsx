@@ -91,7 +91,6 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img src={logoSrc} alt="Système D" className="h-8 w-auto object-contain drop-shadow-[0_0_8px_rgba(239,95,24,0.4)]" />
-            <span className="font-bold tracking-widest text-sm uppercase">Système-D</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Fonctionnalités</a>
