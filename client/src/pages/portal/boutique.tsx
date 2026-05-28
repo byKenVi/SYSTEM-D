@@ -661,10 +661,11 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             key={customer.id}
                             className="cursor-pointer group hover:bg-muted/50 transition-colors"
                             onClick={() => {
-                              const path = viewAsContactId
-                                ? `/portal/customers/${customer.id}?viewAs=${viewAsContactId}`
-                                : `/portal/customers/${customer.id}`;
-                              navigate(path);
+                              const params = new URLSearchParams();
+                              if (viewAsContactId) params.set("viewAs", String(viewAsContactId));
+                              if (customer.storeUrl) params.set("store", customer.storeUrl);
+                              const qs = params.toString();
+                              navigate(`/portal/customers/${customer.id}${qs ? `?${qs}` : ""}`);
                             }}
                           >
                             <TableCell className="py-4">
