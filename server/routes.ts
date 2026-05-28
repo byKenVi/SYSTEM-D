@@ -789,7 +789,11 @@ export async function registerRoutes(
           // New item → ensure contact exists in Zoho first, then create item
           try {
             if (contact?.email) {
-              await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+              try {
+                await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+              } catch (contactErr: any) {
+                console.error(`[zoho] ensureZohoContact failed (non-fatal): ${contactErr.message}`);
+              }
             }
             const { item_id } = await pushItemToZoho({
               name: product.name,
@@ -1389,7 +1393,11 @@ export async function registerRoutes(
       const contact = product.contactId ? await storage.getContact(product.contactId) : null;
       const clientName = contact?.companyName || contact?.name || null;
       if (contact?.email) {
-        await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+        try {
+          await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+        } catch (contactErr: any) {
+          console.error(`[zoho] ensureZohoContact failed (non-fatal): ${contactErr.message}`);
+        }
       }
       const { item_id } = await pushItemToZoho({
         name: product.name,

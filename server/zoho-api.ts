@@ -243,34 +243,50 @@ export async function ensureZohoContact(contact: {
 }): Promise<string> {
   const region = await getZohoRegion();
 
-  // Search by email
-  const searchData = await zohoRequest(
-    "GET",
-    `/contacts?email=${encodeURIComponent(contact.email)}&contact_type=customer`,
-    undefined,
-    region
-  );
+  // Zoho Inventory doesn't support ?email= filter — use search_text and exact-match locally
+  async function findByEmail(): Promise<string | null> {
+    const data = await zohoRequest(
+      "GET",
+      `/contacts?search_text=${encodeURIComponent(contact.email)}&contact_type=customer`,
+      undefined,
+      region
+    );
+    const match = (data.contacts ?? []).find(
+      (c: any) => c.email?.toLowerCase() === contact.email.toLowerCase()
+    );
+    return match?.contact_id ?? null;
+  }
 
-  if (searchData.contacts && searchData.contacts.length > 0) {
-    const existing = searchData.contacts[0];
-    // Ensure tax_preference is set
-    await zohoRequest("PUT", `/contacts/${existing.contact_id}`, {
+  // 1. Try to find existing contact
+  const existingId = await findByEmail();
+  if (existingId) {
+    console.log(`[zoho] found existing contact for ${contact.email}: ${existingId}`);
+    return existingId;
+  }
+
+  // 2. Create new contact
+  try {
+    const createData = await zohoRequest("POST", "/contacts", {
       contact_name: contact.companyName || contact.name,
+      contact_type: "customer",
       email: contact.email,
       tax_preference: "taxable",
     }, region);
-    return existing.contact_id;
+    const newId = createData.contact?.contact_id;
+    if (!newId) throw new Error(`No contact_id in Zoho create response for ${contact.email}`);
+    console.log(`[zoho] created contact for ${contact.email}: ${newId}`);
+    return newId;
+  } catch (createErr: any) {
+    // Zoho may reject creation if a contact with this email already exists (race or prior partial create)
+    // Retry search before giving up
+    console.warn(`[zoho] contact creation failed for ${contact.email}: ${createErr.message} — retrying search`);
+    const retryId = await findByEmail();
+    if (retryId) {
+      console.log(`[zoho] found contact on retry for ${contact.email}: ${retryId}`);
+      return retryId;
+    }
+    throw createErr;
   }
-
-  // Create new
-  const createData = await zohoRequest("POST", "/contacts", {
-    contact_name: contact.companyName || contact.name,
-    contact_type: "customer",
-    email: contact.email,
-    tax_preference: "taxable",
-  }, region);
-
-  return createData.contact?.contact_id;
 }
 
 // Create a sales order in Zoho Inventory (for restock requests)
