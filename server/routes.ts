@@ -341,6 +341,124 @@ export async function registerRoutes(
     }
   });
 
+  // ====== DASHBOARD KPI HELPERS ======
+
+  function computeOrderKpis(orders: any[]) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const live = orders.filter((o) => o.financialStatus !== "voided" && o.financialStatus !== "refunded");
+    const thisMonth = live.filter((o) => o.shopifyCreatedAt && new Date(o.shopifyCreatedAt) >= startOfMonth);
+    const prevMonth = live.filter((o) => {
+      const d = o.shopifyCreatedAt ? new Date(o.shopifyCreatedAt) : null;
+      return d && d >= startOfPrevMonth && d < startOfMonth;
+    });
+    const last30 = live.filter((o) => o.shopifyCreatedAt && new Date(o.shopifyCreatedAt) >= thirtyDaysAgo);
+
+    const sumPrice = (arr: any[]) => arr.reduce((s: number, o: any) => s + parseFloat(o.totalPrice || "0"), 0);
+
+    const ordersThisMonth = thisMonth.length;
+    const valueThisMonth = sumPrice(thisMonth);
+    const ordersPrevMonth = prevMonth.length;
+    const valuePrevMonth = sumPrice(prevMonth);
+    const ordersLast30Days = last30.length;
+    const valueLast30Days = sumPrice(last30);
+
+    const ordersTrend = ordersPrevMonth > 0 ? Math.round(((ordersThisMonth - ordersPrevMonth) / ordersPrevMonth) * 100) : null;
+    const valueTrend = valuePrevMonth > 0 ? Math.round(((valueThisMonth - valuePrevMonth) / valuePrevMonth) * 100) : null;
+
+    const dates = orders.map((o) => o.shopifyCreatedAt).filter(Boolean).map((d) => new Date(d).getTime());
+    const lastOrderAt = dates.length > 0 ? new Date(Math.max(...dates)).toISOString() : null;
+
+    const currency = orders.find((o) => o.currency)?.currency ?? "CAD";
+
+    const productMap = new Map<string, { title: string; sku: string; quantity: number }>();
+    for (const order of thisMonth) {
+      const lineItems = (order.lineItems as any[]) ?? [];
+      for (const item of lineItems) {
+        const key = String(item.product_id ?? item.title ?? "Unknown");
+        const existing = productMap.get(key) ?? { title: item.title ?? "Unknown", sku: item.sku ?? "", quantity: 0 };
+        existing.quantity += Number(item.quantity ?? 0);
+        productMap.set(key, existing);
+      }
+    }
+    const topProducts = [...productMap.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 8);
+
+    const syncDates = orders.map((o) => o.syncedAt ? new Date(o.syncedAt).getTime() : 0).filter(Boolean);
+    const lastSyncedAt = syncDates.length > 0 ? new Date(Math.max(...syncDates)).toISOString() : null;
+
+    return { ordersThisMonth, valueThisMonth, ordersPrevMonth, valuePrevMonth, ordersTrend, valueTrend, ordersLast30Days, valueLast30Days, lastOrderAt, currency, topProducts, lastSyncedAt };
+  }
+
+  // Admin consolidated KPIs
+  app.get("/api/admin/dashboard/kpis", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const allOrders = await storage.getShopifyOrders();
+      const allContacts = await storage.getContacts();
+      const allProducts = await storage.getProducts();
+
+      const contactMap = new Map(allContacts.map((c) => [c.id, c]));
+      const kpis = computeOrderKpis(allOrders);
+
+      const LOW_STOCK_THRESHOLD = 5;
+      const lowStockProducts = allProducts
+        .filter((p) => p.inventoryQuantity < LOW_STOCK_THRESHOLD && p.shopifyProductId)
+        .map((p) => {
+          const contact = contactMap.get(p.contactId);
+          return { id: p.id, name: p.name, sku: p.sku, inventoryQuantity: p.inventoryQuantity, contactId: p.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null };
+        })
+        .sort((a, b) => a.inventoryQuantity - b.inventoryQuantity)
+        .slice(0, 10);
+
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+      const perClient = allContacts.map((contact) => {
+        const clientOrders = allOrders.filter((o) => o.contactId === contact.id && o.financialStatus !== "voided" && o.financialStatus !== "refunded");
+        const thisMonthOrders = clientOrders.filter((o) => o.shopifyCreatedAt && new Date(o.shopifyCreatedAt) >= startOfMonth);
+        const prevMonthOrders = clientOrders.filter((o) => {
+          const d = o.shopifyCreatedAt ? new Date(o.shopifyCreatedAt) : null;
+          return d && d >= startOfPrevMonth && d < startOfMonth;
+        });
+        const valueThisMonth = thisMonthOrders.reduce((s, o) => s + parseFloat(o.totalPrice || "0"), 0);
+        const valuePrevMonth = prevMonthOrders.reduce((s, o) => s + parseFloat(o.totalPrice || "0"), 0);
+        const dates = clientOrders.map((o) => o.shopifyCreatedAt).filter(Boolean).map((d) => new Date(d!).getTime());
+        const lastOrderAt = dates.length > 0 ? new Date(Math.max(...dates)).toISOString() : null;
+        return {
+          contactId: contact.id, contactName: contact.name, companyName: contact.companyName,
+          ordersThisMonth: thisMonthOrders.length, valueThisMonth, ordersPrevMonth: prevMonthOrders.length, valuePrevMonth, lastOrderAt,
+          totalOrders: clientOrders.length,
+        };
+      }).filter((c) => c.totalOrders > 0 || allProducts.some((p) => p.contactId === c.contactId));
+
+      res.json({ ...kpis, lowStockProducts, perClient });
+    } catch (error: any) {
+      console.error("Error computing admin dashboard KPIs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin view-as client KPIs
+  app.get("/api/admin/view-as/:contactId/dashboard/kpis", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const contactId = Number(req.params.contactId);
+      const orders = await storage.getShopifyOrders({ contactId });
+      const allProducts = await storage.getProducts({ contactId });
+      const kpis = computeOrderKpis(orders);
+      const LOW_STOCK_THRESHOLD = 5;
+      const lowStockProducts = allProducts
+        .filter((p) => p.inventoryQuantity < LOW_STOCK_THRESHOLD && p.shopifyProductId)
+        .map((p) => ({ id: p.id, name: p.name, sku: p.sku, inventoryQuantity: p.inventoryQuantity }))
+        .sort((a, b) => a.inventoryQuantity - b.inventoryQuantity).slice(0, 10);
+      res.json({ ...kpis, lowStockProducts });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // All orders across all connected Shopify stores
   app.get("/api/admin/orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
@@ -1467,6 +1585,26 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching view-as product:", error);
       res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
+  // Portal client dashboard KPIs
+  app.get("/api/portal/dashboard/kpis", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) return res.json({ ordersThisMonth: 0, valueThisMonth: 0, ordersLast30Days: 0, valueLast30Days: 0, topProducts: [], lowStockProducts: [], lastOrderAt: null, lastSyncedAt: null, currency: "CAD" });
+      const contactId = role.contactId;
+      const orders = await storage.getShopifyOrders({ contactId });
+      const allProducts = await storage.getProducts();
+      const clientProducts = allProducts.filter((p) => p.contactId === contactId);
+      const kpis = computeOrderKpis(orders);
+      const lowStockProducts = clientProducts
+        .filter((p) => p.inventoryQuantity < 5 && p.shopifyProductId)
+        .map((p) => ({ id: p.id, name: p.name, sku: p.sku, inventoryQuantity: p.inventoryQuantity }))
+        .sort((a, b) => a.inventoryQuantity - b.inventoryQuantity).slice(0, 10);
+      res.json({ ...kpis, lowStockProducts });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 

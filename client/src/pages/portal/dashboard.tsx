@@ -14,6 +14,13 @@ import {
   Plus,
   ChevronRight,
   Building2,
+  ShoppingCart,
+  DollarSign,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  BarChart3,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -39,6 +46,17 @@ const TYPE_LABELS: Record<string, string> = {
   copacking: "Co-packing",
   livraison: "Livraison",
 };
+
+function TrendBadge({ value }: { value: number | null }) {
+  if (value === null) return null;
+  if (value > 0) return <span className="flex items-center gap-0.5 text-xs text-emerald-600 dark:text-emerald-400"><TrendingUp className="h-3 w-3" />+{value}%</span>;
+  if (value < 0) return <span className="flex items-center gap-0.5 text-xs text-red-500 dark:text-red-400"><TrendingDown className="h-3 w-3" />{value}%</span>;
+  return <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Minus className="h-3 w-3" />0%</span>;
+}
+
+function money(amount: number, currency = "CAD") {
+  return amount.toLocaleString("fr-CA", { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
 
 export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?: number }) {
   const { user } = useAuth();
@@ -67,6 +85,20 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
       : ["/api/portal/forms"],
   });
 
+  const { data: kpis, isLoading: loadingKpis } = useQuery<any>({
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "dashboard/kpis"]
+      : ["/api/portal/dashboard/kpis"],
+    queryFn: async () => {
+      const url = viewAsContactId
+        ? `/api/admin/view-as/${viewAsContactId}/dashboard/kpis`
+        : `/api/portal/dashboard/kpis`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch KPIs");
+      return res.json();
+    },
+  });
+
   const activeForms = forms?.filter((f) => f.status !== "completed") ?? [];
   const pendingRestock = restockRequests?.filter((r) => r.status === "Processing")?.length ?? 0;
   const recentForms = forms?.slice(0, 4) ?? [];
@@ -79,6 +111,8 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
     if (hour < 18) return "Bon après-midi";
     return "Bonsoir";
   };
+
+  const hasShopifyData = (kpis?.ordersThisMonth ?? 0) > 0 || (kpis?.ordersLast30Days ?? 0) > 0 || (kpis?.topProducts?.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -95,16 +129,14 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         )}
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stat Cards — row 1: warehousing */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card data-testid="stat-card-products">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Produits</p>
-                {loadingProducts ? (
-                  <Skeleton className="h-8 w-10 mt-1" />
-                ) : (
+                {loadingProducts ? <Skeleton className="h-8 w-10 mt-1" /> : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-products">{products?.length ?? 0}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-1">en entrepôt</p>
@@ -121,9 +153,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Réapprovisionnements</p>
-                {loadingRestock ? (
-                  <Skeleton className="h-8 w-10 mt-1" />
-                ) : (
+                {loadingRestock ? <Skeleton className="h-8 w-10 mt-1" /> : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-restock">{pendingRestock}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-1">en attente</p>
@@ -140,9 +170,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Demandes actives</p>
-                {loadingForms ? (
-                  <Skeleton className="h-8 w-10 mt-1" />
-                ) : (
+                {loadingForms ? <Skeleton className="h-8 w-10 mt-1" /> : (
                   <p className="text-3xl font-bold mt-1" data-testid="stat-value-forms">{activeForms.length}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-1">en cours</p>
@@ -155,9 +183,67 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         </Card>
       </div>
 
+      {/* Stat Cards — row 2: Shopify / boutique KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Card data-testid="stat-card-orders-month">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Commandes ce mois</p>
+                {loadingKpis ? <Skeleton className="h-8 w-10 mt-1" /> : (
+                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-orders-month">{kpis?.ordersThisMonth ?? 0}</p>
+                )}
+                <div className="mt-1">
+                  {loadingKpis ? <Skeleton className="h-3 w-16" /> : <TrendBadge value={kpis?.ordersTrend ?? null} />}
+                </div>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <ShoppingCart className="h-5 w-5 text-blue-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="stat-card-value-month">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Valeur ce mois</p>
+                {loadingKpis ? <Skeleton className="h-8 w-20 mt-1" /> : (
+                  <p className="text-2xl font-bold mt-1 truncate" data-testid="stat-value-value-month">{money(kpis?.valueThisMonth ?? 0, kpis?.currency)}</p>
+                )}
+                <div className="mt-1">
+                  {loadingKpis ? <Skeleton className="h-3 w-16" /> : <TrendBadge value={kpis?.valueTrend ?? null} />}
+                </div>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                <DollarSign className="h-5 w-5 text-emerald-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="stat-card-low-stock">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Stock faible</p>
+                {loadingKpis || loadingProducts ? <Skeleton className="h-8 w-10 mt-1" /> : (
+                  <p className="text-3xl font-bold mt-1" data-testid="stat-value-low-stock">{kpis?.lowStockProducts?.length ?? 0}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">produits &lt; 5 unités</p>
+              </div>
+              <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${(kpis?.lowStockProducts?.length ?? 0) > 0 ? "bg-red-500/10" : "bg-muted"}`}>
+                <AlertTriangle className={`h-5 w-5 ${(kpis?.lowStockProducts?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Forms */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base font-semibold">Mes demandes</CardTitle>
@@ -189,18 +275,13 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                 <div className="divide-y divide-border">
                   {recentForms.map((form) => (
                     <Link key={form.id} href={`/portal/forms/${form.id}${qs}`}>
-                      <div
-                        className="px-6 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors cursor-pointer"
-                        data-testid={`row-recent-form-${form.id}`}
-                      >
+                      <div className="px-6 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors cursor-pointer" data-testid={`row-recent-form-${form.id}`}>
                         <div>
                           <p className="text-sm font-medium">{form.formNumber}</p>
                           <p className="text-xs text-muted-foreground">{TYPE_LABELS[form.formType] || form.formType}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>
-                            {STATUS_LABELS[form.status] || form.status}
-                          </Badge>
+                          <Badge className={`text-xs ${STATUS_COLORS[form.status]}`}>{STATUS_LABELS[form.status] || form.status}</Badge>
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
@@ -210,9 +291,73 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               )}
             </CardContent>
           </Card>
+
+          {/* Top Products this month */}
+          {(loadingKpis || (kpis?.topProducts?.length ?? 0) > 0) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  Produits les plus commandés ce mois
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {loadingKpis ? (
+                  <div className="px-6 pb-4 space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {(kpis?.topProducts ?? []).map((p: any, i: number) => {
+                      const maxQty = kpis.topProducts[0]?.quantity ?? 1;
+                      const pct = Math.round((p.quantity / maxQty) * 100);
+                      return (
+                        <div key={i} className="px-6 py-2.5 flex items-center gap-3" data-testid={`row-top-product-${i}`}>
+                          <span className="text-xs font-mono text-muted-foreground w-4 text-right flex-shrink-0">{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{p.title}</p>
+                            {p.sku && <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>}
+                            <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums flex-shrink-0">{p.quantity}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Low stock alerts */}
+          {!loadingKpis && (kpis?.lowStockProducts?.length ?? 0) > 0 && (
+            <Card className="border-red-200 dark:border-red-900/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2 text-red-600 dark:text-red-400">
+                  <AlertTriangle className="h-4 w-4" />
+                  Alertes stock faible
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {(kpis?.lowStockProducts ?? []).map((p: any) => (
+                    <div key={p.id} className="px-6 py-2.5 flex items-center justify-between" data-testid={`row-low-stock-${p.id}`}>
+                      <div>
+                        <p className="text-sm font-medium">{p.name}</p>
+                        {p.sku && <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>}
+                      </div>
+                      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-0 text-xs tabular-nums">
+                        {p.inventoryQuantity} unité{p.inventoryQuantity !== 1 ? "s" : ""}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* Quick Actions */}
+        {/* Right column */}
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
@@ -243,6 +388,31 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               </Link>
             </CardContent>
           </Card>
+
+          {/* 30-day comparison */}
+          {!loadingKpis && ((kpis?.ordersLast30Days ?? 0) > 0 || (kpis?.valueLast30Days ?? 0) > 0) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">30 derniers jours</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Commandes</span>
+                  <span className="font-semibold tabular-nums">{kpis?.ordersLast30Days ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Valeur</span>
+                  <span className="font-semibold tabular-nums">{money(kpis?.valueLast30Days ?? 0, kpis?.currency)}</span>
+                </div>
+                {kpis?.lastOrderAt && (
+                  <div className="flex items-center justify-between pt-1 border-t border-border">
+                    <span className="text-muted-foreground">Dernière commande</span>
+                    <span className="text-xs text-right">{new Date(kpis.lastOrderAt).toLocaleDateString("fr-CA", { month: "short", day: "numeric" })}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {contact && (
             <Card>
