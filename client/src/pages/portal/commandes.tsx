@@ -306,8 +306,9 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
             return (
               <Card
                 key={form.id}
-                className="hover:shadow-md transition-shadow"
+                className="hover:shadow-md transition-shadow cursor-pointer"
                 data-testid={`card-commande-${form.id}`}
+                onClick={() => navigate(`/portal/forms/${form.id}`)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
@@ -373,6 +374,7 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
                         className="h-8 text-xs gap-1.5"
                         asChild
                         data-testid={`button-view-form-${form.id}`}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <Link href={`/portal/forms/${form.id}`}>
                           <FileText className="h-3.5 w-3.5" />
@@ -382,7 +384,7 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
                       <Button
                         size="sm"
                         className="h-8 text-xs gap-1.5"
-                        onClick={() => setConfirmForm(form)}
+                        onClick={(e) => { e.stopPropagation(); setConfirmForm(form); }}
                         disabled={reorderMutation.isPending}
                         data-testid={`button-reorder-${form.id}`}
                       >

@@ -1649,6 +1649,34 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/portal/customers/:shopifyCustomerId", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role?.contactId) return res.status(403).json({ message: "Forbidden" });
+
+      const { shopifyCustomerId } = req.params;
+      const storeUrl = req.query.store as string;
+      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
+
+      const integrations = await storage.getShopifyIntegrations();
+      const integration = integrations.find(
+        (i) => i.isActive && i.storeUrl === storeUrl && i.contactId === role.contactId
+      );
+      if (!integration) return res.status(404).json({ message: "Shopify integration not found" });
+
+      const { fetchShopifyCustomerDetail, fetchShopifyCustomerOrders } = await import("./shopify-api");
+      const [customer, orders] = await Promise.all([
+        fetchShopifyCustomerDetail(storeUrl, integration.accessToken, shopifyCustomerId),
+        fetchShopifyCustomerOrders(storeUrl, integration.accessToken, shopifyCustomerId),
+      ]);
+
+      res.json({ customer, orders, shopName: integration.shopName, storeUrl });
+    } catch (error: any) {
+      console.error("Error fetching portal customer detail:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch customer detail" });
+    }
+  });
+
   // Fetch Shopify customers for the authenticated client (portal)
   app.get("/api/portal/customers", isAuthenticated, async (req: any, res) => {
     try {
