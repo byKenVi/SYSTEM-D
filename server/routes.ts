@@ -12,7 +12,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
-import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion } from "./zoho-api";
+import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion, ensureZohoContact } from "./zoho-api";
 import { generateFormPdf } from "./pdf-generator";
 import {
   fetchAllProducts,
@@ -763,13 +763,14 @@ export async function registerRoutes(
           const contact = product.contactId ? await storage.getContact(product.contactId) : null;
           const clientName = contact?.companyName || contact?.name || null;
 
-          // Already pushed with a real Zoho ID → update cf_client only, never touch zohoItemId
+          // Already pushed with a real Zoho ID → ensure contact exists in Zoho, then update cf_client
           if (product.pushedToZoho && product.zohoItemId && !product.zohoItemId.startsWith("pending-")) {
-            if (clientName) {
+            if (clientName && contact?.email) {
               try {
+                await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
                 await updateZohoItemClient(product.zohoItemId, clientName, product.name);
               } catch (err: any) {
-                console.error(`[zoho] updateZohoItemClient failed for item ${product.zohoItemId}: ${err.message}`);
+                console.error(`[zoho] update cf_client failed for item ${product.zohoItemId}: ${err.message}`);
                 errors.push(`${product.name}: ${err.message}`);
               }
             }
@@ -783,8 +784,11 @@ export async function registerRoutes(
             continue;
           }
 
-          // New item → create in Zoho
+          // New item → ensure contact exists in Zoho first, then create item
           try {
+            if (contact?.email) {
+              await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+            }
             const { item_id } = await pushItemToZoho({
               name: product.name,
               sku: product.sku,
@@ -1382,6 +1386,9 @@ export async function registerRoutes(
       if (!product) return res.status(404).json({ message: "Product not found" });
       const contact = product.contactId ? await storage.getContact(product.contactId) : null;
       const clientName = contact?.companyName || contact?.name || null;
+      if (contact?.email) {
+        await ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
+      }
       const { item_id } = await pushItemToZoho({
         name: product.name,
         sku: product.sku,
