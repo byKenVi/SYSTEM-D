@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { fetchShopifyLocations, setShopifyInventoryLevel } from "./shopify-api";
+import { setWooProductStock } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
@@ -53,10 +54,14 @@ export function startShopifyWritebackScheduler() {
       }
 
       const integrations = await storage.getShopifyIntegrations();
-      const storeTokenMap = new Map<string, string>();
+      const storeInfoMap = new Map<string, { accessToken: string; platform: string; platformConfig: any }>();
       for (const integ of integrations) {
         if (integ.isActive) {
-          storeTokenMap.set(integ.storeUrl, integ.accessToken);
+          storeInfoMap.set(integ.storeUrl, {
+            accessToken: integ.accessToken,
+            platform: (integ as any).platform ?? "shopify",
+            platformConfig: (integ as any).platformConfig ?? null,
+          });
         }
       }
 
@@ -65,17 +70,28 @@ export function startShopifyWritebackScheduler() {
 
       for (const product of writebackProducts) {
         try {
-          const accessToken = storeTokenMap.get(product.shopifyStoreUrl!);
-          if (!accessToken) continue;
+          const storeInfo = storeInfoMap.get(product.shopifyStoreUrl!);
+          if (!storeInfo) continue;
 
-          const locationId = await getLocationId(product.shopifyStoreUrl!, accessToken);
-          await setShopifyInventoryLevel(
-            product.shopifyStoreUrl!,
-            accessToken,
-            product.shopifyInventoryItemId!,
-            locationId,
-            product.zohoInventoryQuantity!
-          );
+          if (storeInfo.platform === "woocommerce") {
+            const consumerSecret = storeInfo.platformConfig?.consumerSecret ?? "";
+            await setWooProductStock(
+              product.shopifyStoreUrl!,
+              storeInfo.accessToken,
+              consumerSecret,
+              product.shopifyInventoryItemId!,
+              product.zohoInventoryQuantity!
+            );
+          } else {
+            const locationId = await getLocationId(product.shopifyStoreUrl!, storeInfo.accessToken);
+            await setShopifyInventoryLevel(
+              product.shopifyStoreUrl!,
+              storeInfo.accessToken,
+              product.shopifyInventoryItemId!,
+              locationId,
+              product.zohoInventoryQuantity!
+            );
+          }
           updated++;
         } catch (err: any) {
           errors++;

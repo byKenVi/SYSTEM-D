@@ -1,29 +1,38 @@
 import { storage } from "./storage";
 import { fetchShopifyOrders } from "./shopify-api";
+import { fetchWooOrders, normalizeWooOrders } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
 let isSyncing = false;
 
-export async function syncOrdersForIntegration(integration: { id: number; contactId: number; storeUrl: string; accessToken: string; shopName: string | null }) {
-  const rawOrders = await fetchShopifyOrders(integration.storeUrl, integration.accessToken, 250);
-  const orders = rawOrders.map((o) => ({
-    integrationId: integration.id,
-    contactId: integration.contactId,
-    shopifyOrderId: String(o.id),
-    name: o.name,
-    shopifyCreatedAt: o.created_at ? new Date(o.created_at) : null,
-    financialStatus: o.financial_status ?? null,
-    fulfillmentStatus: o.fulfillment_status ?? null,
-    totalPrice: o.total_price ?? "0",
-    currency: o.currency ?? "CAD",
-    email: o.email ?? null,
-    customerFirstName: o.customer?.first_name ?? null,
-    customerLastName: o.customer?.last_name ?? null,
-    lineItems: (o.line_items ?? []) as any,
-    shopName: integration.shopName,
-    storeUrl: integration.storeUrl,
-  }));
+export async function syncOrdersForIntegration(integration: { id: number; contactId: number; storeUrl: string; accessToken: string; shopName: string | null; platform?: string; platformConfig?: any }) {
+  const platform = integration.platform ?? "shopify";
+  let orders;
+  if (platform === "woocommerce") {
+    const consumerSecret = integration.platformConfig?.consumerSecret ?? "";
+    const rawOrders = await fetchWooOrders(integration.storeUrl, integration.accessToken, consumerSecret, 100);
+    orders = normalizeWooOrders(rawOrders, integration.id, integration.contactId, integration.storeUrl, integration.shopName);
+  } else {
+    const rawOrders = await fetchShopifyOrders(integration.storeUrl, integration.accessToken, 250);
+    orders = rawOrders.map((o) => ({
+      integrationId: integration.id,
+      contactId: integration.contactId,
+      shopifyOrderId: String(o.id),
+      name: o.name,
+      shopifyCreatedAt: o.created_at ? new Date(o.created_at) : null,
+      financialStatus: o.financial_status ?? null,
+      fulfillmentStatus: o.fulfillment_status ?? null,
+      totalPrice: o.total_price ?? "0",
+      currency: o.currency ?? "CAD",
+      email: o.email ?? null,
+      customerFirstName: o.customer?.first_name ?? null,
+      customerLastName: o.customer?.last_name ?? null,
+      lineItems: (o.line_items ?? []) as any,
+      shopName: integration.shopName,
+      storeUrl: integration.storeUrl,
+    }));
+  }
 
   await storage.upsertShopifyOrdersByIntegration(integration.id, orders);
   await storage.updateShopifyIntegration(integration.id, { lastOrderSyncAt: new Date() } as any);

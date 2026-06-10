@@ -28,7 +28,9 @@ export type Contact = typeof contacts.$inferSelect;
 export const shopifyIntegrations = pgTable("shopify_integrations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   contactId: integer("contact_id").notNull(),
+  platform: text("platform").notNull().default("shopify"),
   accessToken: text("access_token").notNull(),
+  platformConfig: jsonb("platform_config"),
   storeUrl: text("store_url").notNull(),
   shopName: text("shop_name"),
   scope: text("scope"),

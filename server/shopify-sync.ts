@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { fetchAllProducts, normalizeProducts } from "./shopify-api";
+import { fetchWooProducts } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
@@ -32,8 +33,15 @@ export function startShopifySyncScheduler() {
             continue;
           }
 
-          const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
-          const normalized = normalizeProducts(shopifyProducts);
+          const platform = (integration as any).platform ?? "shopify";
+          let normalized;
+          if (platform === "woocommerce") {
+            const cfg = (integration as any).platformConfig as { consumerSecret?: string } | null;
+            normalized = await fetchWooProducts(integration.storeUrl, integration.accessToken, cfg?.consumerSecret ?? "");
+          } else {
+            const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
+            normalized = normalizeProducts(shopifyProducts);
+          }
 
           const existingByVariant = new Map(
             existingProducts.filter((p) => p.shopifyVariantId).map((p) => [p.shopifyVariantId!, p])

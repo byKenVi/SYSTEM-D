@@ -882,35 +882,59 @@ export async function registerRoutes(
 
   app.post("/api/shopify-integrations/connect", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const { contactId, storeUrl, accessToken } = req.body;
-      if (!contactId || !storeUrl || !accessToken) {
-        return res.status(400).json({ message: "contactId, storeUrl, and accessToken are required" });
+      const { contactId, storeUrl, platform = "shopify", accessToken, consumerKey, consumerSecret } = req.body;
+      if (!contactId || !storeUrl) {
+        return res.status(400).json({ message: "contactId and storeUrl are required" });
       }
 
+      if (platform === "woocommerce") {
+        if (!consumerKey || !consumerSecret) {
+          return res.status(400).json({ message: "consumerKey and consumerSecret are required for WooCommerce" });
+        }
+        const { testWooConnection } = await import("./woocommerce-api");
+        const test = await testWooConnection(storeUrl, consumerKey, consumerSecret);
+        if (!test.success) {
+          return res.status(400).json({ message: `Could not connect to WooCommerce store: ${test.error || "invalid credentials or store URL"}` });
+        }
+        await storage.createShopifyIntegration({
+          contactId: Number(contactId),
+          platform: "woocommerce",
+          accessToken: consumerKey,
+          platformConfig: { consumerSecret },
+          storeUrl: storeUrl.trim().replace(/\/$/, ""),
+          shopName: test.shopName || storeUrl,
+          scope: null,
+          isActive: true,
+        } as any);
+        await storage.updateContact(Number(contactId), { shopifyConnected: true });
+        return res.json({ success: true, shopName: test.shopName });
+      }
+
+      // Shopify
+      if (!accessToken) {
+        return res.status(400).json({ message: "accessToken is required for Shopify" });
+      }
       if (!validateShopifyStoreUrl(storeUrl)) {
         return res.status(400).json({ message: "Store URL must be a valid *.myshopify.com domain (e.g. mystore.myshopify.com)" });
       }
-
       const test = await testShopifyConnection(storeUrl, accessToken);
       if (!test.success) {
         return res.status(400).json({ message: `Could not connect to Shopify store: ${test.error || "invalid token or store URL"}` });
       }
-
       await storage.createShopifyIntegration({
         contactId: Number(contactId),
+        platform: "shopify",
         accessToken,
         storeUrl,
         shopName: test.shopName || storeUrl,
         scope: null,
         isActive: true,
-      });
-
+      } as any);
       await storage.updateContact(Number(contactId), { shopifyConnected: true });
-
       res.json({ success: true, shopName: test.shopName });
     } catch (error: any) {
-      console.error("Error connecting Shopify store:", error);
-      res.status(500).json({ message: error.message || "Failed to connect Shopify store" });
+      console.error("Error connecting store:", error);
+      res.status(500).json({ message: error.message || "Failed to connect store" });
     }
   });
 
@@ -929,8 +953,16 @@ export async function registerRoutes(
       const integration = await storage.getShopifyIntegration(Number(req.params.id));
       if (!integration) return res.status(404).json({ message: "Integration not found" });
 
-      const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
-      const normalized = normalizeProducts(shopifyProducts);
+      const platform = (integration as any).platform ?? "shopify";
+      let normalized;
+      if (platform === "woocommerce") {
+        const { fetchWooProducts: fetchWoo } = await import("./woocommerce-api");
+        const cfg = (integration as any).platformConfig as { consumerSecret?: string } | null;
+        normalized = await fetchWoo(integration.storeUrl, integration.accessToken, cfg?.consumerSecret ?? "");
+      } else {
+        const shopifyProducts = await fetchAllProducts(integration.storeUrl, integration.accessToken);
+        normalized = normalizeProducts(shopifyProducts);
+      }
 
       const existingProducts = await storage.getProductsByContactId(integration.contactId);
       const existingByVariant = new Map(

@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { SiShopify } from "react-icons/si";
+import { SiShopify, SiWoocommerce } from "react-icons/si";
 
 const ZOHO_REGIONS = [
   { value: "us", label: "United States (zoho.com)" },
@@ -110,8 +110,11 @@ export default function AdminSettingsPage() {
   const [location] = useLocation();
   const [shopifyOpen, setShopifyOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
+  const [storePlatform, setStorePlatform] = useState<"shopify" | "woocommerce">("shopify");
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
   const [shopifyAccessToken, setShopifyAccessToken] = useState("");
+  const [wooConsumerKey, setWooConsumerKey] = useState("");
+  const [wooConsumerSecret, setWooConsumerSecret] = useState("");
   const [zohoRegion, setZohoRegion] = useState("us");
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
   const [logSearch, setLogSearch] = useState("");
@@ -180,11 +183,18 @@ export default function AdminSettingsPage() {
 
   const connectShopifyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/shopify-integrations/connect", {
+      const body: Record<string, any> = {
         contactId: Number(selectedClient),
         storeUrl: shopifyStoreUrl,
-        accessToken: shopifyAccessToken,
-      });
+        platform: storePlatform,
+      };
+      if (storePlatform === "woocommerce") {
+        body.consumerKey = wooConsumerKey;
+        body.consumerSecret = wooConsumerSecret;
+      } else {
+        body.accessToken = shopifyAccessToken;
+      }
+      const res = await apiRequest("POST", "/api/shopify-integrations/connect", body);
       return res.json();
     },
     onSuccess: () => {
@@ -192,14 +202,18 @@ export default function AdminSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setShopifyOpen(false);
       setSelectedClient("");
+      setStorePlatform("shopify");
       setShopifyStoreUrl("");
       setShopifyAccessToken("");
-      toast({ title: "Boutique connectée", description: "La boutique Shopify a été liée avec succès." });
+      setWooConsumerKey("");
+      setWooConsumerSecret("");
+      const label = storePlatform === "woocommerce" ? "WooCommerce" : "Shopify";
+      toast({ title: "Boutique connectée", description: `La boutique ${label} a été liée avec succès.` });
     },
     onError: (error: any) => {
       toast({
         title: "Connexion échouée",
-        description: error.message || "Impossible de connecter la boutique Shopify. Vérifiez l'URL et le jeton d'accès.",
+        description: error.message || "Impossible de connecter la boutique. Vérifiez l'URL et les identifiants.",
         variant: "destructive",
       });
     },
@@ -540,7 +554,7 @@ export default function AdminSettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Shopify Card */}
+            {/* Store Integrations Card */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
                 <div className="flex items-center gap-3">
@@ -548,16 +562,19 @@ export default function AdminSettingsPage() {
                     <SiShopify className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Intégration Shopify</h3>
-                    <p className="text-sm text-muted-foreground">Connectez des boutiques via un jeton API Admin Shopify</p>
+                    <h3 className="font-semibold">Intégrations boutiques</h3>
+                    <p className="text-sm text-muted-foreground">Connectez des boutiques Shopify ou WooCommerce</p>
                   </div>
                 </div>
                 <Dialog open={shopifyOpen} onOpenChange={(open) => {
                   setShopifyOpen(open);
                   if (!open) {
                     setSelectedClient("");
+                    setStorePlatform("shopify");
                     setShopifyStoreUrl("");
                     setShopifyAccessToken("");
+                    setWooConsumerKey("");
+                    setWooConsumerSecret("");
                   }
                 }}>
                   <DialogTrigger asChild>
@@ -568,12 +585,28 @@ export default function AdminSettingsPage() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Connecter une boutique Shopify</DialogTitle>
+                      <DialogTitle>Connecter une boutique</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 mt-2">
-                      <p className="text-sm text-muted-foreground">
-                        Entrez l'URL de la boutique du client et un jeton d'accès API Admin Shopify. Vous pouvez en générer un dans votre admin Shopify sous <strong>Applications → Développer des applications</strong>.
-                      </p>
+                      {/* Platform selector */}
+                      <div className="space-y-2">
+                        <Label>Plateforme</Label>
+                        <Select value={storePlatform} onValueChange={(v) => setStorePlatform(v as "shopify" | "woocommerce")}>
+                          <SelectTrigger data-testid="select-store-platform">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="shopify">
+                              <span className="flex items-center gap-2"><SiShopify className="h-4 w-4 text-green-600" /> Shopify</span>
+                            </SelectItem>
+                            <SelectItem value="woocommerce">
+                              <span className="flex items-center gap-2"><SiWoocommerce className="h-4 w-4 text-purple-600" /> WooCommerce</span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Client */}
                       <div className="space-y-2">
                         <Label>Client</Label>
                         <Select value={selectedClient} onValueChange={setSelectedClient}>
@@ -589,30 +622,63 @@ export default function AdminSettingsPage() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {/* Store URL */}
                       <div className="space-y-2">
                         <Label>URL de la boutique</Label>
                         <Input
                           value={shopifyStoreUrl}
                           onChange={(e) => setShopifyStoreUrl(e.target.value)}
-                          placeholder="mystore.myshopify.com"
+                          placeholder={storePlatform === "woocommerce" ? "https://example.com" : "mystore.myshopify.com"}
                           data-testid="input-shopify-store-url"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Jeton d'accès API Admin</Label>
-                        <Input
-                          type="password"
-                          value={shopifyAccessToken}
-                          onChange={(e) => setShopifyAccessToken(e.target.value)}
-                          placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
-                          data-testid="input-shopify-access-token"
-                        />
-                        <p className="text-xs text-muted-foreground">Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code> et <code>write_inventory</code>.</p>
-                      </div>
+
+                      {storePlatform === "shopify" ? (
+                        <div className="space-y-2">
+                          <Label>Jeton d'accès API Admin</Label>
+                          <Input
+                            type="password"
+                            value={shopifyAccessToken}
+                            onChange={(e) => setShopifyAccessToken(e.target.value)}
+                            placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
+                            data-testid="input-shopify-access-token"
+                          />
+                          <p className="text-xs text-muted-foreground">Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code> et <code>write_inventory</code>.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Consumer Key</Label>
+                            <Input
+                              value={wooConsumerKey}
+                              onChange={(e) => setWooConsumerKey(e.target.value)}
+                              placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                              data-testid="input-woo-consumer-key"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Consumer Secret</Label>
+                            <Input
+                              type="password"
+                              value={wooConsumerSecret}
+                              onChange={(e) => setWooConsumerSecret(e.target.value)}
+                              placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                              data-testid="input-woo-consumer-secret"
+                            />
+                            <p className="text-xs text-muted-foreground">Générez une clé API dans <strong>WooCommerce → Réglages → Avancé → API REST</strong> avec l'autorisation Lecture/Écriture.</p>
+                          </div>
+                        </>
+                      )}
+
                       <Button
                         className="w-full"
                         onClick={() => connectShopifyMutation.mutate()}
-                        disabled={!selectedClient || !shopifyStoreUrl || !shopifyAccessToken || connectShopifyMutation.isPending}
+                        disabled={
+                          !selectedClient || !shopifyStoreUrl ||
+                          (storePlatform === "shopify" ? !shopifyAccessToken : !wooConsumerKey || !wooConsumerSecret) ||
+                          connectShopifyMutation.isPending
+                        }
                         data-testid="button-submit-shopify"
                       >
                         {connectShopifyMutation.isPending ? "Connexion..." : "Connecter la boutique"}
@@ -626,6 +692,8 @@ export default function AdminSettingsPage() {
                   <div className="space-y-3">
                     {integrations.map((integration) => {
                       const contact = contacts?.find((c) => c.id === integration.contactId);
+                      const platform = (integration as any).platform ?? "shopify";
+                      const isWoo = platform === "woocommerce";
                       return (
                         <div
                           key={integration.id}
@@ -635,11 +703,19 @@ export default function AdminSettingsPage() {
                           {/* Store header */}
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
-                              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                              {isWoo
+                                ? <SiWoocommerce className="h-4 w-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                                : <SiShopify className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                              }
                               <div className="min-w-0">
-                                <p className="text-sm font-medium truncate" data-testid={`text-shopify-store-${integration.id}`}>
-                                  {integration.shopName || integration.storeUrl}
-                                </p>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <p className="text-sm font-medium truncate" data-testid={`text-shopify-store-${integration.id}`}>
+                                    {integration.shopName || integration.storeUrl}
+                                  </p>
+                                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 flex-shrink-0 ${isWoo ? "border-purple-300 text-purple-600 dark:text-purple-400" : "border-green-300 text-green-600 dark:text-green-400"}`}>
+                                    {isWoo ? "WooCommerce" : "Shopify"}
+                                  </Badge>
+                                </div>
                                 {contact && (
                                   <p className="text-xs text-muted-foreground truncate">
                                     {contact.companyName || contact.name}
@@ -738,9 +814,12 @@ export default function AdminSettingsPage() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <SiShopify className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <SiShopify className="h-6 w-6 text-muted-foreground/30" />
+                      <SiWoocommerce className="h-6 w-6 text-muted-foreground/30" />
+                    </div>
                     <p className="text-sm text-muted-foreground">Aucune boutique connectée</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">Cliquez sur « Connecter boutique » pour lier la boutique Shopify d'un client</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Cliquez sur « Connecter boutique » pour lier une boutique Shopify ou WooCommerce</p>
                   </div>
                 )}
               </CardContent>
