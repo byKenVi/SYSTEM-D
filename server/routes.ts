@@ -1368,7 +1368,7 @@ export async function registerRoutes(
           name: item.name,
           sku: item.sku || null,
           description: item.description || null,
-          imageUrl: item.image_document_id ? null : null,
+          imageUrl: null,
           price: item.rate != null ? String(item.rate) : null,
           inventoryQuantity: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
           cfClient: resolvedClientName,
@@ -3029,6 +3029,161 @@ export async function registerRoutes(
         res.status(500).json({ message: err.message });
       }
     });
+
+    // ─── SystemD Products & Checkout ────────────────────────────────────────
+
+  app.get("/api/portal/systemd-products", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+      const { fetchZohoItems } = await import("./zoho-api");
+      const items = await fetchZohoItems();
+      const systemdItems = items
+        .filter((item: any) => {
+          const cfClient = item.custom_fields?.find((f: any) => f.api_name === "cf_client")?.value;
+          const isEmpty = !cfClient || cfClient.trim() === "";
+          const isActive = !item.status || item.status === "active";
+          return isEmpty && isActive;
+        })
+        .map((item: any) => ({
+          zohoItemId: item.item_id,
+          name: item.name,
+          sku: item.sku || null,
+          description: item.description || null,
+          imageUrl: null,
+          price: item.rate != null ? Number(item.rate) : 0,
+          stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
+        }));
+      res.json(systemdItems);
+    } catch (error: any) {
+      console.error("Error fetching SystemD products:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch SystemD products" });
+    }
+  });
+
+  app.post("/api/portal/systemd-checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      // Accept only zohoItemId + quantity — prices resolved server-side from Zoho
+      const { items } = req.body as {
+        items: { zohoItemId: string; quantity: number }[];
+      };
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "Cart is empty" });
+      }
+      if (items.some((i) => !i.zohoItemId || !Number.isInteger(i.quantity) || i.quantity < 1)) {
+        return res.status(400).json({ message: "Invalid cart items" });
+      }
+
+      // Fetch all Zoho items to get authoritative prices server-side
+      const { fetchZohoItems } = await import("./zoho-api");
+      const allItems = await fetchZohoItems();
+      const zohoMap = new Map(allItems.map((z: any) => [z.item_id as string, z]));
+
+      // Build line items using only trusted Zoho data
+      const resolvedItems: { zohoItemId: string; name: string; sku: string | null; quantity: number; unitPrice: number }[] = [];
+      for (const cartItem of items) {
+        const zohoItem = zohoMap.get(cartItem.zohoItemId);
+        if (!zohoItem) {
+          return res.status(400).json({ message: `Item not found in catalog: ${cartItem.zohoItemId}` });
+        }
+        const cfClient = zohoItem.custom_fields?.find((f: any) => f.api_name === "cf_client")?.value;
+        if (cfClient && cfClient.trim() !== "") {
+          return res.status(403).json({ message: `Item is not a SystemD product: ${cartItem.zohoItemId}` });
+        }
+        const stock = Math.round(zohoItem.stock_on_hand ?? 0);
+        if (cartItem.quantity > stock) {
+          return res.status(400).json({ message: `Insufficient stock for: ${zohoItem.name}` });
+        }
+        resolvedItems.push({
+          zohoItemId: cartItem.zohoItemId,
+          name: zohoItem.name,
+          sku: zohoItem.sku || null,
+          quantity: cartItem.quantity,
+          unitPrice: Number(zohoItem.rate ?? 0),
+        });
+      }
+
+      const { getUncachableStripeClient } = await import("./stripeClient");
+      const stripe = await getUncachableStripeClient();
+
+      const contactId = role.role === "client" ? role.contactId! : (req.body.contactId || 0);
+      const host = `${req.protocol}://${req.get("host")}`;
+
+      const lineItems = resolvedItems.map((item) => ({
+        price_data: {
+          currency: "cad",
+          product_data: {
+            name: item.name,
+            metadata: { zohoItemId: item.zohoItemId, sku: item.sku || "" },
+          },
+          unit_amount: Math.round(item.unitPrice * 100),
+        },
+        quantity: item.quantity,
+      }));
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: lineItems,
+        mode: "payment",
+        success_url: `${host}/portal/boutique?tab=systemd&payment=success`,
+        cancel_url: `${host}/portal/boutique?tab=systemd&payment=cancelled`,
+        metadata: {
+          contactId: String(contactId),
+          source: "systemd_store",
+        },
+      });
+
+      const totalAmount = resolvedItems.reduce((sum, i) => sum + Math.round(i.unitPrice * 100) * i.quantity, 0);
+      await storage.createSystemdOrder({
+        contactId,
+        stripeCheckoutSessionId: session.id,
+        amount: totalAmount,
+        currency: "cad",
+        status: "pending",
+        lineItems: resolvedItems as any,
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating SystemD checkout:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  app.get("/api/admin/systemd-orders", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const allOrders = await storage.getSystemdOrders();
+      const allContacts = await storage.getContacts();
+      const contactMap = new Map(allContacts.map((c) => [c.id, c]));
+      const enriched = allOrders.map((order) => {
+        const contact = contactMap.get(order.contactId);
+        return {
+          ...order,
+          contactName: contact?.name ?? null,
+          companyName: contact?.companyName ?? null,
+        };
+      });
+      res.json(enriched);
+    } catch (error: any) {
+      console.error("Error fetching SystemD orders:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/portal/systemd-orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Unauthorized" });
+      const contactId = role.role === "client" ? role.contactId! : undefined;
+      const orders = contactId ? await storage.getSystemdOrders({ contactId }) : await storage.getSystemdOrders();
+      res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 
     // Deactivate a rep
     app.post("/api/mapi/reps/:id/deactivate", isAuthenticated, isAdmin, async (req: any, res) => {

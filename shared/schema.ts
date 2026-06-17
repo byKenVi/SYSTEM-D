@@ -267,3 +267,21 @@ export const mapiRepCreditLog = pgTable("mapi_rep_credit_log", {
 export const insertMapiRepCreditLogSchema = createInsertSchema(mapiRepCreditLog).omit({ id: true, createdAt: true });
 export type InsertMapiRepCreditLog = z.infer<typeof insertMapiRepCreditLogSchema>;
 export type MapiRepCreditLog = typeof mapiRepCreditLog.$inferSelect;
+
+// ─── SystemD Orders (Stripe purchases) ──────────────────────────────────────
+
+export const systemdOrders = pgTable("systemd_orders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  contactId: integer("contact_id").notNull(),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  amount: integer("amount").notNull().default(0),
+  currency: text("currency").notNull().default("cad"),
+  status: text("status").notNull().default("pending"),
+  lineItems: jsonb("line_items").notNull().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSystemdOrderSchema = createInsertSchema(systemdOrders).omit({ id: true, createdAt: true });
+export type InsertSystemdOrder = z.infer<typeof insertSystemdOrderSchema>;
+export type SystemdOrder = typeof systemdOrders.$inferSelect;

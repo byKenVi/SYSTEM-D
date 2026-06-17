@@ -340,8 +340,13 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                 </Button>
               )}
               <Button asChild variant="outline" size="lg" className="w-full justify-start gap-3 h-12 font-bold bg-background/50 hover:bg-background border-border/50" data-testid="link-quick-products">
-                <Link href={`/portal/boutique${qs}`}>
-                  <ShoppingCart className="h-4 w-4 text-muted-foreground" /> E-commerce
+                <Link href={`/portal/boutique${qs ? qs + "&tab=products" : "?tab=products"}`}>
+                  <ShoppingCart className="h-4 w-4 text-muted-foreground" /> Produits Clients
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="w-full justify-start gap-3 h-12 font-bold bg-background/50 hover:bg-background border-border/50" data-testid="link-quick-systemd">
+                <Link href={`/portal/boutique${qs ? qs + "&tab=systemd" : "?tab=systemd"}`}>
+                  <Package className="h-4 w-4 text-muted-foreground" /> Produits SystemD
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="w-full justify-start gap-3 h-12 font-bold bg-background/50 hover:bg-background border-border/50" data-testid="link-quick-profile">

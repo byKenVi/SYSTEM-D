@@ -27,8 +27,35 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
+  Warehouse,
+  Package,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
+
+interface SystemdOrder {
+  id: number;
+  contactId: number;
+  contactName: string | null;
+  companyName: string | null;
+  stripeCheckoutSessionId: string | null;
+  stripePaymentIntentId: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  lineItems: { name: string; zohoItemId: string; quantity: number; unitPrice: number }[];
+  createdAt: string | null;
+}
+
+function SystemdStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    paid:      { label: "Payé",       cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
+    pending:   { label: "En attente",cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
+    cancelled: { label: "Annulé",    cls: "text-muted-foreground bg-muted border-border" },
+    expired:   { label: "Expiré",    cls: "text-muted-foreground bg-muted border-border" },
+  };
+  const cfg = map[status] ?? { label: status, cls: "text-muted-foreground bg-muted border-border" };
+  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}>{cfg.label}</span>;
+}
 
 interface ShopifyOrder {
   id: number;
@@ -92,9 +119,18 @@ export default function AdminOrders() {
   const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
 
+  const [sdSearch, setSdSearch] = useState("");
+  const [sdExpandedId, setSdExpandedId] = useState<number | null>(null);
+
   const { data, isLoading } = useQuery<OrdersResponse>({
     queryKey: ["/api/admin/orders"],
     queryFn: () => fetch("/api/admin/orders", { credentials: "include" }).then((r) => r.json()),
+    staleTime: 60 * 1000,
+  });
+
+  const { data: systemdOrders, isLoading: sdLoading } = useQuery<SystemdOrder[]>({
+    queryKey: ["/api/admin/systemd-orders"],
+    queryFn: () => fetch("/api/admin/systemd-orders", { credentials: "include" }).then((r) => r.json()),
     staleTime: 60 * 1000,
   });
 
@@ -356,6 +392,148 @@ export default function AdminOrders() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ══ Commandes SystemD (Stripe) ══ */}
+      <div className="mt-10">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Warehouse className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight">Commandes SystemD</h2>
+            <p className="text-sm text-muted-foreground">Achats depuis la boutique Produits SystemD via Stripe</p>
+          </div>
+          {systemdOrders && systemdOrders.length > 0 && (
+            <Badge variant="secondary" className="ml-auto tabular-nums font-bold">
+              {systemdOrders.length}
+            </Badge>
+          )}
+        </div>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Rechercher client, produit…"
+                  value={sdSearch}
+                  onChange={(e) => setSdSearch(e.target.value)}
+                  className="pl-8 h-9"
+                  data-testid="input-search-systemd-orders"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Date</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Produits</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="w-8" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sdLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : !systemdOrders || systemdOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-40 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Warehouse className="h-8 w-8 text-muted-foreground/20" />
+                          <p className="text-sm font-medium text-muted-foreground">Aucune commande SystemD</p>
+                          <p className="text-xs text-muted-foreground/60">Les achats depuis la boutique Produits SystemD apparaîtront ici</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (() => {
+                      const q = sdSearch.toLowerCase();
+                      const sdFiltered = systemdOrders.filter((o) => {
+                        if (!q) return true;
+                        const clientName = (o.contactName ?? o.companyName ?? "").toLowerCase();
+                        const products = Array.isArray(o.lineItems) ? o.lineItems.map((l: any) => l.name ?? "").join(" ").toLowerCase() : "";
+                        return clientName.includes(q) || products.includes(q);
+                      });
+                      return sdFiltered.map((order) => {
+                        const isExpanded = sdExpandedId === order.id;
+                        const lineItems = Array.isArray(order.lineItems) ? order.lineItems : [];
+                        const totalQty = lineItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
+                        return (
+                          <>
+                            <TableRow
+                              key={order.id}
+                              className="cursor-pointer hover:bg-muted/50 transition-colors group"
+                              onClick={() => setSdExpandedId(isExpanded ? null : order.id)}
+                              data-testid={`row-systemd-order-${order.id}`}
+                            >
+                              <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                {order.createdAt ? new Date(order.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-bold text-foreground">{order.contactName ?? `Contact #${order.contactId}`}</span>
+                                  {order.companyName && <span className="text-[10px] text-muted-foreground">{order.companyName}</span>}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="font-mono text-xs border-dashed">{totalQty} article{totalQty !== 1 ? "s" : ""}</Badge>
+                              </TableCell>
+                              <TableCell><SystemdStatusBadge status={order.status} /></TableCell>
+                              <TableCell className="text-right font-bold text-sm tabular-nums font-mono">
+                                {(order.amount / 100).toLocaleString("fr-CA", { style: "currency", currency: order.currency.toUpperCase() })}
+                              </TableCell>
+                              <TableCell>
+                                <ExternalLink className={`h-3.5 w-3.5 text-muted-foreground transition-opacity ${isExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && lineItems.length > 0 && (
+                              <TableRow key={`${order.id}-detail`} className="bg-muted/20 hover:bg-muted/20">
+                                <TableCell colSpan={6} className="py-3 px-6">
+                                  <div className="space-y-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Détail commande</p>
+                                    {lineItems.map((item: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
+                                        <div className="flex items-center gap-2">
+                                          <Package className="h-3.5 w-3.5 text-muted-foreground/60" />
+                                          <span className="text-sm font-medium">{item.name}</span>
+                                          {item.sku && <Badge variant="outline" className="font-mono text-[10px] border-dashed">{item.sku}</Badge>}
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm">
+                                          <span className="text-muted-foreground">×{item.quantity}</span>
+                                          <span className="font-mono font-bold">{item.unitPrice?.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {order.stripeCheckoutSessionId && (
+                                      <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">Session: {order.stripeCheckoutSessionId}</p>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        );
+                      });
+                    })()
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

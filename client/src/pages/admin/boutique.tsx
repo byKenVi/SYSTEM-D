@@ -29,6 +29,7 @@ import {
   MapPin,
   RefreshCw,
   Link2,
+  Warehouse,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -153,9 +154,21 @@ export default function AdminBoutique() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerClientFilter, setCustomerClientFilter] = useState("all");
 
+  /* SystemD products state */
+  const [systemdSearch, setSystemdSearch] = useState("");
+
   /* Data */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
+
+  interface SystemdItem { zohoItemId: string; name: string; sku: string | null; description: string | null; imageUrl: string | null; price: number; stock: number; }
+  const { data: systemdProducts, isLoading: systemdLoading } = useQuery<SystemdItem[]>({ queryKey: ["/api/portal/systemd-products"], staleTime: 5 * 60 * 1000 });
+  const filteredSystemd = useMemo(() => {
+    if (!systemdProducts) return [];
+    const q = systemdSearch.toLowerCase();
+    if (!q) return systemdProducts;
+    return systemdProducts.filter((p) => p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q));
+  }, [systemdProducts, systemdSearch]);
   const { data: ordersData, isLoading: ordersLoading } = useQuery<OrdersResponse>({
     queryKey: ["/api/admin/orders"],
     queryFn: () => fetch("/api/admin/orders", { credentials: "include" }).then((r) => r.json()),
@@ -292,7 +305,11 @@ export default function AdminBoutique() {
         <TabsList data-testid="tabs-boutique">
           <TabsTrigger value="products" data-testid="tab-products">
             <Package className="h-3.5 w-3.5 mr-1.5" />
-            Produits
+            Produits Clients
+          </TabsTrigger>
+          <TabsTrigger value="systemd" data-testid="tab-systemd">
+            <Warehouse className="h-3.5 w-3.5 mr-1.5" />
+            Produits SystemD
           </TabsTrigger>
           <TabsTrigger value="orders" data-testid="tab-orders">
             <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
@@ -638,6 +655,83 @@ export default function AdminBoutique() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+        </TabsContent>
+
+        {/* ══ PRODUITS SYSTEMD TAB ══ */}
+        <TabsContent value="systemd" className="mt-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher par nom, SKU..."
+                value={systemdSearch}
+                onChange={(e) => setSystemdSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-systemd"
+              />
+            </div>
+            {systemdProducts && (
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {filteredSystemd.length} produit{filteredSystemd.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {systemdLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
+            </div>
+          ) : filteredSystemd.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-16 text-center">
+                <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                  <Warehouse className="h-10 w-10 text-muted-foreground/50" />
+                </div>
+                <h3 className="text-xl font-bold tracking-tight mb-2">Catalogue vide</h3>
+                <p className="text-muted-foreground max-w-sm">
+                  {systemdSearch
+                    ? "Aucun produit ne correspond à votre recherche."
+                    : "Aucun produit SystemD disponible. Vérifiez que Zoho Inventory est connecté et que des articles sans champ cf_client existent."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredSystemd.map((product) => {
+                const inStock = product.stock > 0;
+                return (
+                  <Card key={product.zohoItemId} className="border-border/50 shadow-sm overflow-hidden" data-testid={`card-systemd-product-${product.zohoItemId}`}>
+                    <div className="aspect-square bg-muted/30 border-b flex items-center justify-center">
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="h-16 w-16 text-muted-foreground/30" />
+                      )}
+                    </div>
+                    <CardContent className="p-4 space-y-2">
+                      <h3 className="font-bold text-sm text-foreground line-clamp-2 leading-tight">{product.name}</h3>
+                      {product.sku && (
+                        <Badge variant="outline" className="font-mono text-[10px] border-dashed">{product.sku}</Badge>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-mono font-bold text-base">{product.price.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</span>
+                        <Badge
+                          variant="secondary"
+                          className={`text-[10px] font-bold tabular-nums ${
+                            inStock
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                              : "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+                          }`}
+                        >
+                          {inStock ? `${product.stock} en stock` : "Épuisé"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {/* ══ COMMANDES TAB ══ */}

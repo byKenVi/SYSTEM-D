@@ -12,6 +12,7 @@ import {
   notificationPreferences, type NotificationPreference,
   mapiReps, type MapiRep, type InsertMapiRep,
   mapiRepCreditLog, type MapiRepCreditLog, type InsertMapiRepCreditLog,
+  systemdOrders, type SystemdOrder, type InsertSystemdOrder,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray } from "drizzle-orm";
@@ -92,6 +93,12 @@ export interface IStorage {
   updateMapiRep(id: string, data: Partial<InsertMapiRep>): Promise<MapiRep | undefined>;
   createMapiRepCreditLog(data: InsertMapiRepCreditLog): Promise<MapiRepCreditLog>;
   getMapiRepCreditLogs(repId: string, limit?: number): Promise<MapiRepCreditLog[]>;
+
+  // SystemD Orders
+  createSystemdOrder(data: InsertSystemdOrder): Promise<SystemdOrder>;
+  getSystemdOrders(filters?: { contactId?: number }): Promise<SystemdOrder[]>;
+  updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
+  getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -516,6 +523,33 @@ export class DatabaseStorage implements IStorage {
       .where(eq(mapiRepCreditLog.repId, repId))
       .orderBy(desc(mapiRepCreditLog.createdAt))
       .limit(limit);
+  }
+
+  // ─── SystemD Orders ────────────────────────────────────────────────────────
+
+  async createSystemdOrder(data: InsertSystemdOrder): Promise<SystemdOrder> {
+    const [order] = await db.insert(systemdOrders).values(data).returning();
+    return order;
+  }
+
+  async getSystemdOrders(filters?: { contactId?: number }): Promise<SystemdOrder[]> {
+    if (filters?.contactId) {
+      return db.select().from(systemdOrders)
+        .where(eq(systemdOrders.contactId, filters.contactId))
+        .orderBy(desc(systemdOrders.createdAt));
+    }
+    return db.select().from(systemdOrders).orderBy(desc(systemdOrders.createdAt));
+  }
+
+  async updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined> {
+    const [updated] = await db.update(systemdOrders).set(data).where(eq(systemdOrders.id, id)).returning();
+    return updated;
+  }
+
+  async getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined> {
+    const [order] = await db.select().from(systemdOrders)
+      .where(eq(systemdOrders.stripeCheckoutSessionId, sessionId));
+    return order;
   }
 }
 
