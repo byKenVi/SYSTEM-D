@@ -732,7 +732,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl mb-6 overflow-x-auto overflow-y-hidden" data-testid="tabs-boutique">
             <TabsTrigger value="products" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-products">
               <Package className="h-4 w-4 mr-2" />
-              Produits Clients
+              Mes Produits
               {products && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{products.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="systemd" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-systemd">
