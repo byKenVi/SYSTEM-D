@@ -479,22 +479,20 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
           <RefreshCw className={`h-5 w-5 text-muted-foreground ${isLoading ? "animate-spin" : ""}`} />
         </Button>
 
-        {!viewAsContactId && (
-          <Button
-            variant="outline"
-            className="h-12 px-4 relative border-primary/30 text-primary hover:bg-primary/5 hover:border-primary font-bold"
-            onClick={() => setCartOpen(true)}
-            data-testid="button-open-cart"
-          >
-            <ShoppingCart className="h-5 w-5 mr-2" />
-            Panier
-            {cart.totalItems > 0 && (
-              <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                {cart.totalItems}
-              </span>
-            )}
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="h-12 px-4 relative border-primary/30 text-primary hover:bg-primary/5 hover:border-primary font-bold"
+          onClick={() => setCartOpen(true)}
+          data-testid="button-open-cart"
+        >
+          <ShoppingCart className="h-5 w-5 mr-2" />
+          Panier
+          {cart.totalItems > 0 && (
+            <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+              {cart.totalItems}
+            </span>
+          )}
+        </Button>
       </div>
 
       {/* Products grid */}
