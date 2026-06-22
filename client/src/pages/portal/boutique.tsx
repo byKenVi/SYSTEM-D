@@ -436,9 +436,9 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data: products, isLoading } = useQuery<SystemdProduct[]>({
+  const { data: products, isLoading, refetch: refetchProducts } = useQuery<SystemdProduct[]>({
     queryKey: ["/api/portal/systemd-products"],
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   });
 
   const filtered = useMemo(() => {
@@ -474,6 +474,10 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
             </div>
           </CardContent>
         </Card>
+
+        <Button variant="ghost" size="sm" className="h-12 w-12 p-0 flex-shrink-0" onClick={() => refetchProducts()} disabled={isLoading} data-testid="button-refresh-systemd-products" title="Rafraîchir">
+          <RefreshCw className={`h-5 w-5 text-muted-foreground ${isLoading ? "animate-spin" : ""}`} />
+        </Button>
 
         {!viewAsContactId && (
           <Button

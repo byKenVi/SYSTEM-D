@@ -162,7 +162,7 @@ export default function AdminBoutique() {
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
 
   interface SystemdItem { zohoItemId: string; name: string; sku: string | null; description: string | null; imageUrl: string | null; price: number; stock: number; }
-  const { data: systemdProducts, isLoading: systemdLoading } = useQuery<SystemdItem[]>({ queryKey: ["/api/portal/systemd-products"], staleTime: 5 * 60 * 1000 });
+  const { data: systemdProducts, isLoading: systemdLoading, refetch: refetchSystemd } = useQuery<SystemdItem[]>({ queryKey: ["/api/portal/systemd-products"], staleTime: 0 });
   const filteredSystemd = useMemo(() => {
     if (!systemdProducts) return [];
     const q = systemdSearch.toLowerCase();
@@ -675,6 +675,9 @@ export default function AdminBoutique() {
                 {filteredSystemd.length} produit{filteredSystemd.length !== 1 ? "s" : ""}
               </span>
             )}
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => refetchSystemd()} disabled={systemdLoading} data-testid="button-refresh-systemd" title="Rafraîchir">
+              <RefreshCw className={`h-4 w-4 ${systemdLoading ? "animate-spin" : ""}`} />
+            </Button>
           </div>
 
           {systemdLoading ? (
