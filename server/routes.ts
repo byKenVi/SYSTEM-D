@@ -1491,6 +1491,32 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/zoho/item-image/:itemId", isAuthenticated, async (req, res) => {
+    try {
+      const { getValidAccessToken, getZohoDomains } = await import("./zoho-auth");
+      const { getZohoRegion } = await import("./zoho-api");
+      const region = await getZohoRegion();
+      const token = await getValidAccessToken(region);
+      const settings = await storage.getAdminSettings();
+      const orgId = settings?.zohoInventoryOrgId;
+      if (!orgId) return res.status(400).json({ message: "Zoho not configured" });
+
+      const { api } = getZohoDomains(region);
+      const url = `https://${api}/inventory/v1/items/${req.params.itemId}/image?organization_id=${orgId}`;
+      const zohoRes = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+
+      if (!zohoRes.ok) return res.status(404).end();
+
+      const contentType = zohoRes.headers.get("content-type") || "image/jpeg";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      const buf = await zohoRes.arrayBuffer();
+      res.send(Buffer.from(buf));
+    } catch {
+      res.status(404).end();
+    }
+  });
+
   app.post("/api/zoho/sync-inventory", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const allProducts = await storage.getProducts();
@@ -3050,7 +3076,7 @@ export async function registerRoutes(
           name: item.name,
           sku: item.sku || null,
           description: item.description || null,
-          imageUrl: null,
+          imageUrl: item.image_name ? `/api/zoho/item-image/${item.item_id}` : null,
           price: item.rate != null ? Number(item.rate) : 0,
           stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
         }));
