@@ -231,15 +231,21 @@ function ProductDetailSheet({
         </SheetHeader>
 
         <div className="space-y-6">
-          {product.imageUrl ? (
-            <div className="w-full aspect-square rounded-xl overflow-hidden border bg-muted/30">
-              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-            </div>
-          ) : (
-            <div className="w-full aspect-square rounded-xl border bg-muted/30 flex items-center justify-center">
+          <div className="w-full aspect-square rounded-xl overflow-hidden border bg-muted/30 flex items-center justify-center">
+            <img
+              src={product.imageUrl || ""}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              style={{ display: product.imageUrl ? undefined : "none" }}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+                (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
+              }}
+            />
+            <span className="w-full h-full items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}>
               <Package className="h-20 w-20 text-muted-foreground/30" />
-            </div>
-          )}
+            </span>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 rounded-xl border bg-card">
@@ -373,11 +379,19 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             items.map((item) => (
               <div key={item.product.zohoItemId} className="flex items-center gap-3 p-3 rounded-xl border bg-card" data-testid={`cart-item-${item.product.zohoItemId}`}>
                 <div className="h-12 w-12 rounded-lg bg-muted/50 border flex items-center justify-center shrink-0">
-                  {item.product.imageUrl ? (
-                    <img src={item.product.imageUrl} alt={item.product.name} className="h-full w-full object-cover rounded-lg" />
-                  ) : (
+                  <img
+                    src={item.product.imageUrl || ""}
+                    alt={item.product.name}
+                    className="h-full w-full object-cover rounded-lg"
+                    style={{ display: item.product.imageUrl ? undefined : "none" }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
+                    }}
+                  />
+                  <span className="items-center justify-center" style={{ display: item.product.imageUrl ? "none" : "flex" }}>
                     <Package className="h-5 w-5 text-muted-foreground/50" />
-                  )}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm truncate">{item.product.name}</p>
@@ -436,10 +450,21 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data: products, isLoading, refetch: refetchProducts } = useQuery<SystemdProduct[]>({
+  const forceRefRef = useRef(false);
+  const { data: products, isLoading, refetch: refetchProductsBase } = useQuery<SystemdProduct[]>({
     queryKey: ["/api/portal/systemd-products"],
-    staleTime: 0,
+    queryFn: async () => {
+      const r = await fetch(`/api/portal/systemd-products${forceRefRef.current ? "?force=true" : ""}`, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 90_000,
   });
+  const refetchProducts = async () => {
+    forceRefRef.current = true;
+    try { await refetchProductsBase(); } finally { forceRefRef.current = false; }
+  };
 
   const filtered = useMemo(() => {
     if (!products) return [];
@@ -529,11 +554,19 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
                 data-testid={`card-systemd-product-${product.zohoItemId}`}
               >
                 <div className="aspect-square bg-muted/30 border-b flex items-center justify-center overflow-hidden relative">
-                  {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  ) : (
+                  <img
+                    src={product.imageUrl || ""}
+                    alt={product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    style={{ display: product.imageUrl ? undefined : "none" }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
+                    }}
+                  />
+                  <span className="w-full h-full items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}>
                     <Package className="h-16 w-16 text-muted-foreground/30" />
-                  )}
+                  </span>
                   {cartItem && (
                     <div className="absolute top-2 right-2 h-6 min-w-6 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                       {cartItem.quantity}
@@ -820,11 +853,8 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             <TableCell className="py-4">
                               <div className="flex items-center gap-4">
                                 <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center shrink-0 overflow-hidden bg-white shadow-sm">
-                                  {product.imageUrl ? (
-                                    <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
-                                  ) : (
-                                    <Package className="h-5 w-5 text-muted-foreground/50" />
-                                  )}
+                                  <img src={product.imageUrl || ""} alt={product.name} className="h-full w-full object-cover" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                                  <span className="items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}><Package className="h-5 w-5 text-muted-foreground/50" /></span>
                                 </div>
                                 <div className="min-w-0">
                                   <span className="font-bold text-base text-foreground block truncate">{product.name}</span>
@@ -901,11 +931,8 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   <div className="p-6 space-y-6 bg-background">
                     <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm">
                       <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center shrink-0 overflow-hidden bg-white">
-                        {restockProduct.imageUrl ? (
-                          <img src={restockProduct.imageUrl} alt={restockProduct.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <Package className="h-5 w-5 text-muted-foreground/50" />
-                        )}
+                        <img src={restockProduct.imageUrl || ""} alt={restockProduct.name} className="h-full w-full object-cover" style={{ display: restockProduct.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                        <span className="items-center justify-center" style={{ display: restockProduct.imageUrl ? "none" : "flex" }}><Package className="h-5 w-5 text-muted-foreground/50" /></span>
                       </div>
                       <div>
                         <p className="font-bold text-sm text-foreground line-clamp-1">{restockProduct.name}</p>

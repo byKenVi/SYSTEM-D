@@ -39,8 +39,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation, Link } from "wouter";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -156,13 +158,28 @@ export default function AdminBoutique() {
 
   /* SystemD products state */
   const [systemdSearch, setSystemdSearch] = useState("");
+  const [selectedSystemdProduct, setSelectedSystemdProduct] = useState<SystemdItem | null>(null);
 
   /* Data */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
 
   interface SystemdItem { zohoItemId: string; name: string; sku: string | null; description: string | null; imageUrl: string | null; price: number; stock: number; }
-  const { data: systemdProducts, isLoading: systemdLoading, refetch: refetchSystemd } = useQuery<SystemdItem[]>({ queryKey: ["/api/portal/systemd-products"], staleTime: 0 });
+  const systemdForceRef = useRef(false);
+  const { data: systemdProducts, isLoading: systemdLoading, refetch: refetchSystemdBase } = useQuery<SystemdItem[]>({
+    queryKey: ["/api/portal/systemd-products"],
+    queryFn: async () => {
+      const r = await fetch(`/api/portal/systemd-products${systemdForceRef.current ? "?force=true" : ""}`, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 90_000,
+  });
+  const refetchSystemd = async () => {
+    systemdForceRef.current = true;
+    try { await refetchSystemdBase(); } finally { systemdForceRef.current = false; }
+  };
   const filteredSystemd = useMemo(() => {
     if (!systemdProducts) return [];
     const q = systemdSearch.toLowerCase();
@@ -395,7 +412,8 @@ export default function AdminBoutique() {
                             <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} /></TableCell>
                             <TableCell>
                               <div className="flex items-center gap-3">
-                                {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" /> : <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0"><Package className="h-4 w-4 text-muted-foreground" /></div>}
+                                <img src={product.imageUrl || ""} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                                <div className="h-9 w-9 rounded-md bg-muted items-center justify-center flex-shrink-0" style={{ display: product.imageUrl ? "none" : "flex" }}><Package className="h-4 w-4 text-muted-foreground" /></div>
                                 <span className="font-medium" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
                               </div>
                             </TableCell>
@@ -467,7 +485,8 @@ export default function AdminBoutique() {
                                       <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} /></TableCell>
                                       <TableCell>
                                         <div className="flex items-center gap-3">
-                                          {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" /> : <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center flex-shrink-0"><Package className="h-4 w-4 text-muted-foreground" /></div>}
+                                          <img src={product.imageUrl || ""} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                                          <div className="h-9 w-9 rounded-md bg-muted items-center justify-center flex-shrink-0" style={{ display: product.imageUrl ? "none" : "flex" }}><Package className="h-4 w-4 text-muted-foreground" /></div>
                                           <span className="font-medium" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
                                         </div>
                                       </TableCell>
@@ -531,8 +550,9 @@ export default function AdminBoutique() {
                           </div>
                         </div>
                         {product.pushedToZoho && <div className="absolute top-2 right-2 z-10"><span className="inline-flex items-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[9px] font-semibold px-1.5 py-0.5">Zoho</span></div>}
-                        <div className="aspect-square w-full overflow-hidden rounded-t-xl bg-muted">
-                          {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Package className="h-10 w-10 text-muted-foreground/30" /></div>}
+                        <div className="aspect-square w-full overflow-hidden rounded-t-xl bg-muted flex items-center justify-center">
+                          <img src={product.imageUrl || ""} alt={product.name} className="w-full h-full object-cover" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                          <div className="w-full h-full items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}><Package className="h-10 w-10 text-muted-foreground/30" /></div>
                         </div>
                         <div className="p-3 space-y-1.5">
                           <p className="text-sm font-semibold leading-tight line-clamp-2" data-testid={`text-card-product-name-${product.id}`}>{product.name}</p>
@@ -578,8 +598,9 @@ export default function AdminBoutique() {
                                     </div>
                                   </div>
                                   {product.pushedToZoho && <div className="absolute top-2 right-2 z-10"><span className="inline-flex items-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[9px] font-semibold px-1.5 py-0.5">Zoho</span></div>}
-                                  <div className="aspect-square w-full overflow-hidden rounded-t-xl bg-muted">
-                                    {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Package className="h-10 w-10 text-muted-foreground/30" /></div>}
+                                  <div className="aspect-square w-full overflow-hidden rounded-t-xl bg-muted flex items-center justify-center">
+                                    <img src={product.imageUrl || ""} alt={product.name} className="w-full h-full object-cover" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                                    <div className="w-full h-full items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}><Package className="h-10 w-10 text-muted-foreground/30" /></div>
                                   </div>
                                   <div className="p-3 space-y-1.5">
                                     <p className="text-sm font-semibold leading-tight line-clamp-2" data-testid={`text-card-product-name-${product.id}`}>{product.name}</p>
@@ -703,13 +724,26 @@ export default function AdminBoutique() {
               {filteredSystemd.map((product) => {
                 const inStock = product.stock > 0;
                 return (
-                  <Card key={product.zohoItemId} className="border-border/50 shadow-sm overflow-hidden" data-testid={`card-systemd-product-${product.zohoItemId}`}>
-                    <div className="aspect-square bg-muted/30 border-b flex items-center justify-center">
-                      {product.imageUrl ? (
-                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                      ) : (
+                  <Card
+                    key={product.zohoItemId}
+                    className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                    data-testid={`card-systemd-product-${product.zohoItemId}`}
+                    onClick={() => setSelectedSystemdProduct(product)}
+                  >
+                    <div className="aspect-square bg-muted/30 border-b flex items-center justify-center overflow-hidden">
+                      <img
+                        src={product.imageUrl || ""}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        style={{ display: product.imageUrl ? undefined : "none" }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
+                        }}
+                      />
+                      <span className="w-full h-full items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}>
                         <Package className="h-16 w-16 text-muted-foreground/30" />
-                      )}
+                      </span>
                     </div>
                     <CardContent className="p-4 space-y-2">
                       <h3 className="font-bold text-sm text-foreground line-clamp-2 leading-tight">{product.name}</h3>
@@ -734,6 +768,57 @@ export default function AdminBoutique() {
                 );
               })}
             </div>
+          )}
+
+          {/* Read-only SystemD product detail sheet */}
+          {selectedSystemdProduct && (
+            <Sheet open={!!selectedSystemdProduct} onOpenChange={(o) => { if (!o) setSelectedSystemdProduct(null); }}>
+              <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+                <SheetHeader className="mb-6">
+                  <SheetTitle className="text-xl font-bold">{selectedSystemdProduct.name}</SheetTitle>
+                  {selectedSystemdProduct.sku && (
+                    <SheetDescription>
+                      <Badge variant="outline" className="font-mono text-xs">{selectedSystemdProduct.sku}</Badge>
+                    </SheetDescription>
+                  )}
+                </SheetHeader>
+                <div className="space-y-6">
+                  <div className="w-full aspect-square rounded-xl overflow-hidden border bg-muted/30 flex items-center justify-center">
+                    <img
+                      src={selectedSystemdProduct.imageUrl || ""}
+                      alt={selectedSystemdProduct.name}
+                      className="w-full h-full object-cover"
+                      style={{ display: selectedSystemdProduct.imageUrl ? undefined : "none" }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
+                      }}
+                    />
+                    <span className="w-full h-full items-center justify-center" style={{ display: selectedSystemdProduct.imageUrl ? "none" : "flex" }}>
+                      <Package className="h-20 w-20 text-muted-foreground/30" />
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl border bg-card">
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Prix</p>
+                      <p className="text-2xl font-mono font-bold text-foreground">{selectedSystemdProduct.price.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</p>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${selectedSystemdProduct.stock > 0 ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20" : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20"}`}>
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Stock</p>
+                      <p className={`text-2xl font-mono font-bold ${selectedSystemdProduct.stock > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                        {selectedSystemdProduct.stock} un.
+                      </p>
+                    </div>
+                  </div>
+                  {selectedSystemdProduct.description && (
+                    <div className="p-4 rounded-xl border bg-muted/20">
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Description</p>
+                      <p className="text-sm text-foreground leading-relaxed">{selectedSystemdProduct.description}</p>
+                    </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           )}
         </TabsContent>
 

@@ -96,6 +96,8 @@ function buildStatusNotification(
   return null;
 }
 
+const systemdProductsCache: { data: any[] | null; fetchedAt: number } = { data: null, fetchedAt: 0 };
+
 /**
  * Non-blocking helper: fetches current Zoho inventory and updates the DB.
  * Designed to be called fire-and-forget (with .catch) after token changes.
@@ -561,7 +563,7 @@ export async function registerRoutes(
     }
   });
 
-  // Fetch full single order from Shopify (live) or from cache for WooCommerce
+  // Fetch full single order from Shopify (live)
   app.get("/api/admin/orders/:shopifyOrderId", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const { shopifyOrderId } = req.params;
@@ -572,33 +574,11 @@ export async function registerRoutes(
       const integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
       if (!integration) return res.status(404).json({ message: "Shopify integration not found for this store" });
 
-      const allContacts = await storage.getContacts();
-      const contact = allContacts.find((c) => c.id === integration.contactId);
-
-      // For WooCommerce integrations, return cached order data instead of calling Shopify API
-      if ((integration as any).platform === "woocommerce") {
-        const allOrders = await storage.getShopifyOrders();
-        const cached = allOrders.find((o) => o.shopifyOrderId === shopifyOrderId && o.storeUrl === storeUrl);
-        if (!cached) return res.status(404).json({ message: "Commande WooCommerce introuvable dans le cache" });
-        const order = {
-          id: Number(cached.shopifyOrderId) || 0,
-          name: cached.name,
-          created_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
-          updated_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
-          financial_status: cached.financialStatus,
-          fulfillment_status: cached.fulfillmentStatus,
-          total_price: cached.totalPrice ?? "0",
-          subtotal_price: cached.totalPrice ?? "0",
-          currency: cached.currency ?? "CAD",
-          email: cached.email,
-          customer: (cached.customerFirstName || cached.customerLastName) ? { first_name: cached.customerFirstName ?? "", last_name: cached.customerLastName ?? "" } : null,
-          line_items: (cached.lineItems as any[]) ?? [],
-        };
-        return res.json({ order, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl, platform: "woocommerce" });
-      }
-
       const { fetchShopifyOrderDetail } = await import("./shopify-api");
       const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
+
+      const allContacts = await storage.getContacts();
+      const contact = allContacts.find((c) => c.id === integration.contactId);
 
       res.json({ order, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl });
     } catch (error: any) {
@@ -838,16 +818,10 @@ export async function registerRoutes(
             continue;
           }
 
-          // Pending (previous push failed) → reset to unpushed so we fall through
-          // to a fresh push attempt below, giving the admin a real retry.
-          if (product.pushedToZoho && product.zohoItemId?.startsWith("pending-")) {
-            await storage.updateProduct(id, {
-              pushedToZoho: false,
-              zohoItemId: null,
-            });
-            // Reload the product so the push block below sees the clean state
-            const reset = await storage.getProduct(id);
-            if (reset) Object.assign(product, reset);
+          // Pending → skip, nothing to do
+          if (product.pushedToZoho && product.zohoItemId) {
+            updated.push(product);
+            continue;
           }
 
           // New item → ensure contact exists in Zoho first, then create item
@@ -1291,21 +1265,6 @@ export async function registerRoutes(
         return res.redirect("/admin/settings?zoho_select_org=true");
       }
 
-      // Evict the in-memory token cache so triggerZohoSyncNow() uses the new
-      // credentials we just persisted, not any previously cached token.
-      invalidateAccessTokenCache();
-
-      // Fire-and-forget immediate sync so Inventaire is populated right away
-      // without waiting for the background scheduler (which may be up to 15 min away).
-      triggerZohoSyncNow().catch((err) => {
-        console.error("[zoho-callback] Post-connect sync failed:", err.message);
-        storage.createActivityLog({
-          type: "zoho_inventory_sync",
-          status: "error",
-          message: `Post-connect sync failed: ${err.message}`,
-        }).catch(() => {});
-      });
-
       res.redirect("/admin/settings?zoho_connected=true");
     } catch (error: any) {
       console.error("Zoho callback error:", error);
@@ -1345,20 +1304,6 @@ export async function registerRoutes(
 
       delete (global as any).__zoho_pending_orgs;
       delete (global as any).__zoho_pending_tokens;
-
-      // Evict any cached token so the sync below picks up the newly-persisted credentials.
-      invalidateAccessTokenCache();
-
-      // Trigger an immediate sync so Inventaire is populated without waiting for scheduler
-      triggerZohoSyncNow().catch((err) => {
-        console.error("[zoho-select-org] Post-connect sync failed:", err.message);
-        storage.createActivityLog({
-          type: "zoho_inventory_sync",
-          status: "error",
-          message: `Post-connect sync failed: ${err.message}`,
-        }).catch(() => {});
-      });
-
       res.json({ message: "Organization selected", org });
     } catch (error: any) {
       console.error("Org select error:", error);
@@ -1369,10 +1314,6 @@ export async function registerRoutes(
   // Disconnect Zoho Inventory
   app.post("/api/auth/zoho/disconnect", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      // Clear the in-memory token cache immediately so no further API calls
-      // can use a previously cached token after the admin disconnects.
-      invalidateAccessTokenCache();
-
       const existing = await storage.getAdminSettings();
       await storage.upsertAdminSettings({
         ...(existing || {}),
@@ -1383,9 +1324,9 @@ export async function registerRoutes(
         zohoTokenExpiresAt: null,
         zohoRegion: "us",
       });
-      // Clear inventory cache on disconnect
-      inventoryCache.data = null;
-      inventoryCache.fetchedAt = 0;
+      // Clear SystemD products cache on Zoho disconnect
+      systemdProductsCache.data = null;
+      systemdProductsCache.fetchedAt = 0;
       res.json({ message: "Disconnected" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1403,18 +1344,8 @@ export async function registerRoutes(
   });
 
   // Sync items from Zoho Inventory into the app for a contact
-  // Server-side in-memory cache for the inventory response (2-minute TTL)
-  const inventoryCache = { data: null as any, fetchedAt: 0 };
-  const INVENTORY_CACHE_TTL_MS = 2 * 60 * 1000;
-
   // Fetch all Zoho Inventory items with cf_client custom field, enriched with contact info
   app.get("/api/zoho/inventory", isAuthenticated, isAdmin, async (req, res) => {
-    const force = req.query.force === "true";
-    const now = Date.now();
-    const isCacheFresh = !force && inventoryCache.data && (now - inventoryCache.fetchedAt) < INVENTORY_CACHE_TTL_MS;
-    if (isCacheFresh) {
-      return res.json(inventoryCache.data);
-    }
     try {
       const { fetchZohoItems, fetchZohoContactsMap } = await import("./zoho-api");
       const [zohoItems, zohoContactsMap] = await Promise.all([fetchZohoItems(), fetchZohoContactsMap()]);
@@ -1484,10 +1415,7 @@ export async function registerRoutes(
         };
       });
 
-      const result = { items: enriched, total: enriched.length };
-      inventoryCache.data = result;
-      inventoryCache.fetchedAt = Date.now();
-      res.json(result);
+      res.json({ items: enriched, total: enriched.length });
     } catch (error: any) {
       console.error("Zoho inventory fetch error:", error);
       res.status(500).json({ message: error.message || "Failed to fetch Zoho inventory" });
@@ -1880,29 +1808,6 @@ export async function registerRoutes(
       }
       if (!integration) {
         return res.status(404).json({ message: "Shopify integration not found for this store" });
-      }
-
-      // For WooCommerce integrations, return cached order data instead of calling Shopify API
-      if ((integration as any).platform === "woocommerce") {
-        const contactId = role.role === "admin" ? integration.contactId : role.contactId;
-        const allOrders = await storage.getShopifyOrders(contactId ? { contactId } : undefined);
-        const cached = allOrders.find((o) => o.shopifyOrderId === shopifyOrderId && o.storeUrl === storeUrl);
-        if (!cached) return res.status(404).json({ message: "Commande WooCommerce introuvable dans le cache" });
-        const order = {
-          id: Number(cached.shopifyOrderId) || 0,
-          name: cached.name,
-          created_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
-          updated_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
-          financial_status: cached.financialStatus,
-          fulfillment_status: cached.fulfillmentStatus,
-          total_price: cached.totalPrice ?? "0",
-          subtotal_price: cached.totalPrice ?? "0",
-          currency: cached.currency ?? "CAD",
-          email: cached.email,
-          customer: (cached.customerFirstName || cached.customerLastName) ? { first_name: cached.customerFirstName ?? "", last_name: cached.customerLastName ?? "" } : null,
-          line_items: (cached.lineItems as any[]) ?? [],
-        };
-        return res.json({ order, shopName: integration.shopName, storeUrl, platform: "woocommerce" });
       }
 
       const { fetchShopifyOrderDetail } = await import("./shopify-api");
@@ -2316,13 +2221,10 @@ export async function registerRoutes(
               name: contact.name,
               formType: form.formType,
               formNumber: form.formNumber,
-            }).catch((err) => {
-              console.error("Form email error:", err);
-              storage.createActivityLog({ type: "form_email", status: "error", message: `Email de soumission non envoyé pour ${form.formNumber}: ${err?.message ?? err}` }).catch(() => {});
-            });
+            }).catch((err) => console.error("Form email error:", err));
           }
 
-          try {
+          ;(async () => {
             const enabled = await storage.isNotificationEnabled(form.contactId, "compte");
             if (enabled) {
               await storage.createNotification({
@@ -2334,10 +2236,7 @@ export async function registerRoutes(
                 metadata: { formId: form.id, formNumber: form.formNumber, formType: form.formType },
               });
             }
-          } catch (err: any) {
-            console.error("Notification error:", err);
-            await storage.createActivityLog({ type: "notification", status: "error", message: `Notification non créée pour ${form.formNumber}: ${err?.message ?? err}` }).catch(() => {});
-          }
+          })().catch((err) => console.error("Notification error:", err));
 
           const settings = await storage.getAdminSettings();
           if (settings?.adminUserId) {
@@ -2398,15 +2297,12 @@ export async function registerRoutes(
 
           const notifData = buildStatusNotification(form.formType, form.status, status, form.formNumber, form.id);
           if (notifData) {
-            try {
+            ;(async () => {
               const enabled = await storage.isNotificationEnabled(form.contactId, notifData.category);
               if (enabled) {
                 await storage.createNotification({ contactId: form.contactId, ...notifData });
               }
-            } catch (err: any) {
-              console.error("Notification error:", err);
-              await storage.createActivityLog({ type: "notification", status: "error", message: `Notification de statut non créée pour ${form.formNumber}: ${err?.message ?? err}` }).catch(() => {});
-            }
+            })().catch((err) => console.error("Notification error:", err));
           }
 
           const statusLabels: Record<string, string> = { submitted: "Soumis", in_review: "En révision", approved: "Approuvé", completed: "Complété" };
@@ -3201,6 +3097,14 @@ export async function registerRoutes(
     try {
       const role = await getUserRole(req);
       if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+      const force = req.query.force === "true";
+      const now = Date.now();
+
+      if (!force && systemdProductsCache.data && (now - systemdProductsCache.fetchedAt) < SYSTEMD_CACHE_TTL_MS) {
+        return res.json(systemdProductsCache.data);
+      }
+
       const { fetchZohoItems } = await import("./zoho-api");
       const items = await fetchZohoItems();
       const systemdItems = items
@@ -3219,6 +3123,10 @@ export async function registerRoutes(
           price: item.rate != null ? Number(item.rate) : 0,
           stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
         }));
+
+      systemdProductsCache.data = systemdItems;
+      systemdProductsCache.fetchedAt = Date.now();
+
       res.json(systemdItems);
     } catch (error: any) {
       console.error("Error fetching SystemD products:", error);
@@ -3388,3 +3296,5 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
+const SYSTEMD_CACHE_TTL_MS = 90_000;
