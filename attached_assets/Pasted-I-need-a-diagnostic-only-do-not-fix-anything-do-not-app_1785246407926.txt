@@ -1,0 +1,36 @@
+I need a diagnostic only — do not fix anything, do not apply any code changes. I just need to understand the root cause of each bug listed below.
+
+BUGS TO DIAGNOSE
+
+1. Boutique page — broken product images
+   Some product images are not displaying. Identify whether the issue comes from the image URL (invalid/missing on the Shopify side), an incorrect mapping during synchronization, or a frontend rendering bug.
+
+2. Boutique page for client "System D" — non-clickable products
+   Some products are not clickable when they should open a detailed view, unlike other clients/products that work correctly. Compare the behavior between a working product and a non-working one to identify the exact difference (routing, missing condition, null ID, etc.).
+
+3. Refresh icon in the Boutique page — inconsistent product count
+   There's a refresh icon in the Boutique page. Products only display successfully about 1 out of 10 times. When they do display and you click refresh, the product count appears to change randomly each time (not stable/consistent).
+   This smells like a race condition, a pagination bug, a caching issue, or an incomplete/async data fetch that resolves inconsistently. Investigate: what triggers the refresh action, whether the data fetch is properly awaited before rendering, whether there's a loading state that's being skipped, whether the API call has proper error/retry handling, and whether multiple concurrent requests could be overwriting each other's results.
+
+4. Shopify → Zoho product synchronization
+   Verify whether products created/updated on the Shopify side are properly pushed and reflected on the Zoho side. If there are failures, identify at which step they occur (job, webhook, API call).
+
+5. Orders page — broken details
+   Shopify order details are not displaying correctly. Clarify whether this is an environment issue (dev vs prod), a missing field in the API response, or a frontend rendering issue. Explicitly state whether this bug also exists in production.
+
+6. Notifications
+   Verify whether the notification system works end-to-end (trigger → send → receive), and at which step it breaks if it doesn't.
+
+7. Inventory page — unstable behavior (priority)
+   The Inventory page sometimes displays products, and sometimes shows an empty page asking to reconnect Zoho Inventory. After reconnecting, the data only reappears several hours later.
+   Investigate as a priority: Zoho refresh token handling (does it expire without automatic renewal?), the frequency of sync jobs/cron schedules, and why reconnecting doesn't trigger an immediate resync instead of waiting for the next cycle.
+
+8. Inventory data consistency
+   Check whether Zoho stock matches Shopify stock, or if there are desynchronizations/incorrect zero values.
+
+9. General scan
+   Flag any other bug or inconsistency encountered while testing the main user flows, even if not listed here.
+
+EXPECTED RESPONSE FORMAT
+For each bug: identified root cause (or hypotheses ranked by likelihood if you can't confirm with certainty), affected files/components, and if you're missing information/access needed to confirm, list it clearly.
+No code fixes, diagnostic only.

@@ -1,0 +1,160 @@
+Bug 1 — Boutique Page: Broken Product Images
+Root Cause (ranked by likelihood):
+
+Image URL is null for Zoho/SystemD products (highest likelihood). For products synced from Zoho Inventory, imageUrl is initialized to null during sync (syncZohoItemsForContact). The frontend correctly shows a Package icon fallback when imageUrl is null, so these aren't "broken" — they just never had an image.
+
+CDN URL is valid in DB but image is gone on Shopify (medium likelihood). For Shopify-sourced products, imageUrl is set to product.images[0].src (a cdn.shopify.com URL). If that image is deleted or unpublished on the Shopify side, the URL remains stored but returns a 404. The <img> tag has no onError handler, so the browser shows a broken image icon instead of the Package fallback.
+
+Variant-specific image mismatch (lower likelihood). normalizeProducts in shopify-api.ts maps images per variant using variant.image_id. If a variant has no associated image, it falls back to product.images[0].src, which may not be the right image.
+
+Affected files:
+
+server/shopify-api.ts — normalizeProducts() (imageUrl mapping)
+server/zoho-api.ts — syncZohoItemsForContact() (imageUrl defaults to null)
+client/src/pages/portal/boutique.tsx — <img> element, no onError handler
+client/src/pages/admin/boutique.tsx — same
+shared/schema.ts — products.imageUrl (nullable text)
+Information needed to confirm: Query the DB directly to count products where imageUrl IS NOT NULL but the image returns a non-200 HTTP status.
+
+Bug 2 — Boutique Page for "System D" — Non-Clickable Products
+Root Cause (confirmed):
+
+The non-clickable behavior is environment-specific: Admin view vs. Portal view.
+
+Portal boutique (portal/boutique.tsx): SystemD products rendered as Card components with onClick={() => openDetail(product)}. All cards are clickable and open a ProductDetailSheet side panel. ✅
+Admin boutique (admin/boutique.tsx): SystemD products are also rendered as Card components, but no onClick handler is attached. The cards are purely display-only. ❌ This is the bug.
+There is no filtering by accountId, clientId, or any flag that conditionally removes the click handler — the admin cards simply never had one implemented.
+
+Affected file:
+
+client/src/pages/admin/boutique.tsx — SystemD product Card components (no onClick, no detail sheet)
+Bug 3 — Refresh Icon: Inconsistent Product Count
+Root Cause: Multiple compounding issues — primarily a live Zoho API dependency with no caching or retry logic.
+
+No caching / always-stale query. The query for SystemD products (/api/portal/systemd-products) has staleTime: 0, meaning every mount and every manual refresh triggers a live network request to the Zoho API. Zoho API responses can vary due to rate limits, latency, or partial results.
+
+Live Zoho fetch on every request. The server route doesn't serve from DB cache — it calls Zoho directly. If Zoho returns a paginated or partial response (or the request times out), fewer products come back.
+
+Individual enrichment errors are swallowed. fetchZohoItems wraps each item's detail call in try/catch and returns partial data on failure (zoho-api.ts:114). So a given refresh may return 40 products, and the next one 37, depending on how many enrichment calls fail silently.
+
+No concurrent-request guard. While a loading state exists on the button, there is no deduplication or abort of in-flight requests. Rapid clicks could produce multiple overlapping responses.
+
+No loading state gap. The query result transitions immediately from cached stale data to new data; there is no "pending" buffer, so the count visually jumps.
+
+Affected files:
+
+client/src/pages/portal/boutique.tsx — refresh button, useQuery with staleTime: 0
+client/src/pages/admin/boutique.tsx — same
+server/zoho-api.ts — fetchZohoItems(), swallowed per-item errors (line 114), getZohoItemStock() empty catch (line 333)
+server/routes.ts — SystemD products endpoint (live Zoho call, no DB cache)
+Bug 4 — Shopify → Zoho Product Synchronization
+Root Cause: No automatic sync. Push is manual-only.
+
+There is no webhook and no automated job that pushes Shopify product creates/updates to Zoho. The flow is:
+
+A 60-second scheduler (startShopifySyncScheduler) syncs Shopify → local DB only.
+Zoho gets products only when an admin manually triggers "Push to Zoho" via the /api/products/push-to-zoho endpoint.
+The Zoho sync scheduler (startZohoSyncScheduler) runs in the reverse direction: it reads Zoho stock → pushes it back to local DB (and from there to Shopify via writeback). It does NOT push new Shopify products to Zoho.
+Additional failure points in the manual push:
+
+If zohoInventoryOrgId is missing → immediate failure (no user-facing error shown).
+If SKU is not unique in Zoho → POST /items fails; item is marked pending-{id} in DB.
+ensureZohoContact failures are silently treated as non-fatal (logged but not surfaced).
+No automatic retry. A failed push stays failed until the admin tries again.
+Affected files:
+
+server/shopify-sync.ts — Shopify → DB only, no Zoho write
+server/zoho-sync.ts — Zoho → DB only, one-directional
+server/zoho-api.ts — pushItemToZoho(), error handling gaps
+server/routes.ts — /api/products/push-to-zoho (manual-only trigger)
+server/webhookHandlers.ts — no Shopify product webhook → Zoho flow exists
+Bug 5 — Orders Page: Broken Details
+Root Cause: Multiple unguarded fields in the Shopify API response, plus a platform mismatch risk.
+
+Specific breakage points (by likelihood):
+
+line_items null crash (Admin only). admin/order-detail.tsx accesses order.line_items.length and .map() directly (lines ~396, 401) with no null guard. The Portal version correctly uses (order.line_items ?? []). If the Shopify API returns an order without line items (partial response, deleted products), the Admin detail page crashes.
+
+NaN in line item totals (Portal). portal/order-detail.tsx (line ~262) computes Number(item.price) * item.quantity - Number(item.total_discount ?? 0). If item.price is missing or not a numeric string, this produces NaN which renders visibly as NaN in the UI.
+
+Customer email crash. If order.email is truthy but order.customer is null, accessing order.customer.email throws (portal detail, line ~368).
+
+WooCommerce orders in Shopify detail view. shopify-orders-sync.ts handles both Shopify and WooCommerce orders. The detail pages (fetchShopifyOrderDetail) only call the Shopify API. WooCommerce orders fetched as detail views will likely fail or render blank.
+
+Dev vs. Prod: No explicit environment branching was found. The bug exists in both environments as it is a code-level null-safety issue, not a config difference.
+
+Affected files:
+
+client/src/pages/admin/order-detail.tsx — lines ~396, 401 (unguarded line_items)
+client/src/pages/portal/order-detail.tsx — lines ~262, 368
+server/shopify-orders-sync.ts — line_items cast to any (line ~31), WooCommerce path
+server/shopify-api.ts — fetchShopifyOrderDetail (Shopify-only)
+Bug 6 — Notifications: End-to-End Verification
+Root Cause: The system works in the happy path but has silent failure modes at every step.
+
+Chain:
+
+Trigger → in routes.ts on form submit/update, calls storage.createNotification() and sendFormSubmissionEmail() — both fired without await, inside fire-and-forget IIAFs.
+In-app store → DB insert via storage.createNotification. If DB is unavailable, error is caught and logged; the parent request returns success anyway. User gets no indication of failure.
+Email send → Resend API call in resend.ts. Return value ignored. Errors are caught and logged silently.
+Frontend poll → client polls /api/portal/notifications every 30 seconds. There is no WebSocket or SSE push. A notification created at T=0 may not appear until T=30.
+Where it most likely breaks:
+
+If the Resend API key is misconfigured or the email address is wrong → silent failure (no bounce, no user feedback).
+If the DB write fails (e.g., during a transaction or high-load moment) → in-app notification lost, no retry.
+30-second polling delay means notifications feel "missing" right after an action.
+Affected files:
+
+server/routes.ts — fire-and-forget notification calls (~lines 2184, 2192, 2255, 2265)
+server/resend.ts — ignored return values, silently caught errors (lines ~92, 125, 159)
+client/src/hooks/use-notification-toast.ts — 30-second poll interval
+client/src/pages/portal/notifications.tsx — 30-second poll
+Bug 7 — Inventory Page: Unstable Behavior ⚠️ Priority
+Root Cause: Three compounding issues.
+
+1. No automatic token refresh on 401 (most critical). getValidAccessToken() in zoho-auth.ts checks expiry before the call. If the Zoho access token expires during a call, or if Zoho's server-side session is revoked (which Zoho does after ~1 hour of inactivity for some plans), the request returns a 401 — but zohoRequest() in zoho-api.ts has no retry-on-401 logic. The error propagates up, the frontend gets a 500/401, and shows the "reconnect Zoho" empty state.
+
+2. Reconnecting Zoho does NOT trigger an immediate sync. The OAuth callback route (/api/zoho/callback) only saves the new tokens to the DB. It does not call startZohoSyncScheduler or any immediate fetch. The inventory page remains empty until the next scheduled sync cycle fires — which could be hours away depending on the configured sync frequency.
+
+3. Scheduler has a fully swallowed error. zoho-sync.ts line 67 has .catch(() => {}) — a completely silent empty catch. If the sync job throws (e.g., bad token, API error), nothing is logged, no alert is raised, and the scheduler continues on its normal schedule as if nothing happened.
+
+Affected files:
+
+server/zoho-auth.ts — getValidAccessToken(), no 401 retry
+server/zoho-api.ts — zohoRequest(), no retry-on-401 (lines 4–38)
+server/zoho-sync.ts — empty .catch(() => {}) (line 67)
+server/routes.ts — /api/zoho/callback (no immediate sync trigger)
+client/src/pages/admin/inventaire.tsx — triggers empty state on any API error (lines ~91, 261–278)
+Bug 8 — Inventory Data Consistency
+Root Cause: Zoho is the master; Shopify is overwritten. Any Zoho sync gap creates a desync.
+
+Key findings:
+
+Zoho is the master inventory. When a product is marked pushedToZoho = true, the Shopify writeback scheduler (shopify-writeback.ts, lines ~83, 92) pushes Zoho's quantity back to Shopify, overriding whatever Shopify has. Any Shopify-side stock change (sale, manual adjustment) will eventually be overwritten by Zoho's value.
+
+Null → 0 in Zoho API response. In routes.ts (~line 3081), stock_on_hand from Zoho is treated as Math.round(item.stock_on_hand) : 0 when null. This means a failed Zoho API call (returning null) sets the displayed stock to 0 — the "incorrect zero values" scenario.
+
+Shopify sync overwrites inventoryQuantity with zohoInventoryQuantity. In shopify-sync.ts (~line 55, 75), if useZohoInventory is true, the local inventoryQuantity is set from existing.zohoInventoryQuantity. If that field was last set to 0 by a failed sync, positive Shopify stock is silently discarded.
+
+No reconciliation mechanism. There is no job that compares Shopify stock vs. Zoho stock and flags discrepancies.
+
+Affected files:
+
+server/zoho-sync.ts — stock pull from Zoho (line ~47)
+server/shopify-sync.ts — inventoryQuantity overwrite (lines ~55, 75)
+server/shopify-writeback.ts — Zoho → Shopify push (lines ~83, 92)
+server/routes.ts — null → 0 coercion (line ~3081)
+Bug 9 — General Scan: Additional Issues Found
+#	Issue	Location	Severity
+A	storeUrl null → "null" string in encoded URLs	portal/boutique.tsx order navigation	Medium
+B	Product IDs navigated without null check — /portal/products/undefined routes possible	portal/boutique.tsx, admin/boutique.tsx	Medium
+C	zohoRequest fetches a new token on every call — no in-memory token cache between requests within the same second; high-frequency operations each call getValidAccessToken	server/zoho-api.ts	Low–Medium
+D	pushItemToZoho can mark items pending-{id} silently — admin has no notification that a push failed; the UI may show "pushed" while DB has a pending marker	server/zoho-api.ts, server/routes.ts	Medium
+E	WooCommerce order detail pages are broken — detail view always calls fetchShopifyOrderDetail regardless of order source	server/shopify-orders-sync.ts, order detail pages	High (if WooCommerce is in use)
+F	Zoho sync scheduler has no overlap guard — if a sync takes longer than the interval, two syncs can run in parallel	server/zoho-sync.ts	Low–Medium
+Summary of information needed to fully confirm vs. hypothesize:
+
+Direct DB access to see which products have pushedToZoho = true but zohoInventoryQuantity = 0
+Zoho API logs to confirm whether 401s are occurring during active sessions
+Resend dashboard to confirm whether email notifications are being attempted/delivered
+Live test of the admin System D product cards to confirm the missing onClick (strongly confirmed by code)
