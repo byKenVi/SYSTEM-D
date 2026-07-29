@@ -64,7 +64,7 @@ export function startZohoSyncScheduler() {
         type: "zoho_inventory_sync",
         status: "error",
         message: `Zoho auto-sync failed: ${err.message}`,
-      }).catch(() => {});
+      }).catch((logErr) => console.error("[zoho-sync] Failed to write error to activity log:", logErr));
     } finally {
       isSyncing = false;
     }

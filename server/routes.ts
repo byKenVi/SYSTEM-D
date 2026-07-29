@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl } from "./zoho-auth";
+import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl, invalidateAccessTokenCache } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, setZohoItemStock, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion, ensureZohoContact } from "./zoho-api";
 import { generateFormPdf } from "./pdf-generator";
 import {
@@ -94,6 +94,36 @@ function buildStatusNotification(
     };
   }
   return null;
+}
+
+/**
+ * Non-blocking helper: fetches current Zoho inventory and updates the DB.
+ * Designed to be called fire-and-forget (with .catch) after token changes.
+ */
+async function triggerZohoSyncNow(): Promise<void> {
+  const allProducts = await storage.getProducts();
+  const pushedProducts = allProducts.filter(
+    (p) => p.pushedToZoho && p.zohoItemId && !p.zohoItemId.startsWith("pending-")
+  );
+  if (pushedProducts.length === 0) return;
+
+  const itemsMap = await fetchZohoItemsMap();
+  let updated = 0;
+  for (const product of pushedProducts) {
+    const zohoData = itemsMap.get(product.zohoItemId!);
+    if (!zohoData) continue;
+    await storage.updateProduct(product.id, {
+      zohoInventoryQuantity: zohoData.stock,
+      lastSyncedAt: new Date(),
+    });
+    updated++;
+  }
+
+  await storage.createActivityLog({
+    type: "zoho_inventory_sync",
+    status: "success",
+    message: `Post-connect sync: updated stock for ${updated} product${updated !== 1 ? "s" : ""}`,
+  });
 }
 
 export async function registerRoutes(
@@ -786,10 +816,16 @@ export async function registerRoutes(
             continue;
           }
 
-          // Pending → skip, nothing to do
-          if (product.pushedToZoho && product.zohoItemId) {
-            updated.push(product);
-            continue;
+          // Pending (previous push failed) → reset to unpushed so we fall through
+          // to a fresh push attempt below, giving the admin a real retry.
+          if (product.pushedToZoho && product.zohoItemId?.startsWith("pending-")) {
+            await storage.updateProduct(id, {
+              pushedToZoho: false,
+              zohoItemId: null,
+            });
+            // Reload the product so the push block below sees the clean state
+            const reset = await storage.getProduct(id);
+            if (reset) Object.assign(product, reset);
           }
 
           // New item → ensure contact exists in Zoho first, then create item
@@ -1233,6 +1269,21 @@ export async function registerRoutes(
         return res.redirect("/admin/settings?zoho_select_org=true");
       }
 
+      // Evict the in-memory token cache so triggerZohoSyncNow() uses the new
+      // credentials we just persisted, not any previously cached token.
+      invalidateAccessTokenCache();
+
+      // Fire-and-forget immediate sync so Inventaire is populated right away
+      // without waiting for the background scheduler (which may be up to 15 min away).
+      triggerZohoSyncNow().catch((err) => {
+        console.error("[zoho-callback] Post-connect sync failed:", err.message);
+        storage.createActivityLog({
+          type: "zoho_inventory_sync",
+          status: "error",
+          message: `Post-connect sync failed: ${err.message}`,
+        }).catch(() => {});
+      });
+
       res.redirect("/admin/settings?zoho_connected=true");
     } catch (error: any) {
       console.error("Zoho callback error:", error);
@@ -1272,6 +1323,20 @@ export async function registerRoutes(
 
       delete (global as any).__zoho_pending_orgs;
       delete (global as any).__zoho_pending_tokens;
+
+      // Evict any cached token so the sync below picks up the newly-persisted credentials.
+      invalidateAccessTokenCache();
+
+      // Trigger an immediate sync so Inventaire is populated without waiting for scheduler
+      triggerZohoSyncNow().catch((err) => {
+        console.error("[zoho-select-org] Post-connect sync failed:", err.message);
+        storage.createActivityLog({
+          type: "zoho_inventory_sync",
+          status: "error",
+          message: `Post-connect sync failed: ${err.message}`,
+        }).catch(() => {});
+      });
+
       res.json({ message: "Organization selected", org });
     } catch (error: any) {
       console.error("Org select error:", error);
@@ -1282,6 +1347,10 @@ export async function registerRoutes(
   // Disconnect Zoho Inventory
   app.post("/api/auth/zoho/disconnect", isAuthenticated, isAdmin, async (req, res) => {
     try {
+      // Clear the in-memory token cache immediately so no further API calls
+      // can use a previously cached token after the admin disconnects.
+      invalidateAccessTokenCache();
+
       const existing = await storage.getAdminSettings();
       await storage.upsertAdminSettings({
         ...(existing || {}),

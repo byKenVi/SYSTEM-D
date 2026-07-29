@@ -52,7 +52,30 @@ export function startShopifySyncScheduler() {
             if (!importedVariantIds.has(p.shopifyVariantId)) continue;
 
             const existing = existingByVariant.get(p.shopifyVariantId);
-            const useZohoInventory = existing?.pushedToZoho && existing.zohoInventoryQuantity != null;
+            // Only trust the Zoho stock value when it is explicitly positive, OR when Shopify also
+            // reports 0 (no discrepancy). A Zoho value of 0 while Shopify still has stock indicates a
+            // failed or incomplete sync — in that case keep the Shopify quantity to avoid a false
+            // out-of-stock and flag the discrepancy in the activity log.
+            const zohoQty = existing?.zohoInventoryQuantity ?? null;
+            const zohoIsZeroWithPositiveShopify =
+              existing?.pushedToZoho &&
+              zohoQty === 0 &&
+              p.inventoryQuantity > 0;
+            const useZohoInventory =
+              existing?.pushedToZoho &&
+              zohoQty != null &&
+              !zohoIsZeroWithPositiveShopify;
+
+            if (zohoIsZeroWithPositiveShopify) {
+              // Log the discrepancy so the admin can investigate
+              storage
+                .createActivityLog({
+                  type: "zoho_inventory_sync",
+                  status: "error",
+                  message: `Stock discrepancy for "${existing!.name}" (SKU: ${existing!.sku || "—"}): Zoho reports 0 but Shopify has ${p.inventoryQuantity}. Keeping Shopify value.`,
+                })
+                .catch((e) => console.error("[shopify-sync] Failed to log stock discrepancy:", e));
+            }
 
             await storage.upsertProductByShopifyVariant(integration.contactId, p.shopifyVariantId, {
               contactId: integration.contactId,

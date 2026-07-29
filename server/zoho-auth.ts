@@ -1,5 +1,17 @@
 import { storage } from "./storage";
 
+// ── In-memory token cache ──────────────────────────────────────────────────
+// Avoids a DB read on every parallel API call within the same token window.
+let _cachedToken: string | null = null;
+let _cachedTokenExpiresAt: Date | null = null;
+
+/** Invalidate the in-memory cache (call after refresh or new token stored). */
+export function invalidateAccessTokenCache(): void {
+  _cachedToken = null;
+  _cachedTokenExpiresAt = null;
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 // Regional domain mappings
 const REGION_DOMAINS: Record<string, { accounts: string; api: string }> = {
   us: { accounts: "accounts.zoho.com", api: "www.zohoapis.com" },
@@ -79,6 +91,10 @@ export async function exchangeCodeForTokens(code: string, region: string = "us")
 }
 
 export async function refreshAccessToken(region: string = "us"): Promise<string> {
+  // Always clear the in-memory cache before refreshing so subsequent calls
+  // don't serve the old (about-to-be-replaced) token.
+  invalidateAccessTokenCache();
+
   const settings = await storage.getAdminSettings();
   if (!settings?.zohoInventoryRefreshToken) throw new Error("No Zoho refresh token stored");
 
@@ -116,25 +132,39 @@ export async function refreshAccessToken(region: string = "us"): Promise<string>
     zohoTokenExpiresAt: expiresAt,
   });
 
+  // Populate the in-memory cache with the new token
+  _cachedToken = data.access_token;
+  _cachedTokenExpiresAt = expiresAt;
+
   return data.access_token;
 }
 
 export async function getValidAccessToken(region: string = "us"): Promise<string> {
+  // Fast path: return the in-memory cached token if it hasn't expired.
+  // This avoids a DB round-trip on every parallel API call within the same
+  // token validity window (e.g. during fetchZohoItems enrichment).
+  if (_cachedToken && _cachedTokenExpiresAt && _cachedTokenExpiresAt > new Date()) {
+    return _cachedToken;
+  }
+
   const settings = await storage.getAdminSettings();
   if (!settings?.zohoInventoryRefreshToken) {
     throw new Error("Zoho Inventory not connected. Please connect in Settings.");
   }
 
-  // Use cached token if not expired
+  // Use DB-persisted token if still valid
   if (
     settings.zohoAccessToken &&
     settings.zohoTokenExpiresAt &&
     new Date(settings.zohoTokenExpiresAt) > new Date()
   ) {
+    // Populate the in-memory cache from the DB value
+    _cachedToken = settings.zohoAccessToken;
+    _cachedTokenExpiresAt = new Date(settings.zohoTokenExpiresAt);
     return settings.zohoAccessToken;
   }
 
-  // Token expired or missing — refresh
+  // Token expired or missing — refresh (also repopulates the cache)
   return refreshAccessToken(region);
 }
 
