@@ -78,7 +78,7 @@ export default function PortalOrderDetail() {
   const viewAs = searchParams.get("viewAs");
   const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}` : "/portal/boutique";
 
-  const { data, isLoading, error } = useQuery<{ order: any; shopName: string | null; storeUrl: string }>({
+  const { data, isLoading, error } = useQuery<{ order: any; shopName: string | null; storeUrl: string; platform?: string }>({
     queryKey: ["/api/portal/orders", shopifyOrderId, storeUrl],
     queryFn: () =>
       fetch(`/api/portal/orders/${shopifyOrderId}?store=${encodeURIComponent(storeUrl)}`, {
@@ -89,7 +89,8 @@ export default function PortalOrderDetail() {
   });
 
   const order = data?.order;
-  const shopifyOrderUrl = storeUrl && shopifyOrderId
+  const isWooCommerce = data?.platform === "woocommerce";
+  const shopifyOrderUrl = storeUrl && shopifyOrderId && !isWooCommerce
     ? `https://${storeUrl}/admin/orders/${shopifyOrderId}`
     : null;
 
@@ -171,6 +172,14 @@ export default function PortalOrderDetail() {
           </Button>
         )}
       </div>
+
+      {/* WooCommerce notice */}
+      {isWooCommerce && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 px-4 py-3 flex items-center gap-3 text-sm text-amber-700 dark:text-amber-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Commande importée depuis WooCommerce — certains détails peuvent ne pas être disponibles.</span>
+        </div>
+      )}
 
       {/* Financial summary metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -259,7 +268,7 @@ export default function PortalOrderDetail() {
                         )}
                       </div>
                       <p className="text-lg font-mono font-bold text-foreground">
-                        {money((Number(item.price) * item.quantity - Number(item.total_discount ?? 0)).toFixed(2), order.currency)}
+                        {money(((parseFloat(item.price) || 0) * (item.quantity || 0) - (parseFloat(item.total_discount ?? "0") || 0)).toFixed(2), order.currency)}
                       </p>
                     </div>
                   </div>

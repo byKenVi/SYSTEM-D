@@ -108,7 +108,7 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: [notifKey!],
-    refetchInterval: 30_000,
+    refetchInterval: 8_000,
     enabled: role !== undefined && notifKey !== null,
   });
 

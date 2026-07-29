@@ -810,6 +810,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             data-testid={`row-portal-product-${product.id}`}
                             className="cursor-pointer group hover:bg-muted/50 transition-colors"
                             onClick={() => {
+                              if (!product.id) { console.warn("Product has no ID, skipping navigation"); return; }
                               const path = viewAsContactId
                                 ? `/portal/products/${product.id}?viewAs=${viewAsContactId}`
                                 : `/portal/products/${product.id}`;
@@ -1039,7 +1040,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               key={order.shopifyOrderId}
                               className="cursor-pointer group hover:bg-muted/50 transition-colors"
                               onClick={() => {
-                                const store = encodeURIComponent(order.storeUrl ?? "");
+                                if (!order.storeUrl) { console.warn("Order has no storeUrl, skipping navigation"); return; }
+                                if (!order.shopifyOrderId) { console.warn("Order has no ID, skipping navigation"); return; }
+                                const store = encodeURIComponent(order.storeUrl);
                                 const path = viewAsContactId
                                   ? `/portal/orders/${order.shopifyOrderId}?viewAs=${viewAsContactId}&store=${store}`
                                   : `/portal/orders/${order.shopifyOrderId}?store=${store}`;

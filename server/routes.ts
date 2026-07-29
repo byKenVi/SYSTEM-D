@@ -561,7 +561,7 @@ export async function registerRoutes(
     }
   });
 
-  // Fetch full single order from Shopify (live)
+  // Fetch full single order from Shopify (live) or from cache for WooCommerce
   app.get("/api/admin/orders/:shopifyOrderId", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const { shopifyOrderId } = req.params;
@@ -572,11 +572,33 @@ export async function registerRoutes(
       const integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
       if (!integration) return res.status(404).json({ message: "Shopify integration not found for this store" });
 
-      const { fetchShopifyOrderDetail } = await import("./shopify-api");
-      const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
-
       const allContacts = await storage.getContacts();
       const contact = allContacts.find((c) => c.id === integration.contactId);
+
+      // For WooCommerce integrations, return cached order data instead of calling Shopify API
+      if ((integration as any).platform === "woocommerce") {
+        const allOrders = await storage.getShopifyOrders();
+        const cached = allOrders.find((o) => o.shopifyOrderId === shopifyOrderId && o.storeUrl === storeUrl);
+        if (!cached) return res.status(404).json({ message: "Commande WooCommerce introuvable dans le cache" });
+        const order = {
+          id: Number(cached.shopifyOrderId) || 0,
+          name: cached.name,
+          created_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
+          updated_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
+          financial_status: cached.financialStatus,
+          fulfillment_status: cached.fulfillmentStatus,
+          total_price: cached.totalPrice ?? "0",
+          subtotal_price: cached.totalPrice ?? "0",
+          currency: cached.currency ?? "CAD",
+          email: cached.email,
+          customer: (cached.customerFirstName || cached.customerLastName) ? { first_name: cached.customerFirstName ?? "", last_name: cached.customerLastName ?? "" } : null,
+          line_items: (cached.lineItems as any[]) ?? [],
+        };
+        return res.json({ order, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl, platform: "woocommerce" });
+      }
+
+      const { fetchShopifyOrderDetail } = await import("./shopify-api");
+      const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
 
       res.json({ order, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl });
     } catch (error: any) {
@@ -1860,6 +1882,29 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Shopify integration not found for this store" });
       }
 
+      // For WooCommerce integrations, return cached order data instead of calling Shopify API
+      if ((integration as any).platform === "woocommerce") {
+        const contactId = role.role === "admin" ? integration.contactId : role.contactId;
+        const allOrders = await storage.getShopifyOrders(contactId ? { contactId } : undefined);
+        const cached = allOrders.find((o) => o.shopifyOrderId === shopifyOrderId && o.storeUrl === storeUrl);
+        if (!cached) return res.status(404).json({ message: "Commande WooCommerce introuvable dans le cache" });
+        const order = {
+          id: Number(cached.shopifyOrderId) || 0,
+          name: cached.name,
+          created_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
+          updated_at: cached.shopifyCreatedAt?.toISOString() ?? new Date(0).toISOString(),
+          financial_status: cached.financialStatus,
+          fulfillment_status: cached.fulfillmentStatus,
+          total_price: cached.totalPrice ?? "0",
+          subtotal_price: cached.totalPrice ?? "0",
+          currency: cached.currency ?? "CAD",
+          email: cached.email,
+          customer: (cached.customerFirstName || cached.customerLastName) ? { first_name: cached.customerFirstName ?? "", last_name: cached.customerLastName ?? "" } : null,
+          line_items: (cached.lineItems as any[]) ?? [],
+        };
+        return res.json({ order, shopName: integration.shopName, storeUrl, platform: "woocommerce" });
+      }
+
       const { fetchShopifyOrderDetail } = await import("./shopify-api");
       const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
 
@@ -2271,10 +2316,13 @@ export async function registerRoutes(
               name: contact.name,
               formType: form.formType,
               formNumber: form.formNumber,
-            }).catch((err) => console.error("Form email error:", err));
+            }).catch((err) => {
+              console.error("Form email error:", err);
+              storage.createActivityLog({ type: "form_email", status: "error", message: `Email de soumission non envoyé pour ${form.formNumber}: ${err?.message ?? err}` }).catch(() => {});
+            });
           }
 
-          ;(async () => {
+          try {
             const enabled = await storage.isNotificationEnabled(form.contactId, "compte");
             if (enabled) {
               await storage.createNotification({
@@ -2286,7 +2334,10 @@ export async function registerRoutes(
                 metadata: { formId: form.id, formNumber: form.formNumber, formType: form.formType },
               });
             }
-          })().catch((err) => console.error("Notification error:", err));
+          } catch (err: any) {
+            console.error("Notification error:", err);
+            await storage.createActivityLog({ type: "notification", status: "error", message: `Notification non créée pour ${form.formNumber}: ${err?.message ?? err}` }).catch(() => {});
+          }
 
           const settings = await storage.getAdminSettings();
           if (settings?.adminUserId) {
@@ -2347,12 +2398,15 @@ export async function registerRoutes(
 
           const notifData = buildStatusNotification(form.formType, form.status, status, form.formNumber, form.id);
           if (notifData) {
-            ;(async () => {
+            try {
               const enabled = await storage.isNotificationEnabled(form.contactId, notifData.category);
               if (enabled) {
                 await storage.createNotification({ contactId: form.contactId, ...notifData });
               }
-            })().catch((err) => console.error("Notification error:", err));
+            } catch (err: any) {
+              console.error("Notification error:", err);
+              await storage.createActivityLog({ type: "notification", status: "error", message: `Notification de statut non créée pour ${form.formNumber}: ${err?.message ?? err}` }).catch(() => {});
+            }
           }
 
           const statusLabels: Record<string, string> = { submitted: "Soumis", in_review: "En révision", approved: "Approuvé", completed: "Complété" };

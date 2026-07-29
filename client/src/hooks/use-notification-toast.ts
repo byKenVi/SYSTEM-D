@@ -11,7 +11,7 @@ export function useNotificationToast(enabled: boolean) {
   const { data: notifications } = useQuery<Notification[]>({
     queryKey: ["/api/portal/notifications"],
     enabled,
-    refetchInterval: 30_000,
+    refetchInterval: 8_000,
     staleTime: 0,
   });
 

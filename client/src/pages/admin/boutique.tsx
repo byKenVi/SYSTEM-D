@@ -391,7 +391,7 @@ export default function AdminBoutique() {
                       </TableHeader>
                       <TableBody>
                         {filtered.map((product) => (
-                          <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => navigate(`/admin/products/${product.id}`)}>
+                          <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => { if (product.id) navigate(`/admin/products/${product.id}`); }}>
                             <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} /></TableCell>
                             <TableCell>
                               <div className="flex items-center gap-3">
@@ -463,7 +463,7 @@ export default function AdminBoutique() {
                                 </TableHeader>
                                 <TableBody>
                                   {group.products.map((product) => (
-                                    <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => navigate(`/admin/products/${product.id}`)}>
+                                    <TableRow key={product.id} data-testid={`row-product-${product.id}`} className="cursor-pointer" onClick={() => { if (product.id) navigate(`/admin/products/${product.id}`); }}>
                                       <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(product.id)} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} /></TableCell>
                                       <TableCell>
                                         <div className="flex items-center gap-3">
@@ -524,7 +524,7 @@ export default function AdminBoutique() {
                   {filtered.map((product) => {
                     const isSelected = selected.has(product.id);
                     return (
-                      <div key={product.id} data-testid={`card-product-${product.id}`} className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`} onClick={() => navigate(`/admin/products/${product.id}`)}>
+                      <div key={product.id} data-testid={`card-product-${product.id}`} className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`} onClick={() => { if (product.id) navigate(`/admin/products/${product.id}`); }}>
                         <div className="absolute top-2 left-2 z-10" onClick={(e) => { e.stopPropagation(); toggleSelect(product.id); }}>
                           <div className={`h-5 w-5 rounded border-2 flex items-center justify-center bg-background transition-colors ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary"}`}>
                             {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-primary-foreground"><path d="M20 6 9 17l-5-5"/></svg>}
@@ -571,7 +571,7 @@ export default function AdminBoutique() {
                             {group.products.map((product) => {
                               const isSelected = selected.has(product.id);
                               return (
-                                <div key={product.id} data-testid={`card-product-${product.id}`} className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`} onClick={() => navigate(`/admin/products/${product.id}`)}>
+                                <div key={product.id} data-testid={`card-product-${product.id}`} className={`relative rounded-xl border bg-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "ring-2 ring-primary border-primary" : "border-border"}`} onClick={() => { if (product.id) navigate(`/admin/products/${product.id}`); }}>
                                   <div className="absolute top-2 left-2 z-10" onClick={(e) => { e.stopPropagation(); toggleSelect(product.id); }}>
                                     <div className={`h-5 w-5 rounded border-2 flex items-center justify-center bg-background transition-colors ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30 hover:border-primary"}`}>
                                       {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-primary-foreground"><path d="M20 6 9 17l-5-5"/></svg>}
@@ -834,10 +834,10 @@ export default function AdminBoutique() {
                     ) : (
                       filteredOrders.map((order) => {
                         const customer = order.customer ? `${order.customer.first_name} ${order.customer.last_name}`.trim() : order.email ?? null;
-                        const shopifyOrderUrl = `https://${order.storeUrl}/admin/orders/${order.id}`;
-                        const detailUrl = `/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}`;
+                        const shopifyOrderUrl = order.storeUrl ? `https://${order.storeUrl}/admin/orders/${order.id}` : null;
+                        const detailUrl = order.storeUrl && order.id ? `/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}` : null;
                         return (
-                          <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer" onClick={() => navigate(detailUrl)}>
+                          <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer" onClick={() => { if (detailUrl) navigate(detailUrl); }}>
                             <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
                             <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(order.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
                             <TableCell>
@@ -859,9 +859,11 @@ export default function AdminBoutique() {
                             <TableCell><FulfillmentBadge status={order.fulfillment_status} /></TableCell>
                             <TableCell className="text-right font-medium text-sm tabular-nums">{order.currency} {Number(order.total_price).toFixed(2)}</TableCell>
                             <TableCell>
-                              <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`link-order-shopify-${order.id}`}>
-                                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                              </a>
+                              {shopifyOrderUrl && (
+                                <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`link-order-shopify-${order.id}`}>
+                                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                                </a>
+                              )}
                             </TableCell>
                           </TableRow>
                         );

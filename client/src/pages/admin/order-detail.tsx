@@ -175,6 +175,7 @@ interface OrderDetailResponse {
   companyName: string | null;
   shopName: string | null;
   storeUrl: string;
+  platform?: string;
 }
 
 function FinancialBadge({ status }: { status?: string | null }) {
@@ -270,7 +271,8 @@ export default function AdminOrderDetail() {
   });
 
   const order = data?.order;
-  const shopifyOrderUrl = storeUrl ? `https://${storeUrl}/admin/orders/${shopifyOrderId}` : null;
+  const isWooCommerce = data?.platform === "woocommerce";
+  const shopifyOrderUrl = storeUrl && !isWooCommerce ? `https://${storeUrl}/admin/orders/${shopifyOrderId}` : null;
 
   if (isLoading) {
     return (
@@ -312,6 +314,13 @@ export default function AdminOrderDetail() {
 
   return (
     <div className="space-y-5">
+      {/* WooCommerce notice */}
+      {isWooCommerce && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 px-4 py-3 flex items-center gap-3 text-sm text-amber-700 dark:text-amber-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Commande importée depuis WooCommerce — certains détails peuvent ne pas être disponibles.</span>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
@@ -393,12 +402,14 @@ export default function AdminOrderDetail() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="h-4 w-4" />
-            Articles ({order.line_items.length})
+            Articles ({(order.line_items ?? []).length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
-            {order.line_items.map((item) => (
+            {(order.line_items ?? []).length === 0 ? (
+              <div className="px-6 py-8 text-center text-muted-foreground text-sm">Aucun article</div>
+            ) : (order.line_items ?? []).map((item) => (
               <div key={item.id} className="px-6 py-3 flex items-start justify-between gap-4" data-testid={`row-line-item-${item.id}`}>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{item.title}</p>
