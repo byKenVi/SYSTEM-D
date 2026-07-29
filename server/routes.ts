@@ -1418,6 +1418,12 @@ export async function registerRoutes(
       res.json({ items: enriched, total: enriched.length });
     } catch (error: any) {
       console.error("Zoho inventory fetch error:", error);
+      if (error.message?.includes("429")) {
+        return res.status(429).json({
+          message: "Zoho a atteint sa limite d'appels API pour aujourd'hui (7 500 appels/jour). Les données seront à nouveau disponibles demain ou après minuit. Vos produits existants restent visibles dans l'onglet Produits Clients.",
+          code: "ZOHO_RATE_LIMITED",
+        });
+      }
       res.status(500).json({ message: error.message || "Failed to fetch Zoho inventory" });
     }
   });
@@ -3130,6 +3136,12 @@ export async function registerRoutes(
       res.json(systemdItems);
     } catch (error: any) {
       console.error("Error fetching SystemD products:", error);
+      if (error.message?.includes("429")) {
+        return res.status(429).json({
+          message: "Limite d'appels Zoho atteinte pour aujourd'hui. Les produits SystemD seront disponibles à nouveau demain.",
+          code: "ZOHO_RATE_LIMITED",
+        });
+      }
       res.status(500).json({ message: error.message || "Failed to fetch SystemD products" });
     }
   });

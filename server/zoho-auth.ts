@@ -10,6 +10,13 @@ export function invalidateAccessTokenCache(): void {
   _cachedToken = null;
   _cachedTokenExpiresAt = null;
 }
+
+// ── Refresh lock ───────────────────────────────────────────────────────────
+// Prevents concurrent requests from all firing parallel refresh calls when the
+// token expires simultaneously (e.g. after server restart or background sync).
+// The first caller kicks off the real refresh; all subsequent callers wait for
+// the same in-flight promise instead of issuing competing Zoho requests.
+let _refreshInFlight: Promise<string> | null = null;
 // ──────────────────────────────────────────────────────────────────────────
 
 // Regional domain mappings
@@ -90,9 +97,32 @@ export async function exchangeCodeForTokens(code: string, region: string = "us")
   return data;
 }
 
+/**
+ * Refresh the Zoho access token.
+ *
+ * Uses an in-flight promise lock so that when many requests hit an expired
+ * token simultaneously, only ONE refresh call is made to Zoho — all other
+ * callers wait on the same promise and get the same new token back.
+ *
+ * Also uses a targeted DB write (only zohoAccessToken + zohoTokenExpiresAt)
+ * instead of a full settings spread, which prevents concurrent writes from
+ * accidentally overwriting the refresh token or other settings.
+ */
 export async function refreshAccessToken(region: string = "us"): Promise<string> {
-  // Always clear the in-memory cache before refreshing so subsequent calls
-  // don't serve the old (about-to-be-replaced) token.
+  // If a refresh is already in flight, wait for it instead of making a second call.
+  if (_refreshInFlight) {
+    return _refreshInFlight;
+  }
+
+  _refreshInFlight = _doRefreshAccessToken(region).finally(() => {
+    _refreshInFlight = null;
+  });
+
+  return _refreshInFlight;
+}
+
+async function _doRefreshAccessToken(region: string): Promise<string> {
+  // Clear the in-memory cache so no stale token is served while we refresh.
   invalidateAccessTokenCache();
 
   const settings = await storage.getAdminSettings();
@@ -124,15 +154,13 @@ export async function refreshAccessToken(region: string = "us"): Promise<string>
   const data = await res.json();
   if (data.error) throw new Error(`Zoho refresh error: ${data.error}`);
 
-  // Persist the new access token and expiry
+  // Targeted write: only update the two token columns.
+  // Using a full settings spread here risks overwriting newer data written by
+  // a concurrent call (e.g. a fresh re-auth that updated the refresh token).
   const expiresAt = new Date(Date.now() + (data.expires_in - 60) * 1000);
-  await storage.upsertAdminSettings({
-    ...settings,
-    zohoAccessToken: data.access_token,
-    zohoTokenExpiresAt: expiresAt,
-  });
+  await storage.updateZohoTokens(data.access_token, expiresAt);
 
-  // Populate the in-memory cache with the new token
+  // Populate the in-memory cache with the new token.
   _cachedToken = data.access_token;
   _cachedTokenExpiresAt = expiresAt;
 

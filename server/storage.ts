@@ -53,6 +53,8 @@ export interface IStorage {
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
+  updateZohoTokens(accessToken: string, expiresAt: Date): Promise<void>;
+  updateZohoLastSyncAt(syncedAt: Date): Promise<void>;
 
   createActivityLog(data: InsertActivityLog): Promise<ActivityLog>;
   getActivityLogs(limit?: number): Promise<ActivityLog[]>;
@@ -317,6 +319,16 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(adminSettings).values(data).returning();
     return created;
+  }
+
+  async updateZohoTokens(accessToken: string, expiresAt: Date): Promise<void> {
+    // Targeted update: only touch the two token columns, never spread stale settings.
+    await db.update(adminSettings).set({ zohoAccessToken: accessToken, zohoTokenExpiresAt: expiresAt });
+  }
+
+  async updateZohoLastSyncAt(syncedAt: Date): Promise<void> {
+    // Targeted update: only touch the last-sync timestamp, never spread stale settings.
+    await db.update(adminSettings).set({ zohoLastAutoSyncAt: syncedAt });
   }
 
   async createActivityLog(data: InsertActivityLog): Promise<ActivityLog> {

@@ -281,6 +281,9 @@ export default function AdminInventaire() {
               <p className="text-sm text-muted-foreground mt-1">
                 {(() => {
                   const msg = (error as Error).message || "";
+                  if (msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("taux d'appel") || msg.toLowerCase().includes("rate_limited")) {
+                    return "Limite d'appels Zoho atteinte pour aujourd'hui (7 500 appels/jour). L'inventaire sera de nouveau accessible demain. Vos produits existants restent visibles dans l'onglet Produits Clients.";
+                  }
                   if (msg.includes("401") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("oauth")) {
                     return "Token Zoho expiré — reconnectez Zoho Inventory dans les Paramètres.";
                   }

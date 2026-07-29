@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { fetchZohoItemsMap } from "./zoho-api";
+import { fetchZohoItemsMapLite } from "./zoho-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
@@ -33,11 +33,16 @@ export function startZohoSyncScheduler() {
       const pushedProducts = allProducts.filter((p) => p.pushedToZoho && p.zohoItemId && !p.zohoItemId.startsWith("pending-"));
 
       if (pushedProducts.length === 0) {
-        await storage.upsertAdminSettings({ ...settings, zohoLastAutoSyncAt: now } as any);
+        // Use targeted update — never spread full settings to avoid overwriting
+        // a concurrent token refresh or other settings change.
+        await storage.updateZohoLastSyncAt(now);
         return;
       }
 
-      const itemsMap = await fetchZohoItemsMap();
+      // Use the lightweight list-only fetcher to avoid per-item API calls.
+      // fetchZohoItemsMapLite uses O(pages) calls instead of O(items) calls,
+      // which prevents exhausting Zoho's 7,500-call/day rate limit.
+      const itemsMap = await fetchZohoItemsMapLite();
 
       let updated = 0;
       for (const product of pushedProducts) {
@@ -50,7 +55,7 @@ export function startZohoSyncScheduler() {
         updated++;
       }
 
-      await storage.upsertAdminSettings({ ...settings, zohoLastAutoSyncAt: now } as any);
+      await storage.updateZohoLastSyncAt(now);
 
       log(`Zoho auto-sync: updated ${updated} product(s)`, "zoho-sync");
       await storage.createActivityLog({
@@ -59,6 +64,13 @@ export function startZohoSyncScheduler() {
         message: `Zoho auto-sync: updated stock for ${updated} product${updated !== 1 ? "s" : ""}`,
       });
     } catch (err: any) {
+      // 429 rate-limit: Zoho's daily API call budget is exhausted.
+      // Skip this cycle silently — the next scheduled run will retry.
+      // Do NOT log it as a persistent error; it resolves itself within 24 h.
+      if (err.message?.includes("429")) {
+        log("Zoho auto-sync skipped: API rate limit reached (429). Will retry next cycle.", "zoho-sync");
+        return;
+      }
       log(`Zoho auto-sync error: ${err.message}`, "zoho-sync");
       await storage.createActivityLog({
         type: "zoho_inventory_sync",

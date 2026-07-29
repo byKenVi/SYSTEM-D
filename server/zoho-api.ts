@@ -73,14 +73,18 @@ async function zohoUploadImage(
   const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
   const multipartBody = Buffer.concat([header, buffer, footer]);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Zoho-oauthtoken ${token}`,
-      "Content-Type": `multipart/form-data; boundary=${boundary}`,
-    },
-    body: multipartBody,
+  const buildHeaders = (accessToken: string) => ({
+    Authorization: `Zoho-oauthtoken ${accessToken}`,
+    "Content-Type": `multipart/form-data; boundary=${boundary}`,
   });
+
+  let res = await fetch(url, { method: "POST", headers: buildHeaders(token), body: multipartBody });
+
+  // 401: force a refresh and retry once (same pattern as zohoRequest)
+  if (res.status === 401) {
+    const freshToken = await refreshAccessToken(region);
+    res = await fetch(url, { method: "POST", headers: buildHeaders(freshToken), body: multipartBody });
+  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -387,6 +391,43 @@ export async function fetchZohoItemsMap(): Promise<Map<string, { stock: number; 
       rate: item.rate != null ? item.rate : null,
     });
   }
+  return map;
+}
+
+/**
+ * Lightweight version of fetchZohoItemsMap for the auto-sync scheduler.
+ *
+ * Uses only the paginated list endpoint — no per-item individual fetches.
+ * The list endpoint already returns stock_on_hand and rate, which is all the
+ * scheduler needs. Skipping the per-item enrichment (needed only for
+ * custom_fields) reduces API call volume from O(N) to O(pages), preventing
+ * Zoho's 7,500-call/day rate limit from being exhausted on large catalogues.
+ */
+export async function fetchZohoItemsMapLite(): Promise<Map<string, { stock: number; rate: number | null }>> {
+  const region = await getZohoRegion();
+  const map = new Map<string, { stock: number; rate: number | null }>();
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const data = await zohoRequest(
+      "GET",
+      `/items?per_page=200&page=${page}&filter_by=Status.All`,
+      undefined,
+      region
+    );
+    if (data.items && data.items.length > 0) {
+      for (const item of data.items) {
+        map.set(item.item_id, {
+          stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
+          rate: item.rate != null ? item.rate : null,
+        });
+      }
+    }
+    hasMore = data.page_context?.has_more_page === true;
+    page++;
+  }
+
   return map;
 }
 

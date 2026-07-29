@@ -451,15 +451,19 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   const [search, setSearch] = useState("");
 
   const forceRefRef = useRef(false);
-  const { data: products, isLoading, refetch: refetchProductsBase } = useQuery<SystemdProduct[]>({
+  const { data: products, isLoading, isError, error, refetch: refetchProductsBase } = useQuery<SystemdProduct[]>({
     queryKey: ["/api/portal/systemd-products"],
     queryFn: async () => {
       const r = await fetch(`/api/portal/systemd-products${forceRefRef.current ? "?force=true" : ""}`, { credentials: "include" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${r.status}`);
+      }
       const data = await r.json();
       return Array.isArray(data) ? data : [];
     },
     staleTime: 90_000,
+    retry: false,
   });
   const refetchProducts = async () => {
     forceRefRef.current = true;
@@ -527,6 +531,23 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
             <Skeleton key={i} className="h-56 w-full rounded-xl" />
           ))}
         </div>
+      ) : isError ? (
+        <Card className="border-border/50 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center p-16 text-center">
+            <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+              <Warehouse className="h-10 w-10 text-muted-foreground/50" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight mb-2">Catalogue temporairement indisponible</h3>
+            <p className="text-muted-foreground max-w-sm text-sm">
+              {(error as Error)?.message?.includes("429") || (error as Error)?.message?.toLowerCase().includes("limite")
+                ? "La limite d'appels Zoho a été atteinte pour aujourd'hui. Les produits seront de nouveau disponibles demain."
+                : "Impossible de charger les produits SystemD pour le moment. Réessayez dans quelques instants."}
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => refetchProducts()}>
+              Réessayer
+            </Button>
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
         <Card className="border-border shadow-sm">
           <CardContent className="flex flex-col items-center justify-center p-16 text-center">
