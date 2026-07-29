@@ -1,4 +1,4 @@
-import { getValidAccessToken, getZohoDomains } from "./zoho-auth";
+import { getValidAccessToken, getZohoDomains, refreshAccessToken } from "./zoho-auth";
 import { storage } from "./storage";
 
 async function zohoRequest(
@@ -16,19 +16,23 @@ async function zohoRequest(
   const sep = path.includes("?") ? "&" : "?";
   const url = `https://${api}/inventory/v1${path}${sep}organization_id=${orgId}`;
 
-  const options: RequestInit = {
+  const buildOptions = (accessToken: string): RequestInit => ({
     method,
     headers: {
-      Authorization: `Zoho-oauthtoken ${token}`,
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
       "Content-Type": "application/json",
     },
-  };
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
 
-  if (body) {
-    options.body = JSON.stringify(body);
+  let res = await fetch(url, buildOptions(token));
+
+  // If 401, force a token refresh and retry exactly once
+  if (res.status === 401) {
+    const freshToken = await refreshAccessToken(region);
+    res = await fetch(url, buildOptions(freshToken));
   }
 
-  const res = await fetch(url, options);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Zoho API ${method} ${path} failed: ${res.status} ${text}`);
@@ -111,16 +115,25 @@ export async function fetchZohoItems(): Promise<any[]> {
   }
 
   // The list endpoint doesn't return custom_fields — fetch each item individually to get them
-  const enriched = await Promise.all(
-    items.map(async (item) => {
-      try {
-        const detail = await zohoRequest("GET", `/items/${item.item_id}`, undefined, region);
-        return detail.item ?? item;
-      } catch {
-        return item;
-      }
-    })
-  );
+  // Use a concurrency-limited runner (5 at a time) to avoid bursting Zoho's rate limits
+  const CONCURRENCY = 5;
+  const enriched: any[] = new Array(items.length);
+  for (let i = 0; i < items.length; i += CONCURRENCY) {
+    const batch = items.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(async (item) => {
+        try {
+          const detail = await zohoRequest("GET", `/items/${item.item_id}`, undefined, region);
+          return detail.item ?? item;
+        } catch {
+          return item;
+        }
+      })
+    );
+    for (let j = 0; j < results.length; j++) {
+      enriched[i + j] = results[j];
+    }
+  }
 
   return enriched;
 }

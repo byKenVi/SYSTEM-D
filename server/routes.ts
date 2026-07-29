@@ -1292,6 +1292,9 @@ export async function registerRoutes(
         zohoTokenExpiresAt: null,
         zohoRegion: "us",
       });
+      // Clear inventory cache on disconnect
+      inventoryCache.data = null;
+      inventoryCache.fetchedAt = 0;
       res.json({ message: "Disconnected" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1309,8 +1312,18 @@ export async function registerRoutes(
   });
 
   // Sync items from Zoho Inventory into the app for a contact
+  // Server-side in-memory cache for the inventory response (2-minute TTL)
+  const inventoryCache = { data: null as any, fetchedAt: 0 };
+  const INVENTORY_CACHE_TTL_MS = 2 * 60 * 1000;
+
   // Fetch all Zoho Inventory items with cf_client custom field, enriched with contact info
   app.get("/api/zoho/inventory", isAuthenticated, isAdmin, async (req, res) => {
+    const force = req.query.force === "true";
+    const now = Date.now();
+    const isCacheFresh = !force && inventoryCache.data && (now - inventoryCache.fetchedAt) < INVENTORY_CACHE_TTL_MS;
+    if (isCacheFresh) {
+      return res.json(inventoryCache.data);
+    }
     try {
       const { fetchZohoItems, fetchZohoContactsMap } = await import("./zoho-api");
       const [zohoItems, zohoContactsMap] = await Promise.all([fetchZohoItems(), fetchZohoContactsMap()]);
@@ -1380,7 +1393,10 @@ export async function registerRoutes(
         };
       });
 
-      res.json({ items: enriched, total: enriched.length });
+      const result = { items: enriched, total: enriched.length };
+      inventoryCache.data = result;
+      inventoryCache.fetchedAt = Date.now();
+      res.json(result);
     } catch (error: any) {
       console.error("Zoho inventory fetch error:", error);
       res.status(500).json({ message: error.message || "Failed to fetch Zoho inventory" });

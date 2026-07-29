@@ -47,6 +47,7 @@ import {
   ShieldCheck,
   Plus,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -170,6 +171,19 @@ export default function AdminSettingsPage() {
   }, []);
 
   const isZohoConnected = !!adminSettings?.zohoInventoryRefreshToken;
+
+  // Live connection test — only fires when the Integrations tab is visible and Zoho appears connected
+  const { data: zohoTestResult } = useQuery<{ ok: boolean; message?: string }>({
+    queryKey: ["/api/auth/zoho/test"],
+    queryFn: () => fetch("/api/auth/zoho/test", { credentials: "include" }).then(async (r) => {
+      const body = await r.json();
+      return body;
+    }),
+    enabled: isZohoConnected,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const zohoTokenValid = !isZohoConnected || zohoTestResult === undefined || zohoTestResult.ok !== false;
   const connectedClientIds = new Set(integrations?.map((i) => i.contactId) || []);
   const availableClients = contacts?.filter((c) => !connectedClientIds.has(c.id)) || [];
 
@@ -434,7 +448,9 @@ export default function AdminSettingsPage() {
                   </p>
                 </div>
                 {isZohoConnected && (
-                  <Badge variant="default" className="ml-auto bg-emerald-600">Connecté</Badge>
+                  zohoTokenValid
+                    ? <Badge variant="default" className="ml-auto bg-emerald-600">Connecté</Badge>
+                    : <Badge variant="outline" className="ml-auto border-amber-500 text-amber-600 dark:text-amber-400">Token invalide</Badge>
                 )}
               </CardHeader>
               <CardContent>
@@ -444,22 +460,34 @@ export default function AdminSettingsPage() {
                   </div>
                 ) : isZohoConnected ? (
                   <div className="space-y-4">
-                    <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm">
-                        <p className="font-medium text-emerald-800 dark:text-emerald-300">Connecté</p>
-                        {adminSettings?.zohoInventoryOrgName && (
-                          <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
-                            Organisation : {adminSettings.zohoInventoryOrgName}
-                          </p>
-                        )}
-                        {adminSettings?.zohoInventoryOrgId && (
-                          <p className="text-emerald-600 dark:text-emerald-500 text-xs">
-                            Org ID : {adminSettings.zohoInventoryOrgId}
-                          </p>
-                        )}
+                    {zohoTokenValid ? (
+                      <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-emerald-800 dark:text-emerald-300">Connecté</p>
+                          {adminSettings?.zohoInventoryOrgName && (
+                            <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
+                              Organisation : {adminSettings.zohoInventoryOrgName}
+                            </p>
+                          )}
+                          {adminSettings?.zohoInventoryOrgId && (
+                            <p className="text-emerald-600 dark:text-emerald-500 text-xs">
+                              Org ID : {adminSettings.zohoInventoryOrgId}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-amber-800 dark:text-amber-300">Token invalide — reconnectez</p>
+                          <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">
+                            Le token stocké ne peut plus authentifier auprès de Zoho. Déconnectez puis reconnectez Zoho Inventory.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1.5 text-sm">
                         <Clock className="h-3.5 w-3.5" />

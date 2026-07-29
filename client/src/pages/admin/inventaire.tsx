@@ -87,8 +87,11 @@ export default function AdminInventaire() {
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<InventoryResponse>({
     queryKey: ["/api/zoho/inventory"],
-    queryFn: () => fetch("/api/zoho/inventory", { credentials: "include" }).then((r) => {
-      if (!r.ok) throw new Error("Zoho non connecté ou erreur API");
+    queryFn: () => fetch("/api/zoho/inventory", { credentials: "include" }).then(async (r) => {
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message || "Zoho non connecté ou erreur API");
+      }
       return r.json();
     }),
     staleTime: 2 * 60 * 1000,
@@ -172,7 +175,18 @@ export default function AdminInventaire() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => refetch()}
+          onClick={() => {
+            queryClient.fetchQuery({
+              queryKey: ["/api/zoho/inventory"],
+              queryFn: () => fetch("/api/zoho/inventory?force=true", { credentials: "include" }).then(async (r) => {
+                if (!r.ok) {
+                  const body = await r.json().catch(() => ({}));
+                  throw new Error(body.message || "Zoho non connecté ou erreur API");
+                }
+                return r.json();
+              }),
+            });
+          }}
           disabled={isFetching}
           data-testid="button-refresh-inventory"
         >
@@ -265,7 +279,19 @@ export default function AdminInventaire() {
             <div>
               <p className="font-medium text-destructive">Impossible de charger l'inventaire Zoho</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Vérifiez que Zoho Inventory est connecté dans les Paramètres.
+                {(() => {
+                  const msg = (error as Error).message || "";
+                  if (msg.includes("401") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("oauth")) {
+                    return "Token Zoho expiré — reconnectez Zoho Inventory dans les Paramètres.";
+                  }
+                  if (msg.toLowerCase().includes("organization id") || msg.toLowerCase().includes("org")) {
+                    return "Org ID Zoho non configuré — sélectionnez une organisation dans les Paramètres.";
+                  }
+                  if (msg.toLowerCase().includes("not connected") || msg.toLowerCase().includes("refresh token")) {
+                    return "Zoho Inventory n'est pas connecté — configurez la connexion dans les Paramètres.";
+                  }
+                  return "Vérifiez que Zoho Inventory est connecté et configuré dans les Paramètres.";
+                })()}
               </p>
               <Link href="/admin/settings">
                 <Button variant="outline" size="sm" className="mt-3">
