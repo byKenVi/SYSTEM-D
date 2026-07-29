@@ -431,14 +431,50 @@ export async function fetchZohoItemsMapLite(): Promise<Map<string, { stock: numb
   return map;
 }
 
-// Test that the connection works
-export async function testZohoConnection(): Promise<{ ok: boolean; orgName?: string }> {
+/**
+ * Test the Zoho connection.
+ *
+ * Validates the token via the refresh mechanism first (not via an API call),
+ * so a rate-limited organisation (429) is never reported as "token invalid".
+ *
+ * Returns:
+ *   { ok: true }                  — token is valid (connection is healthy)
+ *   { ok: true, rateLimited: true } — token is valid but daily API quota is exhausted
+ *   { ok: false, reason: 'invalid_token' } — refresh token is missing or rejected by Zoho
+ *   { ok: false, reason: 'unknown' }       — unexpected error
+ */
+export async function testZohoConnection(): Promise<{
+  ok: boolean;
+  rateLimited?: boolean;
+  reason?: string;
+  orgName?: string;
+}> {
+  try {
+    // Step 1: Validate the token by obtaining a valid access token.
+    // getValidAccessToken() uses the stored refresh_token — if it can obtain
+    // an access token, the OAuth credentials are valid regardless of API quota.
+    await getValidAccessToken();
+  } catch (err: any) {
+    // Refresh token missing, rejected, or credentials missing → truly invalid
+    return { ok: false, reason: "invalid_token" };
+  }
+
+  // Step 2: Make a lightweight API call to confirm the org connection.
   try {
     const region = await getZohoRegion();
     const data = await zohoRequest("GET", "/items?per_page=1", undefined, region);
     return { ok: true, orgName: data.organization?.name };
   } catch (err: any) {
-    return { ok: false };
+    const msg = err.message || "";
+    if (msg.includes("429")) {
+      // Rate limit exhausted — token is fine, quota is just depleted for today
+      return { ok: true, rateLimited: true };
+    }
+    if (msg.includes("401") || msg.toLowerCase().includes("invalid_oauthtoken")) {
+      return { ok: false, reason: "invalid_token" };
+    }
+    // Other transient errors (network, 5xx) — don't condemn the token
+    return { ok: true };
   }
 }
 

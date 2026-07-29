@@ -173,7 +173,7 @@ export default function AdminSettingsPage() {
   const isZohoConnected = !!adminSettings?.zohoInventoryRefreshToken;
 
   // Live connection test — only fires when the Integrations tab is visible and Zoho appears connected
-  const { data: zohoTestResult } = useQuery<{ ok: boolean; message?: string }>({
+  const { data: zohoTestResult } = useQuery<{ ok: boolean; rateLimited?: boolean; reason?: string; message?: string }>({
     queryKey: ["/api/auth/zoho/test"],
     queryFn: () => fetch("/api/auth/zoho/test", { credentials: "include" }).then(async (r) => {
       const body = await r.json();
@@ -183,7 +183,11 @@ export default function AdminSettingsPage() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+  // Token is only considered invalid when the test explicitly says ok:false with reason invalid_token.
+  // A 429 rate-limit (ok:true, rateLimited:true) or a loading state (undefined) must not trigger the
+  // "Token invalide" warning — the token is fine in those cases.
   const zohoTokenValid = !isZohoConnected || zohoTestResult === undefined || zohoTestResult.ok !== false;
+  const zohoRateLimited = isZohoConnected && zohoTestResult?.ok === true && zohoTestResult?.rateLimited === true;
   const connectedClientIds = new Set(integrations?.map((i) => i.contactId) || []);
   const availableClients = contacts?.filter((c) => !connectedClientIds.has(c.id)) || [];
 
@@ -449,7 +453,9 @@ export default function AdminSettingsPage() {
                 </div>
                 {isZohoConnected && (
                   zohoTokenValid
-                    ? <Badge variant="default" className="ml-auto bg-emerald-600">Connecté</Badge>
+                    ? zohoRateLimited
+                      ? <Badge variant="outline" className="ml-auto border-orange-400 text-orange-500">Limite atteinte</Badge>
+                      : <Badge variant="default" className="ml-auto bg-emerald-600">Connecté</Badge>
                     : <Badge variant="outline" className="ml-auto border-amber-500 text-amber-600 dark:text-amber-400">Token invalide</Badge>
                 )}
               </CardHeader>
@@ -461,22 +467,34 @@ export default function AdminSettingsPage() {
                 ) : isZohoConnected ? (
                   <div className="space-y-4">
                     {zohoTokenValid ? (
-                      <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm">
-                          <p className="font-medium text-emerald-800 dark:text-emerald-300">Connecté</p>
-                          {adminSettings?.zohoInventoryOrgName && (
-                            <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
-                              Organisation : {adminSettings.zohoInventoryOrgName}
+                      zohoRateLimited ? (
+                        <div className="rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 p-3 flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-medium text-orange-800 dark:text-orange-300">Limite d'appels Zoho atteinte</p>
+                            <p className="text-orange-700 dark:text-orange-400 text-xs mt-0.5">
+                              Votre connexion Zoho est valide. Le quota journalier (7 500 appels) est temporairement épuisé — l'inventaire sera de nouveau accessible demain.
                             </p>
-                          )}
-                          {adminSettings?.zohoInventoryOrgId && (
-                            <p className="text-emerald-600 dark:text-emerald-500 text-xs">
-                              Org ID : {adminSettings.zohoInventoryOrgId}
-                            </p>
-                          )}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-medium text-emerald-800 dark:text-emerald-300">Connecté</p>
+                            {adminSettings?.zohoInventoryOrgName && (
+                              <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
+                                Organisation : {adminSettings.zohoInventoryOrgName}
+                              </p>
+                            )}
+                            {adminSettings?.zohoInventoryOrgId && (
+                              <p className="text-emerald-600 dark:text-emerald-500 text-xs">
+                                Org ID : {adminSettings.zohoInventoryOrgId}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
                     ) : (
                       <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />

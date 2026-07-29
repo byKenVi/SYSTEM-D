@@ -96,6 +96,9 @@ export default function AdminInventaire() {
     }),
     staleTime: 2 * 60 * 1000,
     retry: false,
+    // Keep the last successful data visible when a re-fetch fails (e.g. 429 rate limit).
+    // This way the inventory table stays populated instead of going blank.
+    placeholderData: (prev) => prev,
   });
 
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
@@ -195,8 +198,8 @@ export default function AdminInventaire() {
         </Button>
       </div>
 
-      {/* Stats bar */}
-      {!isLoading && !error && items.length > 0 && (
+      {/* Stats bar — shown even when there's an error if we have stale data */}
+      {!isLoading && items.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Card>
             <CardContent className="p-4">
@@ -271,43 +274,43 @@ export default function AdminInventaire() {
         )}
       </div>
 
-      {/* Error state */}
-      {error && (
-        <Card className="border-destructive/50">
-          <CardContent className="p-6 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium text-destructive">Impossible de charger l'inventaire Zoho</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {(() => {
-                  const msg = (error as Error).message || "";
-                  if (msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("taux d'appel") || msg.toLowerCase().includes("rate_limited")) {
-                    return "Limite d'appels Zoho atteinte pour aujourd'hui (7 500 appels/jour). L'inventaire sera de nouveau accessible demain. Vos produits existants restent visibles dans l'onglet Produits Clients.";
-                  }
-                  if (msg.includes("401") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("oauth")) {
-                    return "Token Zoho expiré — reconnectez Zoho Inventory dans les Paramètres.";
-                  }
-                  if (msg.toLowerCase().includes("organization id") || msg.toLowerCase().includes("org")) {
-                    return "Org ID Zoho non configuré — sélectionnez une organisation dans les Paramètres.";
-                  }
-                  if (msg.toLowerCase().includes("not connected") || msg.toLowerCase().includes("refresh token")) {
-                    return "Zoho Inventory n'est pas connecté — configurez la connexion dans les Paramètres.";
-                  }
-                  return "Vérifiez que Zoho Inventory est connecté et configuré dans les Paramètres.";
-                })()}
-              </p>
-              <Link href="/admin/settings">
-                <Button variant="outline" size="sm" className="mt-3">
-                  Aller aux Paramètres
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Error banner — shown above stale data when a re-fetch fails */}
+      {error && (() => {
+        const msg = (error as Error).message || "";
+        const isRateLimit = msg.includes("429") || msg.toLowerCase().includes("taux d'appel") || msg.toLowerCase().includes("rate_limited") || msg.toLowerCase().includes("limite");
+        const hasStaleData = items.length > 0;
+        return (
+          <Card className={isRateLimit ? "border-orange-300 dark:border-orange-800" : "border-destructive/50"}>
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertCircle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isRateLimit ? "text-orange-500" : "text-destructive"}`} />
+              <div className="flex-1">
+                <p className={`font-medium text-sm ${isRateLimit ? "text-orange-700 dark:text-orange-400" : "text-destructive"}`}>
+                  {isRateLimit
+                    ? "Limite d'appels Zoho atteinte pour aujourd'hui"
+                    : "Impossible de charger l'inventaire Zoho"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isRateLimit
+                    ? `Quota journalier (7 500 appels/jour) épuisé. L'inventaire sera de nouveau actualisable demain.${hasStaleData ? " Les données ci-dessous sont celles du dernier chargement réussi." : ""}`
+                    : msg.includes("401") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthorized")
+                      ? "Token Zoho expiré — reconnectez Zoho Inventory dans les Paramètres."
+                      : msg.toLowerCase().includes("not connected") || msg.toLowerCase().includes("refresh token")
+                        ? "Zoho Inventory n'est pas connecté — configurez la connexion dans les Paramètres."
+                        : "Vérifiez que Zoho Inventory est connecté et configuré dans les Paramètres."}
+                </p>
+                {!isRateLimit && (
+                  <Link href="/admin/settings">
+                    <Button variant="outline" size="sm" className="mt-3">Aller aux Paramètres</Button>
+                  </Link>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
-      {/* Table — flat mode */}
-      {!error && !groupBy && (
+      {/* Table — flat mode (shown even when error, if stale data is available) */}
+      {(!error || items.length > 0) && !groupBy && (
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
@@ -350,8 +353,8 @@ export default function AdminInventaire() {
         </Card>
       )}
 
-      {/* Table — grouped mode */}
-      {!error && groupBy && (
+      {/* Table — grouped mode (shown even when error, if stale data is available) */}
+      {(!error || items.length > 0) && groupBy && (
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
