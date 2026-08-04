@@ -1,0 +1,127 @@
+
+Tu travailles sur l’application Système D dans l’environnement de développement Replit.
+
+OBJECTIF MÉTIER
+
+Actuellement, lorsqu’on clique sur un produit Système D, ses détails s’ouvrent dans une popup ou un panneau latéral.
+
+Ce comportement doit être supprimé.
+
+Lorsqu’on clique sur un produit Système D, l’application doit ouvrir une véritable page dédiée, comme pour les autres produits de l’application.
+
+La nouvelle page doit :
+- avoir sa propre URL ;
+- fonctionner après une actualisation directe du navigateur ;
+- reprendre la logique de navigation des autres fiches produit ;
+- afficher les informations du produit de manière claire ;
+- être cohérente avec le design du reste de l’application ;
+- utiliser uniquement des libellés français ;
+- fonctionner sur ordinateur et mobile ;
+- ne jamais exposer un produit affecté à un autre client.
+
+==================================================
+RÈGLE BLOQUANTE : TRAVAIL EN DEUX PHASES
+==================================================
+
+PHASE 1 — ANALYSE SANS MODIFICATION
+
+Ne modifie aucun fichier pendant cette phase.
+
+1. Localise :
+   - le composant de la liste des produits Système D ;
+   - le gestionnaire exécuté lors du clic sur un produit ;
+   - la popup, le drawer ou le panneau latéral actuel ;
+   - les routes existantes des autres fiches produit ;
+   - les composants utilisés par les pages détaillées des autres produits ;
+   - la logique de récupération des données d’un produit ;
+   - la logique d’autorisation et de visibilité ;
+   - les composants de retour, breadcrumb, en-tête et actions.
+
+2. Explique :
+   - pourquoi le produit Système D s’ouvre actuellement dans un panneau latéral ;
+   - si le projet dispose déjà d’une page produit réutilisable ;
+   - si la meilleure solution est de réutiliser une route existante, d’étendre une page existante ou de créer une nouvelle route ;
+   - si un composant partagé peut être créé sans casser les autres pages produit ;
+   - les risques de régression.
+
+3. Évalue la solution proposée :
+   - remplacer l’ouverture de la popup par une navigation vers une page dédiée ;
+   - réutiliser autant que possible le design et les composants des autres fiches produit ;
+   - améliorer la hiérarchie visuelle sans réinventer complètement l’application ;
+   - conserver les champs actuellement disponibles ;
+   - prévoir les états chargement, erreur, produit introuvable et accès interdit.
+
+4. Si cette solution ne peut pas être appliquée proprement avec l’architecture actuelle, propose les alternatives les plus fiables.
+
+5. Fournis un plan comprenant :
+   - la route recommandée, basée sur les conventions existantes ;
+   - les fichiers à modifier ;
+   - les composants à réutiliser ;
+   - les composants à créer ;
+   - la logique de navigation ;
+   - la récupération des données ;
+   - le contrôle d’accès ;
+   - les tests nécessaires.
+
+Présente ta réponse sous cette forme :
+
+A. Comportement actuel
+B. Composants et routes existants
+C. Verdict sur la solution proposée
+D. Architecture recommandée
+E. Proposition de structure visuelle
+F. Fichiers à modifier
+G. Plan d’implémentation
+H. Tests
+I. Risques de régression
+
+Termine par :
+
+« ANALYSE TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER. »
+
+Puis arrête-toi.
+
+==================================================
+PHASE 2 — APRÈS AUTORISATION
+==================================================
+
+Commence uniquement lorsque je réponds :
+
+« VALIDÉ — EXÉCUTE LE PLAN APPROUVÉ »
+
+Après validation :
+
+1. Supprime le comportement d’ouverture de la popup ou du panneau latéral pour les produits Système D.
+2. Au clic, navigue vers une véritable page produit.
+3. Utilise la convention de route déjà employée dans l’application.
+4. Ne duplique pas inutilement les composants.
+5. Réutilise la mise en page des autres produits lorsque cela est propre.
+6. Améliore la présentation avec :
+   - un en-tête clair ;
+   - le nom du produit ;
+   - le statut ;
+   - les informations principales ;
+   - les spécifications ;
+   - le prix ou les données commerciales existantes ;
+   - les actions autorisées ;
+   - un bouton de retour ;
+   - un fil d’Ariane si le projet en possède déjà un.
+7. Ne crée pas de champs inexistants.
+8. N’invente pas de contenu.
+9. Ajoute les états :
+   - chargement ;
+   - erreur ;
+   - produit introuvable ;
+   - accès interdit.
+10. Vérifie que l’URL directe fonctionne après actualisation.
+11. Vérifie les permissions côté serveur, et pas uniquement dans l’interface.
+12. Vérifie que tous les nouveaux textes sont en français.
+13. Exécute typecheck, lint, tests et build.
+
+À la fin, fournis :
+- les fichiers modifiés ;
+- l’ancienne logique supprimée ;
+- la nouvelle route ;
+- les composants réutilisés ou créés ;
+- les tests réalisés ;
+- des instructions précises pour tester la page comme administrateur et comme client.
