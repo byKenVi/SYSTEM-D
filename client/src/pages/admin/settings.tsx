@@ -78,6 +78,8 @@ const TYPE_LABELS: Record<string, string> = {
   shopify_orders_sync: "Sync Commandes",
   zoho_push: "Envoi Zoho",
   zoho_inventory_sync: "Inventaire Zoho",
+  zoho_catalog_sync: "Sync catalogue Zoho",
+  zoho_catalog_webhook: "Webhook Zoho",
   contact_invite: "Invitation envoyée",
   contact_revoke: "Accès révoqué",
   contact_delete: "Contact supprimé",
@@ -93,6 +95,8 @@ const TYPE_COLORS: Record<string, string> = {
   shopify_writeback: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
   zoho_push: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
   zoho_inventory_sync: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+  zoho_catalog_sync: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  zoho_catalog_webhook: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   contact_invite: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
   contact_revoke: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   contact_delete: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -148,6 +152,15 @@ export default function AdminSettingsPage() {
   const { data: logs, isLoading: logsLoading } = useQuery<ActivityLog[]>({
     queryKey: ["/api/activity-logs"],
     refetchInterval: 30_000,
+  });
+
+  const { data: catalogStats, refetch: refetchCatalogStats } = useQuery<{
+    stats: { total: number; systemd: number; client: number; unresolved: number; active: number; inactive: number; deleted: number };
+    lastRuns: Array<{ id: number; status: string; triggeredBy: string; itemsReceived: number; itemsUpserted: number; itemsSoftDeleted: number; startedAt: string; completedAt: string | null; errorMessage: string | null }>;
+  }>({
+    queryKey: ["/api/zoho/catalog-stats"],
+    enabled: !!adminSettings?.zohoInventoryRefreshToken,
+    refetchInterval: 60_000,
   });
 
   useEffect(() => {
@@ -309,6 +322,30 @@ export default function AdminSettingsPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Échec de la synchronisation des commandes.", variant: "destructive" });
+    },
+  });
+
+  const triggerCatalogSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/zoho/full-sync", { method: "POST", credentials: "include" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message || "Erreur inconnue");
+      return body;
+    },
+    onSuccess: (data) => {
+      refetchCatalogStats();
+      toast({ title: "Synchronisation terminée", description: data.message });
+    },
+    onError: (err: Error) => {
+      refetchCatalogStats();
+      const is429 = err.message?.toLowerCase().includes("quota") || err.message?.includes("429");
+      toast({
+        title: is429 ? "Quota Zoho épuisé" : "Erreur de synchronisation",
+        description: is429
+          ? "Le quota journalier Zoho (7 500 appels) est épuisé. Réessayez après minuit."
+          : err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -549,6 +586,97 @@ export default function AdminSettingsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* ── Catalogue local (cache Zoho) ── */}
+                    <div className="border rounded-md p-3 space-y-3 bg-muted/20">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">Catalogue local</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Cache local de tous les articles Zoho — évite les appels API à chaque chargement de page
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => triggerCatalogSyncMutation.mutate()}
+                          disabled={
+                            triggerCatalogSyncMutation.isPending ||
+                            catalogStats?.lastRuns?.[0]?.status === "running"
+                          }
+                          data-testid="button-sync-catalog"
+                          className="flex-shrink-0"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${triggerCatalogSyncMutation.isPending ? "animate-spin" : ""}`} />
+                          {triggerCatalogSyncMutation.isPending
+                            ? "Synchronisation..."
+                            : catalogStats?.lastRuns?.[0]?.status === "running"
+                            ? "En cours..."
+                            : "Synchroniser maintenant"}
+                        </Button>
+                      </div>
+
+                      {/* Last sync run status */}
+                      {catalogStats?.lastRuns?.[0] ? (() => {
+                        const run = catalogStats.lastRuns[0];
+                        const isRunning = run.status === "running";
+                        const isFailed = run.status === "failed";
+                        const isSuccess = run.status === "success";
+                        const startedAt = run.startedAt
+                          ? new Date(run.startedAt).toLocaleString("fr-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                          : null;
+                        return (
+                          <div className={`rounded text-xs p-2 flex items-start gap-2 ${
+                            isRunning ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300" :
+                            isFailed  ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
+                            isSuccess ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300" :
+                            "bg-muted border text-muted-foreground"
+                          }`}>
+                            {isRunning && <RefreshCw className="h-3 w-3 mt-0.5 animate-spin flex-shrink-0" />}
+                            {isFailed && <XCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />}
+                            {isSuccess && <CheckCircle2 className="h-3 w-3 mt-0.5 flex-shrink-0" />}
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium">
+                                {isRunning ? "Synchronisation en cours…" :
+                                 isFailed  ? "Dernier sync échoué" :
+                                 isSuccess ? `Dernier sync : ${run.itemsUpserted} articles mis à jour` :
+                                 "Statut inconnu"}
+                              </span>
+                              {isFailed && run.errorMessage && (
+                                <p className="mt-0.5 break-words">{run.errorMessage}</p>
+                              )}
+                              {startedAt && (
+                                <p className="mt-0.5 text-current opacity-70">
+                                  {isSuccess ? `Le ${startedAt}` : `Démarré le ${startedAt}`}
+                                  {isSuccess && run.itemsSoftDeleted > 0 && `, ${run.itemsSoftDeleted} supprimés`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })() : (
+                        <p className="text-xs text-muted-foreground italic">
+                          Aucune synchronisation effectuée — cliquez sur "Synchroniser maintenant" pour lancer le premier sync.
+                        </p>
+                      )}
+
+                      {/* Counters by assignment_state */}
+                      {catalogStats?.stats && catalogStats.stats.total > 0 && (
+                        <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+                          {[
+                            { label: "Total", value: catalogStats.stats.total, color: "text-foreground" },
+                            { label: "Système D", value: catalogStats.stats.systemd, color: "text-emerald-600 dark:text-emerald-400" },
+                            { label: "Clients", value: catalogStats.stats.client, color: "text-blue-600 dark:text-blue-400" },
+                            { label: "Non résolu", value: catalogStats.stats.unresolved, color: "text-amber-600 dark:text-amber-400" },
+                          ].map(({ label, value, color }) => (
+                            <div key={label} className="rounded bg-background border py-1.5">
+                              <p className={`font-bold text-sm leading-tight ${color}`}>{value}</p>
+                              <p className="text-muted-foreground leading-tight mt-0.5">{label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <Button
                       variant="outline"
                       className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"

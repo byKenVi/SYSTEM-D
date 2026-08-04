@@ -1,0 +1,149 @@
+VALIDÉ — EXÉCUTE LE PLAN APPROUVÉ, MAIS UNIQUEMENT JUSQU’À L’ÉTAPE 2 DU DÉPLOIEMENT PROGRESSIF.
+
+IMPORTANT :
+Ne bascule pas encore les routes principales vers zoho_catalog.
+Ne modifie pas encore :
+- GET /api/zoho/inventory
+- GET /api/portal/systemd-products
+- POST /api/portal/systemd-checkout
+
+Ces 3 routes doivent continuer à fonctionner comme avant jusqu’à validation manuelle des données après le reset du quota Zoho.
+
+==================================================
+PÉRIMÈTRE AUTORISÉ MAINTENANT
+==================================================
+
+Tu peux implémenter :
+
+1. Les migrations non destructives :
+   - zoho_sync_runs
+   - zoho_catalog
+
+2. La logique de synchronisation :
+   - syncFullZohoCatalog()
+   - verrou PostgreSQL atomique
+   - sync_run avec status running / success / failed
+   - upsert idempotent par zoho_item_id
+   - soft delete uniquement après sync complète réussie
+   - aucun delete physique
+
+3. La logique d’affectation :
+   - cf_client confirmé absent/vide/null après lecture complète Zoho = assignment_state = systemd
+   - cf_client rempli et résolu = assignment_state = client
+   - cf_client rempli mais non résolu = assignment_state = unresolved
+   - custom_fields/cf_client non vérifiables à cause d’une réponse incomplète, fallback, erreur API, quota ou timeout = assignment_state = unresolved
+   - unresolved jamais visible côté portail client
+
+4. Les endpoints de préparation :
+   - POST /api/zoho/full-sync
+   - GET /api/zoho/catalog-stats
+   - GET /api/zoho/sync-runs si utile
+
+5. L’interface Settings :
+   - bouton “Synchroniser maintenant”
+   - affichage de la dernière synchronisation
+   - affichage des compteurs par assignment_state
+   - affichage des erreurs de sync
+   - tous les textes en français
+
+6. L’endpoint webhook sécurisé :
+   - POST /api/webhooks/zoho-inventory
+   - vérification obligatoire du header X-Zoho-Webhook-Secret
+   - utilisation de ZOHO_INVENTORY_WEBHOOK_SECRET
+   - rejet des requêtes sans secret valide
+   - validation du payload
+   - traitement Created / Edited / Deleted
+   - soft delete pour Deleted
+
+Mais n’active pas encore automatiquement les webhooks Zoho.
+Ne tente pas de créer les webhooks automatiquement dans Zoho Inventory.
+Ne mets pas initZohoInventoryWebhooks() au démarrage.
+
+==================================================
+CE QUI DOIT ATTENDRE DEMAIN APRÈS RESET DU QUOTA
+==================================================
+
+Ne déclenche pas encore de sync si le quota Zoho est encore épuisé.
+
+Après reset du quota, je déclencherai manuellement :
+
+POST /api/zoho/full-sync
+
+Ensuite, je vérifierai :
+
+GET /api/zoho/catalog-stats
+
+Les compteurs devront être comparés avec le portail Zoho Inventory :
+- total produits Zoho
+- produits systemd
+- produits client
+- produits unresolved
+- produits actifs
+- produits inactifs
+- produits supprimés logiquement
+
+Tu ne dois pas considérer cette étape comme validée tant que les données n’ont pas été comparées manuellement.
+
+==================================================
+BASCULEMENT INTERDIT POUR L’INSTANT
+==================================================
+
+N’effectue PAS encore l’Étape 5.
+
+N’effectue PAS encore le basculement des routes suivantes :
+
+- GET /api/zoho/inventory
+- GET /api/portal/systemd-products
+- POST /api/portal/systemd-checkout
+
+Ces routes seront basculées uniquement après mon message explicite :
+
+“VALIDATION DONNÉES OK — BASCULE LES ROUTES VERS ZOHO_CATALOG”
+
+==================================================
+TESTS À EXÉCUTER MAINTENANT
+==================================================
+
+Après implémentation du périmètre autorisé, exécute :
+
+- typecheck
+- lint
+- tests disponibles
+- build
+
+Teste aussi :
+
+1. Les migrations se créent sans casser les tables existantes.
+2. POST /api/zoho/full-sync retourne une erreur claire si Zoho répond 429.
+3. Une erreur 429 ne vide pas zoho_catalog.
+4. GET /api/zoho/catalog-stats fonctionne même si aucun sync réussi n’a encore été fait.
+5. Webhook sans secret = rejeté.
+6. Webhook avec mauvais secret = rejeté.
+7. Les nouveaux textes visibles sont en français.
+
+==================================================
+RAPPORT ATTENDU
+==================================================
+
+À la fin, fournis :
+
+1. Liste exacte des fichiers modifiés.
+2. Migrations créées.
+3. Endpoints ajoutés.
+4. Ce qui a été volontairement laissé non basculé.
+5. Résultat de typecheck, lint, tests et build.
+6. Instructions exactes pour demain après reset quota :
+   - comment déclencher POST /api/zoho/full-sync ;
+   - comment lire GET /api/zoho/catalog-stats ;
+   - quels compteurs comparer dans Zoho Inventory.
+7. Instructions exactes pour configurer les webhooks après validation :
+   - secret Replit à créer ;
+   - URL webhook ;
+   - header à ajouter ;
+   - événements Created / Edited / Deleted.
+8. Limites restantes.
+9. Rollback.
+
+Termine par :
+
+“IMPLÉMENTATION ÉTAPES 1-2 TERMINÉE — ROUTES NON BASCULÉES. J’ATTENDS LE RESET DU QUOTA ET LA VALIDATION DES DONNÉES.”
