@@ -545,9 +545,11 @@ export function generateFormPdf(
       doc.switchToPage(i);
       const bottom = doc.page.height - 30;
       doc.fontSize(7).fillColor(MEDIUM_GRAY).font("Helvetica");
-      doc.text(`${form.formNumber}  •  Rév. ${form.revision}`, 50, bottom, { width: 200, align: "left" });
-      doc.text(`Page ${i + 1} / ${range.count}`, doc.page.width - 150, bottom, { width: 100, align: "right" });
-      doc.text("Système-D  •  Confidentiel", 0, bottom, { width: doc.page.width, align: "center" });
+      // lineBreak: false empêche pdfkit de créer une page blanche
+      // quand le texte est positionné sous la marge bottom (50pt)
+      doc.text(`${form.formNumber}  •  Rév. ${form.revision}`, 50, bottom, { width: 200, align: "left", lineBreak: false });
+      doc.text(`Page ${i + 1} / ${range.count}`, doc.page.width - 150, bottom, { width: 100, align: "right", lineBreak: false });
+      doc.text("Système-D  •  Confidentiel", 0, bottom, { width: doc.page.width, align: "center", lineBreak: false });
     }
 
     doc.end();
