@@ -32,8 +32,9 @@ import {
   Warehouse,
   AlertCircle,
 } from "lucide-react";
-import { useState, useMemo, createContext, useContext, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { CartProvider, useCart, type SystemdProduct, type CartItem } from "@/contexts/cart-context";
 import {
   Table,
   TableBody,
@@ -85,88 +86,6 @@ interface ShopifyOrder {
 }
 interface OrdersResponse { orders: ShopifyOrder[] }
 
-interface SystemdProduct {
-  zohoItemId: string;
-  name: string;
-  sku: string | null;
-  description: string | null;
-  imageUrl: string | null;
-  price: number;
-  stock: number;
-}
-
-interface CartItem {
-  product: SystemdProduct;
-  quantity: number;
-}
-
-/* ── Cart Context ── */
-interface CartContextValue {
-  items: CartItem[];
-  addItem: (product: SystemdProduct, qty: number) => void;
-  updateQty: (zohoItemId: string, qty: number) => void;
-  removeItem: (zohoItemId: string) => void;
-  clearCart: () => void;
-  totalItems: number;
-  subtotal: number;
-}
-
-const CartContext = createContext<CartContextValue>({
-  items: [],
-  addItem: () => {},
-  updateQty: () => {},
-  removeItem: () => {},
-  clearCart: () => {},
-  totalItems: 0,
-  subtotal: 0,
-});
-
-function useCart() {
-  return useContext(CartContext);
-}
-
-function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-
-  const addItem = useCallback((product: SystemdProduct, qty: number) => {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.product.zohoItemId === product.zohoItemId);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.zohoItemId === product.zohoItemId
-            ? { ...i, quantity: Math.min(i.quantity + qty, product.stock) }
-            : i
-        );
-      }
-      return [...prev, { product, quantity: Math.min(qty, product.stock) }];
-    });
-  }, []);
-
-  const updateQty = useCallback((zohoItemId: string, qty: number) => {
-    setItems((prev) => {
-      if (qty <= 0) return prev.filter((i) => i.product.zohoItemId !== zohoItemId);
-      return prev.map((i) =>
-        i.product.zohoItemId === zohoItemId ? { ...i, quantity: qty } : i
-      );
-    });
-  }, []);
-
-  const removeItem = useCallback((zohoItemId: string) => {
-    setItems((prev) => prev.filter((i) => i.product.zohoItemId !== zohoItemId));
-  }, []);
-
-  const clearCart = useCallback(() => setItems([]), []);
-
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const subtotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
-
-  return (
-    <CartContext.Provider value={{ items, addItem, updateQty, removeItem, clearCart, totalItems, subtotal }}>
-      {children}
-    </CartContext.Provider>
-  );
-}
-
 /* ── Badges ── */
 function FinancialBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-muted-foreground/40 text-xs font-mono">—</span>;
@@ -191,131 +110,6 @@ function FulfillmentBadge({ status }: { status: string | null }) {
   };
   const cfg = map[status] ?? { label: status, cls: "text-muted-foreground bg-muted border-border" };
   return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${cfg.cls}`}>{cfg.label}</span>;
-}
-
-/* ── SystemD Product Detail Sheet ── */
-function ProductDetailSheet({
-  product,
-  open,
-  onClose,
-}: {
-  product: SystemdProduct | null;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const { addItem } = useCart();
-  const { toast } = useToast();
-  const [qty, setQty] = useState(1);
-
-  if (!product) return null;
-
-  const inStock = product.stock > 0;
-
-  const handleAdd = () => {
-    if (!inStock) return;
-    addItem(product, qty);
-    toast({ title: "Ajouté au panier", description: `${qty}× ${product.name}` });
-    onClose();
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader className="mb-6">
-          <SheetTitle className="text-xl font-bold">{product.name}</SheetTitle>
-          {product.sku && (
-            <SheetDescription>
-              <Badge variant="outline" className="font-mono text-xs">{product.sku}</Badge>
-            </SheetDescription>
-          )}
-        </SheetHeader>
-
-        <div className="space-y-6">
-          <div className="w-full aspect-square rounded-xl overflow-hidden border bg-muted/30 flex items-center justify-center">
-            <img
-              src={product.imageUrl || ""}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              style={{ display: product.imageUrl ? undefined : "none" }}
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-                (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
-              }}
-            />
-            <span className="w-full h-full items-center justify-center" style={{ display: product.imageUrl ? "none" : "flex" }}>
-              <Package className="h-20 w-20 text-muted-foreground/30" />
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border bg-card">
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Prix</p>
-              <p className="text-2xl font-mono font-bold text-foreground">{money(product.price)}</p>
-            </div>
-            <div className={`p-4 rounded-xl border ${inStock ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20" : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20"}`}>
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Stock</p>
-              <p className={`text-2xl font-mono font-bold ${inStock ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                {product.stock} un.
-              </p>
-            </div>
-          </div>
-
-          {product.description && (
-            <div className="p-4 rounded-xl border bg-muted/20">
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Description</p>
-              <p className="text-sm text-foreground leading-relaxed">{product.description}</p>
-            </div>
-          )}
-
-          {inStock && (
-            <div className="space-y-3">
-              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Quantité</Label>
-              <div className="flex items-center gap-3">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-10 w-10 shrink-0"
-                  onClick={() => setQty(Math.max(1, qty - 1))}
-                  data-testid="button-qty-decrease"
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Input
-                  type="number"
-                  min={1}
-                  max={product.stock}
-                  value={qty}
-                  onChange={(e) => setQty(Math.max(1, Math.min(product.stock, Number(e.target.value))))}
-                  className="h-10 text-center font-mono font-bold text-base"
-                  data-testid="input-product-qty"
-                />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-10 w-10 shrink-0"
-                  onClick={() => setQty(Math.min(product.stock, qty + 1))}
-                  data-testid="button-qty-increase"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Sous-total : <span className="font-mono font-bold text-foreground">{money(product.price * qty)}</span></p>
-            </div>
-          )}
-
-          <Button
-            className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20"
-            disabled={!inStock}
-            onClick={handleAdd}
-            data-testid="button-add-to-cart"
-          >
-            <ShoppingCart className="h-5 w-5 mr-2" />
-            {inStock ? "Ajouter au panier" : "Rupture de stock"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
 }
 
 /* ── Cart Drawer ── */
@@ -445,10 +239,9 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
   const cart = useCart();
-  const [selectedProduct, setSelectedProduct] = useState<SystemdProduct | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
 
   const forceRefRef = useRef(false);
   const { data: products, isLoading, isError, error, refetch: refetchProductsBase } = useQuery<SystemdProduct[]>({
@@ -481,8 +274,10 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   }, [products, search]);
 
   const openDetail = (product: SystemdProduct) => {
-    setSelectedProduct(product);
-    setDetailOpen(true);
+    const path = viewAsContactId
+      ? `/portal/systemd/${product.zohoItemId}?viewAs=${viewAsContactId}`
+      : `/portal/systemd/${product.zohoItemId}`;
+    navigate(path);
   };
 
   return (
@@ -622,12 +417,6 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
         </div>
       )}
 
-      <ProductDetailSheet
-        product={selectedProduct}
-        open={detailOpen}
-        onClose={() => { setDetailOpen(false); }}
-      />
-
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
@@ -760,8 +549,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   });
 
   return (
-    <CartProvider>
-      <div className="space-y-6 animate-in w-full max-w-full">
+    <div className="space-y-6 animate-in w-full max-w-full">
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
           <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
@@ -1243,6 +1031,5 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           </TabsContent>
         </Tabs>
       </div>
-    </CartProvider>
   );
 }

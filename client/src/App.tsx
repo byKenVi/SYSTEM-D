@@ -38,6 +38,8 @@ import PortalCustomerDetail from "@/pages/portal/customer-detail";
 import PortalForms from "@/pages/portal/forms";
 import PortalBoutique from "@/pages/portal/boutique";
 import PortalDashboard from "@/pages/portal/dashboard";
+import PortalSystemdProductDetail from "@/pages/portal/systemd-product-detail";
+import { CartProvider } from "@/contexts/cart-context";
 import PortalNotifications from "@/pages/portal/notifications";
 import FormPrintPage from "@/pages/form-print";
 
@@ -104,6 +106,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
           <div className="p-6 lg:p-8 min-h-full w-full">
+            <CartProvider>
             <Switch>
               <Route path="/portal/dashboard">
                 <PortalDashboard viewAsContactId={viewAsContactId} />
@@ -119,6 +122,9 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
               </Route>
               <Route path="/portal/customers/:id">
                 <PortalCustomerDetail />
+              </Route>
+              <Route path="/portal/systemd/:zohoItemId">
+                <PortalSystemdProductDetail viewAsContactId={viewAsContactId} />
               </Route>
               <Route path="/portal/boutique">
                 <PortalBoutique viewAsContactId={viewAsContactId} />
@@ -146,6 +152,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
               </Route>
               <Route component={NotFound} />
             </Switch>
+            </CartProvider>
           </div>
         </div>
       </SidebarInset>

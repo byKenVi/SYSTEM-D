@@ -3329,6 +3329,115 @@ export async function registerRoutes(
     }
   });
 
+  // ── Résolution d'un produit Système D (source swappable) ──────────────────
+  // Pour basculer vers zoho_catalog : remplacer uniquement resolveSystemdProductDetail().
+  // L'endpoint HTTP lui-même ne change pas.
+  type SystemdResolveStatus = "ok" | "not_found" | "client_product" | "unverifiable" | "rate_limited";
+
+  interface SystemdProductDetail {
+    zohoItemId: string;
+    name: string;
+    sku: string | null;
+    description: string | null;
+    imageUrl: string | null;
+    price: number;
+    stock: number;
+  }
+
+  type SystemdResolveResult =
+    | { status: "ok"; product: SystemdProductDetail }
+    | { status: Exclude<SystemdResolveStatus, "ok"> };
+
+  const resolveSystemdProductDetail = async (zohoItemId: string): Promise<SystemdResolveResult> => {
+    const { fetchZohoItemDetail } = await import("./zoho-api");
+    let item: any;
+    try {
+      item = await fetchZohoItemDetail(zohoItemId);
+    } catch (err: any) {
+      if (err.message?.includes("429")) return { status: "rate_limited" };
+      return { status: "unverifiable" };
+    }
+
+    if (!item) return { status: "not_found" };
+
+    // custom_fields doit être un vrai tableau issu d'une réponse Zoho complète.
+    // Si absent ou mal formé → réponse incomplète → refus d'accès (jamais d'exposition en cas de doute).
+    const customFields: any[] | null = Array.isArray(item.custom_fields)
+      ? item.custom_fields
+      : null;
+    if (customFields === null) return { status: "unverifiable" };
+
+    const cfClientValue: string | null =
+      customFields.find((f: any) => f.api_name === "cf_client")?.value ?? null;
+
+    if (cfClientValue && cfClientValue.trim() !== "") {
+      // cf_client est rempli → produit appartient à un client, pas à Système D
+      return { status: "client_product" };
+    }
+
+    // cf_client confirmé absent → produit Système D ✅
+    return {
+      status: "ok",
+      product: {
+        zohoItemId: item.item_id,
+        name: item.name,
+        sku: item.sku || null,
+        description: item.description || null,
+        imageUrl: item.image_name ? `/api/zoho/item-image/${item.item_id}` : null,
+        price: item.rate != null ? Number(item.rate) : 0,
+        stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
+      },
+    };
+  }
+
+  app.get("/api/portal/systemd-products/:zohoItemId", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role) return res.status(401).json({ message: "Non autorisé" });
+
+      const { zohoItemId } = req.params;
+      if (!zohoItemId || typeof zohoItemId !== "string") {
+        return res.status(400).json({ message: "Identifiant produit manquant" });
+      }
+
+      const result = await resolveSystemdProductDetail(zohoItemId);
+
+      switch (result.status) {
+        case "ok":
+          return res.json(result.product);
+        case "not_found":
+          return res.status(404).json({
+            message: "Produit introuvable dans l'inventaire Zoho",
+            code: "NOT_FOUND",
+          });
+        case "client_product":
+          return res.status(403).json({
+            message: "Ce produit appartient à un client et n'est pas disponible dans le catalogue Système D",
+            code: "CLIENT_PRODUCT",
+          });
+        case "rate_limited":
+          return res.status(429).json({
+            message: "Limite d'appels Zoho atteinte pour aujourd'hui. Ce produit sera accessible à nouveau demain.",
+            code: "ZOHO_RATE_LIMITED",
+          });
+        case "unverifiable":
+          return res.status(503).json({
+            message: "Impossible de vérifier ce produit pour le moment. Réessayez dans quelques instants.",
+            code: "UNVERIFIABLE",
+          });
+      }
+    } catch (error: any) {
+      console.error("Error fetching SystemD product detail:", error);
+      if (error.message?.includes("429")) {
+        return res.status(429).json({
+          message: "Limite d'appels Zoho atteinte pour aujourd'hui.",
+          code: "ZOHO_RATE_LIMITED",
+        });
+      }
+      res.status(500).json({ message: error.message || "Erreur serveur" });
+    }
+  });
+
   app.post("/api/portal/systemd-checkout", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
