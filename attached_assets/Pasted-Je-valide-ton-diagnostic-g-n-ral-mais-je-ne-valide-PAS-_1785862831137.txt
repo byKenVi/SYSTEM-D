@@ -1,0 +1,402 @@
+Je valide ton diagnostic général, mais je ne valide PAS encore l’implémentation.
+
+AUCUNE MODIFICATION DE CODE, DE BASE DE DONNÉES OU DE CONFIGURATION NE DOIT ÊTRE EFFECTUÉE À CE STADE.
+
+Ton architecture avec une table locale zoho_catalog est pertinente, mais ton plan doit être corrigé sur plusieurs points critiques avant autorisation.
+
+==================================================
+1. RÈGLE MÉTIER DES PRODUITS SYSTÈME D
+==================================================
+
+Règle métier confirmée :
+
+Un produit Système D est un produit Zoho Inventory qui n’est assigné à aucun client.
+
+Dans Zoho, cette absence d’assignation est représentée par le champ cf_client :
+- si cf_client est vide, null, absent parce qu’il n’a aucune valeur, ou équivalent selon la structure réelle de Zoho, alors le produit est un produit Système D ;
+- si cf_client contient une valeur client, alors le produit appartient à ce client uniquement ;
+- un produit avec cf_client rempli ne doit jamais apparaître dans la Boutique Système D ;
+- un produit assigné à un client ne doit jamais être visible par les autres clients.
+
+ATTENTION :
+Ne confonds pas deux situations différentes :
+
+1. Le produit a été correctement récupéré depuis Zoho, les custom_fields sont lisibles, et cf_client est réellement vide ou non renseigné.
+   => Ce produit est un produit Système D.
+
+2. Le produit n’a pas pu être complètement récupéré depuis Zoho, ou les custom_fields/cf_client sont absents à cause d’une erreur API, d’un fallback, d’un quota atteint, d’une réponse partielle ou d’un problème de parsing.
+   => Ce produit ne doit PAS être automatiquement traité comme Système D.
+   => Il doit être marqué comme unresolved jusqu’à ce qu’une synchronisation complète confirme son statut.
+
+Donc la logique correcte n’est pas simplement :
+
+contact_id IS NULL = produit Système D
+
+La logique correcte est :
+
+- cf_client confirmé vide / non renseigné dans une réponse Zoho complète et fiable = produit Système D ;
+- cf_client rempli et résolu = produit client ;
+- cf_client rempli mais non résolu = produit unresolved, caché des portails clients ;
+- custom_fields ou cf_client impossibles à vérifier à cause d’une réponse incomplète = produit unresolved, caché des portails clients.
+
+Les produits unresolved doivent être visibles côté administration avec un avertissement, mais jamais exposés aux clients.
+
+Objectif :
+Respecter la règle métier “pas de cf_client = produit Système D”, tout en évitant qu’une erreur de récupération Zoho transforme par erreur un produit client en produit public.
+
+==================================================
+2. VÉRIFICATION RÉELLE DE GET /items
+==================================================
+
+Avant toute implémentation, teste la réponse réelle de Zoho Inventory pour :
+
+GET /items?per_page=200&page=1
+
+Confirme précisément si la réponse contient :
+
+- custom_fields ;
+- cf_client ;
+- status ;
+- rate ;
+- stock_on_hand ou les données de stock disponibles ;
+- image_name ;
+- last_modified_time.
+
+Fournis un exemple anonymisé de la structure réellement reçue.
+
+Si custom_fields est présent dans la liste :
+- la synchronisation complète doit utiliser uniquement la pagination ;
+- aucun appel individuel par produit ne doit être effectué.
+
+Si certaines informations sont absentes :
+- étudie l’endpoint groupé GET /itemdetails avec plusieurs item_ids ;
+- utilise des appels par lots ;
+- n’utilise pas un appel GET /items/{id} pour chaque produit sauf impossibilité démontrée.
+
+Calcule le nombre exact d’appels nécessaires pour :
+- 100 produits ;
+- 500 produits ;
+- 1 000 produits.
+
+==================================================
+3. SYNCHRONISATION COMPLÈTE SÛRE
+==================================================
+
+La synchronisation ne doit jamais supprimer ou masquer des produits parce qu’une page Zoho a échoué.
+
+Propose un mécanisme de sync run comprenant au minimum :
+
+- un identifiant de cycle de synchronisation ;
+- un statut running, success ou failed ;
+- le nombre de pages attendues et reçues ;
+- le nombre de produits reçus ;
+- started_at ;
+- completed_at ;
+- error_message.
+
+Algorithme attendu :
+
+1. Obtenir un verrou atomique.
+2. Créer un sync run.
+3. Récupérer toutes les pages Zoho.
+4. Vérifier qu’aucune page n’a échoué.
+5. Valider et normaliser toutes les données.
+6. Démarrer une transaction DB.
+7. Upsert les produits par zoho_item_id.
+8. Marquer les produits vus avec le sync_run_id.
+9. Uniquement si la récupération complète a réussi, marquer comme supprimés les produits non vus.
+10. Valider la transaction.
+11. Marquer le sync run comme success.
+12. Libérer le verrou dans un bloc finally.
+
+En cas d’échec avant la fin :
+- ne marque aucun produit comme supprimé ;
+- conserve le catalogue précédent ;
+- marque le cycle comme failed ;
+- journalise la cause.
+
+Utilise une suppression logique :
+- is_deleted ou deleted_at ;
+- pas de suppression physique immédiate.
+
+Explique comment les anciennes commandes conserveront leurs références produit.
+
+==================================================
+4. VERROU ATOMIQUE
+==================================================
+
+Le mécanisme :
+
+get lock
+puis
+set lock
+
+n’est pas suffisamment atomique.
+
+Propose un verrou PostgreSQL réellement atomique :
+
+- advisory lock ;
+- ou UPDATE conditionnel ;
+- ou INSERT ... ON CONFLICT avec condition.
+
+Une seule opération doit permettre de savoir si le verrou a été obtenu.
+
+Le verrou doit :
+- avoir une expiration ;
+- être libéré dans finally ;
+- ne pas rester bloqué après un crash ;
+- empêcher deux syncs manuelles ou automatiques de fonctionner simultanément.
+
+==================================================
+5. WEBHOOK ZOHO : NE PAS SUPPOSER UNE API NON PROUVÉE
+==================================================
+
+Tu as proposé d’enregistrer automatiquement les webhooks via :
+
+/settings/preferences/alerts
+
+Avant de conserver cette solution, tu dois prouver :
+
+- que cet endpoint existe pour Zoho Inventory ;
+- qu’il est documenté ou réellement accessible avec le compte actuel ;
+- que les scopes OAuth actuels permettent son utilisation ;
+- qu’il permet de créer les règles pour les articles ;
+- qu’il ne crée pas de doublons à chaque redémarrage Replit.
+
+Si tu ne peux pas le prouver, retire initZohoInventoryWebhooks() du démarrage.
+
+Dans ce cas, la solution recommandée doit être :
+
+1. créer dans Replit un endpoint sécurisé ;
+2. fournir les instructions manuelles pour créer dans Zoho Inventory :
+   - une Workflow Action Webhook ;
+   - une règle pour Item Created ;
+   - une règle pour Item Edited ;
+   - une règle pour Item Deleted ;
+3. tester les payloads réellement reçus.
+
+Vérifie également que le forfait Zoho actuel permet les webhooks.
+
+==================================================
+6. SÉCURITÉ DU WEBHOOK
+==================================================
+
+L’endpoint ne doit pas être publiquement exploitable sans contrôle.
+
+Ajoute un secret serveur :
+
+ZOHO_INVENTORY_WEBHOOK_SECRET
+
+Le webhook Zoho doit envoyer ce secret dans un header dédié, par exemple :
+
+X-Zoho-Webhook-Secret
+
+Le serveur doit :
+- rejeter les requêtes sans secret ;
+- utiliser une comparaison sûre ;
+- ne jamais logger le secret ;
+- limiter la taille du payload ;
+- valider le schéma du payload ;
+- journaliser les événements refusés sans enregistrer les données sensibles.
+
+Si Zoho fournit une signature officielle utilisable, explique son fonctionnement.
+Sinon, utilise le secret partagé.
+
+==================================================
+7. TRAITEMENT DURABLE DES WEBHOOKS
+==================================================
+
+Ne propose pas un simple traitement fire-and-forget après avoir répondu 200.
+
+Choisis une solution fiable :
+
+Option A :
+- traiter le produit concerné ;
+- effectuer l’upsert ;
+- répondre 200 après succès.
+
+Option B :
+- enregistrer immédiatement l’événement dans une table durable ;
+- utiliser un identifiant d’idempotence ;
+- répondre 200 ;
+- traiter ensuite l’événement via un worker contrôlé ;
+- gérer les retry et les erreurs.
+
+Explique comment tu géreras :
+- les événements dupliqués ;
+- les événements reçus dans le désordre ;
+- un delete suivi d’un ancien update ;
+- un item introuvable dans Zoho ;
+- un échec temporaire de l’API.
+
+==================================================
+8. IMAGES PRODUIT ET QUOTA ZOHO
+==================================================
+
+Tu as identifié que GET /api/zoho/item-image/:itemId génère un appel Zoho par image, mais ton plan ne corrige pas ce problème.
+
+Analyse précisément :
+- combien d’appels sont générés par les images de la page Inventaire ;
+- combien d’appels sont générés par les images de la Boutique ;
+- si les images sont rappelées après chaque actualisation ;
+- si le navigateur ou le serveur les met réellement en cache.
+
+Propose une solution persistante :
+- cache objet ou stockage existant ;
+- clé basée sur zoho_item_id + image_name + last_modified_time ;
+- téléchargement uniquement si l’image a changé ;
+- fallback lorsque l’image est absente ;
+- Cache-Control approprié ;
+- aucun appel Zoho répété pour la même image inchangée.
+
+Si tu ne corriges pas les images dans ce lot, indique clairement que le problème de quota ne sera pas entièrement résolu.
+
+==================================================
+9. SYNCHRONISATION AUTOMATIQUE
+==================================================
+
+Conserve le réglage configurable existant.
+
+La valeur actuelle doit rester 12 heures.
+
+N’ajoute pas silencieusement une seconde synchronisation toutes les 15 minutes.
+
+Présente :
+- les schedulers existants ;
+- leur fréquence ;
+- le nombre estimé d’appels Zoho par jour ;
+- ceux qui seront conservés ;
+- ceux qui seront supprimés ou fusionnés.
+
+La synchronisation manuelle doit continuer à permettre une mise à jour immédiate.
+
+==================================================
+10. CHECKOUT
+==================================================
+
+Le checkout ne doit plus appeler fetchZohoItems() pour tout le catalogue.
+
+Propose une stratégie précise :
+
+- lire le panier depuis zoho_catalog ;
+- récupérer uniquement les item_ids présents dans le panier avec un appel groupé ;
+- revérifier côté serveur :
+  - le prix ;
+  - le statut actif ;
+  - la possibilité de vente ;
+  - l’affectation Système D ;
+  - la disponibilité nécessaire ;
+- mettre à jour les lignes locales concernées ;
+- empêcher le checkout si un produit a changé ou n’est plus disponible ;
+- afficher une erreur claire en français.
+
+Ne hardcode pas une limite arbitraire de deux heures sans justification métier.
+
+==================================================
+11. MODÈLE DE DONNÉES
+==================================================
+
+Révise le modèle zoho_catalog avec au minimum :
+
+- zoho_item_id unique ;
+- status ;
+- can_be_sold si disponible ;
+- cf_client_raw ;
+- cf_client_field_present ;
+- assignment_state ;
+- contact_id nullable ;
+- zoho_last_modified_time ;
+- last_synced_at ;
+- last_seen_sync_run_id ;
+- is_deleted ou deleted_at ;
+- zoho_raw pour le diagnostic.
+
+Vérifie les types :
+- le stock peut-il être décimal ?
+- quelle précision de prix est déjà utilisée dans le projet ?
+- faut-il utiliser numeric plutôt que integer pour le stock ?
+- faut-il utiliser la précision monétaire configurée dans Zoho ?
+
+N’impose pas DECIMAL(10,2) ou INTEGER sans vérifier les données existantes.
+
+==================================================
+12. DÉPLOIEMENT PROGRESSIF
+==================================================
+
+Propose une mise en œuvre progressive :
+
+Étape 1 :
+- créer les nouvelles tables sans changer les pages existantes.
+
+Étape 2 :
+- lancer une synchronisation initiale en développement.
+
+Étape 3 :
+- comparer :
+  - le nombre total d’articles Zoho ;
+  - le nombre d’articles locaux ;
+  - les produits Système D ;
+  - les produits clients ;
+  - les produits unresolved ;
+  - les actifs ;
+  - les inactifs.
+
+Étape 4 :
+- vérifier manuellement plusieurs produits.
+
+Étape 5 :
+- seulement après validation, faire lire les routes depuis zoho_catalog.
+
+Ne prévois pas un fallback automatique vers une récupération complète Zoho à chaque ouverture de page.
+
+==================================================
+13. TESTS OBLIGATOIRES
+==================================================
+
+Ajoute au plan les tests suivants :
+
+- custom_fields absent → produit unresolved et caché ;
+- cf_client vide explicitement → produit SystemD ;
+- cf_client non vide et résolu → visible seulement au bon client ;
+- cf_client non vide mais non résolu → unresolved et caché ;
+- échec sur la page 2 de Zoho → aucun produit local supprimé ;
+- réponse 429 → ancien catalogue toujours visible ;
+- webhook sans secret → rejeté ;
+- webhook dupliqué → aucun doublon ;
+- deux synchronisations simultanées → une seule s’exécute ;
+- item supprimé → soft delete ;
+- cinq actualisations de page → aucun nouvel appel catalogue à Zoho ;
+- cinq actualisations de page → aucune répétition inutile des appels image ;
+- checkout de plusieurs produits → aucun fetch complet du catalogue ;
+- prix changé avant checkout → le client est informé ;
+- produit réaffecté avant checkout → achat bloqué ;
+- produit client jamais visible par un autre client.
+
+==================================================
+FORMAT DE TA PROCHAINE RÉPONSE
+==================================================
+
+Présente uniquement un plan révisé :
+
+A. Points corrigés
+B. Résultat du test réel de GET /items
+C. Architecture de synchronisation finale
+D. Modèle zoho_catalog révisé
+E. Stratégie d’affectation et de sécurité
+F. Stratégie de synchronisation complète
+G. Stratégie de webhook
+H. Stratégie de cache des images
+I. Stratégie de checkout
+J. Schedulers conservés
+K. Fichiers à modifier
+L. Migrations
+M. Déploiement progressif
+N. Tests
+O. Rollback
+P. Limites restantes
+
+Termine exactement par :
+
+« PLAN RÉVISÉ TERMINÉ — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER. »
+
+Puis arrête-toi.
