@@ -1,0 +1,79 @@
+Ton analyse est bonne, mais je veux corriger deux points avant de valider l’implémentation.
+
+AUCUNE MODIFICATION POUR L’INSTANT.
+
+==================================================
+1. CONTRÔLE D’ACCÈS DE LA PAGE SYSTÈME D
+==================================================
+
+La route :
+
+/portal/systemd/:zohoItemId
+
+doit afficher uniquement un produit Système D.
+
+Règle métier :
+Un produit Système D est un produit Zoho Inventory qui n’appartient à aucun client, donc qui n’a pas de cf_client confirmé après lecture complète et fiable.
+
+Donc le endpoint :
+
+GET /api/portal/systemd-products/:zohoItemId
+
+doit appliquer cette règle :
+
+- si cf_client est confirmé absent, vide ou null → le produit peut être retourné ;
+- si cf_client est rempli → le produit appartient à un client et ne doit pas être retourné par cette route ;
+- si cf_client ne peut pas être vérifié à cause d’une erreur Zoho, d’un quota, d’un fallback ou d’une réponse incomplète → ne pas afficher le produit ;
+- en cas de doute, retourner une erreur claire et ne pas exposer le produit.
+
+Important :
+Ne vérifie pas seulement “est-ce que le produit appartient au contact connecté”.
+Pour la route SystemD, le produit doit être non assigné à un client.
+
+Les produits assignés à un client doivent continuer à passer par les pages produits client existantes, pas par /portal/systemd/:zohoItemId.
+
+==================================================
+2. QUOTA ZOHO ET COMPATIBILITÉ AVEC ZOHO_CATALOG
+==================================================
+
+Ton plan propose que le endpoint détail appelle directement :
+
+fetchZohoItemDetail(zohoItemId)
+
+C’est acceptable temporairement tant que les routes ne sont pas encore basculées vers zoho_catalog, mais il faut éviter d’introduire une nouvelle dépendance durable à Zoho pour chaque ouverture de page détail.
+
+Structure donc le code pour pouvoir remplacer facilement la source de données :
+
+- maintenant : source actuelle Zoho live, avec gestion claire du 429 ;
+- après validation de zoho_catalog : lecture depuis zoho_catalog.
+
+Ne bascule pas encore vers zoho_catalog dans ce prompt.
+Ne modifie pas la synchronisation Zoho.
+Ne modifie pas les routes de catalogue existantes.
+Ne touche pas à GET /api/zoho/inventory.
+Ne touche pas à POST /api/portal/systemd-checkout.
+
+Tu dois seulement :
+- remplacer la popup / Sheet par une vraie page dédiée ;
+- créer la route frontend /portal/systemd/:zohoItemId ;
+- créer le endpoint détail nécessaire ;
+- déplacer le CartProvider si nécessaire ;
+- préserver le panier entre la boutique et la page détail ;
+- ajouter les états chargement, introuvable, accès interdit, erreur quota ;
+- garder tous les textes en français.
+
+==================================================
+3. VALIDATION ATTENDUE
+==================================================
+
+Réponds avec un mini-plan corrigé qui confirme :
+
+A. Comment tu vas vérifier qu’un produit est bien Système D.
+B. Comment tu vas éviter d’exposer un produit client.
+C. Comment tu vas gérer le cas où cf_client ne peut pas être vérifié.
+D. Comment le endpoint détail pourra ensuite lire depuis zoho_catalog sans gros refactor.
+E. Les fichiers exacts que tu vas modifier.
+
+Termine par :
+
+“PLAN DE PAGE DÉDIÉE CORRIGÉ — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER.”
