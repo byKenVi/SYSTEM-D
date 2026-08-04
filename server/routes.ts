@@ -2588,8 +2588,20 @@ export async function registerRoutes(
 
       const pdfBuffer = await generateFormPdf(form, contact, uploads);
 
+      // Nom de fichier : Soumission-{id}-{nom-client-sécurisé}.pdf
+      const rawName = contact?.name ?? "inconnu";
+      const safeName =
+        rawName
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")   // supprimer les accents
+          .replace(/[^a-zA-Z0-9\-]/g, "-")   // tout caractère non alphanum/tiret → tiret
+          .replace(/-{2,}/g, "-")             // tirets multiples → un seul
+          .replace(/^-+|-+$/g, "")           // supprimer tirets en début/fin
+          .toLowerCase() || "inconnu";
+      const pdfFilename = `Soumission-${form.id}-${safeName}.pdf`;
+
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${form.formNumber}.pdf"`);
+      res.setHeader("Content-Disposition", `attachment; filename="${pdfFilename}"`);
       res.setHeader("Content-Length", pdfBuffer.length);
       res.send(pdfBuffer);
     } catch (error: any) {

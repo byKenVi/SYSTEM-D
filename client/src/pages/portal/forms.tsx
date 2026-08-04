@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, FileText, ChevronRight, ArrowLeftRight, Warehouse, Package2, Truck, ClipboardList, ClipboardEdit } from "lucide-react";
+import { Plus, FileText, ChevronRight, ArrowLeftRight, Warehouse, Package2, Truck, ClipboardList, ClipboardEdit, Download } from "lucide-react";
 import { useState } from "react";
 import FormEditor from "@/pages/form-editor";
 
@@ -90,6 +90,39 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
   });
 
   const [newFormOpen, setNewFormOpen] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  const handleDownloadPdf = async (e: React.MouseEvent, formId: number) => {
+    e.stopPropagation();
+    setDownloadingId(formId);
+    try {
+      const r = await fetch(`/api/forms/${formId}/pdf`, { credentials: "include" });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        toast({
+          title: "Erreur de téléchargement",
+          description: body.message || `Erreur HTTP ${r.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = r.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? `Soumission-${formId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de télécharger le PDF.", variant: "destructive" });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const createFormMutation = useMutation({
     mutationFn: async (formType: string) => {
@@ -229,7 +262,22 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                           {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         </TableCell>
                         <TableCell className="py-4 text-right">
-                          <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <div className="flex items-center justify-end gap-1">
+                            {form.status !== "draft" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                disabled={downloadingId === form.id}
+                                onClick={(e) => handleDownloadPdf(e, form.id)}
+                                title="Télécharger le PDF"
+                                data-testid={`button-download-pdf-${form.id}`}
+                              >
+                                <Download className={`h-4 w-4 ${downloadingId === form.id ? "animate-spin" : ""}`} />
+                              </Button>
+                            )}
+                            <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

@@ -865,6 +865,38 @@ export function AdminFormDetail({ id }: { id: number }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [priceDialog, setPriceDialog] = useState<{ open: boolean; priceInput: string; quantityInput: string }>({ open: false, priceInput: "", quantityInput: "" });
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      const r = await fetch(`/api/forms/${id}/pdf`, { credentials: "include" });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        toast({
+          title: "Erreur de téléchargement",
+          description: body.message || `Erreur HTTP ${r.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = r.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? `Soumission-${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de télécharger le PDF.", variant: "destructive" });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   const { data: form, isLoading } = useQuery<FormSubmission>({
     queryKey: ["/api/forms", id],
@@ -957,12 +989,16 @@ export function AdminFormDetail({ id }: { id: number }) {
             </button>
             <div className="flex items-center gap-2 flex-wrap">
               {form.status !== "draft" && (
-                <a href={`/api/forms/${id}/pdf`} download data-testid="button-download-pdf">
-                  <Button variant="outline" size="sm">
-                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                    PDF
-                  </Button>
-                </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isDownloadingPdf}
+                  onClick={handleDownloadPdf}
+                  data-testid="button-download-pdf"
+                >
+                  <Download className={`h-3.5 w-3.5 mr-1.5 ${isDownloadingPdf ? "animate-spin" : ""}`} />
+                  {isDownloadingPdf ? "Génération…" : "PDF"}
+                </Button>
               )}
               {canAdvance && (
                 <Button
