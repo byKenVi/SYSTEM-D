@@ -403,6 +403,51 @@ export async function fetchZohoItemsMap(): Promise<Map<string, { stock: number; 
  * custom_fields) reduces API call volume from O(N) to O(pages), preventing
  * Zoho's 7,500-call/day rate limit from being exhausted on large catalogues.
  */
+/**
+ * Fetch all items from the Zoho Inventory list endpoint using pagination only.
+ * Returns the raw item objects from the list (no per-item enrichment).
+ * custom_fields / cf_client are NOT present in the list — use fetchZohoItemDetail for those.
+ */
+export async function fetchZohoItemsListAll(): Promise<any[]> {
+  const region = await getZohoRegion();
+  const items: any[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const data = await zohoRequest(
+      "GET",
+      `/items?per_page=200&page=${page}&filter_by=Status.All`,
+      undefined,
+      region
+    );
+    if (data.items && data.items.length > 0) {
+      items.push(...data.items);
+    }
+    hasMore = data.page_context?.has_more_page === true;
+    page++;
+  }
+
+  return items;
+}
+
+/**
+ * Fetch a single item detail from Zoho Inventory (GET /items/{itemId}).
+ * This is the only call that returns custom_fields (including cf_client).
+ * Returns null on 404 (item deleted between list and detail fetch).
+ * Throws on 429 or other errors so the caller can handle them.
+ */
+export async function fetchZohoItemDetail(itemId: string): Promise<any | null> {
+  const region = await getZohoRegion();
+  try {
+    const data = await zohoRequest("GET", `/items/${itemId}`, undefined, region);
+    return data.item ?? null;
+  } catch (err: any) {
+    if (err.message?.includes("404")) return null;
+    throw err;
+  }
+}
+
 export async function fetchZohoItemsMapLite(): Promise<Map<string, { stock: number; rate: number | null }>> {
   const region = await getZohoRegion();
   const map = new Map<string, { stock: number; rate: number | null }>();

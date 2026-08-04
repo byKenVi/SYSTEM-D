@@ -128,6 +128,56 @@ async function initStripe() {
     )
   `);
 
+  // ── Zoho Catalog: sync run audit log ─────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS zoho_sync_runs (
+      id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+      status TEXT NOT NULL DEFAULT 'running',
+      triggered_by TEXT NOT NULL DEFAULT 'scheduler',
+      pages_expected INTEGER,
+      pages_received INTEGER NOT NULL DEFAULT 0,
+      items_received INTEGER NOT NULL DEFAULT 0,
+      items_upserted INTEGER NOT NULL DEFAULT 0,
+      items_soft_deleted INTEGER NOT NULL DEFAULT 0,
+      started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMP,
+      error_message TEXT
+    )
+  `);
+
+  // ── Zoho Catalog: local cache of all Zoho Inventory items ─────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS zoho_catalog (
+      id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+      zoho_item_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      sku TEXT,
+      description TEXT,
+      price NUMERIC(12, 4),
+      stock NUMERIC(10, 2),
+      status TEXT NOT NULL DEFAULT 'active',
+      can_be_sold BOOLEAN,
+      product_type TEXT,
+      unit TEXT,
+      image_name TEXT,
+      image_document_id TEXT,
+      cf_client_raw TEXT,
+      cf_client_field_present BOOLEAN NOT NULL DEFAULT FALSE,
+      assignment_state TEXT NOT NULL DEFAULT 'unresolved',
+      contact_id INTEGER,
+      zoho_last_modified_time TEXT,
+      last_synced_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      last_seen_sync_run_id INTEGER REFERENCES zoho_sync_runs(id),
+      is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+      deleted_at TIMESTAMP,
+      zoho_raw JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_assignment ON zoho_catalog (assignment_state) WHERE is_deleted = FALSE`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_contact ON zoho_catalog (contact_id) WHERE is_deleted = FALSE`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_status ON zoho_catalog (status) WHERE is_deleted = FALSE`);
+
   await registerRoutes(httpServer, app);
   await seedDatabase();
 

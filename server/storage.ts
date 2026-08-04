@@ -13,9 +13,11 @@ import {
   mapiReps, type MapiRep, type InsertMapiRep,
   mapiRepCreditLog, type MapiRepCreditLog, type InsertMapiRepCreditLog,
   systemdOrders, type SystemdOrder, type InsertSystemdOrder,
+  zohoSyncRuns, type ZohoSyncRun,
+  zohoCatalog, type ZohoCatalogItem, type InsertZohoCatalogItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray } from "drizzle-orm";
+import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   getContacts(): Promise<Contact[]>;
@@ -101,6 +103,22 @@ export interface IStorage {
   getSystemdOrders(filters?: { contactId?: number }): Promise<SystemdOrder[]>;
   updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
+
+  // Zoho Sync Runs
+  createZohoSyncRun(data: { triggeredBy: string; status?: string }): Promise<ZohoSyncRun>;
+  updateZohoSyncRun(id: number, data: Partial<ZohoSyncRun>): Promise<void>;
+  getZohoSyncRuns(limit?: number): Promise<ZohoSyncRun[]>;
+  getActiveZohoSyncRun(): Promise<ZohoSyncRun | undefined>;
+
+  // Zoho Catalog
+  getZohoCatalogItems(includeDeleted?: boolean): Promise<ZohoCatalogItem[]>;
+  getZohoCatalogItem(zohoItemId: string): Promise<ZohoCatalogItem | undefined>;
+  getZohoCatalogByAssignmentState(state: string): Promise<ZohoCatalogItem[]>;
+  getZohoCatalogByContactId(contactId: number): Promise<ZohoCatalogItem[]>;
+  getZohoCatalogStats(): Promise<{
+    total: number; systemd: number; client: number; unresolved: number;
+    active: number; inactive: number; deleted: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -562,6 +580,83 @@ export class DatabaseStorage implements IStorage {
     const [order] = await db.select().from(systemdOrders)
       .where(eq(systemdOrders.stripeCheckoutSessionId, sessionId));
     return order;
+  }
+
+  // ─── Zoho Sync Runs ────────────────────────────────────────────────────────
+
+  async createZohoSyncRun(data: { triggeredBy: string; status?: string }): Promise<ZohoSyncRun> {
+    const [run] = await db.insert(zohoSyncRuns).values({
+      triggeredBy: data.triggeredBy,
+      status: data.status ?? 'running',
+      startedAt: new Date(),
+    }).returning();
+    return run;
+  }
+
+  async updateZohoSyncRun(id: number, data: Partial<ZohoSyncRun>): Promise<void> {
+    await db.update(zohoSyncRuns).set(data).where(eq(zohoSyncRuns.id, id));
+  }
+
+  async getZohoSyncRuns(limit = 20): Promise<ZohoSyncRun[]> {
+    return db.select().from(zohoSyncRuns).orderBy(desc(zohoSyncRuns.startedAt)).limit(limit);
+  }
+
+  async getActiveZohoSyncRun(): Promise<ZohoSyncRun | undefined> {
+    const [run] = await db.select().from(zohoSyncRuns).where(eq(zohoSyncRuns.status, 'running')).limit(1);
+    return run;
+  }
+
+  // ─── Zoho Catalog ──────────────────────────────────────────────────────────
+
+  async getZohoCatalogItems(includeDeleted = false): Promise<ZohoCatalogItem[]> {
+    if (includeDeleted) {
+      return db.select().from(zohoCatalog).orderBy(desc(zohoCatalog.lastSyncedAt));
+    }
+    return db.select().from(zohoCatalog)
+      .where(eq(zohoCatalog.isDeleted, false))
+      .orderBy(desc(zohoCatalog.lastSyncedAt));
+  }
+
+  async getZohoCatalogItem(zohoItemId: string): Promise<ZohoCatalogItem | undefined> {
+    const [item] = await db.select().from(zohoCatalog)
+      .where(and(eq(zohoCatalog.zohoItemId, zohoItemId), eq(zohoCatalog.isDeleted, false)));
+    return item;
+  }
+
+  async getZohoCatalogByAssignmentState(state: string): Promise<ZohoCatalogItem[]> {
+    return db.select().from(zohoCatalog)
+      .where(and(eq(zohoCatalog.assignmentState, state), eq(zohoCatalog.isDeleted, false)))
+      .orderBy(zohoCatalog.name);
+  }
+
+  async getZohoCatalogByContactId(contactId: number): Promise<ZohoCatalogItem[]> {
+    return db.select().from(zohoCatalog)
+      .where(and(eq(zohoCatalog.contactId, contactId), eq(zohoCatalog.isDeleted, false)))
+      .orderBy(zohoCatalog.name);
+  }
+
+  async getZohoCatalogStats(): Promise<{
+    total: number; systemd: number; client: number; unresolved: number;
+    active: number; inactive: number; deleted: number;
+  }> {
+    const [result] = await db.select({
+      total:     sql<number>`COUNT(*) FILTER (WHERE is_deleted = FALSE)`,
+      systemd:   sql<number>`COUNT(*) FILTER (WHERE is_deleted = FALSE AND assignment_state = 'systemd')`,
+      client:    sql<number>`COUNT(*) FILTER (WHERE is_deleted = FALSE AND assignment_state = 'client')`,
+      unresolved:sql<number>`COUNT(*) FILTER (WHERE is_deleted = FALSE AND assignment_state = 'unresolved')`,
+      active:    sql<number>`COUNT(*) FILTER (WHERE is_deleted = FALSE AND status = 'active')`,
+      inactive:  sql<number>`COUNT(*) FILTER (WHERE is_deleted = FALSE AND status = 'inactive')`,
+      deleted:   sql<number>`COUNT(*) FILTER (WHERE is_deleted = TRUE)`,
+    }).from(zohoCatalog);
+    return {
+      total:      Number(result?.total ?? 0),
+      systemd:    Number(result?.systemd ?? 0),
+      client:     Number(result?.client ?? 0),
+      unresolved: Number(result?.unresolved ?? 0),
+      active:     Number(result?.active ?? 0),
+      inactive:   Number(result?.inactive ?? 0),
+      deleted:    Number(result?.deleted ?? 0),
+    };
   }
 }
 

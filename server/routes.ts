@@ -1534,8 +1534,24 @@ export async function registerRoutes(
 
   app.get("/api/zoho/item-image/:itemId", isAuthenticated, async (req, res) => {
     try {
+      const { getImageFromCache, storeImageInCache } = await import("./zoho-catalog");
       const { getValidAccessToken, getZohoDomains } = await import("./zoho-auth");
       const { getZohoRegion } = await import("./zoho-api");
+
+      const itemId = req.params.itemId;
+      // Use imageDocumentId as version param for cache-busting when the image changes
+      const version = (req.query.v as string) || "latest";
+      const cacheKey = `${itemId}:${version}`;
+
+      // Serve from in-memory cache if still fresh (avoids repeated Zoho API calls)
+      const cached = getImageFromCache(cacheKey);
+      if (cached) {
+        res.setHeader("Content-Type", cached.contentType);
+        const maxAge = version !== "latest" ? 604800 : 86400; // versioned=7d, latest=1d
+        res.setHeader("Cache-Control", `public, max-age=${maxAge}`);
+        return res.send(cached.data);
+      }
+
       const region = await getZohoRegion();
       const token = await getValidAccessToken(region);
       const settings = await storage.getAdminSettings();
@@ -1543,16 +1559,21 @@ export async function registerRoutes(
       if (!orgId) return res.status(400).json({ message: "Zoho not configured" });
 
       const { api } = getZohoDomains(region);
-      const url = `https://${api}/inventory/v1/items/${req.params.itemId}/image?organization_id=${orgId}`;
+      const url = `https://${api}/inventory/v1/items/${itemId}/image?organization_id=${orgId}`;
       const zohoRes = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
 
       if (!zohoRes.ok) return res.status(404).end();
 
       const contentType = zohoRes.headers.get("content-type") || "image/jpeg";
+      const buf = Buffer.from(await zohoRes.arrayBuffer());
+
+      // Store in server-side cache so subsequent requests (any user) skip the Zoho call
+      storeImageInCache(cacheKey, buf, contentType);
+
+      const maxAge = version !== "latest" ? 604800 : 86400;
       res.setHeader("Content-Type", contentType);
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      const buf = await zohoRes.arrayBuffer();
-      res.send(Buffer.from(buf));
+      res.setHeader("Cache-Control", `public, max-age=${maxAge}`);
+      res.send(buf);
     } catch {
       res.status(404).end();
     }
@@ -1587,6 +1608,168 @@ export async function registerRoutes(
       await storage.createActivityLog({ type: "zoho_inventory_sync", status: "error", message: `Zoho inventory sync failed: ${error.message}` }).catch(() => {});
       console.error("Zoho inventory sync error:", error);
       res.status(500).json({ message: error.message || "Failed to sync Zoho inventory" });
+    }
+  });
+
+  // ── Zoho Catalog: manual full sync trigger ────────────────────────────────
+  app.post("/api/zoho/full-sync", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { syncFullZohoCatalog } = await import("./zoho-catalog");
+      const result = await syncFullZohoCatalog("manual");
+      if (result.skipped) {
+        return res.status(409).json({ message: "Une synchronisation est déjà en cours.", reason: result.reason });
+      }
+      res.json({
+        message: `Synchronisation terminée : ${result.upserted} articles mis à jour, ${result.softDeleted} supprimés logiquement.`,
+        syncRunId: result.syncRunId,
+        upserted: result.upserted,
+        softDeleted: result.softDeleted,
+      });
+    } catch (error: any) {
+      const is429 = error.message?.includes("429") || error.message?.includes("QUOTA_EXHAUSTED");
+      if (is429) {
+        return res.status(429).json({
+          message: "Quota Zoho épuisé (7 500 appels/jour). La synchronisation sera possible après minuit.",
+          code: "ZOHO_RATE_LIMITED",
+        });
+      }
+      console.error("Zoho full-sync error:", error);
+      res.status(500).json({ message: error.message || "Échec de la synchronisation" });
+    }
+  });
+
+  // ── Zoho Catalog: list recent sync runs ───────────────────────────────────
+  app.get("/api/zoho/sync-runs", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const runs = await storage.getZohoSyncRuns(20);
+      res.json(runs);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ── Zoho Catalog: stats for validation (Étape 3 du déploiement progressif) ─
+  app.get("/api/zoho/catalog-stats", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getZohoCatalogStats();
+      const lastRuns = await storage.getZohoSyncRuns(5);
+      res.json({ stats, lastRuns });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ── Zoho Inventory webhook (inbound from Zoho — unauthenticated, secured by secret) ─
+  //
+  // Configure manually in Zoho Inventory → Paramètres → Automatisations → Webhooks:
+  //   URL    : https://{DOMAIN}/api/webhooks/zoho-inventory
+  //   Méthode: POST
+  //   En-tête: X-Zoho-Webhook-Secret: {ZOHO_INVENTORY_WEBHOOK_SECRET}
+  //   Événements: Item Created, Item Edited, Item Deleted
+  app.post("/api/webhooks/zoho-inventory", async (req: any, res) => {
+    try {
+      // ── Security: verify shared secret ─────────────────────────────────────
+      const expectedSecret = process.env.ZOHO_INVENTORY_WEBHOOK_SECRET;
+      if (!expectedSecret) {
+        // Webhook not configured — reject all requests
+        console.warn("[zoho-webhook] ZOHO_INVENTORY_WEBHOOK_SECRET not set — rejecting request");
+        return res.status(401).json({ message: "Webhook not configured" });
+      }
+
+      const providedSecret = req.headers["x-zoho-webhook-secret"] as string | undefined;
+      if (!providedSecret) {
+        console.warn("[zoho-webhook] Missing X-Zoho-Webhook-Secret header");
+        return res.status(401).json({ message: "Missing webhook secret" });
+      }
+
+      // Use timingSafeEqual to prevent timing attacks
+      const { timingSafeEqual } = await import("crypto");
+      const expected = Buffer.from(expectedSecret, "utf8");
+      const provided = Buffer.from(providedSecret, "utf8");
+      if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+        console.warn("[zoho-webhook] Invalid webhook secret — request rejected");
+        return res.status(401).json({ message: "Invalid webhook secret" });
+      }
+
+      // ── Payload size guard ─────────────────────────────────────────────────
+      const contentLength = Number(req.headers["content-length"] || 0);
+      if (contentLength > 1_048_576) { // 1 MB
+        return res.status(413).json({ message: "Payload too large" });
+      }
+
+      // ── Parse event type and item ID ───────────────────────────────────────
+      // Zoho Inventory webhook payloads vary by event type.
+      // Common shapes:
+      //   Item Created/Edited: { "item": { "item_id": "...", ... } }
+      //   Item Deleted:        { "item_id": "...", "event": "item.delete" }
+      const payload = req.body;
+      const itemId: string | undefined =
+        payload?.item?.item_id ||
+        payload?.item_id ||
+        payload?.data?.item_id;
+
+      if (!itemId || typeof itemId !== "string") {
+        console.warn("[zoho-webhook] No item_id in payload:", JSON.stringify(payload).substring(0, 200));
+        return res.status(400).json({ message: "Missing item_id in payload" });
+      }
+
+      const isDelete =
+        payload?.event === "item.delete" ||
+        payload?.action === "delete" ||
+        payload?.type === "item_deleted";
+
+      // ── Deduplication: skip if we already have this version ────────────────
+      if (!isDelete && payload?.item?.last_modified_time) {
+        const existing = await storage.getZohoCatalogItem(itemId);
+        if (
+          existing?.zohoLastModifiedTime &&
+          existing.zohoLastModifiedTime >= payload.item.last_modified_time
+        ) {
+          console.log(`[zoho-webhook] Skipping duplicate/out-of-order event for item ${itemId}`);
+          return res.status(200).json({ received: true, skipped: true });
+        }
+      }
+
+      // ── Process event ──────────────────────────────────────────────────────
+      const { upsertZohoCatalogItemFromWebhook } = await import("./zoho-catalog");
+      const { fetchZohoContactsMap } = await import("./zoho-api");
+
+      if (isDelete) {
+        // Soft-delete locally
+        const { db } = await import("./db");
+        const { zohoCatalog } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        await db
+          .update(zohoCatalog)
+          .set({ isDeleted: true, deletedAt: new Date() })
+          .where(eq(zohoCatalog.zohoItemId, itemId));
+        console.log(`[zoho-webhook] Soft-deleted item ${itemId}`);
+      } else {
+        // Upsert: fetch full detail from Zoho and update local catalog
+        const [allContacts, zohoContactsMap] = await Promise.all([
+          storage.getContacts(),
+          fetchZohoContactsMap().catch(() => new Map()),
+        ]);
+        await upsertZohoCatalogItemFromWebhook(itemId, allContacts, zohoContactsMap);
+      }
+
+      await storage.createActivityLog({
+        type: "zoho_catalog_webhook",
+        status: "success",
+        message: `Webhook Zoho Inventory reçu : item ${itemId} — ${isDelete ? "supprimé" : "mis à jour"}`,
+      }).catch(() => {});
+
+      res.status(200).json({ received: true });
+
+    } catch (error: any) {
+      const is429 = error.message?.includes("429");
+      if (is429) {
+        // Can't fetch Zoho detail — mark item as unresolved for next full sync
+        console.warn("[zoho-webhook] Rate-limited during webhook processing:", error.message);
+        return res.status(200).json({ received: true, warning: "rate_limited" });
+      }
+      console.error("[zoho-webhook] Processing error:", error.message);
+      res.status(500).json({ message: error.message || "Webhook processing failed" });
     }
   });
 

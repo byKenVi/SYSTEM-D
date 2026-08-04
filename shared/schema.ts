@@ -285,3 +285,75 @@ export const systemdOrders = pgTable("systemd_orders", {
 export const insertSystemdOrderSchema = createInsertSchema(systemdOrders).omit({ id: true, createdAt: true });
 export type InsertSystemdOrder = z.infer<typeof insertSystemdOrderSchema>;
 export type SystemdOrder = typeof systemdOrders.$inferSelect;
+
+// ─── Zoho Sync Runs ──────────────────────────────────────────────────────────
+// Tracks every full-catalog synchronisation attempt for audit and rollback safety.
+export const zohoSyncRuns = pgTable("zoho_sync_runs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  status: text("status").notNull().default("running"),      // 'running' | 'success' | 'failed'
+  triggeredBy: text("triggered_by").notNull().default("scheduler"), // 'scheduler' | 'manual' | 'startup'
+  pagesExpected: integer("pages_expected"),
+  pagesReceived: integer("pages_received").notNull().default(0),
+  itemsReceived: integer("items_received").notNull().default(0),
+  itemsUpserted: integer("items_upserted").notNull().default(0),
+  itemsSoftDeleted: integer("items_soft_deleted").notNull().default(0),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+});
+
+export type ZohoSyncRun = typeof zohoSyncRuns.$inferSelect;
+export type InsertZohoSyncRun = typeof zohoSyncRuns.$inferInsert;
+
+// ─── Zoho Catalog ─────────────────────────────────────────────────────────────
+// Local cache of all Zoho Inventory items. Populated by the full-catalog sync.
+// Pages read from here instead of calling Zoho directly on every page load.
+export const zohoCatalog = pgTable("zoho_catalog", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  zohoItemId: text("zoho_item_id").notNull().unique(),
+
+  // Core product fields
+  name: text("name").notNull(),
+  sku: text("sku"),
+  description: text("description"),
+  price: decimal("price", { precision: 12, scale: 4 }),     // Zoho uses up to 4 decimal places
+  stock: decimal("stock", { precision: 10, scale: 2 }),     // can be fractional (e.g. kg)
+  status: text("status").notNull().default("active"),       // 'active' | 'inactive'
+  canBeSold: boolean("can_be_sold"),                         // null when not returned by Zoho
+  productType: text("product_type"),
+  unit: text("unit"),
+
+  // Image
+  imageName: text("image_name"),
+  imageDocumentId: text("image_document_id"),               // for versioned cache-busting URLs
+
+  // Client assignment — the core business rule
+  cfClientRaw: text("cf_client_raw"),                       // raw value from Zoho (may be a Zoho contact ID)
+  cfClientFieldPresent: boolean("cf_client_field_present").notNull().default(false),
+  // TRUE  = cf_client field was present in a complete GET /items/{id} response (reliable)
+  // FALSE = field was absent due to error/fallback (response incomplete — do NOT infer SystemD)
+
+  assignmentState: text("assignment_state").notNull().default("unresolved"),
+  // 'systemd'   : cfClientFieldPresent=TRUE AND cfClientRaw is empty/null
+  // 'client'    : cfClientFieldPresent=TRUE AND cfClientRaw resolved to a local contact
+  // 'unresolved': cfClientFieldPresent=FALSE OR cfClientRaw non-empty but not resolved locally
+
+  contactId: integer("contact_id"),                         // NULL for SystemD and unresolved items
+
+  // Sync metadata
+  zohoLastModifiedTime: text("zoho_last_modified_time"),
+  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+  lastSeenSyncRunId: integer("last_seen_sync_run_id"),
+
+  // Soft delete — never physically remove; preserves references in systemd_orders
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  deletedAt: timestamp("deleted_at"),
+
+  // Raw payload for diagnostics
+  zohoRaw: jsonb("zoho_raw"),
+
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ZohoCatalogItem = typeof zohoCatalog.$inferSelect;
+export type InsertZohoCatalogItem = typeof zohoCatalog.$inferInsert;
