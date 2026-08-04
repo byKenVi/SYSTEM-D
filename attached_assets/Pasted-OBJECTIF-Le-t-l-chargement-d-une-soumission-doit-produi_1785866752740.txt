@@ -1,0 +1,89 @@
+OBJECTIF
+
+Le téléchargement d’une soumission doit produire un véritable fichier PDF lisible.
+
+Le contenu du PDF doit reprendre les informations présentes sur la page détaillée de la soumission.
+
+Le nom du fichier doit suivre cette structure :
+
+Soumission-[ID]-[Nom-du-client].pdf
+
+Le nom doit être sécurisé et compatible avec les systèmes de fichiers.
+
+==================================================
+PHASE 1 — ANALYSE SANS MODIFICATION
+==================================================
+
+Ne modifie aucun fichier.
+
+1. Identifie :
+   - le bouton de téléchargement ;
+   - la route frontend appelée ;
+   - la route backend appelée ;
+   - le mécanisme actuel de génération ;
+   - les données utilisées ;
+   - la gestion de l’authentification ;
+   - les headers HTTP ;
+   - le Content-Type ;
+   - le Content-Disposition ;
+   - la façon dont le frontend traite la réponse ;
+   - la raison pour laquelle le fichier téléchargé n’est pas toujours un PDF valide ;
+   - la raison pour laquelle certaines informations sont absentes.
+
+2. Vérifie notamment si la route retourne accidentellement :
+   - une page HTML de connexion ;
+   - une session ;
+   - du JSON ;
+   - une erreur transformée en fichier ;
+   - un PDF incomplet ;
+   - un mauvais type de données binaires.
+
+3. Évalue la solution suivante :
+   - centraliser les données de la soumission dans un service ou DTO partagé ;
+   - utiliser les mêmes données pour la page et le PDF ;
+   - générer le PDF côté serveur ;
+   - envoyer les bons headers ;
+   - gérer correctement la réponse binaire côté frontend ;
+   - sécuriser les autorisations ;
+   - générer un nom de fichier français et lisible.
+
+4. Si cette solution ne correspond pas à l’architecture actuelle, propose une alternative plus adaptée.
+
+5. Donne le plan exact et les tests nécessaires.
+
+Termine par :
+
+« ANALYSE TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER. »
+
+Puis arrête-toi.
+
+==================================================
+PHASE 2 — APRÈS AUTORISATION
+==================================================
+
+Commence uniquement lorsque je réponds :
+
+« VALIDÉ — EXÉCUTE LE PLAN APPROUVÉ »
+
+Après validation :
+
+1. Corrige la génération du PDF.
+2. Reprends les informations réelles de la page de soumission.
+3. N’invente aucun champ.
+4. Utilise le nom :
+   Soumission-[ID]-[Nom-du-client].pdf
+5. Nettoie les caractères incompatibles dans le nom.
+6. Vérifie les permissions côté serveur.
+7. Retourne les headers PDF corrects.
+8. Gère correctement les erreurs.
+9. Ne télécharge jamais une page HTML ou un JSON avec l’extension .pdf.
+10. Ajoute des tests.
+11. Exécute typecheck, lint, tests et build.
+
+À la fin, fournis :
+- la cause du problème ;
+- les fichiers modifiés ;
+- la structure du PDF ;
+- un exemple de nom généré ;
+- les tests réalisés ;
+- les limites restantes.
