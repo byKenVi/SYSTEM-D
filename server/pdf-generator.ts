@@ -510,7 +510,6 @@ export function generateFormPdf(
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    addFooter(doc, form);
     addHeader(doc, form, contact);
 
     let data: Record<string, any> = {};
