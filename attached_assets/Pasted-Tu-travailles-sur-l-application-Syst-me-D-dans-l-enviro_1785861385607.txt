@@ -1,0 +1,152 @@
+Tu travailles sur l’application Système D dans l’environnement de développement Replit.
+
+IMPORTANT :
+- Ne touche pas à la production.
+- Ne déploie rien.
+- Ne modifie aucun fichier avant d’avoir terminé la phase d’analyse et reçu mon autorisation explicite.
+- Ne suppose pas que la solution proposée est correcte simplement parce qu’elle est décrite ci-dessous.
+- Inspecte le code, la base de données, les routes API, les tâches planifiées, les webhooks et les appels Zoho existants avant de conclure.
+
+==================================================
+RÈGLE BLOQUANTE : TRAVAIL EN DEUX PHASES
+==================================================
+
+PHASE 1 — DIAGNOSTIC ET VALIDATION DE LA SOLUTION
+
+Pendant cette phase, tu ne dois modifier aucun fichier, aucune migration, aucune variable d’environnement et aucune donnée.
+
+Tu dois :
+
+1. Identifier précisément :
+   - tous les endroits où l’application appelle Zoho Inventory ;
+   - les appels exécutés lors de l’ouverture ou de l’actualisation des pages Inventaire, Produits Système D et Boutique ;
+   - les tâches automatiques de synchronisation ;
+   - les éventuels appels répétés ou imbriqués ;
+   - la logique de pagination Zoho ;
+   - la logique de filtrage des produits actifs et inactifs ;
+   - la logique qui détermine si un produit appartient à un client ;
+   - la logique de calcul des nombres de produits et de clients ;
+   - les tables déjà utilisées pour les produits ;
+   - les webhooks déjà présents ;
+   - les risques de synchronisations simultanées.
+
+2. Expliquer la cause réelle ou les causes probables des problèmes suivants :
+   - le quota d’appels Zoho est rapidement épuisé ;
+   - certains produits apparaissent puis disparaissent après une actualisation ;
+   - le nombre de produits change après actualisation ;
+   - le nombre de clients change après actualisation ;
+   - certains produits Zoho ne sont pas toujours récupérés ;
+   - les pages peuvent devenir inutilisables lorsque le quota Zoho est atteint.
+
+3. Évaluer objectivement la solution proposée :
+
+   SOLUTION PROPOSÉE :
+   - Zoho Inventory reste la source de vérité ;
+   - l’application conserve une copie locale synchronisée des produits dans sa base de données ;
+   - les pages de l’application lisent uniquement les produits présents dans la base locale ;
+   - aucun appel direct à Zoho Inventory ne doit être déclenché simplement par l’ouverture ou l’actualisation d’une page ;
+   - une synchronisation initiale complète récupère tous les produits avec une pagination correcte ;
+   - un webhook met à jour la base locale lorsqu’un produit est créé ;
+   - une synchronisation de réconciliation complète reste exécutée toutes les 12 heures ;
+   - le bouton d’actualisation manuelle déclenche une synchronisation immédiate ;
+   - les mises à jour doivent être idempotentes et utiliser l’identifiant Zoho du produit ;
+   - deux synchronisations ne doivent pas pouvoir s’exécuter en même temps ;
+   - une synchronisation ne doit pas supprimer temporairement toutes les données avant de les recréer ;
+   - les produits ne doivent pas disparaître de l’interface pendant la synchronisation.
+
+4. Répondre explicitement aux questions suivantes :
+   - Cette solution résoudra-t-elle réellement le problème de quota ?
+   - Résoudra-t-elle le problème des produits qui apparaissent et disparaissent ?
+   - Un webhook déclenché uniquement à la création d’un produit est-il suffisant ?
+   - Comment gérer les modifications de produit, les changements de prix, de statut actif/inactif, les changements d’affectation client et les suppressions ?
+   - Les webhooks Zoho actuellement disponibles dans ce projet fournissent-ils toutes les informations nécessaires ?
+   - Si Zoho ne permet pas certains événements, quelle stratégie alternative faut-il utiliser ?
+   - Une nouvelle table est-elle réellement nécessaire ou une table existante peut-elle être étendue proprement ?
+   - Comment éviter les données partielles en cas d’échec au milieu d’une synchronisation ?
+   - Comment empêcher deux synchronisations automatiques ou manuelles de se chevaucher ?
+
+5. Vérifier la règle métier suivante :
+   - un produit Système D est un produit qui n’est affecté à aucun client ;
+   - il peut être visible par tous les clients autorisés ;
+   - un produit affecté à un client ne doit pas être visible par les autres clients ;
+   - le statut actif/inactif doit être respecté selon la logique métier existante ;
+   - aucune donnée d’un client ne doit être exposée à un autre client.
+
+6. Si la solution proposée est insuffisante, indique clairement :
+   - ce qui ne fonctionnera pas ;
+   - pourquoi ;
+   - les risques ;
+   - la solution alternative recommandée ;
+   - les compromis entre les différentes options.
+
+7. Fournir ensuite un plan d’implémentation précis comprenant :
+   - les fichiers à modifier ;
+   - les tables ou migrations nécessaires ;
+   - les endpoints à créer ou modifier ;
+   - la logique de synchronisation ;
+   - la logique de webhook ;
+   - la logique de réconciliation toutes les 12 heures ;
+   - la logique du bouton de synchronisation manuelle ;
+   - les mécanismes d’idempotence ;
+   - les mécanismes de verrouillage ;
+   - la gestion des erreurs ;
+   - la journalisation ;
+   - les tests à ajouter ;
+   - la stratégie de retour arrière.
+
+8. Présenter les résultats dans ce format :
+
+A. Architecture actuelle
+B. Appels Zoho identifiés
+C. Causes des problèmes
+D. Verdict sur la solution proposée
+E. Éléments insuffisants ou manquants
+F. Solution finale recommandée
+G. Fichiers qui seraient modifiés
+H. Plan d’implémentation
+I. Plan de test
+J. Risques et stratégie de rollback
+
+À la fin de cette phase, écris exactement :
+
+« ANALYSE TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER. »
+
+Puis arrête-toi.
+
+==================================================
+PHASE 2 — IMPLÉMENTATION APRÈS AUTORISATION
+==================================================
+
+Tu ne peux commencer cette phase que lorsque je réponds explicitement :
+
+« VALIDÉ — EXÉCUTE LE PLAN APPROUVÉ »
+
+Après cette autorisation :
+
+1. Implémente uniquement le plan approuvé.
+2. Ne modifie pas de fonctionnalités sans rapport avec la synchronisation des produits.
+3. Utilise la structure, l’ORM et les conventions déjà présents dans le projet.
+4. N’ajoute pas une nouvelle dépendance si une solution fiable existe déjà dans le projet.
+5. Ajoute ou adapte les migrations nécessaires.
+6. Exécute les migrations uniquement dans l’environnement de développement.
+7. Ajoute les tests utiles.
+8. Exécute les vérifications disponibles :
+   - typecheck ;
+   - lint ;
+   - tests ;
+   - build.
+9. Vérifie qu’une ouverture de page ne génère plus d’appel direct à Zoho.
+10. Vérifie que les nombres de produits restent stables après plusieurs actualisations.
+11. Vérifie qu’un échec Zoho ne vide pas les produits déjà enregistrés.
+12. Vérifie qu’un produit affecté à un client n’est jamais visible par un autre client.
+13. Vérifie que tous les nouveaux textes visibles dans l’interface sont en français.
+
+À la fin, fournis :
+- la liste exacte des fichiers modifiés ;
+- les migrations créées ;
+- les tests exécutés et leurs résultats ;
+- les appels Zoho supprimés des chargements de page ;
+- les limites restantes ;
+- les étapes manuelles nécessaires dans Zoho Inventory ;
+- la procédure de rollback ;
+- les éléments qui doivent encore être testés avec un véritable compte client.
