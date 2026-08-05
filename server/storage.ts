@@ -104,6 +104,15 @@ export interface IStorage {
   updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
   getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined>;
+  /**
+   * Insère une commande SystemD de façon atomique.
+   * Utilise ON CONFLICT DO NOTHING sur l'index partiel unique
+   * `uq_systemd_orders_intent_active` (checkout_intent_key WHERE status NOT IN
+   * ('expired','cancelled')). Si un conflit est détecté, retourne la commande
+   * existante sans créer de doublon — même si deux requêtes identiques arrivent
+   * simultanément.
+   */
+  tryInsertSystemdOrder(data: InsertSystemdOrder): Promise<{ order: SystemdOrder; created: boolean }>;
 
   // Zoho Sync Runs
   createZohoSyncRun(data: { triggeredBy: string; status?: string }): Promise<ZohoSyncRun>;
@@ -584,17 +593,53 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined> {
+    // Vérifie aussi les commandes 'paid' pour couvrir le bypass DEV et les paiements
+    // confirmés rapidement par webhook avant que l'utilisateur re-soumette le panier.
     const [order] = await db.select().from(systemdOrders)
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, intentKey),
-          eq(systemdOrders.status, "pending"),
+          inArray(systemdOrders.status, ["pending", "paid"]),
           sql`${systemdOrders.createdAt} > NOW() - INTERVAL '${sql.raw(String(windowMinutes))} minutes'`
         )
       )
       .orderBy(desc(systemdOrders.createdAt))
       .limit(1);
     return order;
+  }
+
+  async tryInsertSystemdOrder(data: InsertSystemdOrder): Promise<{ order: SystemdOrder; created: boolean }> {
+    // Tentative d'insertion atomique. Si l'index partiel unique déclenche un conflit
+    // (même clé d'intention, statut actif), ON CONFLICT DO NOTHING ne retourne rien.
+    const [inserted] = await db.insert(systemdOrders)
+      .values(data)
+      .onConflictDoNothing()
+      .returning();
+
+    if (inserted) {
+      return { order: inserted, created: true };
+    }
+
+    // Conflit : une commande active avec cette clé existe déjà — on la récupère.
+    if (!data.checkoutIntentKey) {
+      throw new Error("tryInsertSystemdOrder : checkoutIntentKey manquant");
+    }
+    const [existing] = await db.select().from(systemdOrders)
+      .where(
+        and(
+          eq(systemdOrders.checkoutIntentKey, data.checkoutIntentKey),
+          inArray(systemdOrders.status, ["pending", "paid"])
+        )
+      )
+      .orderBy(desc(systemdOrders.createdAt))
+      .limit(1);
+
+    if (!existing) {
+      // Ne devrait pas arriver : conflit mais aucun enregistrement trouvé.
+      throw new Error("tryInsertSystemdOrder : conflit détecté mais aucune commande existante trouvée");
+    }
+
+    return { order: existing, created: false };
   }
 
   // ─── Zoho Sync Runs ────────────────────────────────────────────────────────

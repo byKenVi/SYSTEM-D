@@ -437,7 +437,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const isViewAs = !!viewAsContactId;
 
   /* SystemD orders */
-  const { data: systemdOrdersData, isLoading: systemdOrdersLoading } = useQuery<any[]>({
+  const { data: systemdOrdersData, isLoading: systemdOrdersLoading, isFetching: systemdOrdersFetching } = useQuery<any[]>({
     queryKey: ["/api/portal/systemd-orders"],
     queryFn: () =>
       fetch("/api/portal/systemd-orders", { credentials: "include" }).then(async (r) => {
@@ -457,20 +457,63 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   /* Customers state */
   const [customerSearch, setCustomerSearch] = useState("");
 
-  /* Payment success/cancelled toast — runs once on mount, keyed on payment param */
+  /* Payment success/cancelled toast — validé contre l'état réel des commandes */
   const paymentStatus = params.get("payment");
   const paymentToastFired = useRef(false);
+
+  // Effet 1 : invalide le cache dès détection de "payment=success" (déclenche refetch).
+  // Gère aussi "payment=cancelled" immédiatement (aucune commande à vérifier).
   useEffect(() => {
-    if (paymentToastFired.current) return;
     if (paymentStatus === "success") {
-      paymentToastFired.current = true;
-      toast({ title: "Paiement réussi !", description: "Votre commande SystemD a été enregistrée." });
       queryClient.invalidateQueries({ queryKey: ["/api/portal/systemd-orders"] });
-    } else if (paymentStatus === "cancelled") {
+    } else if (paymentStatus === "cancelled" && !paymentToastFired.current) {
       paymentToastFired.current = true;
       toast({ title: "Paiement annulé", description: "Votre panier a été conservé.", variant: "destructive" });
     }
   }, [paymentStatus]);
+
+  // Effet 2 : toast de succès — attend la fin du refetch déclenché par l'invalidation
+  // ci-dessus (isFetching=false), puis inspecte les commandes fraîches pour adapter
+  // le message au statut réel (paid / pending / introuvable).
+  useEffect(() => {
+    if (paymentStatus !== "success" || paymentToastFired.current) return;
+
+    // En mode view-as, le fetch systemd-orders est désactivé : on affiche un message
+    // générique immédiatement sans attendre.
+    if (isViewAs) {
+      paymentToastFired.current = true;
+      toast({ title: "Paiement reçu", description: "La commande a été enregistrée." });
+      return;
+    }
+
+    // Attendre la fin du refetch pour inspecter des données fraîches.
+    if (systemdOrdersFetching) return;
+
+    paymentToastFired.current = true;
+    const windowMs = 15 * 60 * 1000; // fenêtre de 15 min
+    const now = Date.now();
+
+    const recentPaid = systemdOrdersList.find(
+      (o: any) => o.status === "paid" && now - new Date(o.createdAt).getTime() < windowMs
+    );
+    const recentPending = systemdOrdersList.find(
+      (o: any) => o.status === "pending" && now - new Date(o.createdAt).getTime() < windowMs
+    );
+
+    if (recentPaid) {
+      toast({ title: "Paiement confirmé !", description: "Votre commande SystemD a bien été enregistrée." });
+    } else if (recentPending) {
+      toast({
+        title: "Paiement reçu",
+        description: "Confirmation en cours — votre commande apparaîtra ici sous peu.",
+      });
+    } else {
+      toast({
+        title: "Redirection reçue",
+        description: "Si votre paiement a bien été effectué, la commande apparaîtra ici dans quelques instants.",
+      });
+    }
+  }, [paymentStatus, systemdOrdersFetching, systemdOrdersList, isViewAs]);
 
   /* Data fetching */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({

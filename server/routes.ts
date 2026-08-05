@@ -3440,17 +3440,14 @@ export async function registerRoutes(
       ].join("|");
       const intentKey = createHash("sha256").update(intentPayload).digest("hex").slice(0, 64);
 
-      const existingOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
-      if (existingOrder?.stripeCheckoutUrl) {
-        return res.json({ url: existingOrder.stripeCheckoutUrl });
-      }
-
       // ── Mode bypass DEV ──────────────────────────────────────────────────────
-      // Conditions strictes : NODE_ENV=development ET SYSTEMD_DEV_CHECKOUT_BYPASS=true
-      // Les commandes créées en bypass sont identifiables par le préfixe DEV- et le statut 'paid'.
+      // Traité en premier, avant le flux Stripe.
+      // Protection atomique : tryInsertSystemdOrder utilise ON CONFLICT DO NOTHING
+      // sur l'index partiel unique — deux appels identiques simultanés (pending OU
+      // paid) ne créent qu'UNE seule commande, sans lire avant d'insérer.
       if (process.env.NODE_ENV === "development" && process.env.SYSTEMD_DEV_CHECKOUT_BYPASS === "true") {
         const devSessionId = `DEV-${Date.now()}-${contactId}`;
-        const devOrder = await storage.createSystemdOrder({
+        const { order: devOrder, created: devCreated } = await storage.tryInsertSystemdOrder({
           contactId,
           stripeCheckoutSessionId: devSessionId,
           stripeCheckoutUrl: null,
@@ -3460,12 +3457,26 @@ export async function registerRoutes(
           status: "paid",
           lineItems: resolvedItems as any,
         });
-        console.log(`[DEV BYPASS] Commande SystemD #${devOrder.id} créée sans Stripe (session: ${devSessionId})`);
+        if (devCreated) {
+          console.log(`[DEV BYPASS] Commande SystemD #${devOrder.id} créée (session: ${devSessionId})`);
+        } else {
+          console.log(`[DEV BYPASS] Commande #${devOrder.id} existante réutilisée — idempotence (${devOrder.status})`);
+        }
         const host = `${req.protocol}://${req.get("host")}`;
         return res.json({ url: `${host}/portal/boutique?tab=systemd-orders&payment=success` });
       }
 
       // ── Flux Stripe normal ───────────────────────────────────────────────────
+      // Étape 1 : lecture rapide (couvre ~99 % des doublons — renvoi après quelques
+      // secondes/minutes avec le même panier). Vérifie pending ET paid (webhook
+      // peut avoir confirmé entre temps).
+      const existingOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
+      if (existingOrder?.stripeCheckoutUrl) {
+        console.log(`[systemd-checkout] Commande existante #${existingOrder.id} réutilisée (${existingOrder.status})`);
+        return res.json({ url: existingOrder.stripeCheckoutUrl });
+      }
+
+      // Étape 2 : création de la session Stripe (hors verrou DB — appel réseau ~1-2 s).
       const { getUncachableStripeClient } = await import("./stripeClient");
       const stripe = await getUncachableStripeClient();
       const host = `${req.protocol}://${req.get("host")}`;
@@ -3494,7 +3505,12 @@ export async function registerRoutes(
         },
       });
 
-      await storage.createSystemdOrder({
+      // Étape 3 : insertion atomique — ON CONFLICT DO NOTHING sur l'index partiel
+      // unique (uq_systemd_orders_intent_active). Si deux requêtes concurrentes ont
+      // passé l'étape 1 simultanément, seule l'une s'insère ; l'autre récupère la
+      // commande gagnante et renvoie son URL. La session Stripe de la "perdante"
+      // reste orpheline et expirera sans être payée (cas extrêmement rare).
+      const { order, created } = await storage.tryInsertSystemdOrder({
         contactId,
         stripeCheckoutSessionId: session.id,
         stripeCheckoutUrl: session.url,
@@ -3504,6 +3520,11 @@ export async function registerRoutes(
         status: "pending",
         lineItems: resolvedItems as any,
       });
+
+      if (!created && order.stripeCheckoutUrl) {
+        console.log(`[systemd-checkout] Race condition détectée — URL existante renvoyée (commande #${order.id})`);
+        return res.json({ url: order.stripeCheckoutUrl });
+      }
 
       res.json({ url: session.url });
     } catch (error: any) {
