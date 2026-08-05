@@ -9,6 +9,12 @@ export interface SystemdProduct {
   imageUrl: string | null;
   price: number;
   stock: number;
+  // Champs enrichis depuis zoho_catalog
+  status?: string | null;
+  productType?: string | null;
+  unit?: string | null;
+  canBeSold?: boolean | null;
+  zohoLastModifiedTime?: string | null;
 }
 
 export interface CartItem {

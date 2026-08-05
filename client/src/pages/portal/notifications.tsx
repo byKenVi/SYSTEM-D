@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Bell, BellOff, Check, CheckCheck, Inbox, Settings2, ShieldAlert, Volume2 } from "lucide-react";
+import { useLocation } from "wouter";
+import { Bell, BellOff, Check, CheckCheck, ChevronRight, Inbox, Settings2, ShieldAlert, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,6 +72,13 @@ function timeAgo(dateString: string | null | undefined) {
   return fmt(dateString);
 }
 
+/** Retourne l'URL de destination d'une notification si metadata le permet, sinon null. */
+function getNotificationUrl(n: Notification): string | null {
+  const meta = (n.metadata ?? {}) as Record<string, unknown>;
+  if (meta.formId) return `/portal/forms/${meta.formId}`;
+  return null;
+}
+
 function playNotificationSound() {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -94,6 +102,7 @@ function playNotificationSound() {
 
 export default function PortalNotifications({ viewAsContactId }: { viewAsContactId?: number }) {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const { data: role } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/role"],
@@ -127,6 +136,7 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
 
   const seenIds = useRef<Set<number>>(new Set());
   const initialLoad = useRef(true);
+  const hasAutoMarked = useRef(false);
 
   useEffect(() => {
     if (!notifications) return;
@@ -167,6 +177,16 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
     },
   });
 
+  // Marquage silencieux à l'ouverture de la page (sans toast)
+  const markAllReadSilent = useMutation({
+    mutationFn: () =>
+      apiRequest("PATCH", "/api/portal/notifications/read-all").then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [notifKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications/unread-count"] });
+    },
+  });
+
   const togglePref = useMutation({
     mutationFn: ({ category, enabled }: { category: string; enabled: boolean }) =>
       apiRequest("PUT", "/api/portal/notifications/preferences", { category, enabled }).then((r) => r.json()),
@@ -184,6 +204,15 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
       toast({ title: "Erreur lors de la mise à jour", variant: "destructive" });
     },
   });
+
+  // Auto-marquer comme lu à l'ouverture de la page (client uniquement, une seule fois)
+  useEffect(() => {
+    if (!notifications || isAdmin || hasAutoMarked.current) return;
+    if (notifications.some((n) => !n.isRead)) {
+      hasAutoMarked.current = true;
+      markAllReadSilent.mutate();
+    }
+  }, [notifications, isAdmin]);
 
   const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
   const cat = (c: string) => CATEGORY_CONFIG[c] ?? { label: c, description: "", colors: "bg-muted text-muted-foreground border-border", iconBg: "bg-muted-foreground" };
@@ -273,19 +302,23 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
               notifications.map((n) => {
                 const cfg = cat(n.category);
                 const isError = n.type === "error" || n.title.toLowerCase().includes("erreur");
-                
+                const destUrl = getNotificationUrl(n);
+                const isClickable = !!destUrl;
+
                 return (
-                  <Card 
-                    key={n.id} 
+                  <Card
+                    key={n.id}
                     className={`relative overflow-hidden transition-all duration-200 border-border/50 shadow-sm
-                      ${!n.isRead ? "bg-card shadow-md shadow-primary/5" : "bg-muted/30 opacity-80"}
+                      ${!n.isRead ? "bg-card shadow-md shadow-primary/5" : "bg-muted/30 opacity-75"}
+                      ${isClickable ? "cursor-pointer hover:shadow-lg hover:border-primary/20 group/notif" : ""}
                     `}
+                    onClick={() => { if (isClickable) navigate(destUrl!); }}
                     data-testid={`row-notification-${n.id}`}
                   >
                     {!n.isRead && (
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
                     )}
-                    
+
                     <CardContent className="p-4 sm:p-5 flex gap-4">
                       {/* Icon */}
                       <div className="shrink-0 mt-1">
@@ -308,36 +341,47 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
                               {timeAgo(n.createdAt as unknown as string)}
                             </span>
                           </div>
-                          
-                          {!n.isRead && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs font-medium text-primary hover:bg-primary/10 shrink-0 hidden sm:flex"
-                              onClick={() => markRead.mutate(n.id)}
-                              disabled={markRead.isPending}
-                              data-testid={`button-mark-read-${n.id}`}
-                            >
-                              <Check className="h-3.5 w-3.5 mr-1" /> Marquer lu
-                            </Button>
-                          )}
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {!n.isRead && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs font-medium text-primary hover:bg-primary/10 hidden sm:flex"
+                                onClick={(e) => { e.stopPropagation(); markRead.mutate(n.id); }}
+                                disabled={markRead.isPending}
+                                data-testid={`button-mark-read-${n.id}`}
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> Marquer lu
+                              </Button>
+                            )}
+                            {isClickable && (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover/notif:text-primary transition-colors" />
+                            )}
+                          </div>
                         </div>
 
                         <h4 className={`text-base font-bold tracking-tight mt-1 mb-1.5 ${!n.isRead ? "text-foreground" : "text-foreground/80"}`}>
                           {n.title}
                         </h4>
-                        
+
                         <p className={`text-sm leading-relaxed ${!n.isRead ? "text-muted-foreground" : "text-muted-foreground/70"}`}>
                           {n.message}
                         </p>
-                        
+
+                        {isClickable && (
+                          <p className="text-xs text-primary font-medium mt-2 group-hover/notif:underline">
+                            Voir le détail →
+                          </p>
+                        )}
+
                         {!n.isRead && (
                           <div className="mt-4 sm:hidden">
                             <Button
                               size="sm"
                               variant="outline"
                               className="w-full text-xs"
-                              onClick={() => markRead.mutate(n.id)}
+                              onClick={(e) => { e.stopPropagation(); markRead.mutate(n.id); }}
                               disabled={markRead.isPending}
                             >
                               <Check className="h-3.5 w-3.5 mr-2" /> Marquer comme lu

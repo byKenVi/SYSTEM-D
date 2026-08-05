@@ -1,3 +1,4 @@
 - [Notification auto-trigger pattern](notification-triggers.md) — buildStatusNotification() maps (formType, fromStatus, toStatus) to category/type/title/message; fire-and-forget with .catch().
 - [Zoho token stability fixes](zoho-token-stability.md) — 429 rate limit is the real "invalid token" culprit; refresh lock + targeted writes + lite sync fetcher prevent both.
 - [Zoho catalog cache architecture](zoho-catalog-arch.md) — zoho_catalog table + syncFullZohoCatalog() in zoho-catalog.ts; routes NOT yet switched; Étape 5 awaits user data validation.
+- [UX pre-QA P0/P1 patterns](ux-preqa-patterns.md) — scroll-to-error, auto-mark-read, mobile Shadcn header, conditional KPI sections — implementation notes.

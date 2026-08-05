@@ -18,6 +18,11 @@ import {
   AlertCircle,
   ShieldAlert,
   Clock,
+  CheckCircle2,
+  XCircle,
+  Calendar,
+  Tag,
+  Ruler,
 } from "lucide-react";
 
 function money(amount: number | string | null | undefined, currency = "CAD") {
@@ -311,13 +316,75 @@ export default function PortalSystemdProductDetail({
             </div>
           </div>
 
-          {/* Description */}
-          {product.description && (
-            <div className="p-4 rounded-xl border bg-muted/20">
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                Description
+          {/* Description — toujours affichée, avec fallback */}
+          <div className="p-4 rounded-xl border bg-muted/20">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+              Description
+            </p>
+            <p className="text-sm text-foreground leading-relaxed">
+              {product.description || <span className="text-muted-foreground italic">Aucune description disponible.</span>}
+            </p>
+          </div>
+
+          {/* Spécifications */}
+          {(product.productType || product.unit || product.canBeSold != null || product.zohoLastModifiedTime) && (
+            <div className="p-4 rounded-xl border bg-card">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5" /> Spécifications
               </p>
-              <p className="text-sm text-foreground leading-relaxed">{product.description}</p>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {product.productType && (
+                  <>
+                    <dt className="text-xs text-muted-foreground font-medium">Catégorie</dt>
+                    <dd className="text-xs font-bold text-foreground text-right">{product.productType}</dd>
+                  </>
+                )}
+                {product.unit && (
+                  <>
+                    <dt className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Ruler className="h-3 w-3" /> Unité</dt>
+                    <dd className="text-xs font-bold text-foreground text-right">{product.unit}</dd>
+                  </>
+                )}
+                {product.canBeSold != null && (
+                  <>
+                    <dt className="text-xs text-muted-foreground font-medium">Peut être vendu</dt>
+                    <dd className="flex justify-end">
+                      {product.canBeSold
+                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        : <XCircle className="h-4 w-4 text-red-500" />}
+                    </dd>
+                  </>
+                )}
+                {product.zohoLastModifiedTime && (
+                  <>
+                    <dt className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Calendar className="h-3 w-3" /> Dernière mise à jour</dt>
+                    <dd className="text-xs font-bold text-foreground text-right">
+                      {new Date(product.zohoLastModifiedTime).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" })}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Disponibilité */}
+          {product.status && (
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Disponibilité</p>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex h-2 w-2 rounded-full ${
+                  product.status === "active" ? "bg-emerald-500" :
+                  product.status === "inactive" ? "bg-slate-400" : "bg-amber-400"
+                }`} />
+                <Badge variant="outline" className={`text-xs font-bold ${
+                  product.status === "active"
+                    ? "border-emerald-200 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"
+                    : "border-slate-200 text-slate-600 dark:text-slate-400"
+                }`}>
+                  {product.status === "active" ? "Actif" :
+                   product.status === "inactive" ? "Inactif" : product.status}
+                </Badge>
+              </div>
             </div>
           )}
 

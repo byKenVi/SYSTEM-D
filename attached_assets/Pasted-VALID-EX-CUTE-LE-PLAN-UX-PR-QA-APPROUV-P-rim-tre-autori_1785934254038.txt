@@ -1,0 +1,129 @@
+VALIDÉ — EXÉCUTE LE PLAN UX PRÉ-QA APPROUVÉ.
+
+Périmètre autorisé :
+- P0 complet ;
+- P1 complet ;
+- P2 uniquement si très simple et sans risque, mais ne priorise pas les P2.
+
+Ne modifie pas :
+- la synchronisation Zoho ;
+- le scheduler Zoho ;
+- Stripe ;
+- les routes backend sauf nécessité déjà identifiée ;
+- les schémas ou migrations ;
+- le PDF soumission ;
+- la logique de permissions.
+
+==================================================
+PRÉCISIONS OBLIGATOIRES
+==================================================
+
+1. Notifications cliquables :
+- Rends les notifications cliquables uniquement si metadata contient une destination fiable.
+- Pour metadata.formId, redirige vers /portal/forms/{formId}.
+- Si aucune destination fiable n’existe, garde la notification non cliquable.
+- Ne casse pas les actions secondaires comme supprimer une notification.
+- Si une carte notification contient un bouton supprimer, empêche le clic de navigation avec stopPropagation.
+
+2. Auto-mark-as-read :
+- Marque automatiquement les notifications comme lues seulement après chargement réussi de la page Notifications.
+- Ne supprime pas les notifications.
+- Garde une distinction visuelle lu / non lu.
+- Le badge doit disparaître après marquage comme lu.
+- Invalide/refetch unread-count après l’action.
+
+3. Badge mobile :
+- Ajoute un indicateur visible sur mobile sans ouvrir la sidebar.
+- Réutilise le unread-count existant.
+- Ne duplique pas une logique de fetch si un hook ou query existe déjà.
+
+4. Formulaire de soumission :
+- Ajoute un bouton “Soumettre” accessible en bas du formulaire.
+- Les boutons haut et bas doivent utiliser exactement la même fonction de soumission et le même état isPending.
+- Ajoute un scroll vers le premier champ invalide.
+- Ajoute ou améliore les messages d’erreur en français.
+- Empêche toute double soumission.
+
+5. Page produit Système D :
+- Améliore la page sans inventer de données.
+- Utilise seulement les données existantes : nom, SKU, prix, stock, description, statut, unité, type produit, disponibilité, image ou placeholder.
+- Ajoute les sections :
+  - Description ;
+  - Spécifications ;
+  - Disponibilité.
+- Si une donnée est absente, affiche un fallback propre en français.
+- Ne rajoute aucun appel direct à Zoho.
+- Ne modifie pas les permissions serveur.
+
+6. Dashboard / Boutique :
+- Corrige uniquement les libellés confus et les sections clairement vides.
+- Ne fais pas de refonte globale.
+- Ne masque pas une section si cela risque de cacher une donnée utile en mode admin view-as.
+
+==================================================
+ORDRE D’IMPLÉMENTATION
+==================================================
+
+1. Notifications P0 :
+- notifications cliquables ;
+- auto-mark-as-read ;
+- distinction visuelle lu / non lu.
+
+2. Formulaire P0 :
+- bouton Soumettre en bas ;
+- scroll vers premier champ en erreur ;
+- messages français.
+
+3. Badge mobile notifications P1.
+
+4. Page produit Système D P1 :
+- layout plus dense ;
+- sections Description, Spécifications, Disponibilité ;
+- meilleurs placeholders.
+
+5. Petites retouches Dashboard / Boutique P1 :
+- libellés plus clairs ;
+- sections vides masquées seulement si sans risque.
+
+Ne traite pas les P2 si cela ajoute du risque.
+
+==================================================
+TESTS À EXÉCUTER
+==================================================
+
+À la fin, exécute :
+- typecheck ;
+- lint ;
+- tests disponibles ;
+- build.
+
+Teste manuellement :
+- notification de soumission cliquable vers le bon formulaire ;
+- notification sans destination fiable non cliquable ;
+- badge unread visible puis disparu après visite de la page Notifications ;
+- badge mobile visible ;
+- bouton Soumettre en bas du formulaire ;
+- formulaire incomplet → scroll vers premier champ invalide ;
+- double clic soumission impossible ;
+- page produit Système D avec image ;
+- page produit Système D sans image ;
+- page produit Système D sans description ;
+- affichage mobile de la page produit ;
+- admin view-as ;
+- permissions / accès formulaire d’un autre client interdit.
+
+==================================================
+RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+- fichiers modifiés ;
+- corrections appliquées par priorité P0 / P1 ;
+- ce qui a été volontairement laissé en P2 ;
+- tests exécutés et résultats ;
+- limites restantes ;
+- éléments à inclure dans la QA finale.
+
+Termine par :
+
+“IMPLÉMENTATION UX PRÉ-QA TERMINÉE — PRÊT POUR REVUE AVANT QA FINALE.”

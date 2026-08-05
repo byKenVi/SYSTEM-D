@@ -5,11 +5,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Eye, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Eye, ArrowLeft, ShieldAlert, Bell } from "lucide-react";
 import type { Contact } from "@shared/schema";
 import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
@@ -119,6 +119,12 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
       <SidebarInset className="overflow-hidden bg-background">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
+        {/* En-tête mobile : visible uniquement en dessous de md */}
+        <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-2.5 bg-background/95 backdrop-blur-sm border-b border-border/50 shrink-0">
+          <SidebarTrigger className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg" />
+          <span className="text-sm font-bold tracking-tight text-foreground">Système D</span>
+          <MobileNotifBell viewAsContactId={viewAsContactId} />
+        </div>
         <div className="flex-1 overflow-y-auto scrollbar-hide">
           <div className="p-6 lg:p-8 min-h-full w-full">
             <CartProvider storageKey={cartStorageKey}>
@@ -172,6 +178,36 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+/** Barre de navigation mobile — visible uniquement sous md */
+function MobileNotifBell({ viewAsContactId }: { viewAsContactId?: number }) {
+  const [, navigate] = useLocation();
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/portal/notifications/unread-count"],
+    enabled: !viewAsContactId,
+    refetchInterval: 30_000,
+    staleTime: 0,
+  });
+  const count = unreadData?.count ?? 0;
+  const dest = viewAsContactId
+    ? `/portal/notifications?viewAs=${viewAsContactId}`
+    : "/portal/notifications";
+
+  return (
+    <button
+      aria-label="Notifications"
+      className="relative h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+      onClick={() => navigate(dest)}
+    >
+      <Bell className="h-5 w-5" />
+      {count > 0 && !viewAsContactId && (
+        <span className="absolute top-0.5 right-0.5 h-4 min-w-4 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground px-0.5 leading-none">
+          {count > 9 ? "9+" : count}
+        </span>
+      )}
+    </button>
   );
 }
 

@@ -652,7 +652,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             </TabsTrigger>
             <TabsTrigger value="customers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-customers">
               <Users className="h-4 w-4 mr-2" />
-              Reps
+              Clients Shopify
               {customers.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{customers.length}</Badge>}
             </TabsTrigger>
           </TabsList>

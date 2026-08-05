@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download, User, FileText, CheckCircle2, AlertCircle } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData, type TriFormData } from "@/components/forms/tri-form";
 import { InspectionForm, defaultInspectionData, type InspectionFormData } from "@/components/forms/inspection-form";
@@ -55,6 +55,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const [formData, setFormData] = useState<any>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [revisionDesc, setRevisionDesc] = useState("");
+  const formBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: form, isLoading } = useQuery<FormSubmission & { uploads?: any[] }>({
     queryKey: ["/api/forms", formId],
@@ -141,7 +142,11 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       toast({ title: "Formulaire soumis", description: "Le formulaire a été soumis avec succès." });
     },
     onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message || "Échec de la soumission.", variant: "destructive" });
+      toast({ title: "Erreur de validation", description: err.message || "Veuillez vérifier les champs requis.", variant: "destructive" });
+      // Ramène l'utilisateur au début du formulaire pour voir les champs invalides
+      setTimeout(() => {
+        formBodyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
     },
   });
 
@@ -364,7 +369,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       </div>
 
       {/* ── Form Render ── */}
-      <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+      <div ref={formBodyRef} className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
         {formData !== null && (
           <div className="p-6 sm:p-8">
             {form.formType === "tri" && (
@@ -381,6 +386,31 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             )}
             {form.formType === "livraison" && (
               <LivraisonForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
+            )}
+
+            {/* ── Barre d'action bas (visible côté client, brouillon uniquement) ── */}
+            {!isDisabled && isDraft && (
+              <div className="mt-10 pt-6 border-t border-border/40 flex flex-col sm:flex-row gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => saveDraftMutation.mutate()}
+                  disabled={saveDraftMutation.isPending || saveStatus === "saving"}
+                  className="font-bold"
+                  data-testid="button-save-draft-bottom"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saveDraftMutation.isPending ? "Sauvegarde..." : "Enregistrer le brouillon"}
+                </Button>
+                <Button
+                  onClick={() => setSubmitDialogOpen(true)}
+                  disabled={submitMutation.isPending}
+                  className="font-bold shadow-lg shadow-primary/20"
+                  data-testid="button-submit-form-bottom"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Soumettre
+                </Button>
+              </div>
             )}
           </div>
         )}

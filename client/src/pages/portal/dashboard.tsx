@@ -223,8 +223,8 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         {/* Left Column - Main Activity */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* E-commerce KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* E-commerce KPIs — masqué si le client n'a pas de données Shopify */}
+          {(loadingKpis || hasShopifyData) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <Card className="border-border/50 shadow-sm" data-testid="stat-card-orders-month">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
@@ -260,7 +260,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           {/* Recent Forms Activity */}
           <Card className="border-border/50 shadow-sm overflow-hidden">
