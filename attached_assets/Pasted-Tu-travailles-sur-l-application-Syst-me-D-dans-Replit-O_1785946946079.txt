@@ -1,0 +1,358 @@
+Tu travailles sur l’application Système D dans Replit.
+
+Objectif :
+Améliorer l’UI/UX des vues administrateur et client, sans refondre complètement l’application et sans changer les règles métier.
+
+La maquette générale a déjà été validée, donc il ne faut pas refaire tout le design. Par contre, plusieurs problèmes d’expérience utilisateur doivent être corrigés :
+
+- certains boutons ou onglets sont tronqués ;
+- certaines pages obligent à dézoomer le navigateur pour voir tout le contenu ;
+- certaines vues ne gèrent pas bien les largeurs d’écran ;
+- l’application n’est pas suffisamment responsive ;
+- certaines pages produits ont un affichage liste/bloc, d’autres non, ce qui crée une incohérence ;
+- certaines pages ont trop d’espace vide ou une hiérarchie visuelle faible ;
+- certaines zones débordent horizontalement ;
+- certains onglets ne sont pas lisibles ;
+- plusieurs petites bavures visuelles dégradent l’expérience utilisateur.
+
+==================================================
+RÈGLE BLOQUANTE — TRAVAIL EN DEUX PHASES
+==================================================
+
+PHASE 1 — AUDIT UI/UX SANS MODIFICATION
+
+Ne modifie aucun fichier pendant cette phase.
+
+Tu dois inspecter l’interface admin et client, puis produire un plan clair.
+
+Ne touche pas encore au code.
+Ne change pas les routes.
+Ne change pas la base de données.
+Ne modifie pas Zoho, Stripe, Shopify, PDF, permissions ou synchronisations.
+Ne corrige rien avant validation.
+
+==================================================
+PÉRIMÈTRE À AUDITER
+==================================================
+
+Audite au minimum :
+
+VUE CLIENT :
+- Dashboard ;
+- Boutique ;
+- onglets Boutique ;
+- Produits ;
+- Produits Système D ;
+- Commandes Système D ;
+- Commandes Shopify ;
+- page détail produit ;
+- panier ;
+- soumissions ;
+- détail soumission ;
+- notifications ;
+- profil.
+
+VUE ADMIN :
+- Dashboard admin ;
+- clients ;
+- produits ;
+- inventaire ;
+- soumissions ;
+- commandes ;
+- notifications ;
+- paramètres ;
+- vues “view as client” ;
+- toutes les pages avec tableaux, onglets, cards ou filtres.
+
+==================================================
+PROBLÈMES À RECHERCHER
+==================================================
+
+Pour chaque page, vérifie :
+
+1. Onglets et boutons tronqués
+- Aucun onglet ne doit être coupé.
+- Aucun bouton ne doit sortir de son conteneur.
+- Si plusieurs onglets sont présents, ils doivent passer en scroll horizontal propre ou se réorganiser.
+- Les labels doivent rester lisibles.
+
+2. Gestion du zoom / dézoom
+- L’utilisateur ne doit pas avoir besoin de dézoomer pour utiliser l’application.
+- À 100 % de zoom navigateur, tout doit rester accessible.
+- À 125 % de zoom, l’interface ne doit pas casser.
+- À 90 %, l’interface ne doit pas devenir trop espacée ou désalignée.
+
+3. Responsive minimum
+Même si l’application n’est pas prévue principalement pour mobile :
+- elle doit rester utilisable sur tablette ;
+- elle doit rester lisible sur petit écran ;
+- les éléments importants ne doivent pas disparaître ;
+- les tableaux doivent pouvoir scroller horizontalement proprement ;
+- les onglets doivent rester accessibles ;
+- les actions principales doivent rester visibles.
+
+Points de test :
+- desktop large ;
+- laptop standard ;
+- tablette ;
+- mobile minimum acceptable.
+
+4. Cohérence liste / grille
+Certaines pages produits permettent de choisir entre affichage liste et affichage bloc, d’autres non.
+
+Vérifie :
+- quelles pages produits ont le toggle liste/grille ;
+- lesquelles ne l’ont pas ;
+- si l’absence du toggle est justifiée ;
+- si le même type de contenu devrait avoir le même comportement.
+
+Objectif :
+Pour les pages de catalogue ou produits, harmoniser l’expérience :
+- affichage grille pour navigation visuelle ;
+- affichage liste pour consultation dense ;
+- mémoriser le choix utilisateur si simple à faire ;
+- garder une expérience cohérente entre admin et client lorsque pertinent.
+
+5. États vides
+Les pages vides ne doivent pas donner l’impression que l’application est cassée.
+
+Chaque état vide doit expliquer :
+- pourquoi il n’y a rien ;
+- ce que l’utilisateur peut faire ensuite ;
+- quelle action est possible.
+
+Exemples :
+- “Aucun produit disponible pour le moment.”
+- “Les commandes apparaîtront ici après un achat.”
+- “Aucune soumission n’a encore été envoyée.”
+
+6. Hiérarchie visuelle
+Vérifie :
+- titres trop grands ou trop petits ;
+- cards trop vides ;
+- informations principales pas assez visibles ;
+- boutons d’action pas assez évidents ;
+- sections mal espacées ;
+- contenu trop large ou trop étroit ;
+- pages qui semblent incomplètes.
+
+7. Tableaux
+Vérifie :
+- colonnes coupées ;
+- actions invisibles ;
+- scroll horizontal manquant ;
+- tableaux trop larges ;
+- mauvais comportement sur laptop ;
+- manque de sticky header si utile ;
+- absence d’état vide ou loading.
+
+8. Actions principales
+Sur chaque page, l’utilisateur doit comprendre l’action principale :
+- ajouter au panier ;
+- soumettre ;
+- télécharger ;
+- voir le détail ;
+- modifier ;
+- synchroniser ;
+- revenir ;
+- filtrer ;
+- rechercher.
+
+Les actions principales doivent être visibles et compréhensibles.
+
+9. Cohérence des libellés
+Vérifie les libellés incohérents ou ambigus :
+- “Reps” ;
+- “Clients Shopify” ;
+- “Mes produits” ;
+- “Produits Système D” ;
+- “Commandes” ;
+- “Commandes Système D” ;
+- “Commandes Shopify”.
+
+Les noms doivent être clairs pour un client non technique.
+
+10. Navigation
+Vérifie :
+- bouton retour ;
+- breadcrumbs si déjà utilisés ;
+- onglets actifs bien visibles ;
+- différence claire entre admin et client ;
+- mode view-as clair ;
+- l’utilisateur doit toujours savoir où il est.
+
+==================================================
+CONTRAINTES
+==================================================
+
+Tu peux améliorer :
+- spacing ;
+- responsive ;
+- largeur des conteneurs ;
+- scroll horizontal propre ;
+- labels ;
+- boutons ;
+- badges ;
+- cards ;
+- états vides ;
+- skeletons/loading ;
+- toggles liste/grille ;
+- hiérarchie visuelle ;
+- cohérence entre pages similaires.
+
+Tu ne dois pas :
+- refaire toute la maquette ;
+- changer les couleurs principales ;
+- changer la navigation globale ;
+- modifier la logique métier ;
+- modifier les permissions ;
+- modifier les intégrations ;
+- modifier le checkout ;
+- modifier les données ;
+- inventer de nouvelles fonctionnalités importantes ;
+- ajouter une dépendance lourde ;
+- faire une refonte complète.
+
+==================================================
+OBJECTIF UX
+==================================================
+
+L’application doit être intuitive.
+
+Un utilisateur doit pouvoir comprendre rapidement :
+- où il est ;
+- ce qu’il peut faire ;
+- ce qui est cliquable ;
+- pourquoi une page est vide ;
+- où se trouvent ses produits ;
+- où se trouvent ses commandes ;
+- comment revenir ;
+- comment filtrer ;
+- comment changer l’affichage ;
+- comment effectuer l’action principale.
+
+==================================================
+FORMAT DE RÉPONSE ATTENDU — PHASE 1
+==================================================
+
+Réponds uniquement avec un audit, sans modifier le code.
+
+Structure ton rapport ainsi :
+
+A. Résumé général UI/UX
+B. Problèmes critiques observés
+C. Problèmes par vue client
+D. Problèmes par vue admin
+E. Problèmes de responsive
+F. Problèmes de zoom / débordement
+G. Problèmes d’onglets tronqués
+H. Pages où il faut harmoniser liste / grille
+I. États vides à améliorer
+J. Libellés à clarifier
+K. Quick wins sans risque
+L. Améliorations à éviter pour ne pas casser la maquette
+M. Fichiers à modifier
+N. Plan d’implémentation recommandé
+O. Tests manuels à faire
+
+Classe les corrections par priorité :
+
+P0 — Bloque l’utilisation ou oblige à dézoomer.
+P1 — Crée une confusion importante.
+P2 — Amélioration visuelle ou confort.
+
+Termine exactement par :
+
+“ANALYSE UI/UX ADMIN ET CLIENT TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION AVANT D’IMPLÉMENTER.”
+
+==================================================
+PHASE 2 — APRÈS VALIDATION
+==================================================
+
+Ne commence l’implémentation que si je réponds :
+
+“VALIDÉ — EXÉCUTE LES AMÉLIORATIONS UI/UX APPROUVÉES.”
+
+Après validation :
+
+1. Corrige uniquement les éléments approuvés.
+2. Commence par les P0.
+3. Continue avec les P1.
+4. Ne fais les P2 que s’ils sont simples et sans risque.
+5. Ne change pas la maquette globale.
+6. Garde tous les textes en français.
+7. Préserve les permissions et la logique métier.
+8. Vérifie desktop, laptop, tablette et mobile minimum.
+9. Exécute typecheck, build et tests disponibles.
+
+==================================================
+CORRECTIONS ATTENDUES SI APPROUVÉES
+==================================================
+
+1. Onglets tronqués
+- Les onglets doivent rester lisibles.
+- Si l’espace manque, utiliser scroll horizontal propre.
+- Les onglets actifs doivent rester visibles.
+- Aucun onglet ne doit être coupé visuellement.
+
+2. Responsive minimum
+- Les pages doivent rester utilisables sur laptop et tablette.
+- Sur mobile, l’expérience peut être simplifiée mais pas cassée.
+- Les tableaux doivent scroller proprement.
+- Les cards doivent se réorganiser proprement.
+
+3. Gestion du zoom
+- À 100 %, aucune page ne doit nécessiter un dézoom.
+- À 125 %, l’application doit rester utilisable.
+- Éviter les largeurs fixes trop grandes.
+- Corriger les conteneurs qui débordent.
+
+4. Liste / grille
+- Harmoniser les pages produits.
+- Si une page catalogue a un toggle liste/grille, les pages similaires doivent avoir le même comportement ou une justification claire.
+- Le choix d’affichage doit être intuitif.
+
+5. États vides
+- Ajouter des messages utiles.
+- Ajouter une action si pertinente.
+- Éviter les grands espaces vides sans explication.
+
+6. UI produits
+- Améliorer les cards produits.
+- Rendre les actions principales plus visibles.
+- Garder une cohérence entre produits client et produits Système D.
+- Ne pas inventer de données.
+
+7. Admin
+- Les vues admin doivent être plus lisibles.
+- Les tableaux et onglets admin ne doivent pas déborder.
+- Les actions admin doivent rester faciles à trouver.
+- Le mode view-as doit être clair.
+
+8. Client
+- La boutique doit être plus intuitive.
+- Les commandes doivent être clairement séparées.
+- Les pages soumissions et notifications doivent être faciles à comprendre.
+- Le client doit toujours savoir quoi faire ensuite.
+
+==================================================
+RAPPORT FINAL APRÈS IMPLÉMENTATION
+==================================================
+
+À la fin, fournis :
+
+1. Liste exacte des fichiers modifiés.
+2. Corrections P0 appliquées.
+3. Corrections P1 appliquées.
+4. P2 traités ou laissés de côté.
+5. Avant / après décrit rapidement pour les pages importantes.
+6. Résultat typecheck.
+7. Résultat build.
+8. Tests responsive effectués.
+9. Tests zoom effectués.
+10. Risques restants.
+11. Points à vérifier manuellement avant revue Masdouk.
+
+Termine par :
+
+“AMÉLIORATIONS UI/UX ADMIN ET CLIENT TERMINÉES — PRÊT POUR REVUE MANUELLE.”
