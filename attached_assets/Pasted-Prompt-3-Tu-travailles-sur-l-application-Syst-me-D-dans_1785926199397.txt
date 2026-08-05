@@ -1,0 +1,152 @@
+Prompt 3
+Tu travailles sur l’application Système D dans l’environnement de développement Replit.
+
+OBJECTIF
+
+Le parcours client complet doit fonctionner :
+
+1. Le client ouvre la Boutique.
+2. Il voit les produits Système D autorisés.
+3. Il ouvre la page détaillée d’un produit.
+4. Il ajoute le produit au panier.
+5. Il consulte le panier.
+6. Il valide la commande selon le processus déjà prévu dans l’application.
+7. La commande est réellement enregistrée.
+8. La commande apparaît dans l’onglet Commandes.
+9. Les compteurs affichés dans la Boutique et dans la page Commandes sont cohérents.
+
+PROBLÈMES CONSTATÉS
+
+- Les produits Système D synchronisés ne sont pas toujours visibles dans la Boutique.
+- Le parcours catalogue, panier et commande n’est pas entièrement fonctionnel.
+- La Boutique peut afficher un nombre de commandes, par exemple 6, alors que la page Commandes en affiche 0.
+- Les tests effectués uniquement depuis une prévisualisation administrateur ne sont pas suffisants.
+
+RÈGLES MÉTIER CONFIRMÉES
+
+- Un produit Système D est un produit non affecté à un client.
+- Les produits Système D peuvent être proposés aux clients autorisés.
+- Un produit affecté à un client ne doit pas être visible par les autres clients.
+- Ne modifie pas silencieusement la logique des produits propres au client : inspecte d’abord le comportement actuel et signale toute ambiguïté.
+- N’invente pas un nouveau système de paiement.
+- Si le paiement n’est pas réellement implémenté, indique-le clairement et propose une solution séparée.
+
+==================================================
+PHASE 1 — ANALYSE SANS MODIFICATION
+==================================================
+
+Ne modifie aucun fichier.
+
+1. Cartographie le parcours complet :
+   - source des produits de la Boutique ;
+   - route API du catalogue ;
+   - page détaillée ;
+   - panier ;
+   - stockage du panier ;
+   - création de commande ;
+   - validation ou paiement ;
+   - page Commandes ;
+   - compteurs présents dans la navigation ou les onglets.
+
+2. Inspecte :
+   - les modèles de données ;
+   - les tables panier, commandes et lignes de commande ;
+   - les filtres par client ;
+   - les statuts de commande ;
+   - les requêtes utilisées par la Boutique ;
+   - les requêtes utilisées par la page Commandes ;
+   - les requêtes utilisées pour les badges ou compteurs ;
+   - les différences entre le mode administrateur, la prévisualisation et un vrai compte client ;
+   - les éventuelles données fictives ou valeurs par défaut ;
+   - les problèmes de cache ;
+   - les problèmes d’identifiant client ;
+   - les transactions et validations côté serveur.
+
+3. Explique précisément :
+   - pourquoi les produits Système D ne sont pas visibles ;
+   - pourquoi le nombre de commandes diffère entre deux pages ;
+   - si les deux interfaces utilisent des sources de données différentes ;
+   - si les filtres ou statuts sont différents ;
+   - si le compteur inclut des éléments archivés, annulés, brouillons ou appartenant à d’autres clients ;
+   - si la création de commande est réellement persistée ;
+   - si le panier est uniquement local ou enregistré en base ;
+   - jusqu’où le parcours actuel fonctionne réellement.
+
+4. Évalue la solution suivante :
+   - utiliser la base locale synchronisée comme source du catalogue ;
+   - appliquer les règles de visibilité côté serveur ;
+   - utiliser une source canonique unique pour les commandes ;
+   - calculer les compteurs à partir de la même requête ou des mêmes critères que la page Commandes ;
+   - créer la commande et ses lignes dans une transaction ;
+   - empêcher les doubles commandes lors de doubles clics ou de requêtes répétées ;
+   - afficher un message d’erreur réel si une étape échoue ;
+   - ne jamais afficher une confirmation si la commande n’a pas été enregistrée.
+
+5. Indique si cette solution résout tous les problèmes. Si elle est insuffisante, propose une meilleure architecture.
+
+6. Donne un plan fichier par fichier avec :
+   - les endpoints à modifier ;
+   - les requêtes à centraliser ;
+   - les contrôles d’autorisation ;
+   - les corrections du panier ;
+   - les corrections de création de commande ;
+   - les corrections des compteurs ;
+   - les tests automatisés ;
+   - les tests avec un vrai compte client.
+
+Présente le résultat ainsi :
+
+A. Parcours actuel
+B. Causes des dysfonctionnements
+C. Origine de l’incohérence des compteurs
+D. Verdict sur la solution proposée
+E. Solution recommandée
+F. Fichiers à modifier
+G. Plan d’implémentation
+H. Plan de test administrateur
+I. Plan de test vrai client
+J. Risques et rollback
+
+Termine par :
+
+« ANALYSE TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER. »
+
+Puis arrête-toi.
+
+==================================================
+PHASE 2 — APRÈS AUTORISATION
+==================================================
+
+Commence uniquement lorsque je réponds :
+
+« VALIDÉ — EXÉCUTE LE PLAN APPROUVÉ »
+
+Après validation :
+
+1. Implémente uniquement les corrections approuvées.
+2. Fais lire le catalogue depuis la source locale correcte.
+3. Applique les règles de visibilité côté serveur.
+4. Ne rends jamais un produit affecté à un autre client.
+5. Fais fonctionner l’ouverture du produit sur sa page dédiée.
+6. Fais fonctionner l’ajout au panier.
+7. Fais fonctionner la modification et la suppression d’un article du panier.
+8. Fais fonctionner la validation selon le processus déjà prévu.
+9. Fais persister la commande et ses lignes.
+10. Utilise une transaction si plusieurs écritures sont nécessaires.
+11. Empêche les doubles soumissions.
+12. Fais apparaître la commande dans la page Commandes.
+13. Utilise la même définition et les mêmes filtres pour les compteurs et les listes.
+14. Ne hardcode jamais les valeurs 6, 0 ou un autre compteur.
+15. N’utilise pas de fausses données pour donner l’impression que le parcours fonctionne.
+16. Ajoute des messages français pour les succès et erreurs.
+17. Exécute typecheck, lint, tests et build.
+
+À la fin, fournis :
+- les fichiers modifiés ;
+- la cause exacte de l’incohérence des compteurs ;
+- les requêtes ou services centralisés ;
+- le fonctionnement final du panier ;
+- le fonctionnement final de la commande ;
+- les tests réussis ;
+- les étapes qui nécessitent encore un véritable compte client ;
+- les éventuelles limites du paiement actuel.
