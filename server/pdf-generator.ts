@@ -543,14 +543,21 @@ export function generateFormPdf(
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
-      const bottom = doc.page.height - 30;
+      // Placer le pied de page dans la zone des marges (bottom margin = 50pt)
+      // On utilise height - 40 pour rester dans les marges et éviter qu'une
+      // page blanche soit générée par PDFKit quand doc.y dépasse la marge basse.
+      const bottom = doc.page.height - 40;
       doc.fontSize(7).fillColor(MEDIUM_GRAY).font("Helvetica");
-      // lineBreak: false empêche pdfkit de créer une page blanche
-      // quand le texte est positionné sous la marge bottom (50pt)
       doc.text(`${form.formNumber}  •  Rév. ${form.revision}`, 50, bottom, { width: 200, align: "left", lineBreak: false });
       doc.text(`Page ${i + 1} / ${range.count}`, doc.page.width - 150, bottom, { width: 100, align: "right", lineBreak: false });
-      doc.text("Système-D  •  Confidentiel", 0, bottom, { width: doc.page.width, align: "center", lineBreak: false });
+      doc.text("Système-D  •  Confidentiel", 50, bottom, { width: doc.page.width - 100, align: "center", lineBreak: false });
     }
+
+    // Revenir à la dernière page et repositionner le curseur dans la zone
+    // de contenu pour éviter que PDFKit n'ajoute une page blanche au moment
+    // de doc.end() lorsque doc.y dépasse la marge basse.
+    doc.switchToPage(range.start + range.count - 1);
+    (doc as any).y = doc.page.margins.top;
 
     doc.end();
   });

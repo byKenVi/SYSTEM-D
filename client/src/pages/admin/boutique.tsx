@@ -317,24 +317,26 @@ export default function AdminBoutique() {
       </div>
 
       <Tabs defaultValue="products">
-        <TabsList className="overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
-          <TabsTrigger value="products" className="whitespace-nowrap" data-testid="tab-products">
-            <Package className="h-3.5 w-3.5 mr-1.5" />
-            Produits Clients
-          </TabsTrigger>
-          <TabsTrigger value="systemd" className="whitespace-nowrap" data-testid="tab-systemd">
-            <Warehouse className="h-3.5 w-3.5 mr-1.5" />
-            Produits SystemD
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="whitespace-nowrap" data-testid="tab-orders">
-            <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-            Commandes
-          </TabsTrigger>
-          <TabsTrigger value="customers" className="whitespace-nowrap" data-testid="tab-customers">
-            <Users className="h-3.5 w-3.5 mr-1.5" />
-            Clients Shopify
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
+          <TabsList className="w-max">
+            <TabsTrigger value="products" className="whitespace-nowrap" data-testid="tab-products">
+              <Package className="h-3.5 w-3.5 mr-1.5" />
+              Produits Clients
+            </TabsTrigger>
+            <TabsTrigger value="systemd" className="whitespace-nowrap" data-testid="tab-systemd">
+              <Warehouse className="h-3.5 w-3.5 mr-1.5" />
+              Produits SystemD
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="whitespace-nowrap" data-testid="tab-orders">
+              <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
+              Commandes
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="whitespace-nowrap" data-testid="tab-customers">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              Reps
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ══ PRODUITS TAB ══ */}
         <TabsContent value="products" className="mt-4 space-y-3">

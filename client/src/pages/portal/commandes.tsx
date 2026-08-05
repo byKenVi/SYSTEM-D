@@ -36,6 +36,8 @@ import {
   CheckCircle2,
   DollarSign,
   Filter,
+  LayoutGrid,
+  LayoutList,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -162,6 +164,9 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [confirmForm, setConfirmForm] = useState<FormSubmission | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    try { return (localStorage.getItem("commandes_viewMode") as "grid" | "list") || "grid"; } catch { return "grid"; }
+  });
 
   const queryKey = viewAsContactId
     ? ["/api/portal/commandes", { contactId: viewAsContactId }]
@@ -305,6 +310,27 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
               </SelectContent>
             </Select>
           </div>
+          <div className="h-8 w-px bg-border hidden sm:block" />
+          <div className="flex items-center gap-1 px-1">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => { setViewMode("grid"); try { localStorage.setItem("commandes_viewMode", "grid"); } catch {} }}
+              title="Vue grille"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => { setViewMode("list"); try { localStorage.setItem("commandes_viewMode", "list"); } catch {} }}
+              title="Vue liste"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -331,6 +357,81 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
               </Button>
             </CardContent>
           </Card>
+        ) : viewMode === "list" ? (
+          <div className="flex flex-col gap-2">
+            {filtered.map((form) => {
+              const TypeIcon = TYPE_ICONS[form.formType] || FileText;
+              const colors = TYPE_COLORS[form.formType] || {
+                bg: "bg-gray-500",
+                text: "text-gray-600",
+                light: "bg-gray-50",
+                border: "border-gray-200"
+              };
+              const description = getFormDescription(form);
+              const hasPrice = form.price != null && Number(form.price) > 0;
+              const hasQty = form.approvedQuantity != null && Number(form.approvedQuantity) > 0;
+
+              return (
+                <div
+                  key={form.id}
+                  className="group flex items-center gap-4 px-4 py-3 rounded-xl border bg-card hover:bg-accent/30 transition-colors cursor-pointer"
+                  data-testid={`card-commande-${form.id}`}
+                  onClick={() => navigate(`/portal/forms/${form.id}${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`)}
+                >
+                  <div className={`h-9 w-9 rounded-lg ${colors.light} ${colors.border} border flex items-center justify-center shrink-0`}>
+                    <TypeIcon className={`h-4 w-4 ${colors.text}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-sm" data-testid={`text-form-number-${form.id}`}>{form.formNumber}</span>
+                      <Badge variant="outline" className={`text-[9px] font-bold uppercase tracking-widest border-0 px-1.5 py-0 ${colors.light} ${colors.text}`}>
+                        {TYPE_LABELS[form.formType] || form.formType}
+                      </Badge>
+                    </div>
+                    {description && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{description}</p>
+                    )}
+                  </div>
+                  {hasPrice && (
+                    <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400 shrink-0 hidden sm:flex items-center gap-1" data-testid={`text-price-${form.id}`}>
+                      <DollarSign className="h-3.5 w-3.5" />
+                      {Number(form.price).toLocaleString("fr-CA", { minimumFractionDigits: 2 })}
+                      {hasQty && <span className="text-xs text-muted-foreground">/ {Number(form.approvedQuantity).toLocaleString("fr-CA")} un.</span>}
+                    </span>
+                  )}
+                  <div className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border shrink-0 ${STATUS_COLORS[form.status] || "bg-muted"}`}>
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    {STATUS_LABELS[form.status] || form.status}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      className="h-8 font-bold text-xs shadow-sm"
+                      onClick={(e) => { e.stopPropagation(); setConfirmForm(form); }}
+                      disabled={reorderMutation.isPending}
+                      data-testid={`button-reorder-${form.id}`}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                      Re-commander
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                      asChild
+                      data-testid={`button-view-form-${form.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Link href={`/portal/forms/${form.id}${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`}>
+                        <FileText className="h-3.5 w-3.5" />
+                        <span className="sr-only">Voir</span>
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 w-full">
             {filtered.map((form) => {
