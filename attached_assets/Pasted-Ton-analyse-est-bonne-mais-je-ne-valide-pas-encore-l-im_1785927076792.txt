@@ -1,0 +1,63 @@
+Ton analyse est bonne, mais je ne valide pas encore l’implémentation.
+
+AUCUNE MODIFICATION POUR L’INSTANT.
+
+Corrige d’abord ton plan sur les points suivants :
+
+1. Ne parle pas d’un scheduler 60s pour Zoho.
+La synchronisation Zoho doit rester à 12h configurable, comme prévu.
+Ne modifie pas la fréquence de synchronisation dans ce lot.
+
+2. Confirme l’état réel des routes.
+Tu indiques que GET /api/portal/systemd-products lit déjà zoho_catalog.
+Confirme précisément :
+- est-ce déjà implémenté ?
+- est-ce déjà basculé ?
+- le full-sync a-t-il vraiment été exécuté avec succès ?
+- les compteurs zoho_catalog ont-ils été validés manuellement avec Zoho Inventory ?
+
+Si ce n’est pas validé, ne suppose pas que zoho_catalog est prêt.
+
+3. Le bypass Stripe en développement ne doit pas être automatique.
+Si tu proposes un bypass Stripe, il doit être activé uniquement si :
+- NODE_ENV=development ;
+- ET SYSTEMD_DEV_CHECKOUT_BYPASS=true.
+
+Les commandes créées par ce mode doivent être clairement identifiées comme test/dev, par exemple avec un identifiant préfixé DEV-.
+Ne crée jamais de fausse commande paid en production.
+
+4. L’idempotence proposée est insuffisante.
+Une contrainte UNIQUE sur stripe_checkout_session_id ne bloque pas deux clics successifs, car deux sessions Stripe différentes peuvent être créées.
+
+Propose une vraie stratégie d’idempotence :
+- checkoutIntentId côté client ;
+- ou hash serveur clientId + panier + montant + courte fenêtre ;
+- ou réutilisation d’une commande pending existante équivalente ;
+- avec blocage des doubles soumissions côté client ET côté serveur.
+
+5. Clarifie l’UX des commandes.
+Le problème actuel est que le badge Commandes compte les commandes Shopify, alors que la page attendue pour Système D devrait afficher les commandes Système D.
+
+Propose l’une de ces options :
+A. renommer clairement les onglets “Commandes Shopify” et “Commandes Système D” ;
+B. dans la Boutique Système D, afficher uniquement les commandes Système D et utiliser systemdOrders.length comme badge ;
+C. autre solution, mais sans mélanger deux sources de données.
+
+6. Ne modifie pas encore le checkout tant que zoho_catalog n’est pas validé, sauf si tu confirmes que les routes sont déjà basculées et que les données ont été validées.
+
+Présente un plan corrigé avec :
+
+A. État réel actuel des routes
+B. Ce qui dépend encore de la validation zoho_catalog
+C. Correction panier localStorage
+D. Correction affichage commandes et compteurs
+E. Stratégie checkout dev sans Stripe
+F. Stratégie checkout prod avec Stripe
+G. Vraie stratégie d’idempotence
+H. Fichiers à modifier
+I. Tests
+J. Ce qui reste bloqué jusqu’à validation zoho_catalog
+
+Termine par :
+
+“PLAN PARCOURS SYSTEMD CORRIGÉ — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER.”
