@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/select";
 import { useState, useMemo, useRef } from "react";
 import { useLocation, Link } from "wouter";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -158,7 +157,6 @@ export default function AdminBoutique() {
 
   /* SystemD products state */
   const [systemdSearch, setSystemdSearch] = useState("");
-  const [selectedSystemdProduct, setSelectedSystemdProduct] = useState<SystemdItem | null>(null);
 
   /* Data */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({ queryKey: ["/api/products"] });
@@ -728,7 +726,7 @@ export default function AdminBoutique() {
                     key={product.zohoItemId}
                     className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     data-testid={`card-systemd-product-${product.zohoItemId}`}
-                    onClick={() => setSelectedSystemdProduct(product)}
+                    onClick={() => navigate(`/portal/systemd/${product.zohoItemId}`)}
                   >
                     <div className="aspect-square bg-muted/30 border-b flex items-center justify-center overflow-hidden">
                       <img
@@ -770,56 +768,6 @@ export default function AdminBoutique() {
             </div>
           )}
 
-          {/* Read-only SystemD product detail sheet */}
-          {selectedSystemdProduct && (
-            <Sheet open={!!selectedSystemdProduct} onOpenChange={(o) => { if (!o) setSelectedSystemdProduct(null); }}>
-              <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-                <SheetHeader className="mb-6">
-                  <SheetTitle className="text-xl font-bold">{selectedSystemdProduct.name}</SheetTitle>
-                  {selectedSystemdProduct.sku && (
-                    <SheetDescription>
-                      <Badge variant="outline" className="font-mono text-xs">{selectedSystemdProduct.sku}</Badge>
-                    </SheetDescription>
-                  )}
-                </SheetHeader>
-                <div className="space-y-6">
-                  <div className="w-full aspect-square rounded-xl overflow-hidden border bg-muted/30 flex items-center justify-center">
-                    <img
-                      src={selectedSystemdProduct.imageUrl || ""}
-                      alt={selectedSystemdProduct.name}
-                      className="w-full h-full object-cover"
-                      style={{ display: selectedSystemdProduct.imageUrl ? undefined : "none" }}
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                        (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
-                      }}
-                    />
-                    <span className="w-full h-full items-center justify-center" style={{ display: selectedSystemdProduct.imageUrl ? "none" : "flex" }}>
-                      <Package className="h-20 w-20 text-muted-foreground/30" />
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl border bg-card">
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Prix</p>
-                      <p className="text-2xl font-mono font-bold text-foreground">{selectedSystemdProduct.price.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</p>
-                    </div>
-                    <div className={`p-4 rounded-xl border ${selectedSystemdProduct.stock > 0 ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20" : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20"}`}>
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Stock</p>
-                      <p className={`text-2xl font-mono font-bold ${selectedSystemdProduct.stock > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                        {selectedSystemdProduct.stock} un.
-                      </p>
-                    </div>
-                  </div>
-                  {selectedSystemdProduct.description && (
-                    <div className="p-4 rounded-xl border bg-muted/20">
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Description</p>
-                      <p className="text-sm text-foreground leading-relaxed">{selectedSystemdProduct.description}</p>
-                    </div>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-          )}
         </TabsContent>
 
         {/* ══ COMMANDES TAB ══ */}
