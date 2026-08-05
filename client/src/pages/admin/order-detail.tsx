@@ -287,7 +287,7 @@ export default function AdminOrderDetail() {
     );
   }
 
-  if (error || data?.order === undefined) {
+  if (error || !order) {
     return (
       <div>
         <Link href="/admin/boutique">

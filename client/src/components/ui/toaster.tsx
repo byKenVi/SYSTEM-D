@@ -28,7 +28,7 @@ export function Toaster() {
             {onClick ? (
               <button
                 className="grid gap-1 text-left flex-1 min-w-0"
-                onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
+                onClick={onClick as unknown as React.MouseEventHandler<HTMLButtonElement>}
                 data-testid="button-notification-toast"
               >
                 {content}

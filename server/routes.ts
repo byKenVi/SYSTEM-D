@@ -482,7 +482,7 @@ export async function registerRoutes(
     try {
       const contactId = Number(req.params.contactId);
       const orders = await storage.getShopifyOrders({ contactId });
-      const allProducts = await storage.getProducts({ contactId });
+      const allProducts = await storage.getProductsByContactId(contactId);
       const kpis = computeOrderKpis(orders);
       const LOW_STOCK_THRESHOLD = 5;
       const lowStockProducts = allProducts
@@ -567,7 +567,7 @@ export async function registerRoutes(
   // Fetch full single order from Shopify (live)
   app.get("/api/admin/orders/:shopifyOrderId", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const { shopifyOrderId } = req.params;
+      const shopifyOrderId = String(req.params.shopifyOrderId);
       const storeUrl = req.query.store as string;
       if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
 
@@ -630,7 +630,7 @@ export async function registerRoutes(
   // Fetch full single customer from Shopify (live) + their orders
   app.get("/api/admin/customers/:shopifyCustomerId", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const { shopifyCustomerId } = req.params;
+      const shopifyCustomerId = String(req.params.shopifyCustomerId);
       const storeUrl = req.query.store as string;
       if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
 
@@ -1480,7 +1480,7 @@ export async function registerRoutes(
   app.delete("/api/zoho/items/:zohoItemId", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const { deleteZohoItem } = await import("./zoho-api");
-      const { zohoItemId } = req.params;
+      const zohoItemId = String(req.params.zohoItemId);
       await deleteZohoItem(zohoItemId);
       // Also delete the local product if one exists
       const allProducts = await storage.getProducts();
@@ -3099,7 +3099,7 @@ export async function registerRoutes(
     // Get rep detail with live balance + history
     app.get("/api/mapi/reps/:id", isAuthenticated, isAdmin, async (req, res) => {
       try {
-        const rep = await storage.getMapiRep(req.params.id);
+        const rep = await storage.getMapiRep(String(req.params.id));
         if (!rep) return res.status(404).json({ message: "Rep introuvable" });
 
         const [logs, shopifyTransactions] = await Promise.all([
@@ -3240,7 +3240,7 @@ export async function registerRoutes(
     app.post("/api/mapi/reps/:id/budget", isAuthenticated, isAdmin, async (req, res) => {
       try {
         const { monthlyBudgetAmount } = req.body;
-        const rep = await storage.getMapiRep(req.params.id);
+        const rep = await storage.getMapiRep(String(req.params.id));
         if (!rep) return res.status(404).json({ message: "Rep introuvable" });
 
         const updatedRep = await storage.updateMapiRep(rep.id, {

@@ -327,12 +327,12 @@ export default function AdminRestockRequests() {
                 </div>
 
                 {/* Notes */}
-                {detailRequest.notes && (
+                {(detailRequest as any).notes && (
                   <>
                     <Separator />
                     <div className="space-y-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailRequest.notes}</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{(detailRequest as any).notes}</p>
                     </div>
                   </>
                 )}

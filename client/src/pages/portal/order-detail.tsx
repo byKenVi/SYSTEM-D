@@ -338,7 +338,7 @@ export default function PortalOrderDetail() {
                             {f.tracking_number || "Pas de numéro"}
                           </p>
                           {f.tracking_url && (
-                            <Button variant="link" asChild className="h-auto p-0 mt-2 text-primary font-bold text-xs h-auto">
+                            <Button variant="ghost" asChild className="h-auto p-0 mt-2 text-primary font-bold text-xs">
                               <a href={f.tracking_url} target="_blank" rel="noopener noreferrer">
                                 Suivre le colis <ExternalLink className="h-3 w-3 ml-1" />
                               </a>

@@ -21,7 +21,7 @@ export const contacts = pgTable("contacts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertContactSchema = createInsertSchema(contacts).omit({ id: true, createdAt: true });
+export const insertContactSchema = createInsertSchema(contacts).omit({ createdAt: true });
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type Contact = typeof contacts.$inferSelect;
 
@@ -64,11 +64,11 @@ export const shopifyOrders = pgTable("shopify_orders", {
   integrationOrderUnique: unique().on(table.integrationId, table.shopifyOrderId),
 }));
 
-export const insertShopifyIntegrationSchema = createInsertSchema(shopifyIntegrations).omit({ id: true, createdAt: true });
+export const insertShopifyIntegrationSchema = createInsertSchema(shopifyIntegrations).omit({ createdAt: true });
 export type InsertShopifyIntegration = z.infer<typeof insertShopifyIntegrationSchema>;
 export type ShopifyIntegration = typeof shopifyIntegrations.$inferSelect;
 
-export const insertShopifyOrderSchema = createInsertSchema(shopifyOrders).omit({ id: true, syncedAt: true });
+export const insertShopifyOrderSchema = createInsertSchema(shopifyOrders).omit({ syncedAt: true });
 export type InsertShopifyOrder = z.infer<typeof insertShopifyOrderSchema>;
 export type ShopifyOrder = typeof shopifyOrders.$inferSelect;
 
@@ -101,7 +101,7 @@ export const products = pgTable("products", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
+export const insertProductSchema = createInsertSchema(products).omit({ createdAt: true });
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
 
@@ -117,7 +117,7 @@ export const restockRequests = pgTable("restock_requests", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertRestockRequestSchema = createInsertSchema(restockRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRestockRequestSchema = createInsertSchema(restockRequests).omit({ createdAt: true, updatedAt: true });
 export type InsertRestockRequest = z.infer<typeof insertRestockRequestSchema>;
 export type RestockRequest = typeof restockRequests.$inferSelect;
 
@@ -142,7 +142,7 @@ export const adminSettings = pgTable("admin_settings", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertAdminSettingsSchema = createInsertSchema(adminSettings).omit({ id: true, createdAt: true });
+export const insertAdminSettingsSchema = createInsertSchema(adminSettings).omit({ createdAt: true });
 export type InsertAdminSettings = z.infer<typeof insertAdminSettingsSchema>;
 export type AdminSettings = typeof adminSettings.$inferSelect;
 
@@ -167,7 +167,7 @@ export const formSubmissions = pgTable("form_submissions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertFormSubmissionSchema = createInsertSchema(formSubmissions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFormSubmissionSchema = createInsertSchema(formSubmissions).omit({ createdAt: true, updatedAt: true });
 export type InsertFormSubmission = z.infer<typeof insertFormSubmissionSchema>;
 export type FormSubmission = typeof formSubmissions.$inferSelect;
 
@@ -182,7 +182,7 @@ export const formUploads = pgTable("form_uploads", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertFormUploadSchema = createInsertSchema(formUploads).omit({ id: true, createdAt: true });
+export const insertFormUploadSchema = createInsertSchema(formUploads).omit({ createdAt: true });
 export type InsertFormUpload = z.infer<typeof insertFormUploadSchema>;
 export type FormUpload = typeof formUploads.$inferSelect;
 
@@ -195,7 +195,7 @@ export const activityLogs = pgTable("activity_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, createdAt: true });
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ createdAt: true });
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 
@@ -211,7 +211,7 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ createdAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 
@@ -224,7 +224,7 @@ export const notificationPreferences = pgTable("notification_preferences", {
   uniq: unique().on(table.contactId, table.category),
 }));
 
-export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true });
+export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences);
 export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 
@@ -284,7 +284,7 @@ export const systemdOrders = pgTable("systemd_orders", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertSystemdOrderSchema = createInsertSchema(systemdOrders).omit({ id: true, createdAt: true });
+export const insertSystemdOrderSchema = createInsertSchema(systemdOrders).omit({ createdAt: true });
 export type InsertSystemdOrder = z.infer<typeof insertSystemdOrderSchema>;
 export type SystemdOrder = typeof systemdOrders.$inferSelect;
 

@@ -123,7 +123,7 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
       const matchesMarchandise = marchandiseFilter === "all" || d.typeMarchandise === marchandiseFilter;
 
       let matchesDate = true;
-      const formDate = new Date(f.updatedAt);
+      const formDate = new Date(f.updatedAt ?? 0);
       if (dateFrom) matchesDate = matchesDate && formDate >= new Date(dateFrom);
       if (dateTo) matchesDate = matchesDate && formDate <= new Date(dateTo + "T23:59:59");
 
@@ -329,7 +329,7 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
                       </TableCell>
                       <TableCell className="py-4">
                         <span className="text-sm font-medium text-foreground">
-                          {new Date(form.updatedAt).toLocaleString("fr-CA", {
+                          {new Date(form.updatedAt ?? 0).toLocaleString("fr-CA", {
                             timeZone: "America/New_York",
                             day: "numeric",
                             month: "short",
@@ -428,7 +428,7 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
                     <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="h-4 w-4" />
-                        {new Date(selected.updatedAt).toLocaleDateString("fr-CA", {
+                        {new Date(selected.updatedAt ?? 0).toLocaleDateString("fr-CA", {
                           timeZone: "America/New_York",
                           day: "numeric",
                           month: "long",

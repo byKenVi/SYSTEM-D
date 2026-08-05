@@ -140,7 +140,7 @@ export default function AdminLivraisons() {
       const matchesMarchandise = marchandiseFilter === "all" || d.typeMarchandise === marchandiseFilter;
 
       let matchesDate = true;
-      const formDate = new Date(f.updatedAt);
+      const formDate = new Date(f.updatedAt ?? 0);
       if (dateFrom) matchesDate = matchesDate && formDate >= new Date(dateFrom);
       if (dateTo) matchesDate = matchesDate && formDate <= new Date(dateTo + "T23:59:59");
 
@@ -315,7 +315,7 @@ export default function AdminLivraisons() {
                           {d.reference || "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(form.updatedAt).toLocaleString("fr-CA", {
+                          {new Date(form.updatedAt ?? 0).toLocaleString("fr-CA", {
                             timeZone: "America/New_York",
                             dateStyle: "short",
                           })}
@@ -383,7 +383,7 @@ export default function AdminLivraisons() {
                       <span className="text-zinc-300 text-sm">{clientName}</span>
                       <span className="text-zinc-600 text-xs">·</span>
                       <span className="text-zinc-500 text-xs">
-                        {new Date(selected.updatedAt).toLocaleDateString("fr-CA", {
+                        {new Date(selected.updatedAt ?? 0).toLocaleDateString("fr-CA", {
                           timeZone: "America/New_York",
                           day: "numeric",
                           month: "long",

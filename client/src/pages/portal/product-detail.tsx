@@ -333,7 +333,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                   <div className="divide-y divide-border/50">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-2">
                       <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Boutique</span>
-                      <Button variant="link" asChild className="h-auto p-0 text-primary font-bold text-sm">
+                      <Button variant="ghost" asChild className="h-auto p-0 text-primary font-bold text-sm">
                         <a href={`https://${product.shopifyStoreUrl}`} target="_blank" rel="noopener noreferrer">
                           {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
                           <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
@@ -344,7 +344,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                     {product.shopifyHandle && (
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-2">
                         <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Lien Public</span>
-                        <Button variant="link" asChild className="h-auto p-0 text-primary font-bold text-sm">
+                        <Button variant="ghost" asChild className="h-auto p-0 text-primary font-bold text-sm">
                           <a href={`https://${product.shopifyStoreUrl}/products/${product.shopifyHandle}`} target="_blank" rel="noopener noreferrer">
                             Voir sur le site
                             <ExternalLink className="h-3.5 w-3.5 ml-1.5" />

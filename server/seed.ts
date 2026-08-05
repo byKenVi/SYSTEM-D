@@ -1,4 +1,5 @@
 import { storage } from "./storage";
+import type { Contact } from "../shared/schema";
 
 export async function seedDatabase() {
   try {
@@ -57,7 +58,7 @@ export async function seedDatabase() {
       },
     ];
 
-    const createdContacts = [];
+    const createdContacts: Contact[] = [];
     for (const c of contacts) {
       const contact = await storage.createContact(c);
       createdContacts.push(contact);
@@ -66,16 +67,14 @@ export async function seedDatabase() {
     // Shopify integrations for active clients
     await storage.createShopifyIntegration({
       contactId: createdContacts[0].id,
-      apiKey: "shpat_example_luminex",
-      apiSecret: "shpss_example_luminex",
+      accessToken: "shpat_example_luminex",
       storeUrl: "luminex-electronics.myshopify.com",
       isActive: true,
     });
 
     await storage.createShopifyIntegration({
       contactId: createdContacts[1].id,
-      apiKey: "shpat_example_alpine",
-      apiSecret: "shpss_example_alpine",
+      accessToken: "shpat_example_alpine",
       storeUrl: "alpine-goods.myshopify.com",
       isActive: true,
     });

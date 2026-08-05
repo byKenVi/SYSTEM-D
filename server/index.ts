@@ -95,7 +95,8 @@ async function initStripe() {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) return;
 
-    await runMigrations({ databaseUrl, schema: "stripe" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await runMigrations({ databaseUrl } as any);
     log("Stripe schema ready", "stripe");
 
     const stripeSync = await getStripeSync();
