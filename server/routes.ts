@@ -96,7 +96,7 @@ function buildStatusNotification(
   return null;
 }
 
-const systemdProductsCache: { data: any[] | null; fetchedAt: number } = { data: null, fetchedAt: 0 };
+// systemdProductsCache supprimé — la boutique lit maintenant depuis zoho_catalog (pas de quota Zoho)
 
 /**
  * Non-blocking helper: fetches current Zoho inventory and updates the DB.
@@ -1324,9 +1324,6 @@ export async function registerRoutes(
         zohoTokenExpiresAt: null,
         zohoRegion: "us",
       });
-      // Clear SystemD products cache on Zoho disconnect
-      systemdProductsCache.data = null;
-      systemdProductsCache.fetchedAt = 0;
       res.json({ message: "Disconnected" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1345,85 +1342,47 @@ export async function registerRoutes(
 
   // Sync items from Zoho Inventory into the app for a contact
   // Fetch all Zoho Inventory items with cf_client custom field, enriched with contact info
+  // ── Zoho Inventory list — lit depuis zoho_catalog (aucun appel Zoho) ─────────
   app.get("/api/zoho/inventory", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const { fetchZohoItems, fetchZohoContactsMap } = await import("./zoho-api");
-      const [zohoItems, zohoContactsMap] = await Promise.all([fetchZohoItems(), fetchZohoContactsMap()]);
+      // Lecture depuis le cache local — ZÉRO appel vers l'API Zoho
+      const catalogItems = await storage.getZohoCatalogItems(false);
+
+      // Contacts locaux pour résolution nom/entreprise
       const allContacts = await storage.getContacts();
+      const contactById = new Map(allContacts.map((c) => [c.id, c]));
 
-      // Build a lookup map by company name / name (lowercase for fuzzy match)
-      const contactByCompany = new Map<string, typeof allContacts[number]>();
-      const contactByName = new Map<string, typeof allContacts[number]>();
-      for (const c of allContacts) {
-        if (c.companyName) contactByCompany.set(c.companyName.toLowerCase().trim(), c);
-        contactByName.set(c.name.toLowerCase().trim(), c);
-      }
-
-      // Build a lookup map of local products by zohoItemId
+      // Produits locaux pour résolution localProductId
       const allLocalProducts = await storage.getProducts();
       const localProductByZohoId = new Map<string, number>();
       for (const p of allLocalProducts) {
         if (p.zohoItemId) localProductByZohoId.set(p.zohoItemId, p.id);
       }
 
-      const enriched = zohoItems.map((item: any) => {
-        // Read the cf_client custom field value
-        let cfClient: string | null = null;
-        if (Array.isArray(item.custom_fields)) {
-          const cf = item.custom_fields.find((f: any) => f.api_name === "cf_client" || f.label?.toLowerCase() === "client");
-          if (cf) cfClient = cf.value ?? null;
-        }
-        // cfClient may be a Zoho Inventory contact ID — resolve to name via zohoContactsMap
-        // Zoho IDs are long numeric strings (≥10 digits); if the value looks like one, always resolve via the map
-        const looksLikeZohoId = (v: string | null) => !!v && /^\d{10,}$/.test(v.trim());
-        let resolvedClientName: string | null = cfClient;
-        if (cfClient && looksLikeZohoId(cfClient)) {
-          // It's a Zoho contact ID — resolve to name or discard if not found
-          const mapped = zohoContactsMap.get(cfClient);
-          resolvedClientName = mapped ? mapped.name : null;
-        } else if (cfClient && zohoContactsMap.has(cfClient)) {
-          // Exact match by ID even if it doesn't look numeric
-          resolvedClientName = zohoContactsMap.get(cfClient)!.name;
-        }
-        // Try to match to a local contact
-        let contact: typeof allContacts[number] | undefined;
-        if (resolvedClientName) {
-          const key = resolvedClientName.toLowerCase().trim();
-          contact = contactByCompany.get(key) || contactByName.get(key);
-        }
-        // Also try matching by Zoho contact email
-        if (!contact && cfClient && zohoContactsMap.has(cfClient)) {
-          const email = zohoContactsMap.get(cfClient)!.email;
-          if (email) contact = allContacts.find((c) => c.email?.toLowerCase() === email.toLowerCase());
-        }
-
+      const enriched = catalogItems.map((item) => {
+        const contact = item.contactId ? contactById.get(item.contactId) : undefined;
         return {
-          zohoItemId: item.item_id,
-          localProductId: localProductByZohoId.get(item.item_id) ?? null,
-          name: item.name,
-          sku: item.sku || null,
-          description: item.description || null,
-          imageUrl: null,
-          price: item.rate != null ? String(item.rate) : null,
-          inventoryQuantity: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
-          cfClient: resolvedClientName,
-          contactId: contact?.id ?? null,
-          contactName: contact ? (contact.companyName || contact.name) : null,
-          status: item.status,
-          unit: item.unit || null,
-          productType: item.product_type || null,
+          zohoItemId:       item.zohoItemId,
+          localProductId:   localProductByZohoId.get(item.zohoItemId) ?? null,
+          name:             item.name,
+          sku:              item.sku ?? null,
+          description:      item.description ?? null,
+          imageUrl:         item.imageName ? `/api/zoho/item-image/${item.zohoItemId}` : null,
+          price:            item.price != null ? String(item.price) : null,
+          inventoryQuantity: item.stock != null ? Math.round(Number(item.stock)) : 0,
+          cfClient:         contact ? (contact.companyName || contact.name) : null,
+          contactId:        item.contactId ?? null,
+          contactName:      contact ? (contact.companyName || contact.name) : null,
+          status:           item.status,
+          unit:             item.unit ?? null,
+          productType:      item.productType ?? null,
+          assignmentState:  item.assignmentState,
         };
       });
 
       res.json({ items: enriched, total: enriched.length });
     } catch (error: any) {
       console.error("Zoho inventory fetch error:", error);
-      if (error.message?.includes("429")) {
-        return res.status(429).json({
-          message: "Zoho a atteint sa limite d'appels API pour aujourd'hui (7 500 appels/jour). Les données seront à nouveau disponibles demain ou après minuit. Vos produits existants restent visibles dans l'onglet Produits Clients.",
-          code: "ZOHO_RATE_LIMITED",
-        });
-      }
       res.status(500).json({ message: error.message || "Failed to fetch Zoho inventory" });
     }
   });
@@ -3294,49 +3253,31 @@ export async function registerRoutes(
 
     // ─── SystemD Products & Checkout ────────────────────────────────────────
 
+  // ── Boutique SystemD — lit depuis zoho_catalog (aucun appel Zoho) ─────────────
+  // Filtre strict : assignment_state = systemd, status = active, is_deleted = false.
+  // Les produits client et unresolved ne sont JAMAIS exposés ici.
   app.get("/api/portal/systemd-products", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
       if (!role) return res.status(401).json({ message: "Unauthorized" });
 
-      const force = req.query.force === "true";
-      const now = Date.now();
-
-      if (!force && systemdProductsCache.data && (now - systemdProductsCache.fetchedAt) < SYSTEMD_CACHE_TTL_MS) {
-        return res.json(systemdProductsCache.data);
-      }
-
-      const { fetchZohoItems } = await import("./zoho-api");
-      const items = await fetchZohoItems();
-      const systemdItems = items
-        .filter((item: any) => {
-          const cfClient = item.custom_fields?.find((f: any) => f.api_name === "cf_client")?.value;
-          const isEmpty = !cfClient || cfClient.trim() === "";
-          const isActive = !item.status || item.status === "active";
-          return isEmpty && isActive;
-        })
-        .map((item: any) => ({
-          zohoItemId: item.item_id,
-          name: item.name,
-          sku: item.sku || null,
-          description: item.description || null,
-          imageUrl: item.image_name ? `/api/zoho/item-image/${item.item_id}` : null,
-          price: item.rate != null ? Number(item.rate) : 0,
-          stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
+      // Lecture depuis le cache local — ZÉRO appel vers l'API Zoho
+      const catalogItems = await storage.getZohoCatalogByAssignmentState("systemd");
+      const systemdItems = catalogItems
+        .filter((item) => item.status === "active") // is_deleted déjà filtré par getZohoCatalogByAssignmentState
+        .map((item) => ({
+          zohoItemId:  item.zohoItemId,
+          name:        item.name,
+          sku:         item.sku ?? null,
+          description: item.description ?? null,
+          imageUrl:    item.imageName ? `/api/zoho/item-image/${item.zohoItemId}` : null,
+          price:       item.price != null ? Number(item.price) : 0,
+          stock:       item.stock != null ? Math.round(Number(item.stock)) : 0,
         }));
-
-      systemdProductsCache.data = systemdItems;
-      systemdProductsCache.fetchedAt = Date.now();
 
       res.json(systemdItems);
     } catch (error: any) {
       console.error("Error fetching SystemD products:", error);
-      if (error.message?.includes("429")) {
-        return res.status(429).json({
-          message: "Limite d'appels Zoho atteinte pour aujourd'hui. Les produits SystemD seront disponibles à nouveau demain.",
-          code: "ZOHO_RATE_LIMITED",
-        });
-      }
       res.status(500).json({ message: error.message || "Failed to fetch SystemD products" });
     }
   });
@@ -3360,47 +3301,37 @@ export async function registerRoutes(
     | { status: "ok"; product: SystemdProductDetail }
     | { status: Exclude<SystemdResolveStatus, "ok"> };
 
+  // ── Résolution d'un produit SystemD — lit depuis zoho_catalog (aucun appel Zoho) ──
+  // assignment_state = 'systemd'    → ok (vérifié lors du full-sync per-item)
+  // assignment_state = 'client'     → 403 client_product
+  // assignment_state = 'unresolved' → 503 unverifiable (jamais exposé au client)
+  // introuvable / soft-deleted      → 404 not_found
   const resolveSystemdProductDetail = async (zohoItemId: string): Promise<SystemdResolveResult> => {
-    const { fetchZohoItemDetail } = await import("./zoho-api");
-    let item: any;
-    try {
-      item = await fetchZohoItemDetail(zohoItemId);
-    } catch (err: any) {
-      if (err.message?.includes("429")) return { status: "rate_limited" };
-      return { status: "unverifiable" };
-    }
-
+    const item = await storage.getZohoCatalogItem(zohoItemId); // exclut is_deleted=true
     if (!item) return { status: "not_found" };
 
-    // custom_fields doit être un vrai tableau issu d'une réponse Zoho complète.
-    // Si absent ou mal formé → réponse incomplète → refus d'accès (jamais d'exposition en cas de doute).
-    const customFields: any[] | null = Array.isArray(item.custom_fields)
-      ? item.custom_fields
-      : null;
-    if (customFields === null) return { status: "unverifiable" };
-
-    const cfClientValue: string | null =
-      customFields.find((f: any) => f.api_name === "cf_client")?.value ?? null;
-
-    if (cfClientValue && cfClientValue.trim() !== "") {
-      // cf_client est rempli → produit appartient à un client, pas à Système D
-      return { status: "client_product" };
+    switch (item.assignmentState) {
+      case "systemd":
+        if (item.status !== "active") return { status: "not_found" };
+        return {
+          status: "ok",
+          product: {
+            zohoItemId:  item.zohoItemId,
+            name:        item.name,
+            sku:         item.sku ?? null,
+            description: item.description ?? null,
+            imageUrl:    item.imageName ? `/api/zoho/item-image/${item.zohoItemId}` : null,
+            price:       item.price != null ? Number(item.price) : 0,
+            stock:       item.stock != null ? Math.round(Number(item.stock)) : 0,
+          },
+        };
+      case "client":
+        return { status: "client_product" };
+      case "unresolved":
+      default:
+        return { status: "unverifiable" };
     }
-
-    // cf_client confirmé absent → produit Système D ✅
-    return {
-      status: "ok",
-      product: {
-        zohoItemId: item.item_id,
-        name: item.name,
-        sku: item.sku || null,
-        description: item.description || null,
-        imageUrl: item.image_name ? `/api/zoho/item-image/${item.item_id}` : null,
-        price: item.rate != null ? Number(item.rate) : 0,
-        stock: item.stock_on_hand != null ? Math.round(item.stock_on_hand) : 0,
-      },
-    };
-  }
+  };
 
   app.get("/api/portal/systemd-products/:zohoItemId", isAuthenticated, async (req: any, res) => {
     try {
@@ -3466,32 +3397,30 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid cart items" });
       }
 
-      // Fetch all Zoho items to get authoritative prices server-side
-      const { fetchZohoItems } = await import("./zoho-api");
-      const allItems = await fetchZohoItems();
-      const zohoMap = new Map(allItems.map((z: any) => [z.item_id as string, z]));
-
-      // Build line items using only trusted Zoho data
+      // Résolution depuis zoho_catalog — ZÉRO appel vers l'API Zoho.
+      // Chaque item du panier est vérifié individuellement (jamais le catalogue entier).
       const resolvedItems: { zohoItemId: string; name: string; sku: string | null; quantity: number; unitPrice: number }[] = [];
       for (const cartItem of items) {
-        const zohoItem = zohoMap.get(cartItem.zohoItemId);
-        if (!zohoItem) {
+        const catalogItem = await storage.getZohoCatalogItem(cartItem.zohoItemId);
+        if (!catalogItem) {
           return res.status(400).json({ message: `Item not found in catalog: ${cartItem.zohoItemId}` });
         }
-        const cfClient = zohoItem.custom_fields?.find((f: any) => f.api_name === "cf_client")?.value;
-        if (cfClient && cfClient.trim() !== "") {
+        if (catalogItem.assignmentState !== "systemd") {
           return res.status(403).json({ message: `Item is not a SystemD product: ${cartItem.zohoItemId}` });
         }
-        const stock = Math.round(zohoItem.stock_on_hand ?? 0);
+        if (catalogItem.status !== "active") {
+          return res.status(400).json({ message: `Item is no longer available: ${catalogItem.name}` });
+        }
+        const stock = Math.round(Number(catalogItem.stock ?? 0));
         if (cartItem.quantity > stock) {
-          return res.status(400).json({ message: `Insufficient stock for: ${zohoItem.name}` });
+          return res.status(400).json({ message: `Insufficient stock for: ${catalogItem.name}` });
         }
         resolvedItems.push({
           zohoItemId: cartItem.zohoItemId,
-          name: zohoItem.name,
-          sku: zohoItem.sku || null,
-          quantity: cartItem.quantity,
-          unitPrice: Number(zohoItem.rate ?? 0),
+          name:       catalogItem.name,
+          sku:        catalogItem.sku ?? null,
+          quantity:   cartItem.quantity,
+          unitPrice:  Number(catalogItem.price ?? 0),
         });
       }
 
@@ -3613,4 +3542,4 @@ export async function registerRoutes(
   return httpServer;
 }
 
-const SYSTEMD_CACHE_TTL_MS = 90_000;
+// SYSTEMD_CACHE_TTL_MS supprimé — la boutique lit depuis zoho_catalog, aucun quota Zoho à protéger
