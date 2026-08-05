@@ -286,9 +286,12 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
               <Truck className="h-10 w-10 text-muted-foreground/50" />
             </div>
             <h3 className="text-xl font-bold tracking-tight mb-2">Aucune livraison trouvée</h3>
-            <p className="text-muted-foreground max-w-sm">
+            <p className="text-muted-foreground max-w-sm mb-6">
               Modifiez vos filtres ou créez une nouvelle demande de livraison pour voir apparaître des résultats.
             </p>
+            <Button variant="outline" onClick={() => navigate("/portal/dashboard")}>
+              Retour au tableau de bord
+            </Button>
           </div>
         ) : (
           <div className="overflow-x-auto w-full">

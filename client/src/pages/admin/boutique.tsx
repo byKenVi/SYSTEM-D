@@ -317,22 +317,22 @@ export default function AdminBoutique() {
       </div>
 
       <Tabs defaultValue="products">
-        <TabsList data-testid="tabs-boutique">
-          <TabsTrigger value="products" data-testid="tab-products">
+        <TabsList className="overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
+          <TabsTrigger value="products" className="whitespace-nowrap" data-testid="tab-products">
             <Package className="h-3.5 w-3.5 mr-1.5" />
             Produits Clients
           </TabsTrigger>
-          <TabsTrigger value="systemd" data-testid="tab-systemd">
+          <TabsTrigger value="systemd" className="whitespace-nowrap" data-testid="tab-systemd">
             <Warehouse className="h-3.5 w-3.5 mr-1.5" />
             Produits SystemD
           </TabsTrigger>
-          <TabsTrigger value="orders" data-testid="tab-orders">
+          <TabsTrigger value="orders" className="whitespace-nowrap" data-testid="tab-orders">
             <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
             Commandes
           </TabsTrigger>
-          <TabsTrigger value="customers" data-testid="tab-customers">
+          <TabsTrigger value="customers" className="whitespace-nowrap" data-testid="tab-customers">
             <Users className="h-3.5 w-3.5 mr-1.5" />
-            Reps
+            Clients Shopify
           </TabsTrigger>
         </TabsList>
 

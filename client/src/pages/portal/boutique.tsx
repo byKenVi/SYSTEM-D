@@ -31,6 +31,8 @@ import {
   Tag,
   Warehouse,
   AlertCircle,
+  LayoutGrid,
+  LayoutList,
 } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -241,6 +243,13 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   const cart = useCart();
   const [cartOpen, setCartOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [viewModeSystemD, setViewModeSystemDRaw] = useState<"grid" | "list">(
+    () => (localStorage.getItem("boutique_systemd_viewMode") as "grid" | "list") || "grid"
+  );
+  const setViewModeSystemD = (v: "grid" | "list") => {
+    localStorage.setItem("boutique_systemd_viewMode", v);
+    setViewModeSystemDRaw(v);
+  };
   const [, navigate] = useLocation();
 
   const forceRefRef = useRef(false);
@@ -303,6 +312,29 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
           <RefreshCw className={`h-5 w-5 text-muted-foreground ${isLoading ? "animate-spin" : ""}`} />
         </Button>
 
+        <div className="flex items-center gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
+          <Button
+            variant={viewModeSystemD === "grid" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-9 w-9 p-0"
+            onClick={() => setViewModeSystemD("grid")}
+            title="Vue grille"
+            data-testid="button-view-systemd-grid"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewModeSystemD === "list" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-9 w-9 p-0"
+            onClick={() => setViewModeSystemD("list")}
+            title="Vue liste"
+            data-testid="button-view-systemd-list"
+          >
+            <LayoutList className="h-4 w-4" />
+          </Button>
+        </div>
+
         <Button
           variant="outline"
           className="h-12 px-4 relative border-primary/30 text-primary hover:bg-primary/5 hover:border-primary font-bold"
@@ -357,6 +389,45 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
             </p>
           </CardContent>
         </Card>
+      ) : viewModeSystemD === "list" ? (
+        <div className="space-y-2">
+          {filtered.map((product) => {
+            const inStock = product.stock > 0;
+            return (
+              <div
+                key={product.zohoItemId}
+                className="flex items-center gap-4 p-4 bg-card border border-border/50 rounded-xl cursor-pointer hover:bg-muted/50 transition-colors group"
+                onClick={() => openDetail(product)}
+                data-testid={`list-systemd-product-${product.zohoItemId}`}
+              >
+                <div className="h-12 w-12 bg-muted/30 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-border/30">
+                  <img
+                    src={product.imageUrl || ""}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    style={{ display: product.imageUrl ? undefined : "none" }}
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
+                  <Package className="h-6 w-6 text-muted-foreground/30" style={{ display: product.imageUrl ? "none" : undefined }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">{product.name}</p>
+                  {product.sku && (
+                    <Badge variant="outline" className="font-mono text-[10px] border-dashed mt-0.5">{product.sku}</Badge>
+                  )}
+                </div>
+                <span className="font-mono font-bold text-sm whitespace-nowrap">{money(product.price)}</span>
+                <Badge
+                  variant="secondary"
+                  className={`text-[10px] font-bold tabular-nums whitespace-nowrap ${inStock ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"}`}
+                >
+                  {inStock ? `${product.stock} en stock` : "Épuisé"}
+                </Badge>
+                <ArrowRight className="h-4 w-4 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((product) => {
@@ -432,6 +503,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   /* Products state */
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
+  const [viewModeProducts, setViewModeProductsRaw] = useState<"list" | "grid">(
+    () => (localStorage.getItem("boutique_products_viewMode") as "list" | "grid") || "list"
+  );
+  const setViewModeProducts = (v: "list" | "grid") => {
+    localStorage.setItem("boutique_products_viewMode", v);
+    setViewModeProductsRaw(v);
+  };
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [restockQty, setRestockQty] = useState("");
   const isViewAs = !!viewAsContactId;
@@ -630,7 +708,8 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
         </div>
 
         <Tabs defaultValue={initialTab} className="w-full">
-          <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl mb-6 overflow-x-auto overflow-y-hidden" data-testid="tabs-boutique">
+          <div className="relative mb-6">
+          <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
             <TabsTrigger value="products" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-products">
               <Package className="h-4 w-4 mr-2" />
               Mes Produits
@@ -656,6 +735,8 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               {customers.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{customers.length}</Badge>}
             </TabsTrigger>
           </TabsList>
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-16 rounded-r-xl bg-gradient-to-l from-card to-transparent" aria-hidden="true" />
+          </div>
 
           {/* ══ PRODUITS CLIENTS TAB ══ */}
           <TabsContent value="products" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
@@ -685,6 +766,28 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="px-2 pb-2 sm:pb-0 flex items-center gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
+                    <Button
+                      variant={viewModeProducts === "list" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-9 w-9 p-0"
+                      onClick={() => setViewModeProducts("list")}
+                      title="Vue liste"
+                      data-testid="button-view-products-list"
+                    >
+                      <LayoutList className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewModeProducts === "grid" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-9 w-9 p-0"
+                      onClick={() => setViewModeProducts("grid")}
+                      title="Vue grille"
+                      data-testid="button-view-products-grid"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -696,6 +799,37 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
                   </div>
                 ) : filteredProducts && filteredProducts.length > 0 ? (
+                  viewModeProducts === "grid" ? (
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredProducts.map((product) => (
+                        <div
+                          key={product.id}
+                          className="flex flex-col bg-card border border-border/50 rounded-xl overflow-hidden cursor-pointer hover:bg-muted/50 transition-colors group"
+                          onClick={() => { if (!product.id) return; const path = viewAsContactId ? `/portal/products/${product.id}?viewAs=${viewAsContactId}` : `/portal/products/${product.id}`; navigate(path); }}
+                          data-testid={`card-portal-product-${product.id}`}
+                        >
+                          <div className="aspect-video bg-muted/50 flex items-center justify-center overflow-hidden">
+                            <img src={product.imageUrl || ""} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                            <Package className="h-12 w-12 text-muted-foreground/30" style={{ display: product.imageUrl ? "none" : undefined }} />
+                          </div>
+                          <div className="p-4 space-y-2">
+                            <p className="font-bold text-sm leading-tight">{product.name}</p>
+                            {product.sku && <Badge variant="outline" className="font-mono text-[10px] border-dashed">{product.sku}</Badge>}
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="font-mono font-bold text-sm">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</span>
+                              <Badge variant="secondary" className={`font-mono text-xs px-2 py-0.5 rounded-md border-0 ${product.inventoryQuantity <= 5 ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-muted text-foreground"}`}>{product.inventoryQuantity} un.</Badge>
+                            </div>
+                            {!isViewAs && (
+                              <Button size="sm" variant="outline" className="w-full font-bold mt-1 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
+                                <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                                Bon de travail
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <div className="overflow-x-auto scrollbar-hide">
                     <Table className="min-w-[800px]">
                       <TableHeader>
@@ -769,6 +903,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                       </TableBody>
                     </Table>
                   </div>
+                  )
                 ) : (
                   <div className="flex flex-col items-center justify-center p-16 text-center">
                     <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">

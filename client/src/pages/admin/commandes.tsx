@@ -179,7 +179,7 @@ export default function AdminCommandes() {
           />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-type-filter">
+          <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-type-filter">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
@@ -190,7 +190,7 @@ export default function AdminCommandes() {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
+          <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-status-filter">
             <SelectValue placeholder="Statut" />
           </SelectTrigger>
           <SelectContent>
@@ -200,7 +200,7 @@ export default function AdminCommandes() {
           </SelectContent>
         </Select>
         <Select value={contactFilter} onValueChange={setContactFilter}>
-          <SelectTrigger className="w-[170px]" data-testid="select-contact-filter">
+          <SelectTrigger className="w-full sm:w-[170px]" data-testid="select-contact-filter">
             <SelectValue placeholder="Client" />
           </SelectTrigger>
           <SelectContent>

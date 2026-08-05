@@ -291,9 +291,12 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
                   ) : (
                     <>
                       <h3 className="text-lg font-bold tracking-tight mb-1">Boîte de réception vide</h3>
-                      <p className="text-sm text-muted-foreground max-w-sm">
+                      <p className="text-sm text-muted-foreground max-w-sm mb-4">
                         Vous n'avez aucune notification pour le moment. L'activité de votre compte apparaîtra ici.
                       </p>
+                      <Button variant="outline" size="sm" onClick={() => navigate("/portal/dashboard")}>
+                        Retour au tableau de bord
+                      </Button>
                     </>
                   )}
                 </CardContent>

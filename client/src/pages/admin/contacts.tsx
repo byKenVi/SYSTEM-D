@@ -548,7 +548,15 @@ export default function AdminContacts() {
                       <TableCell colSpan={8} className="h-36 text-center">
                         <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                         <p className="text-sm text-muted-foreground">Aucun contact trouvé</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
+                        {search && (
+                          <button
+                            className="text-xs text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
+                            onClick={() => setSearch("")}
+                          >
+                            Effacer les filtres
+                          </button>
+                        )}
                       </TableCell>
                     </TableRow>
                   )}
@@ -607,6 +615,14 @@ export default function AdminContacts() {
               <Users className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">Aucun contact trouvé</p>
               <p className="text-xs text-muted-foreground/60 mt-1">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
+              {search && (
+                <button
+                  className="text-xs text-primary underline underline-offset-2 hover:opacity-80 transition-opacity mt-3"
+                  onClick={() => setSearch("")}
+                >
+                  Effacer les filtres
+                </button>
+              )}
             </div>
           )}
         </div>

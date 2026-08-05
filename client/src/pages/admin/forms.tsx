@@ -237,7 +237,7 @@ export default function AdminForms() {
 
         <div className="flex flex-wrap gap-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[160px]" data-testid="select-filter-status">
+            <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-filter-status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -248,7 +248,7 @@ export default function AdminForms() {
             </SelectContent>
           </Select>
           <Select value={clientFilter} onValueChange={setClientFilter}>
-            <SelectTrigger className="w-[200px]" data-testid="select-filter-client">
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-client">
               <SelectValue placeholder="Client" />
             </SelectTrigger>
             <SelectContent>
@@ -261,7 +261,7 @@ export default function AdminForms() {
             </SelectContent>
           </Select>
           <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as any); localStorage.setItem("forms_groupBy", v); }}>
-            <SelectTrigger className="w-[160px]" data-testid="select-group-by">
+            <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-group-by">
               <Layers className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>

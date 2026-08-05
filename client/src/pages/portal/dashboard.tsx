@@ -138,7 +138,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
         <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
-              <Activity className="h-3.5 w-3.5" /> Centre de Commandement
+              <Activity className="h-3.5 w-3.5" /> Aperçu
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
               {greeting()}, {contact?.name?.split(" ")[0] || user?.firstName || "there"}

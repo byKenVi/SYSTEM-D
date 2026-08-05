@@ -1,0 +1,110 @@
+VALIDÉ — EXÉCUTE LES AMÉLIORATIONS UI/UX APPROUVÉES.
+
+Périmètre autorisé :
+- Corriger les problèmes P1.
+- Appliquer uniquement les P2 très simples et sans risque.
+- Ne fais aucune refonte globale.
+- Ne change pas la maquette générale.
+- Ne modifie pas la logique métier.
+- Ne touche pas à Zoho, Stripe, Shopify, WooCommerce, PDF, permissions, synchronisations ou base de données.
+
+==================================================
+CORRECTIONS AUTORISÉES
+==================================================
+
+1. Onglets Boutique admin et client
+- Corriger les onglets qui peuvent être tronqués.
+- Ajouter un scroll horizontal propre si nécessaire.
+- Ajouter un indicateur visuel discret lorsqu’il y a des onglets masqués.
+- Ajouter whitespace-nowrap pour éviter les retours à la ligne dans les onglets.
+- Aucun onglet ne doit être coupé à 100 % ou 125 % de zoom.
+
+2. Boutique client — affichage liste / grille
+- Ajouter un choix Liste / Grille pour :
+  - Mes Produits ;
+  - Produits Système D.
+- Utiliser une logique simple côté frontend.
+- Mémoriser le choix si possible avec la même approche que les autres pages.
+- Ne refais pas les cards produit.
+- Ne change pas les données affichées.
+- Ne touche pas au checkout.
+
+3. États vides
+Améliorer les états vides suivants avec un bouton ou une action claire :
+- Commandes ;
+- Livraisons ;
+- Notifications ;
+- Contacts admin si aucun résultat après filtre.
+
+Exemples :
+- “Voir la boutique”
+- “Retour au tableau de bord”
+- “Effacer les filtres”
+
+Ne crée pas de nouvelles fonctionnalités. Ajoute seulement des actions de navigation ou de clarification.
+
+4. Libellés simples
+Appliquer uniquement ces changements :
+- “Centre de Commandement” → “Aperçu” ou “Tableau de bord” côté client ;
+- “Centre de Commandement Admin” → “Aperçu” ou “Tableau de bord” côté admin ;
+- “Reps” → “Clients Shopify” côté admin boutique.
+
+5. Filtres admin mobile
+- Adapter les filtres admin pour qu’ils soient utilisables sur petit écran.
+- Les champs peuvent passer en pleine largeur sur mobile, puis reprendre leur largeur normale sur desktop.
+
+==================================================
+CE QUI EST INTERDIT
+==================================================
+
+Ne fais pas :
+- de refonte complète ;
+- de changement de couleurs principales ;
+- de changement de navigation globale ;
+- de nouvelle dépendance ;
+- de modification backend ;
+- de modification de permission ;
+- de modification de synchronisation ;
+- de modification Stripe ou checkout ;
+- de modification PDF ;
+- de changement sur les données.
+
+==================================================
+TESTS ATTENDUS
+==================================================
+
+Après implémentation, exécute :
+- typecheck ;
+- build ;
+- tests disponibles si existants.
+
+Tests manuels à faire :
+- Boutique client à 100 % zoom ;
+- Boutique client à 125 % zoom ;
+- Boutique admin à 100 % zoom ;
+- Boutique admin à 125 % zoom ;
+- écran tablette autour de 768px ;
+- mobile petit écran ;
+- toggle liste/grille sur Mes Produits ;
+- toggle liste/grille sur Produits Système D ;
+- états vides Commandes, Livraisons, Notifications ;
+- filtres admin sur petit écran.
+
+==================================================
+RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+1. fichiers modifiés ;
+2. corrections appliquées ;
+3. corrections laissées de côté ;
+4. résultat typecheck ;
+5. résultat build ;
+6. tests responsive effectués ;
+7. tests zoom effectués ;
+8. limites restantes ;
+9. statut final pour revue manuelle.
+
+Termine par :
+
+“AMÉLIORATIONS UI/UX ADMIN ET CLIENT TERMINÉES — PRÊT POUR REVUE MANUELLE.”
