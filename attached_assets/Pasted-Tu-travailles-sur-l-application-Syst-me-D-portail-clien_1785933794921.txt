@@ -1,0 +1,341 @@
+Tu travailles sur l’application Système D / portail client 3PL dans Replit.
+
+CONTEXTE PROJET
+
+Le projet vise à offrir à des clients 3PL un portail sécurisé pour gérer :
+- commandes ;
+- inventaire ;
+- boutique ;
+- soumissions ;
+- notifications ;
+- documents ;
+- demandes de service et réapprovisionnement.
+
+L’objectif de ce lot n’est PAS de faire la QA finale.
+L’objectif est de corriger les irritants UX visibles avant la QA finale.
+
+PROBLÈMES À TRAITER
+
+1. Notifications :
+   - les notifications sont silencieuses ;
+   - l’utilisateur n’a aucun moyen évident de savoir qu’il a une notification sans aller volontairement sur la page Notifications ;
+   - les notifications ne sont pas cliquables ;
+   - lorsqu’une notification concerne une demande de soumission, une commande, un produit, un document ou un autre objet, le clic doit rediriger vers la page concernée ;
+   - côté client, les notifications doivent être marquées comme lues automatiquement lorsqu’il visite la page Notifications, au lieu de devoir les marquer manuellement une par une.
+
+2. Formulaire de soumission côté client :
+   - quand le client arrive à la fin du formulaire, il doit pouvoir soumettre sans devoir scroller tout en haut ;
+   - le bouton “Soumettre” doit être disponible à la fin du parcours ou dans une barre d’action claire ;
+   - la validation doit être claire, avec message d’erreur français et retour vers le champ problématique.
+
+3. Page dédiée produit Système D :
+   - la page existe maintenant, mais elle est trop vide et visuellement faible ;
+   - elle doit être améliorée pour être cohérente avec une vraie page e-commerce / portail 3PL ;
+   - elle doit rester fonctionnelle même si certaines données produit sont absentes ;
+   - elle ne doit pas inventer de données qui n’existent pas.
+
+4. Améliorations UI/UX ciblées :
+   - identifier les pages du portail qui paraissent trop vides, peu lisibles, incohérentes ou difficiles à utiliser ;
+   - prioriser les pages liées au parcours client : Dashboard, Notifications, Soumissions, Boutique, Produit Système D, Commandes Système D ;
+   - proposer des améliorations simples, cohérentes et non risquées ;
+   - ne pas refondre toute l’application.
+
+==================================================
+RÈGLE BLOQUANTE — TRAVAIL EN DEUX PHASES
+==================================================
+
+PHASE 1 — AUDIT UX SANS MODIFICATION
+
+Pendant cette phase :
+- ne modifie aucun fichier ;
+- ne change aucune route ;
+- ne crée aucune migration ;
+- ne touche pas à la synchronisation Zoho ;
+- ne touche pas au checkout Stripe sauf si tu dois vérifier un lien d’interface ;
+- ne touche pas au PDF des soumissions ;
+- ne déploie rien.
+
+Tu dois inspecter le code et répondre avec un diagnostic précis.
+
+==================================================
+A. NOTIFICATIONS — AUDIT
+==================================================
+
+Inspecte :
+
+- modèle de données des notifications ;
+- routes API liées aux notifications ;
+- page Notifications ;
+- header/sidebar/navbar ;
+- logique “lu / non lu” ;
+- types de notifications existants ;
+- données disponibles dans chaque notification ;
+- existence éventuelle de champs comme entityType, entityId, referenceId, link, targetUrl, metadata ;
+- différences admin/client ;
+- logique de création des notifications pour soumissions, commandes, stock, documents, produits.
+
+Réponds à ces questions :
+
+1. Où sont créées les notifications ?
+2. Comment sont-elles stockées ?
+3. Est-ce qu’elles ont assez d’informations pour devenir cliquables ?
+4. Quels types de notifications peuvent être reliés à une page précise ?
+5. Quelles routes doivent être ouvertes au clic ?
+6. Comment afficher un indicateur visible de nouvelles notifications ?
+7. Où placer le badge : header, sidebar, icône cloche, menu utilisateur ou autre ?
+8. Comment marquer automatiquement comme lues les notifications côté client ?
+9. Faut-il marquer toutes les notifications lues à l’ouverture de la page, ou seulement celles affichées ?
+10. Y a-t-il un risque de masquer des notifications importantes trop vite ?
+
+Bonnes pratiques attendues :
+
+- ajouter un badge “non lu” visible sans aller sur la page Notifications ;
+- rendre chaque notification cliquable si elle a une destination fiable ;
+- si la destination n’existe pas, garder la notification non cliquable mais afficher une information claire ;
+- marquer les notifications comme lues automatiquement côté client lorsqu’il visite la page Notifications ;
+- conserver une distinction visuelle entre lu et non lu ;
+- garder les textes en français ;
+- préserver les permissions : un client ne doit jamais pouvoir ouvrir une page qui ne lui appartient pas.
+
+==================================================
+B. FORMULAIRE DE SOUMISSION — AUDIT
+==================================================
+
+Inspecte :
+
+- page ou composant du formulaire de soumission client ;
+- position actuelle du bouton Soumettre ;
+- longueur du formulaire ;
+- logique de validation ;
+- affichage des erreurs ;
+- comportement mobile ;
+- état loading pendant l’envoi ;
+- comportement après succès ou erreur ;
+- risque de double soumission.
+
+Réponds à ces questions :
+
+1. Où est le bouton Soumettre actuellement ?
+2. Pourquoi le client doit-il scroller vers le haut ?
+3. Quelle solution est la plus propre :
+   - bouton dupliqué en bas ;
+   - barre d’action sticky en bas ;
+   - bouton dans le dernier bloc du formulaire ;
+   - combinaison bouton haut + bouton bas ?
+4. Comment gérer la validation sans frustrer le client ?
+5. Comment empêcher une double soumission ?
+6. Comment garder l’interface claire sur mobile ?
+
+Bonnes pratiques attendues :
+
+- bouton Soumettre accessible à la fin du formulaire ;
+- barre d’action sticky si le formulaire est long ;
+- bouton désactivé pendant l’envoi ;
+- message de succès clair ;
+- en cas d’erreur, scroller vers le premier champ en erreur ;
+- résumé des erreurs si plusieurs champs sont invalides ;
+- ne pas cacher les derniers champs derrière une barre sticky ;
+- respecter l’accessibilité clavier et mobile.
+
+==================================================
+C. PAGE PRODUIT SYSTÈME D — AUDIT
+==================================================
+
+Inspecte :
+
+- page dédiée produit Système D ;
+- composants de page produit existants ;
+- données réellement disponibles dans zoho_catalog ;
+- image produit ;
+- prix ;
+- stock ;
+- SKU ;
+- description ;
+- statut ;
+- type produit ;
+- unité ;
+- bouton Ajouter au panier ;
+- quantité ;
+- messages d’erreur ;
+- états vide / loading / inaccessible.
+
+Réponds à ces questions :
+
+1. Pourquoi la page paraît-elle vide ?
+2. Quelles données sont réellement disponibles ?
+3. Quels éléments peuvent être mis en valeur sans inventer de contenu ?
+4. Quelles informations doivent être dans le bloc principal ?
+5. Quelles informations doivent être dans une section “Détails du produit” ou “Spécifications” ?
+6. Comment rendre la page utile même avec peu de données ?
+7. Comment rester cohérent avec les autres pages produits ?
+8. Comment améliorer desktop et mobile ?
+9. Comment gérer image absente, description absente, stock absent ou prix absent ?
+10. Est-ce que les permissions restent bien côté serveur ?
+
+Bonnes pratiques attendues :
+
+- mise en page plus dense et plus utile ;
+- en-tête clair avec bouton retour ;
+- grande zone image ou placeholder propre ;
+- nom produit, SKU, statut, prix, stock, quantité et CTA visibles ;
+- section “Description” ;
+- section “Spécifications” ;
+- section “Disponibilité” ;
+- affichage d’un message propre si une donnée est absente ;
+- bouton Ajouter au panier visible sans chercher ;
+- comportement mobile propre ;
+- aucun champ inventé ;
+- aucun appel Zoho direct ajouté si les données existent dans zoho_catalog.
+
+==================================================
+D. REVUE UI/UX CIBLÉE DU PORTAIL
+==================================================
+
+Inspecte rapidement les pages suivantes :
+
+- Dashboard client ;
+- Notifications ;
+- Soumissions ;
+- Détail soumission ;
+- Boutique ;
+- Produit Système D ;
+- Panier ;
+- Commandes Système D ;
+- Inventaire client si présent.
+
+Pour chaque page, indique :
+
+- problème visible ;
+- impact utilisateur ;
+- correction proposée ;
+- difficulté : faible / moyenne / élevée ;
+- risque de régression ;
+- priorité : P0 / P1 / P2.
+
+Ne propose pas une refonte totale.
+Propose uniquement les améliorations réalistes avant QA finale.
+
+Priorité :
+- P0 : bloque ou crée une forte confusion ;
+- P1 : gêne importante mais contournable ;
+- P2 : amélioration visuelle ou confort.
+
+==================================================
+E. CONTRAINTES TECHNIQUES
+==================================================
+
+Respecte strictement :
+
+- pas de modification de production ;
+- pas de modification de synchronisation Zoho dans ce lot ;
+- pas de changement de fréquence scheduler ;
+- pas de changement de logique Stripe hors liens UI nécessaires ;
+- pas de régression sur les permissions ;
+- aucun client ne doit voir les données d’un autre client ;
+- tous les textes visibles doivent être en français ;
+- utiliser les composants UI existants autant que possible ;
+- éviter d’ajouter des dépendances ;
+- ne pas inventer de données ;
+- garder les routes existantes compatibles ;
+- préserver le comportement admin view-as si présent.
+
+==================================================
+FORMAT DE RÉPONSE ATTENDU — PHASE 1
+==================================================
+
+Réponds uniquement avec un rapport d’audit :
+
+A. Notifications — état actuel
+B. Notifications — corrections proposées
+C. Formulaire de soumission — état actuel
+D. Formulaire de soumission — corrections proposées
+E. Page produit Système D — état actuel
+F. Page produit Système D — design recommandé
+G. Revue rapide des autres pages portail
+H. Priorités P0 / P1 / P2
+I. Fichiers à modifier
+J. Risques de régression
+K. Plan d’implémentation recommandé
+L. Tests à exécuter
+
+Termine exactement par :
+
+“ANALYSE UX PRÉ-QA TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS LA VALIDATION AVANT D’IMPLÉMENTER.”
+
+Puis arrête-toi.
+
+==================================================
+PHASE 2 — APRÈS VALIDATION
+==================================================
+
+Tu ne peux commencer l’implémentation que si je réponds :
+
+“VALIDÉ — EXÉCUTE LE PLAN UX PRÉ-QA APPROUVÉ.”
+
+Après validation :
+
+1. Implémente uniquement les corrections approuvées.
+2. Commence par les P0, puis P1.
+3. Ne traite les P2 que si elles sont simples et sans risque.
+4. Ne modifie pas les modules sans rapport.
+5. Ajoute les états loading, empty, error si nécessaires.
+6. Garde les textes en français.
+7. Préserve les permissions côté serveur.
+8. Exécute typecheck, lint, tests disponibles et build.
+
+==================================================
+CORRECTIONS MINIMALES ATTENDUES SI APPROUVÉES
+==================================================
+
+1. Notifications :
+   - badge visible de notifications non lues ;
+   - notifications cliquables vers la page concernée quand possible ;
+   - auto-mark-as-read côté client lors de la visite de la page Notifications ;
+   - distinction visuelle lu / non lu ;
+   - fallback propre si la notification n’a pas de destination.
+
+2. Formulaire de soumission :
+   - bouton Soumettre accessible en bas ou sticky ;
+   - validation claire ;
+   - scroll vers première erreur ;
+   - prévention double soumission ;
+   - comportement mobile correct.
+
+3. Produit Système D :
+   - page dédiée visuellement améliorée ;
+   - meilleure hiérarchie : image, nom, SKU, prix, stock, quantité, CTA ;
+   - sections Description, Spécifications, Disponibilité ;
+   - placeholders propres ;
+   - aucun champ inventé ;
+   - aucun accès client non autorisé.
+
+4. Revue UI ciblée :
+   - petites améliorations sur les pages prioritaires uniquement ;
+   - pas de refonte globale ;
+   - pas de changements décoratifs risqués avant QA.
+
+==================================================
+RAPPORT FINAL ATTENDU APRÈS IMPLÉMENTATION
+==================================================
+
+À la fin, fournis :
+
+1. Liste exacte des fichiers modifiés.
+2. Corrections appliquées par priorité.
+3. Captures ou description précise du nouveau comportement.
+4. Tests exécutés et résultats :
+   - typecheck ;
+   - lint ;
+   - tests disponibles ;
+   - build.
+5. Tests manuels à faire :
+   - client réel ;
+   - admin view-as ;
+   - mobile ;
+   - notifications ;
+   - soumission ;
+   - produit Système D ;
+   - permissions.
+6. Limites restantes.
+7. Risques résiduels.
+8. Ce qui doit être inclus dans la QA finale.
