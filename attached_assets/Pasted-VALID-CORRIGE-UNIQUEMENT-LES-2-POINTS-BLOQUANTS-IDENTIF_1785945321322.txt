@@ -1,0 +1,79 @@
+VALIDÉ — CORRIGE UNIQUEMENT LES 2 POINTS BLOQUANTS IDENTIFIÉS DANS LA QA FINALE.
+
+Ne fais aucune autre correction.
+Ne touche pas à Stripe au-delà du message d’erreur.
+Ne modifie pas la synchronisation Zoho.
+Ne modifie pas Shopify.
+Ne modifie pas WooCommerce.
+Ne fais pas de refonte UI.
+Ne traite pas les P2.
+
+==================================================
+CORRECTION 1 — SÉCURITÉ NOTIFICATIONS
+=====================================
+
+Corrige la route qui marque une notification comme lue.
+
+Problème :
+Un client peut actuellement marquer comme lue une notification qui ne lui appartient pas, simplement en connaissant son identifiant.
+
+Correction attendue :
+
+* vérifier que la notification appartient bien au client connecté avant de la marquer comme lue ;
+* si la notification n’appartient pas au client connecté, retourner une erreur d’accès ;
+* ne jamais modifier une notification appartenant à un autre client ;
+* préserver le comportement admin si une logique admin existe déjà.
+
+Test attendu :
+
+* client A peut marquer sa propre notification comme lue ;
+* client A ne peut pas marquer une notification du client B comme lue ;
+* aucun contenu d’une notification d’un autre client n’est exposé.
+
+==================================================
+CORRECTION 2 — MESSAGE D’ERREUR PAIEMENT
+========================================
+
+Corrige le message affiché lorsque le paiement n’est pas disponible.
+
+Problème :
+Quand Stripe n’est pas connecté, le client reçoit un message technique interne.
+
+Correction attendue :
+
+* ne jamais exposer le message technique brut au client ;
+* afficher un message clair en français, par exemple :
+  “Paiement temporairement indisponible. Veuillez réessayer plus tard ou contacter Système D.”
+* garder le détail technique uniquement dans les logs serveur ;
+* ne pas modifier le flux Stripe lui-même ;
+* ne pas prétendre que le paiement fonctionne si Stripe n’est pas connecté.
+
+Test attendu :
+
+* lorsque Stripe n’est pas connecté, le client voit un message propre ;
+* les logs serveur conservent l’erreur technique ;
+* aucune donnée technique sensible n’est affichée côté client.
+
+==================================================
+APRÈS CORRECTION
+================
+
+Exécute :
+
+* typecheck ;
+* build ;
+* tests disponibles si existants.
+
+Puis fournis un rapport court avec :
+
+1. fichiers modifiés ;
+2. correction appliquée pour les notifications ;
+3. correction appliquée pour le message paiement ;
+4. résultats des vérifications ;
+5. statut final :
+
+   * GO pour revue Masdouk ;
+   * ou NO-GO avec raison précise.
+
+Important :
+Stripe reste un blocage fonctionnel pour le paiement réel tant qu’il n’est pas connecté. Ne le marque pas comme validé.

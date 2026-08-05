@@ -2914,9 +2914,21 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
     try {
-      await storage.markNotificationRead(Number(req.params.id));
+      const role = await getUserRole(req);
+      if (!role || !role.contactId) return res.status(401).json({ message: "Non autorisé" });
+
+      const notifId = Number(req.params.id);
+
+      // Vérification d'appartenance — seul le propriétaire peut marquer comme lu
+      const ownedNotifs = await storage.getNotificationsByContactId(role.contactId);
+      const belongs = ownedNotifs.some((n) => n.id === notifId);
+      if (!belongs) {
+        return res.status(403).json({ message: "Accès refusé" });
+      }
+
+      await storage.markNotificationRead(notifId);
       res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -3528,8 +3540,11 @@ export async function registerRoutes(
 
       res.json({ url: session.url });
     } catch (error: any) {
+      // Log technique conservé côté serveur uniquement
       console.error("Erreur création session checkout SystemD :", error);
-      res.status(500).json({ message: error.message || "Échec de la création de la session de paiement" });
+      res.status(500).json({
+        message: "Paiement temporairement indisponible. Veuillez réessayer plus tard ou contacter Système D.",
+      });
     }
   });
 
