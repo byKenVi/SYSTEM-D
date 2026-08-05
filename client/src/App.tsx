@@ -99,6 +99,21 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
     "--sidebar-width-icon": "3rem",
   };
 
+  // Fetch real client's contactId to isolate their cart key in localStorage.
+  // Disabled in view-as mode (admin) — viewAsContactId is used directly instead.
+  const { data: profile } = useQuery<{ id: number }>({
+    queryKey: ["/api/portal/profile"],
+    enabled: !viewAsContactId,
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  const cartStorageKey = viewAsContactId
+    ? `cart_systemd_viewas_${viewAsContactId}`
+    : profile?.id
+      ? `cart_systemd_${profile.id}`
+      : "cart_systemd_init";
+
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
@@ -106,7 +121,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
           <div className="p-6 lg:p-8 min-h-full w-full">
-            <CartProvider>
+            <CartProvider storageKey={cartStorageKey}>
             <Switch>
               <Route path="/portal/dashboard">
                 <PortalDashboard viewAsContactId={viewAsContactId} />

@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -3384,36 +3385,32 @@ export async function registerRoutes(
   app.post("/api/portal/systemd-checkout", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
-      if (!role) return res.status(401).json({ message: "Unauthorized" });
+      if (!role) return res.status(401).json({ message: "Non autorisé" });
 
-      // Accept only zohoItemId + quantity — prices resolved server-side from Zoho
-      const { items } = req.body as {
-        items: { zohoItemId: string; quantity: number }[];
-      };
+      const { items } = req.body as { items: { zohoItemId: string; quantity: number }[] };
       if (!Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ message: "Cart is empty" });
+        return res.status(400).json({ message: "Le panier est vide" });
       }
       if (items.some((i) => !i.zohoItemId || !Number.isInteger(i.quantity) || i.quantity < 1)) {
-        return res.status(400).json({ message: "Invalid cart items" });
+        return res.status(400).json({ message: "Articles du panier invalides" });
       }
 
       // Résolution depuis zoho_catalog — ZÉRO appel vers l'API Zoho.
-      // Chaque item du panier est vérifié individuellement (jamais le catalogue entier).
       const resolvedItems: { zohoItemId: string; name: string; sku: string | null; quantity: number; unitPrice: number }[] = [];
       for (const cartItem of items) {
         const catalogItem = await storage.getZohoCatalogItem(cartItem.zohoItemId);
         if (!catalogItem) {
-          return res.status(400).json({ message: `Item not found in catalog: ${cartItem.zohoItemId}` });
+          return res.status(400).json({ message: `Produit introuvable dans le catalogue : ${cartItem.zohoItemId}` });
         }
         if (catalogItem.assignmentState !== "systemd") {
-          return res.status(403).json({ message: `Item is not a SystemD product: ${cartItem.zohoItemId}` });
+          return res.status(403).json({ message: `Ce produit n'est pas disponible dans la boutique SystemD : ${cartItem.zohoItemId}` });
         }
         if (catalogItem.status !== "active") {
-          return res.status(400).json({ message: `Item is no longer available: ${catalogItem.name}` });
+          return res.status(400).json({ message: `Produit non disponible : ${catalogItem.name}` });
         }
         const stock = Math.round(Number(catalogItem.stock ?? 0));
         if (cartItem.quantity > stock) {
-          return res.status(400).json({ message: `Insufficient stock for: ${catalogItem.name}` });
+          return res.status(400).json({ message: `Stock insuffisant pour : ${catalogItem.name}` });
         }
         resolvedItems.push({
           zohoItemId: cartItem.zohoItemId,
@@ -3424,13 +3421,56 @@ export async function registerRoutes(
         });
       }
 
+      const contactId = role.role === "client" ? role.contactId! : (req.body.contactId || 0);
+      const totalAmountCents = resolvedItems.reduce(
+        (sum, i) => sum + Math.round(i.unitPrice * 100) * i.quantity, 0
+      );
+
+      // ── Idempotence : clé d'intention ────────────────────────────────────────
+      // SHA256(contactId | items triés par zohoItemId | total en centimes)
+      // Fenêtre : 10 minutes. Si une commande pending identique existe, on réutilise son URL.
+      const intentPayload = [
+        String(contactId),
+        resolvedItems
+          .slice()
+          .sort((a, b) => a.zohoItemId.localeCompare(b.zohoItemId))
+          .map((i) => `${i.zohoItemId}:${i.quantity}`)
+          .join(","),
+        String(totalAmountCents),
+      ].join("|");
+      const intentKey = createHash("sha256").update(intentPayload).digest("hex").slice(0, 64);
+
+      const existingOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
+      if (existingOrder?.stripeCheckoutUrl) {
+        return res.json({ url: existingOrder.stripeCheckoutUrl });
+      }
+
+      // ── Mode bypass DEV ──────────────────────────────────────────────────────
+      // Conditions strictes : NODE_ENV=development ET SYSTEMD_DEV_CHECKOUT_BYPASS=true
+      // Les commandes créées en bypass sont identifiables par le préfixe DEV- et le statut 'paid'.
+      if (process.env.NODE_ENV === "development" && process.env.SYSTEMD_DEV_CHECKOUT_BYPASS === "true") {
+        const devSessionId = `DEV-${Date.now()}-${contactId}`;
+        const devOrder = await storage.createSystemdOrder({
+          contactId,
+          stripeCheckoutSessionId: devSessionId,
+          stripeCheckoutUrl: null,
+          checkoutIntentKey: intentKey,
+          amount: totalAmountCents,
+          currency: "cad",
+          status: "paid",
+          lineItems: resolvedItems as any,
+        });
+        console.log(`[DEV BYPASS] Commande SystemD #${devOrder.id} créée sans Stripe (session: ${devSessionId})`);
+        const host = `${req.protocol}://${req.get("host")}`;
+        return res.json({ url: `${host}/portal/boutique?tab=systemd-orders&payment=success` });
+      }
+
+      // ── Flux Stripe normal ───────────────────────────────────────────────────
       const { getUncachableStripeClient } = await import("./stripeClient");
       const stripe = await getUncachableStripeClient();
-
-      const contactId = role.role === "client" ? role.contactId! : (req.body.contactId || 0);
       const host = `${req.protocol}://${req.get("host")}`;
 
-      const lineItems = resolvedItems.map((item) => ({
+      const stripeLineItems = resolvedItems.map((item) => ({
         price_data: {
           currency: "cad",
           product_data: {
@@ -3444,21 +3484,22 @@ export async function registerRoutes(
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
-        line_items: lineItems,
+        line_items: stripeLineItems,
         mode: "payment",
-        success_url: `${host}/portal/boutique?tab=systemd&payment=success`,
-        cancel_url: `${host}/portal/boutique?tab=systemd&payment=cancelled`,
+        success_url: `${host}/portal/boutique?tab=systemd-orders&payment=success`,
+        cancel_url:  `${host}/portal/boutique?tab=systemd&payment=cancelled`,
         metadata: {
           contactId: String(contactId),
           source: "systemd_store",
         },
       });
 
-      const totalAmount = resolvedItems.reduce((sum, i) => sum + Math.round(i.unitPrice * 100) * i.quantity, 0);
       await storage.createSystemdOrder({
         contactId,
         stripeCheckoutSessionId: session.id,
-        amount: totalAmount,
+        stripeCheckoutUrl: session.url,
+        checkoutIntentKey: intentKey,
+        amount: totalAmountCents,
         currency: "cad",
         status: "pending",
         lineItems: resolvedItems as any,
@@ -3466,8 +3507,8 @@ export async function registerRoutes(
 
       res.json({ url: session.url });
     } catch (error: any) {
-      console.error("Error creating SystemD checkout:", error);
-      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+      console.error("Erreur création session checkout SystemD :", error);
+      res.status(500).json({ message: error.message || "Échec de la création de la session de paiement" });
     }
   });
 

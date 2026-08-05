@@ -436,6 +436,19 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const [restockQty, setRestockQty] = useState("");
   const isViewAs = !!viewAsContactId;
 
+  /* SystemD orders */
+  const { data: systemdOrdersData, isLoading: systemdOrdersLoading } = useQuery<any[]>({
+    queryKey: ["/api/portal/systemd-orders"],
+    queryFn: () =>
+      fetch("/api/portal/systemd-orders", { credentials: "include" }).then(async (r) => {
+        if (!r.ok) return [];
+        return r.json();
+      }),
+    enabled: !isViewAs,
+    staleTime: 30_000,
+  });
+  const systemdOrdersList = systemdOrdersData ?? [];
+
   /* Orders state */
   const [orderSearch, setOrderSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -452,6 +465,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     if (paymentStatus === "success") {
       paymentToastFired.current = true;
       toast({ title: "Paiement réussi !", description: "Votre commande SystemD a été enregistrée." });
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/systemd-orders"] });
     } else if (paymentStatus === "cancelled") {
       paymentToastFired.current = true;
       toast({ title: "Paiement annulé", description: "Votre panier a été conservé.", variant: "destructive" });
@@ -583,9 +597,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               <Warehouse className="h-4 w-4 mr-2" />
               Produits SystemD
             </TabsTrigger>
+            <TabsTrigger value="systemd-orders" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-systemd-orders">
+              <CreditCard className="h-4 w-4 mr-2" />
+              Commandes SystemD
+              {!isViewAs && systemdOrdersList.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{systemdOrdersList.length}</Badge>}
+            </TabsTrigger>
             <TabsTrigger value="orders" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-orders">
               <ShoppingCart className="h-4 w-4 mr-2" />
-              Commandes
+              Commandes Shopify
               {orders.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{orders.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="customers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-customers">
@@ -789,6 +808,95 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           {/* ══ PRODUITS SYSTEMD TAB ══ */}
           <TabsContent value="systemd" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
             <SystemdProductsTab viewAsContactId={viewAsContactId} />
+          </TabsContent>
+
+          {/* ══ COMMANDES SYSTEMD TAB ══ */}
+          <TabsContent value="systemd-orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+            {isViewAs ? (
+              <Card className="border-border/50 shadow-sm">
+                <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+                  <CreditCard className="h-10 w-10 text-muted-foreground/40 mb-4" />
+                  <p className="text-sm text-muted-foreground">Les commandes SystemD du client sont consultables depuis la vue Admin → Commandes SystemD.</p>
+                </CardContent>
+              </Card>
+            ) : systemdOrdersLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : systemdOrdersList.length === 0 ? (
+              <Card className="border-border/50 shadow-sm">
+                <CardContent className="flex flex-col items-center justify-center p-16 text-center">
+                  <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                    <CreditCard className="h-10 w-10 text-muted-foreground/50" />
+                  </div>
+                  <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande SystemD</h3>
+                  <p className="text-muted-foreground max-w-sm text-sm">
+                    Vos commandes passées via la boutique SystemD apparaîtront ici une fois validées.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {systemdOrdersList.map((order: any) => (
+                  <Card key={order.id} className="border-border/50 shadow-sm">
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="space-y-1">
+                          <p className="font-bold text-sm text-foreground">Commande #{order.id}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(order.createdAt).toLocaleDateString("fr-CA", {
+                              year: "numeric", month: "long", day: "numeric",
+                              hour: "2-digit", minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className="font-mono font-bold text-lg">
+                            {(order.amount / 100).toLocaleString("fr-CA", {
+                              style: "currency",
+                              currency: (order.currency || "cad").toUpperCase(),
+                            })}
+                          </span>
+                          {order.status === "paid" && (
+                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                              Payé
+                            </span>
+                          )}
+                          {order.status === "pending" && (
+                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20">
+                              En attente de paiement
+                            </span>
+                          )}
+                          {(order.status === "cancelled" || order.status === "expired") && (
+                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted border-border">
+                              {order.status === "expired" ? "Expiré" : "Annulé"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {Array.isArray(order.lineItems) && order.lineItems.length > 0 && (
+                        <div className="mt-3 pt-3 border-t space-y-1">
+                          {order.lineItems.map((li: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>
+                                {li.name}
+                                {li.sku ? <span className="ml-1 font-mono text-muted-foreground/60">({li.sku})</span> : null}
+                                {" × "}{li.quantity}
+                              </span>
+                              <span className="font-mono">
+                                {(li.unitPrice * li.quantity).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* ══ COMMANDES TAB ══ */}

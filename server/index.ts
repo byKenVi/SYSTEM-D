@@ -174,6 +174,9 @@ async function initStripe() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS checkout_intent_key TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stripe_checkout_url TEXT`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent ON systemd_orders (checkout_intent_key) WHERE status = 'pending'`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_assignment ON zoho_catalog (assignment_state) WHERE is_deleted = FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_contact ON zoho_catalog (contact_id) WHERE is_deleted = FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_status ON zoho_catalog (status) WHERE is_deleted = FALSE`);

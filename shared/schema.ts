@@ -275,6 +275,8 @@ export const systemdOrders = pgTable("systemd_orders", {
   contactId: integer("contact_id").notNull(),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  stripeCheckoutUrl: text("stripe_checkout_url"),
+  checkoutIntentKey: text("checkout_intent_key"),
   amount: integer("amount").notNull().default(0),
   currency: text("currency").notNull().default("cad"),
   status: text("status").notNull().default("pending"),

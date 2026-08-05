@@ -103,6 +103,7 @@ export interface IStorage {
   getSystemdOrders(filters?: { contactId?: number }): Promise<SystemdOrder[]>;
   updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
+  getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined>;
 
   // Zoho Sync Runs
   createZohoSyncRun(data: { triggeredBy: string; status?: string }): Promise<ZohoSyncRun>;
@@ -579,6 +580,20 @@ export class DatabaseStorage implements IStorage {
   async getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined> {
     const [order] = await db.select().from(systemdOrders)
       .where(eq(systemdOrders.stripeCheckoutSessionId, sessionId));
+    return order;
+  }
+
+  async getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined> {
+    const [order] = await db.select().from(systemdOrders)
+      .where(
+        and(
+          eq(systemdOrders.checkoutIntentKey, intentKey),
+          eq(systemdOrders.status, "pending"),
+          sql`${systemdOrders.createdAt} > NOW() - INTERVAL '${sql.raw(String(windowMinutes))} minutes'`
+        )
+      )
+      .orderBy(desc(systemdOrders.createdAt))
+      .limit(1);
     return order;
   }
 
