@@ -1,0 +1,122 @@
+Lance maintenant la QA finale complète de Système D, mais avec une limite importante :
+
+Stripe n’est pas encore implémenté / connecté, donc le paiement réel ne doit pas être considéré comme terminé ni validé.
+
+Objectif :
+Faire une QA finale de tout ce qui est prêt, et identifier clairement :
+- ce qui fonctionne ;
+- ce qui ne fonctionne pas ;
+- ce qui reste bloqué par Stripe ;
+- ce qui doit être corrigé avant revue avec Masdouk ;
+- ce qui doit être testé avec un vrai compte client.
+
+==================================================
+PÉRIMÈTRE À TESTER
+==================================================
+
+1. Synchronisation et produits Système D
+- Les produits Système D s’affichent correctement.
+- Les produits clients ne sont pas visibles par les autres clients.
+- Les produits non résolus ou douteux ne sont pas visibles côté client.
+- Les produits restent stables après plusieurs actualisations.
+- La boutique n’appelle pas inutilement Zoho au chargement.
+
+2. Page produit Système D
+- Le clic ouvre une vraie page dédiée.
+- La page fonctionne avec image.
+- La page fonctionne sans image.
+- La page fonctionne sans description.
+- Les sections Description, Spécifications et Disponibilité s’affichent correctement.
+- Le bouton Ajouter au panier fonctionne.
+- Le rendu mobile est correct.
+
+3. Boutique, panier et commandes Système D
+- Les produits Système D sont visibles dans la boutique.
+- L’ajout au panier fonctionne.
+- Le panier reste après actualisation.
+- Les quantités peuvent être modifiées.
+- Les articles peuvent être supprimés.
+- Les commandes Système D sont séparées des commandes Shopify.
+- Les compteurs sont cohérents.
+- Le double clic ne crée pas de doublon.
+
+4. Paiement / Stripe
+- Ne pas valider le paiement réel si Stripe n’est pas connecté.
+- Vérifier seulement que l’application affiche une erreur claire ou un comportement attendu lorsque Stripe n’est pas disponible.
+- Marquer Stripe comme blocage restant.
+- Ne pas créer de fausse conclusion “paiement validé”.
+
+5. Soumissions
+- Le formulaire de soumission fonctionne.
+- Le bouton Soumettre est disponible en bas du formulaire.
+- Les erreurs sont compréhensibles.
+- Le scroll vers les erreurs fonctionne.
+- La double soumission est empêchée.
+- Le PDF de soumission se télécharge correctement.
+- Le PDF contient les bonnes informations.
+- Le nom du fichier est clair.
+
+6. Notifications
+- Le badge de notifications fonctionne.
+- Le badge mobile fonctionne.
+- Les notifications sont cliquables quand elles ont une destination.
+- Les notifications sans destination fiable restent non cliquables.
+- Les notifications sont marquées comme lues automatiquement à l’ouverture de la page.
+- Les boutons “Marquer lu” ou supprimer ne déclenchent pas de mauvaise navigation.
+
+7. Dashboard et portail client
+- Les sections vides ou inutiles sont correctement masquées.
+- Les libellés sont clairs.
+- Les textes visibles sont en français.
+- L’interface est utilisable sur desktop et mobile.
+
+8. Permissions et sécurité
+- Un client ne voit que ses propres données.
+- Un client ne peut pas accéder aux soumissions d’un autre client.
+- Un client ne peut pas voir les produits propres à un autre client.
+- Un client ne peut pas voir les commandes d’un autre client.
+- Le mode admin view-as fonctionne sans fuite de données.
+
+==================================================
+TESTS TECHNIQUES
+==================================================
+
+Exécute :
+- typecheck ;
+- lint ;
+- tests disponibles ;
+- build.
+
+Vérifie aussi :
+- console navigateur sans erreur critique ;
+- erreurs serveur ;
+- logs liés aux produits, commandes, notifications et soumissions.
+
+==================================================
+FORMAT DU RAPPORT FINAL
+==================================================
+
+Présente le rapport sous cette forme :
+
+A. Résumé global
+B. Ce qui fonctionne
+C. Ce qui ne fonctionne pas
+D. Blocages connus
+E. Blocage Stripe / paiement
+F. Tests réussis
+G. Tests échoués
+H. Tests impossibles sans vrai compte client
+I. Tests impossibles sans Stripe
+J. Bugs critiques à corriger avant revue Masdouk
+K. Bugs importants mais non bloquants
+L. Améliorations UX restantes
+M. Recommandation finale :
+   - GO pour revue Masdouk ;
+   - ou NO-GO avec raisons précises.
+
+Important :
+Ne corrige rien pendant cette première passe QA.
+Fais seulement l’audit final et le rapport.
+Termine par :
+
+“QA FINALE TERMINÉE — AUCUNE CORRECTION EFFECTUÉE. J’ATTENDS VALIDATION POUR CORRIGER LES POINTS RESTANTS.”
