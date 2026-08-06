@@ -1,0 +1,114 @@
+Le problème persiste : la connexion Zoho échoue encore avec invalid_client_secret.
+
+Contexte important :
+J’ai dû créer une nouvelle application dans Zoho API Console, car je ne voyais pas d’application existante.
+Dans une première itération, tu m’as demandé de remplacer seulement ZOHO_CLIENT_SECRET par celui de la nouvelle app.
+Mais si ZOHO_CLIENT_ID appartient encore à l’ancienne app, alors le client secret de la nouvelle app ne peut pas fonctionner.
+
+AUCUNE MODIFICATION FONCTIONNELLE LARGE POUR L’INSTANT.
+Je veux uniquement corriger et sécuriser la configuration OAuth Zoho.
+
+==================================================
+1. VÉRIFIER LA PAIRE CLIENT ID / CLIENT SECRET
+==================================================
+
+Vérifie que ZOHO_CLIENT_ID et ZOHO_CLIENT_SECRET viennent exactement de la même application Zoho API Console.
+
+Ne suppose pas que c’est correct.
+
+Ajoute un diagnostic sécurisé côté logs serveur, sans jamais afficher le secret complet :
+- source utilisée pour ZOHO_CLIENT_ID : env ou DB ;
+- présence ou absence de ZOHO_CLIENT_ID ;
+- présence ou absence de ZOHO_CLIENT_SECRET ;
+- 6 premiers et 4 derniers caractères du client ID seulement ;
+- ne jamais logger le client secret ;
+- détecter les espaces ou retours à la ligne autour des secrets.
+
+Si le code lit encore un ancien client ID depuis admin_settings au lieu de l’environnement, corrige cela.
+
+La source de vérité doit être claire :
+- soit uniquement les secrets Replit ;
+- soit une priorité explicite secrets Replit > base de données ;
+- mais il ne faut jamais mélanger un client ID ancien avec un client secret nouveau.
+
+==================================================
+2. VÉRIFIER LE REDIRECT URI
+==================================================
+
+Affiche dans les paramètres Système D le redirect URI exact à enregistrer dans Zoho API Console.
+
+Vérifie que le code utilise exactement ce redirect URI dans le flux OAuth.
+
+Le redirect URI doit correspondre exactement à celui configuré dans Zoho API Console :
+- même https ;
+- même domaine ;
+- même chemin ;
+- pas de slash final en trop ;
+- pas d’ancien domaine Replit ;
+- pas de domaine production si on est en dev.
+
+==================================================
+3. NETTOYER LES ANCIENS TOKENS SANS EFFACER ZOHO PROJECTS
+==================================================
+
+Quand on change de Client ID / Secret, les anciens refresh tokens Zoho ne sont plus valides.
+
+Il faut donc prévoir une action de reconnexion propre qui :
+- efface uniquement les anciens tokens Zoho OAuth ;
+- efface l’ancienne organisation Inventory si nécessaire ;
+- ne supprime jamais la configuration Zoho Projects déjà enregistrée :
+  - portal ID ;
+  - portal name ;
+  - last tested at.
+
+Zoho Projects peut afficher “connexion Zoho requise”, mais pas perdre son portail configuré.
+
+==================================================
+4. CORRIGER LA DÉCONNEXION EN CAS D’ÉCHEC
+==================================================
+
+Un échec OAuth, un invalid_client_secret ou un token refresh échoué ne doit jamais supprimer automatiquement la configuration Zoho Projects.
+
+L’erreur doit seulement indiquer :
+“Connexion Zoho à renouveler.”
+
+Ne pas effacer :
+- Zoho Projects portal ID ;
+- Zoho Projects portal name ;
+- configuration Projects.
+
+==================================================
+5. TEST ATTENDU
+==================================================
+
+Après correction :
+
+1. Je mets dans Replit Secrets :
+   - ZOHO_CLIENT_ID de la nouvelle app Zoho API Console ;
+   - ZOHO_CLIENT_SECRET de la même app.
+
+2. Le redirect URI affiché dans Système D doit être copié dans Zoho API Console.
+
+3. Je clique “Connecter avec Zoho”.
+
+4. Résultat attendu :
+   - plus de invalid_client_secret ;
+   - Zoho Inventory reconnecté ;
+   - Zoho Projects conserve son portail déjà configuré ;
+   - Zoho Projects redevient utilisable après reconnexion.
+
+==================================================
+6. RAPPORT ATTENDU
+==================================================
+
+Fournis un rapport avec :
+- pourquoi l’erreur invalid_client_secret persistait ;
+- quelle source était utilisée pour client ID et client secret ;
+- si un ancien client ID était encore utilisé ;
+- redirect URI exact à configurer ;
+- fichiers modifiés ;
+- confirmation que la déconnexion Inventory ne peut plus effacer Projects ;
+- résultat typecheck ;
+- résultat build.
+
+Ne log jamais le client secret.

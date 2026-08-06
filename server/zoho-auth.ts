@@ -68,9 +68,40 @@ export function buildAuthUrl(region: string = "us"): string {
   return `https://${accounts}/oauth/v2/auth?${params}`;
 }
 
+/** Log Zoho credential state (safe: never logs the secret, partial ID only). */
+export function logZohoCredentialDiagnostic(context: string = "startup"): void {
+  const clientId = process.env.ZOHO_CLIENT_ID ?? "";
+  const clientSecret = process.env.ZOHO_CLIENT_SECRET ?? "";
+
+  const idPresent = clientId.length > 0;
+  const secretPresent = clientSecret.length > 0;
+
+  // Detect invisible whitespace issues
+  const idHasWhitespace = /^\s|\s$/.test(clientId);
+  const secretHasWhitespace = /^\s|\s$/.test(clientSecret);
+
+  // Show only first 6 + last 4 chars of the client ID — enough to identify which app
+  const idPreview = idPresent
+    ? `${clientId.slice(0, 6)}…${clientId.slice(-4)}`
+    : "(absent)";
+
+  console.log(
+    `[zoho-creds][${context}]` +
+    ` CLIENT_ID: ${idPresent ? "présent" : "ABSENT"} (${idPreview})` +
+    (idHasWhitespace ? " ⚠ WHITESPACE DÉTECTÉ" : "") +
+    ` | CLIENT_SECRET: ${secretPresent ? "présent" : "ABSENT"}` +
+    (secretHasWhitespace ? " ⚠ WHITESPACE DÉTECTÉ" : "") +
+    ` | source: env`
+  );
+}
+
 export async function exchangeCodeForTokens(code: string, region: string = "us") {
   const clientId = process.env.ZOHO_CLIENT_ID;
   const clientSecret = process.env.ZOHO_CLIENT_SECRET;
+
+  // Log diagnostic before attempting exchange — helps confirm which app is used
+  logZohoCredentialDiagnostic("token-exchange");
+
   if (!clientId || !clientSecret) throw new Error("Zoho credentials not configured");
 
   // For Multi-DC apps, always use accounts.zoho.com for token exchange.

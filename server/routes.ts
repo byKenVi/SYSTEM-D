@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl, invalidateAccessTokenCache } from "./zoho-auth";
+import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl, invalidateAccessTokenCache, logZohoCredentialDiagnostic } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, setZohoItemStock, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion, ensureZohoContact } from "./zoho-api";
 import { getZohoProjectsPortals, createZohoProject, buildProjectPayload } from "./zoho-projects";
 import { generateFormPdf } from "./pdf-generator";
@@ -1206,6 +1206,8 @@ export async function registerRoutes(
   app.post("/api/auth/zoho/connect", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const region = req.body.region || "us";
+      // Log credential state before redirecting — helps confirm correct app is used
+      logZohoCredentialDiagnostic("connect-initiated");
       const authUrl = buildAuthUrl(region);
       res.json({ authUrl });
     } catch (error: any) {
