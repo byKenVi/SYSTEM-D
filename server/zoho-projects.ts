@@ -46,18 +46,40 @@ export async function getZohoProjectsPortals(): Promise<ZohoPortal[]> {
   const baseUrl = getProjectsBaseUrl(region);
 
   const token = await getValidAccessToken();
-  const res = await fetch(`${baseUrl}/portals/`, {
-    headers: { Authorization: `Zoho-oauthtoken ${token}` },
-  });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Zoho Projects portals error ${res.status}: ${body}`);
+  // Try both URL variants — some Zoho datacenters require no trailing slash
+  const urls = [`${baseUrl}/portals/`, `${baseUrl}/portals`];
+
+  for (const url of urls) {
+    console.log(`[zoho-projects] GET ${url}`);
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Zoho-oauthtoken ${token}`,
+        Accept: "application/json",
+      },
+    });
+
+    const rawBody = await res.text();
+    console.log(`[zoho-projects] portals response ${res.status}: ${rawBody.slice(0, 400)}`);
+
+    if (res.status === 400) {
+      let parsed: any = {};
+      try { parsed = JSON.parse(rawBody); } catch {}
+      // Error 6891 = URL format wrong — try next variant
+      if (parsed?.error?.code === 6891) continue;
+    }
+
+    if (!res.ok) {
+      throw new Error(`Zoho Projects portals error ${res.status}: ${rawBody}`);
+    }
+
+    const data = JSON.parse(rawBody);
+    return (data.portals || []) as ZohoPortal[];
   }
 
-  const data = await res.json();
-  // Zoho returns { login_id, portals: [...] }
-  return (data.portals || []) as ZohoPortal[];
+  throw new Error(
+    "Zoho Projects portals error 400: Given URL is wrong — vérifiez que (1) Zoho Projects est activé dans votre compte Zoho, et (2) vous avez reconnecté Zoho Inventory depuis Paramètres pour autoriser les scopes Projects."
+  );
 }
 
 // ── Create a project inside a given portal ────────────────────────────────────
