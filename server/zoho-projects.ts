@@ -46,7 +46,7 @@ export async function getZohoProjectsPortals(): Promise<ZohoPortal[]> {
   const baseUrl = getProjectsBaseUrl(region);
 
   const token = await getValidAccessToken();
-  const res = await fetch(`${baseUrl}/portal/`, {
+  const res = await fetch(`${baseUrl}/portals/`, {
     headers: { Authorization: `Zoho-oauthtoken ${token}` },
   });
 
