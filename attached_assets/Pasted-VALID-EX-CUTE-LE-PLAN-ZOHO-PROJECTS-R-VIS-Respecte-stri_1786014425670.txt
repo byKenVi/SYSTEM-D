@@ -1,0 +1,90 @@
+VALIDÉ — EXÉCUTE LE PLAN ZOHO PROJECTS RÉVISÉ.
+
+Respecte strictement ce périmètre :
+
+- Ajouter Zoho Projects dans les paramètres de l’application Système D.
+- Réutiliser l’intégration Zoho existante autant que possible.
+- Ajouter les scopes Zoho Projects nécessaires.
+- Permettre de récupérer / tester les portails Zoho Projects.
+- Permettre d’enregistrer le portail sélectionné.
+- Créer automatiquement un projet Zoho Projects lorsqu’une soumission passe de “en révision” à “approuvée”.
+- Stocker l’identifiant du projet Zoho sur la soumission.
+- Prévoir un bouton ou endpoint admin de retry manuel si la création du projet échoue.
+- Ne pas créer de tâches Zoho Projects dans ce lot.
+
+==================================================
+PRÉCISIONS OBLIGATOIRES
+==================================================
+
+1. Déclencheur :
+Créer le projet uniquement lors d’une nouvelle transition :
+in_review → approved.
+
+Ne crée pas automatiquement de projets pour les soumissions déjà approuvées avant cette implémentation.
+
+Pour les anciennes soumissions approuvées, utiliser uniquement le retry manuel admin si nécessaire.
+
+2. Anti-doublon :
+Avant toute création, vérifier si un projet Zoho est déjà associé à la soumission.
+Si oui, ne rien recréer.
+
+3. Échec Zoho :
+Si Zoho Projects n’est pas configuré, si les scopes manquent ou si l’API échoue :
+- l’approbation de la soumission doit continuer ;
+- l’erreur doit être loguée ;
+- l’admin doit pouvoir relancer la création du projet manuellement.
+
+4. Settings :
+La section Zoho Projects doit être ajoutée dans les paramètres de Système D, à côté des autres intégrations.
+Elle doit afficher clairement :
+- connecté / non connecté ;
+- portail sélectionné ;
+- test de connexion ;
+- message si une reconnexion Zoho est nécessaire.
+
+5. OAuth :
+Après ajout des scopes, documente clairement qu’une reconnexion Zoho sera nécessaire pour autoriser Zoho Projects.
+
+6. Hors scope :
+Ne crée aucune tâche dans Zoho Projects.
+Ne touche pas à Zoho Inventory, Shopify, Stripe, PDF, notifications, produits ou permissions.
+Ne crée pas de projet depuis les commandes Système D ou Shopify dans ce lot.
+
+==================================================
+TESTS À EFFECTUER
+==================================================
+
+Après implémentation, exécute :
+- typecheck ;
+- build ;
+- tests disponibles si existants.
+
+Vérifie aussi :
+- la carte Zoho Projects apparaît dans les paramètres ;
+- le test de connexion affiche les portails disponibles ;
+- le portail sélectionné est sauvegardé ;
+- une reconnexion Zoho est bien demandée si les scopes manquent ;
+- une soumission nouvellement approuvée crée un projet Zoho ;
+- une deuxième tentative sur la même soumission ne crée pas de doublon ;
+- le retry manuel fonctionne si aucun projet n’est associé ;
+- l’approbation de la soumission continue même si Zoho Projects échoue.
+
+==================================================
+RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+1. fichiers modifiés ;
+2. migrations créées ;
+3. paramètres Zoho à configurer manuellement ;
+4. scopes OAuth ajoutés ;
+5. comportement exact lors de l’approbation d’une soumission ;
+6. comportement exact en cas d’échec Zoho Projects ;
+7. fonctionnement du retry manuel ;
+8. limites restantes ;
+9. résultat typecheck ;
+10. résultat build.
+
+Termine par :
+
+“IMPLÉMENTATION ZOHO PROJECTS TERMINÉE — PRÊT POUR CONFIGURATION ET TEST MANUEL.”

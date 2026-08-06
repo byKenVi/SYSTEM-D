@@ -139,6 +139,9 @@ export const adminSettings = pgTable("admin_settings", {
   shopifyWritebackFrequencyMinutes: integer("shopify_writeback_frequency_minutes").notNull().default(0),
   shopifyWritebackLastSyncAt: timestamp("shopify_writeback_last_sync_at"),
   additionalAdminEmails: text("additional_admin_emails"),
+  zohoProjectsPortalId: text("zoho_projects_portal_id"),
+  zohoProjectsPortalName: text("zoho_projects_portal_name"),
+  zohoProjectsLastTestedAt: timestamp("zoho_projects_last_tested_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -163,6 +166,7 @@ export const formSubmissions = pgTable("form_submissions", {
   zohoSalesOrderId: text("zoho_sales_order_id"),
   zohoSalesOrderNumber: text("zoho_sales_order_number"),
   zohoSalesOrderUrl: text("zoho_sales_order_url"),
+  zohoProjectId: text("zoho_project_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

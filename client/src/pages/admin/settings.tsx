@@ -122,6 +122,7 @@ export default function AdminSettingsPage() {
   const [wooConsumerSecret, setWooConsumerSecret] = useState("");
   const [zohoRegion, setZohoRegion] = useState("us");
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
+  const [zohoProjectsPortalInput, setZohoProjectsPortalInput] = useState("");
   const [logSearch, setLogSearch] = useState("");
   const [logTypeFilter, setLogTypeFilter] = useState("all");
   const [logStatusFilter, setLogStatusFilter] = useState("all");
@@ -408,6 +409,47 @@ export default function AdminSettingsPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Échec de la déconnexion.", variant: "destructive" });
+    },
+  });
+
+  // ── Zoho Projects mutations ────────────────────────────────────────────────
+  const [zohoProjectsPortals, setZohoProjectsPortals] = useState<{ id: string; name: string }[]>([]);
+  const [zohoProjectsTestStatus, setZohoProjectsTestStatus] = useState<"idle" | "loading" | "ok" | "error" | "scope_missing">("idle");
+  const [zohoProjectsTestError, setZohoProjectsTestError] = useState("");
+
+  const testZohoProjectsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/zoho/projects/portals", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw Object.assign(new Error(data.message || "Erreur"), { code: data.code });
+      return data.portals as { id: string; name: string }[];
+    },
+    onMutate: () => { setZohoProjectsTestStatus("loading"); setZohoProjectsTestError(""); },
+    onSuccess: (portals) => {
+      setZohoProjectsPortals(portals);
+      setZohoProjectsTestStatus("ok");
+      if (portals.length === 1 && !adminSettings?.zohoProjectsPortalId) {
+        setZohoProjectsPortalInput(portals[0].id);
+      }
+      toast({ title: "Connexion Zoho Projects OK", description: `${portals.length} portail${portals.length > 1 ? "s" : ""} trouvé${portals.length > 1 ? "s" : ""}` });
+    },
+    onError: (err: any) => {
+      setZohoProjectsTestStatus(err.code === "ZOHO_PROJECTS_SCOPE_MISSING" ? "scope_missing" : "error");
+      setZohoProjectsTestError(err.message || "Erreur inconnue");
+    },
+  });
+
+  const saveZohoProjectsPortalMutation = useMutation({
+    mutationFn: async ({ portalId, portalName }: { portalId: string; portalName: string }) => {
+      const res = await apiRequest("PATCH", "/api/admin-settings/zoho-projects", { portalId, portalName });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      toast({ title: "Zoho Projects configuré", description: "Portail enregistré avec succès." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible d'enregistrer le portail.", variant: "destructive" });
     },
   });
 
@@ -724,6 +766,156 @@ export default function AdminSettingsPage() {
                       {connectZohoMutation.isPending ? "Redirection..." : "Connecter avec Zoho"}
                     </Button>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Zoho Projects Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-4">
+                <div className="h-10 w-10 rounded-md bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+                  <ScrollText className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold">Zoho Projects</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {adminSettings?.zohoProjectsPortalId
+                      ? adminSettings.zohoProjectsPortalName || `Portail ${adminSettings.zohoProjectsPortalId}`
+                      : "Création automatique de projets"}
+                  </p>
+                </div>
+                {adminSettings?.zohoProjectsPortalId
+                  ? <Badge variant="default" className="ml-auto bg-violet-600">Configuré</Badge>
+                  : <Badge variant="outline" className="ml-auto">Non configuré</Badge>
+                }
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!isZohoConnected ? (
+                  <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-800 dark:text-amber-300">Zoho non connecté</p>
+                      <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">
+                        Connectez d'abord Zoho Inventory (carte ci-dessus), puis revenez ici pour activer Zoho Projects.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {zohoProjectsTestStatus === "scope_missing" && (
+                      <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-amber-800 dark:text-amber-300">Reconnexion Zoho requise</p>
+                          <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">
+                            Les scopes Zoho Projects ne sont pas encore autorisés. Déconnectez puis reconnectez Zoho Inventory pour les activer.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {zohoProjectsTestStatus === "error" && (
+                      <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3 flex items-start gap-2">
+                        <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-red-700 dark:text-red-400">{zohoProjectsTestError}</p>
+                      </div>
+                    )}
+                    {zohoProjectsTestStatus === "ok" && (
+                      <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-emerald-800 dark:text-emerald-300">Connexion OK</p>
+                          <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">
+                            {zohoProjectsPortals.length} portail{zohoProjectsPortals.length > 1 ? "s" : ""} accessible{zohoProjectsPortals.length > 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {adminSettings?.zohoProjectsPortalId && zohoProjectsTestStatus === "idle" && (
+                      <div className="rounded-md bg-muted/50 border p-3 text-sm space-y-0.5">
+                        <p className="font-medium">Portail actuel</p>
+                        <p className="text-muted-foreground text-xs">
+                          {adminSettings.zohoProjectsPortalName || "—"} <span className="font-mono">({adminSettings.zohoProjectsPortalId})</span>
+                        </p>
+                        {adminSettings.zohoProjectsLastTestedAt && (
+                          <p className="text-muted-foreground text-xs">
+                            Dernier test : {new Date(adminSettings.zohoProjectsLastTestedAt).toLocaleString("fr-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Portal selector — shown after successful test if portals found */}
+                    {zohoProjectsTestStatus === "ok" && zohoProjectsPortals.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm">Sélectionner le portail</Label>
+                        <Select
+                          value={zohoProjectsPortalInput}
+                          onValueChange={setZohoProjectsPortalInput}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choisir un portail…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {zohoProjectsPortals.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>{p.name} ({p.id})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Manual portal ID input */}
+                    {(zohoProjectsTestStatus === "idle" || zohoProjectsTestStatus === "error") && (
+                      <div className="space-y-2">
+                        <Label className="text-sm">ID du portail Zoho Projects</Label>
+                        <Input
+                          placeholder="Ex. : 123456789"
+                          value={zohoProjectsPortalInput || adminSettings?.zohoProjectsPortalId || ""}
+                          onChange={(e) => setZohoProjectsPortalInput(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Cliquez sur "Tester la connexion" pour récupérer automatiquement vos portails.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => testZohoProjectsMutation.mutate()}
+                        disabled={testZohoProjectsMutation.isPending}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${testZohoProjectsMutation.isPending ? "animate-spin" : ""}`} />
+                        {testZohoProjectsMutation.isPending ? "Test en cours…" : "Tester la connexion"}
+                      </Button>
+                      {(zohoProjectsPortalInput || adminSettings?.zohoProjectsPortalId) && (
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => {
+                            const id = zohoProjectsPortalInput || adminSettings?.zohoProjectsPortalId || "";
+                            const portal = zohoProjectsPortals.find((p) => p.id === id);
+                            saveZohoProjectsPortalMutation.mutate({
+                              portalId: id,
+                              portalName: portal?.name || adminSettings?.zohoProjectsPortalName || "",
+                            });
+                          }}
+                          disabled={saveZohoProjectsPortalMutation.isPending}
+                        >
+                          {saveZohoProjectsPortalMutation.isPending ? "Enregistrement…" : "Enregistrer"}
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="border-t pt-3 text-xs text-muted-foreground space-y-1">
+                      <p className="font-medium text-foreground text-sm">Comment ça fonctionne</p>
+                      <p>Un projet Zoho est créé automatiquement chaque fois qu'une soumission passe de <strong>En révision</strong> à <strong>Approuvée</strong>.</p>
+                      <p>Zoho Projects réutilise les tokens OAuth de Zoho Inventory — aucune seconde connexion n'est requise.</p>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

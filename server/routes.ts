@@ -14,6 +14,7 @@ import path from "path";
 import fs from "fs";
 import { buildAuthUrl, exchangeCodeForTokens, fetchZohoOrganizations, getCallbackUrl, invalidateAccessTokenCache } from "./zoho-auth";
 import { syncZohoItemsForContact, testZohoConnection, pushItemToZoho, updateZohoItemClient, setZohoItemStock, fetchZohoItemsMap, createFormSalesOrder, getZohoSOUrl, getZohoRegion, ensureZohoContact } from "./zoho-api";
+import { getZohoProjectsPortals, createZohoProject, buildProjectPayload } from "./zoho-projects";
 import { generateFormPdf } from "./pdf-generator";
 import {
   fetchAllProducts,
@@ -2431,6 +2432,54 @@ export async function registerRoutes(
           } catch (err: any) {
             console.error(`[zoho] Failed to create SO for ${form.formNumber}: ${err.message}`);
           }
+
+          // ── Zoho Projects : créer un projet pour cette soumission approuvée ──
+          // Ne s'exécute que si Zoho Projects est configuré (portalId présent).
+          // Anti-doublon : si zoho_project_id est déjà présent, on skip.
+          // L'approbation continue même si la création du projet échoue.
+          ;(async () => {
+            try {
+              if (form.zohoProjectId) {
+                console.log(`[zoho-projects] Projet déjà associé à ${form.formNumber} (${form.zohoProjectId}), skip.`);
+                return;
+              }
+              const settings = await storage.getAdminSettings();
+              if (!settings?.zohoProjectsPortalId) {
+                console.log(`[zoho-projects] portalId non configuré — skip pour ${form.formNumber}`);
+                return;
+              }
+              const contact = await storage.getContact(form.contactId);
+              if (!contact) return;
+
+              const appDomain = (() => {
+                const raw = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost:5000";
+                const domains = raw.split(",").map((d: string) => d.trim()).filter(Boolean);
+                const preferred = domains.find((d: string) => !d.endsWith(".replit.app")) || domains[0];
+                return `https://${preferred}`;
+              })();
+
+              const payload = buildProjectPayload(
+                {
+                  formNumber: form.formNumber,
+                  formType: form.formType,
+                  data: form.data,
+                  price: (updateData.price ?? form.price) as string | null,
+                  approvedQuantity: (updateData.approvedQuantity ?? form.approvedQuantity) as string | null,
+                  zohoSalesOrderNumber: (updateData.zohoSalesOrderNumber ?? form.zohoSalesOrderNumber) as string | null,
+                  createdAt: form.createdAt,
+                  updatedAt: new Date(),
+                },
+                { name: contact.name, email: contact.email, companyName: contact.companyName },
+                appDomain
+              );
+
+              const project = await createZohoProject(settings.zohoProjectsPortalId, payload);
+              await storage.updateFormZohoProjectId(form.id, project.id);
+              console.log(`[zoho-projects] Projet créé : ${project.id} (${project.name}) pour ${form.formNumber}`);
+            } catch (err: any) {
+              console.error(`[zoho-projects] Échec création projet pour ${form.formNumber}: ${err.message}`);
+            }
+          })();
         }
 
         if (status !== form.status && status !== "draft" && form.status !== "draft") {
@@ -2522,6 +2571,98 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Votre connexion Zoho a expiré. Reconnectez Zoho dans Paramètres → Zoho Inventory.", code: "ZOHO_TOKEN_EXPIRED" });
       }
       res.status(500).json({ message: msg || "Failed to create Zoho sales order" });
+    }
+  });
+
+  // ── Zoho Projects : récupérer les portails accessibles ──────────────────────
+  app.get("/api/zoho/projects/portals", isAuthenticated, isAdmin, async (_req, res) => {
+    try {
+      const portals = await getZohoProjectsPortals();
+      res.json({ portals });
+    } catch (err: any) {
+      console.error("[zoho-projects] Portals error:", err.message);
+      const msg = err.message || "";
+      if (msg.includes("4") && (msg.includes("03") || msg.includes("01"))) {
+        return res.status(403).json({
+          message: "Accès refusé — reconnectez Zoho pour autoriser les scopes Zoho Projects.",
+          code: "ZOHO_PROJECTS_SCOPE_MISSING",
+        });
+      }
+      res.status(500).json({ message: msg || "Impossible de récupérer les portails Zoho Projects" });
+    }
+  });
+
+  // ── Zoho Projects : sauvegarder le portalId sélectionné ─────────────────────
+  app.patch("/api/admin-settings/zoho-projects", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { portalId, portalName } = req.body as { portalId: string | null; portalName: string | null };
+      await storage.updateZohoProjectsSettings({
+        portalId: portalId || null,
+        portalName: portalName || null,
+        lastTestedAt: new Date(),
+      });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Erreur lors de la sauvegarde" });
+    }
+  });
+
+  // ── Zoho Projects : retry manuel de création de projet ──────────────────────
+  app.post("/api/forms/:id/create-zoho-project", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const form = await storage.getFormSubmission(Number(req.params.id));
+      if (!form) return res.status(404).json({ message: "Soumission introuvable" });
+      if (form.status !== "approved" && form.status !== "completed") {
+        return res.status(400).json({ message: "La soumission doit être approuvée ou complétée" });
+      }
+      if (form.zohoProjectId) {
+        return res.json({ projectId: form.zohoProjectId, alreadyExists: true });
+      }
+
+      const settings = await storage.getAdminSettings();
+      if (!settings?.zohoProjectsPortalId) {
+        return res.status(400).json({ message: "Zoho Projects n'est pas configuré (portalId manquant)" });
+      }
+
+      const contact = await storage.getContact(form.contactId);
+      if (!contact) return res.status(404).json({ message: "Contact introuvable" });
+
+      const appDomain = (() => {
+        const raw = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost:5000";
+        const domains = raw.split(",").map((d: string) => d.trim()).filter(Boolean);
+        const preferred = domains.find((d: string) => !d.endsWith(".replit.app")) || domains[0];
+        return `https://${preferred}`;
+      })();
+
+      const payload = buildProjectPayload(
+        {
+          formNumber: form.formNumber,
+          formType: form.formType,
+          data: form.data,
+          price: form.price,
+          approvedQuantity: form.approvedQuantity,
+          zohoSalesOrderNumber: form.zohoSalesOrderNumber,
+          createdAt: form.createdAt,
+          updatedAt: form.updatedAt,
+        },
+        { name: contact.name, email: contact.email, companyName: contact.companyName },
+        appDomain
+      );
+
+      const project = await createZohoProject(settings.zohoProjectsPortalId, payload);
+      await storage.updateFormZohoProjectId(form.id, project.id);
+
+      await storage.createActivityLog({
+        type: "zoho_project_create",
+        status: "success",
+        message: `Projet Zoho Projects créé manuellement : ${project.id} pour ${form.formNumber}`,
+      });
+
+      console.log(`[zoho-projects] Retry manuel OK : projet ${project.id} pour ${form.formNumber}`);
+      res.json({ projectId: project.id, projectName: project.name });
+    } catch (err: any) {
+      console.error("[zoho-projects] Retry error:", err.message);
+      res.status(500).json({ message: err.message || "Échec de la création du projet Zoho" });
     }
   });
 

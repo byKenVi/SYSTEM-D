@@ -57,6 +57,8 @@ export interface IStorage {
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
   updateZohoTokens(accessToken: string, expiresAt: Date): Promise<void>;
   updateZohoLastSyncAt(syncedAt: Date): Promise<void>;
+  updateZohoProjectsSettings(data: { portalId: string | null; portalName: string | null; lastTestedAt: Date | null }): Promise<void>;
+  updateFormZohoProjectId(formId: number, projectId: string): Promise<void>;
 
   createActivityLog(data: InsertActivityLog): Promise<ActivityLog>;
   getActivityLogs(limit?: number): Promise<ActivityLog[]>;
@@ -357,6 +359,18 @@ export class DatabaseStorage implements IStorage {
   async updateZohoLastSyncAt(syncedAt: Date): Promise<void> {
     // Targeted update: only touch the last-sync timestamp, never spread stale settings.
     await db.update(adminSettings).set({ zohoLastAutoSyncAt: syncedAt });
+  }
+
+  async updateZohoProjectsSettings(data: { portalId: string | null; portalName: string | null; lastTestedAt: Date | null }): Promise<void> {
+    await db.update(adminSettings).set({
+      zohoProjectsPortalId: data.portalId,
+      zohoProjectsPortalName: data.portalName,
+      zohoProjectsLastTestedAt: data.lastTestedAt,
+    });
+  }
+
+  async updateFormZohoProjectId(formId: number, projectId: string): Promise<void> {
+    await db.update(formSubmissions).set({ zohoProjectId: projectId }).where(eq(formSubmissions.id, formId));
   }
 
   async createActivityLog(data: InsertActivityLog): Promise<ActivityLog> {

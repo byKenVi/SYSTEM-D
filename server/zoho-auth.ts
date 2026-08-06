@@ -51,7 +51,12 @@ export function buildAuthUrl(region: string = "us"): string {
 
   const state = `region:${region}:${Date.now()}`;
   const params = new URLSearchParams({
-    scope: "ZohoInventory.FullAccess.all",
+    scope: [
+      "ZohoInventory.FullAccess.all",
+      "ZohoProjects.portals.READ",
+      "ZohoProjects.projects.CREATE",
+      "ZohoProjects.projects.READ",
+    ].join(","),
     client_id: clientId,
     response_type: "code",
     redirect_uri: getCallbackUrl(),
