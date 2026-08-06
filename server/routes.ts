@@ -3076,6 +3076,20 @@ export async function registerRoutes(
     }
   });
 
+  // ── Admin : count des nouvelles notifs depuis un timestamp ─────────────────
+  app.get("/api/admin/notifications/new-count", isAuthenticated, async (req, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const since = req.query.since ? new Date(req.query.since as string) : new Date(0);
+      const notifs = await storage.getAllNotifications();
+      const count = notifs.filter((n) => new Date(n.createdAt as unknown as string) > since).length;
+      res.json({ count });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/admin/notifications", isAuthenticated, async (req, res) => {
     try {
       const role = await getUserRole(req);

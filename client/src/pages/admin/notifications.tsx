@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Bell, Plus, Trash2, Inbox } from "lucide-react";
+import { useLocation } from "wouter";
+import { Bell, ChevronRight, ExternalLink, Plus, Trash2, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,9 +74,22 @@ function fmt(d: string | null | undefined) {
   });
 }
 
+function getDestUrl(n: EnrichedNotification): string | null {
+  const meta = (n.metadata ?? {}) as Record<string, unknown>;
+  if (meta.formId) return `/admin/forms/${meta.formId}`;
+  return null;
+}
+
 export default function AdminNotifications() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
+
+  // Reset du badge "nouvelles notifs" à chaque visite de la page
+  useEffect(() => {
+    try { localStorage.setItem("adminNotifViewedAt", new Date().toISOString()); } catch {}
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/notifications/new-count"] });
+  }, []);
   const [filterCategory, setFilterCategory] = useState("all");
   const [form, setForm] = useState({
     contactId: "",
@@ -186,10 +200,13 @@ export default function AdminNotifications() {
             <tbody>
               {filtered.map((n) => {
                 const cfg = cat(n.category);
+                const destUrl = getDestUrl(n);
                 return (
                   <tr
                     key={n.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                    className={`border-b border-border last:border-0 transition-colors group/row
+                      ${destUrl ? "cursor-pointer hover:bg-primary/5" : "hover:bg-muted/30"}`}
+                    onClick={() => { if (destUrl) navigate(destUrl); }}
                     data-testid={`row-admin-notification-${n.id}`}
                   >
                     <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
@@ -210,12 +227,19 @@ export default function AdminNotifications() {
                         {cfg.label}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 font-medium text-foreground">{n.title}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">
+                      <span className="flex items-center gap-1.5">
+                        {n.title}
+                        {destUrl && (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover/row:text-primary transition-colors shrink-0" />
+                        )}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{n.message}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-block h-2 w-2 rounded-full ${n.isRead ? "bg-muted-foreground/30" : "bg-primary"}`} />
                     </td>
-                    <td className="px-2 py-3">
+                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="icon"
                         variant="ghost"

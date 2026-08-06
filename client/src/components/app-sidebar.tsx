@@ -127,6 +127,23 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   });
   const unreadCount = unreadData?.count ?? 0;
 
+  // ── Badge admin : nouvelles notifs depuis la dernière visite ───────────────
+  const adminNotifViewedAt = (() => {
+    try { return localStorage.getItem("adminNotifViewedAt") || new Date(0).toISOString(); }
+    catch { return new Date(0).toISOString(); }
+  })();
+  const { data: adminNewData } = useQuery<{ count: number }>({
+    queryKey: ["/api/admin/notifications/new-count", adminNotifViewedAt],
+    queryFn: () =>
+      fetch(`/api/admin/notifications/new-count?since=${encodeURIComponent(adminNotifViewedAt)}`, {
+        credentials: "include",
+      }).then((r) => r.json()),
+    enabled: role === "admin" && !viewAsContactId,
+    refetchInterval: 30_000,
+    staleTime: 0,
+  });
+  const adminNotifCount = adminNewData?.count ?? 0;
+
   useNotificationToast(role === "client" && !viewAsContactId);
 
   function handleViewAsChange(value: string) {
@@ -170,8 +187,9 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                 const isActive = pathsToMatch.some(
                   (p: string) => location === p || location.startsWith(p + "/")
                 );
-                const isNotifications = item.title === "Notifications" && role === "client";
-                const showBadge = isNotifications && unreadCount > 0 && !viewAsContactId;
+                const isNotifications = item.title === "Notifications";
+                const notifBadgeCount = role === "client" ? unreadCount : (role === "admin" ? adminNotifCount : 0);
+                const showBadge = isNotifications && notifBadgeCount > 0 && !viewAsContactId;
 
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -201,7 +219,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                         <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
                         {showBadge && (
                           <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none group-data-[collapsible=icon]:hidden ${isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary text-primary-foreground"}`}>
-                            {unreadCount}
+                            {notifBadgeCount}
                           </span>
                         )}
                       </Link>
