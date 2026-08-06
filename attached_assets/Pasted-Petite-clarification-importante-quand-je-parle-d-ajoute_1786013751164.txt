@@ -1,0 +1,51 @@
+Petite clarification importante : quand je parle d’ajouter Zoho Projects dans les paramètres d’intégration, je ne parle PAS d’ajouter un site web dans Zoho Projects.
+
+Je veux dire :
+
+Ajouter une section “Zoho Projects” dans les paramètres du site / de l’application Système D, comme cela a déjà été fait pour Zoho Inventory et Shopify.
+
+Donc retire la partie “site web / URL publique à configurer” de ton plan.
+
+Le besoin est plutôt :
+
+1. Dans les paramètres de l’application Système D :
+   - ajouter une carte ou section Zoho Projects ;
+   - afficher connecté / non connecté ;
+   - permettre de saisir ou sélectionner le portail Zoho Projects ;
+   - afficher le nom du portail si disponible ;
+   - ajouter un bouton “Tester la connexion” ;
+   - afficher un message clair si Zoho Projects n’est pas encore configuré ;
+   - indiquer qu’une reconnexion Zoho peut être nécessaire si les scopes Projects ne sont pas encore autorisés.
+
+2. Côté Zoho :
+   - Zoho Projects doit être activé dans l’organisation Zoho One ;
+   - les scopes Zoho Projects doivent être ajoutés à l’application OAuth existante ;
+   - l’utilisateur devra probablement reconnecter Zoho depuis les settings de Système D pour autoriser les nouveaux accès.
+
+3. Côté application :
+   - Zoho Projects doit réutiliser la logique d’intégration Zoho existante autant que possible ;
+   - ne crée pas une intégration totalement séparée si les tokens Zoho existants peuvent être étendus proprement ;
+   - ajoute seulement les paramètres nécessaires à Zoho Projects dans les settings de l’app Système D.
+
+Garde le reste de ton analyse, mais corrige ce point.
+
+Je veux maintenant un plan révisé sans la partie “site web / URL publique”, avec :
+
+A. Section Zoho Projects à ajouter dans les paramètres de Système D
+B. Configuration manuelle à faire dans Zoho One / Zoho Projects
+C. Scopes OAuth nécessaires
+D. Déclencheur recommandé pour créer le projet
+E. Comparaison entre :
+   - projet créé depuis une soumission approuvée ;
+   - projet créé depuis une commande Système D ;
+   - les deux
+F. Mapping vers Zoho Projects
+G. Anti-doublon renforcé
+H. Migrations révisées
+I. Fichiers à modifier
+J. Plan d’implémentation
+K. Tests
+
+Termine par :
+
+“PLAN ZOHO PROJECTS RÉVISÉ — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION AVANT D’IMPLÉMENTER.”
