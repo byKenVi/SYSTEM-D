@@ -1,0 +1,110 @@
+VALIDÉ — EXÉCUTE LE PLAN RESEND APPROUVÉ.
+
+Périmètre :
+- migrer l’intégration Resend vers le compte Resend du client ;
+- utiliser uniquement les variables d’environnement / secrets Replit ;
+- ne jamais hardcoder la clé API ;
+- ne jamais logger la clé API ;
+- préserver tous les flux email existants ;
+- ne pas ajouter de réception email / inbound webhook dans ce lot.
+
+==================================================
+CORRECTIONS AUTORISÉES
+==================================================
+
+1. Configuration Resend
+- Utiliser RESEND_API_KEY pour le compte Resend client.
+- Utiliser RESEND_FROM_EMAIL comme adresse d’expéditeur.
+- Ajouter RESEND_REPLY_TO_EMAIL si utile.
+- Supprimer le fallback production vers onboarding@resend.dev.
+- Si RESEND_FROM_EMAIL est absent, retourner une erreur claire côté serveur.
+
+2. Invitation client
+- L’invitation client reste un flux critique.
+- Si l’email d’invitation échoue, ne pas faire croire que l’invitation a été envoyée.
+- Retourner une erreur propre en français côté interface.
+- Garder le détail technique uniquement dans les logs serveur.
+- Ne pas exposer l’erreur brute Resend au client.
+
+3. Autres emails
+Pour les emails non bloquants :
+- confirmation de soumission ;
+- notification admin ;
+- changement de statut ;
+- re-commande ;
+
+continuer à logger les erreurs sans bloquer le flux principal, sauf si le comportement existant exige un blocage.
+
+4. Reply-to
+- Ajouter le support de RESEND_REPLY_TO_EMAIL si la variable est présente.
+- Si elle est absente, ne pas casser l’envoi.
+- Ne pas inventer d’adresse reply-to.
+
+5. Sécurité
+- Ne jamais afficher la clé API.
+- Ne jamais logger la clé API.
+- Ne jamais exposer les erreurs techniques Resend aux utilisateurs.
+
+==================================================
+CONFIGURATION MANUELLE À FAIRE CÔTÉ RESEND CLIENT
+==================================================
+
+Avant test complet, vérifier :
+- domaine client ajouté dans Resend ;
+- domaine vérifié ;
+- SPF / DKIM validés ;
+- adresse expéditeur définie ;
+- clé API créée pour l’application ;
+- adresse reply-to décidée si nécessaire.
+
+==================================================
+TESTS À EFFECTUER
+==================================================
+
+Après implémentation, tester :
+
+1. Invitation client :
+- envoyer une invitation ;
+- vérifier réception email ;
+- vérifier logs Resend.
+
+2. Soumission :
+- soumettre un formulaire ;
+- vérifier email client ;
+- vérifier email admin.
+
+3. Changement de statut :
+- changer le statut d’une soumission ;
+- vérifier email client.
+
+4. Erreur Resend :
+- simuler ou tester une mauvaise config ;
+- vérifier que l’utilisateur voit un message propre ;
+- vérifier que le détail technique reste seulement côté logs.
+
+5. Délivrabilité :
+- tester avec Gmail ;
+- vérifier que les emails ne tombent pas en spam ;
+- vérifier dans Resend que les emails sont bien marqués comme envoyés / delivered.
+
+==================================================
+APRÈS IMPLÉMENTATION
+==================================================
+
+Exécute :
+- typecheck ;
+- build ;
+- tests disponibles si existants.
+
+Rapport final attendu :
+- fichiers modifiés ;
+- variables à ajouter en dev ;
+- variables à ajouter en prod ;
+- flux email testés ;
+- résultat des tests ;
+- limites restantes ;
+- rollback vers l’ancien compte Resend si nécessaire.
+
+Termine par :
+
+“IMPLÉMENTATION RESEND TERMINÉE — PRÊT POUR TEST AVEC LE COMPTE CLIENT.”

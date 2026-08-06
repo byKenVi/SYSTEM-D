@@ -1,55 +1,70 @@
 import { Resend } from 'resend';
 
-let connectionSettings: any;
+interface ResendCredentials {
+  apiKey: string;
+  fromEmail: string;
+  replyTo?: string;
+}
 
-async function getCredentials() {
-  // Prefer direct env var (most reliable)
+async function getCredentials(): Promise<ResendCredentials> {
+  let apiKey: string | undefined;
+  let fromEmail: string | undefined;
+
+  // Priorité 1 : variable d'environnement directe
   if (process.env.RESEND_API_KEY) {
-    return {
-      apiKey: process.env.RESEND_API_KEY,
-      fromEmail: process.env.RESEND_FROM_EMAIL || 'SYSTEM D <onboarding@resend.dev>',
-    };
-  }
+    apiKey = process.env.RESEND_API_KEY;
+    fromEmail = process.env.RESEND_FROM_EMAIL;
+  } else {
+    // Priorité 2 : connector Replit (fallback de transition)
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+    const xReplitToken = process.env.REPL_IDENTITY
+      ? 'repl ' + process.env.REPL_IDENTITY
+      : process.env.WEB_REPL_RENEWAL
+      ? 'depl ' + process.env.WEB_REPL_RENEWAL
+      : null;
 
-  // Fall back to Replit connector proxy
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? 'repl ' + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X-Replit-Token not found for repl/depl');
-  }
-
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X-Replit-Token': xReplitToken,
-      },
+    if (!xReplitToken) {
+      throw new Error('Resend non configuré : RESEND_API_KEY absent et token Replit introuvable.');
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
 
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error('Resend not connected');
+    const connectionSettings = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X-Replit-Token': xReplitToken,
+        },
+      }
+    ).then(res => res.json()).then(data => data.items?.[0]);
+
+    if (!connectionSettings?.settings?.api_key) {
+      throw new Error('Resend non configuré : connector introuvable et RESEND_API_KEY absent.');
+    }
+
+    apiKey = connectionSettings.settings.api_key as string;
+    fromEmail = connectionSettings.settings.from_email as string;
   }
 
-  return {
-    apiKey: connectionSettings.settings.api_key as string,
-    fromEmail: connectionSettings.settings.from_email as string,
-  };
+  if (!fromEmail) {
+    throw new Error('Resend non configuré : RESEND_FROM_EMAIL absent. Définir cette variable dans les secrets Replit.');
+  }
+
+  // Reply-to optionnel — ignoré si absent
+  const replyTo = process.env.RESEND_REPLY_TO_EMAIL || undefined;
+
+  return { apiKey, fromEmail, replyTo };
 }
 
 export async function getUncachableResendClient() {
-  const { apiKey, fromEmail } = await getCredentials();
+  const { apiKey, fromEmail, replyTo } = await getCredentials();
   return {
     client: new Resend(apiKey),
     fromEmail,
+    replyTo,
   };
 }
+
+// ── Labels ──────────────────────────────────────────────────────────────────
 
 const FORM_TYPE_LABELS: Record<string, string> = {
   entreposage: "Entreposage",
@@ -59,6 +74,14 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   livraison: "Livraison",
 };
 
+function getAppUrl(): string {
+  return process.env.NODE_ENV === 'development'
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    : 'https://servicessystemed.app';
+}
+
+// ── Fonctions d'envoi ────────────────────────────────────────────────────────
+
 export async function sendFormSubmissionEmail(data: {
   email: string;
   name: string;
@@ -66,15 +89,13 @@ export async function sendFormSubmissionEmail(data: {
   formNumber: string;
 }) {
   try {
-    const { client, fromEmail } = await getUncachableResendClient();
-    const appUrl = process.env.NODE_ENV === 'development'
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : 'https://servicessystemed.app';
+    const { client, fromEmail, replyTo } = await getUncachableResendClient();
     const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
 
     await client.emails.send({
-      from: fromEmail ? `Services Système-D <${fromEmail}>` : 'Services Système-D <onboarding@resend.dev>',
+      from: `Services Système-D <${fromEmail}>`,
       to: data.email,
+      ...(replyTo ? { replyTo } : {}),
       subject: `Formulaire ${data.formNumber} reçu — Système-D`,
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
@@ -83,14 +104,14 @@ export async function sendFormSubmissionEmail(data: {
             Bonjour ${data.name}, votre formulaire <strong>${typeLabel}</strong> (${data.formNumber}) a bien été soumis.
             Notre équipe va l'examiner sous peu.
           </p>
-          <a href="${appUrl}/portal/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+          <a href="${getAppUrl()}/portal/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
             Voir mes formulaires
           </a>
         </div>
       `,
     });
   } catch (err) {
-    console.error("sendFormSubmissionEmail error:", err);
+    console.error("[resend] sendFormSubmissionEmail error:", err);
   }
 }
 
@@ -101,7 +122,7 @@ export async function sendFormStatusEmail(data: {
   newStatus: string;
 }) {
   try {
-    const { client, fromEmail } = await getUncachableResendClient();
+    const { client, fromEmail, replyTo } = await getUncachableResendClient();
     const statusLabels: Record<string, string> = {
       in_review: "En révision",
       approved: "Approuvé",
@@ -110,8 +131,9 @@ export async function sendFormStatusEmail(data: {
     const statusLabel = statusLabels[data.newStatus] || data.newStatus;
 
     await client.emails.send({
-      from: fromEmail || 'SYSTEM D <onboarding@resend.dev>',
+      from: `Services Système-D <${fromEmail}>`,
       to: data.email,
+      ...(replyTo ? { replyTo } : {}),
       subject: `Formulaire ${data.formNumber} — ${statusLabel}`,
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
@@ -123,7 +145,7 @@ export async function sendFormStatusEmail(data: {
       `,
     });
   } catch (err) {
-    console.error("sendFormStatusEmail error:", err);
+    console.error("[resend] sendFormStatusEmail error:", err);
   }
 }
 
@@ -134,15 +156,13 @@ export async function sendFormAdminNotificationEmail(data: {
   formNumber: string;
 }) {
   try {
-    const { client, fromEmail } = await getUncachableResendClient();
-    const appUrl = process.env.NODE_ENV === 'development'
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : 'https://servicessystemed.app';
+    const { client, fromEmail, replyTo } = await getUncachableResendClient();
     const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
 
     await client.emails.send({
-      from: fromEmail ? `Services Système-D <${fromEmail}>` : 'Services Système-D <onboarding@resend.dev>',
+      from: `Services Système-D <${fromEmail}>`,
       to: data.adminEmail,
+      ...(replyTo ? { replyTo } : {}),
       subject: `Nouveau formulaire ${data.formNumber} soumis — ${data.clientName}`,
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
@@ -150,14 +170,14 @@ export async function sendFormAdminNotificationEmail(data: {
           <p style="margin: 0 0 24px; color: #555;">
             <strong>${data.clientName}</strong> a soumis un formulaire <strong>${typeLabel}</strong> (${data.formNumber}).
           </p>
-          <a href="${appUrl}/admin/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+          <a href="${getAppUrl()}/admin/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
             Voir les formulaires
           </a>
         </div>
       `,
     });
   } catch (err) {
-    console.error("sendFormAdminNotificationEmail error:", err);
+    console.error("[resend] sendFormAdminNotificationEmail error:", err);
   }
 }
 
@@ -166,14 +186,13 @@ export async function sendInviteEmail(contact: {
   email: string;
   companyName?: string | null;
 }) {
-  const { client, fromEmail } = await getUncachableResendClient();
-  const appUrl = process.env.NODE_ENV === 'development'
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : 'https://servicessystemed.app';
+  // Ce flux est bloquant — les erreurs remontent à l'appelant
+  const { client, fromEmail, replyTo } = await getUncachableResendClient();
 
   await client.emails.send({
-    from: fromEmail ? `Services Système-D <${fromEmail}>` : 'Services Système-D <onboarding@resend.dev>',
+    from: `Services Système-D <${fromEmail}>`,
     to: contact.email,
+    ...(replyTo ? { replyTo } : {}),
     subject: `Votre invitation au portail client – Services Système-D`,
     html: `
       <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
@@ -182,7 +201,7 @@ export async function sendInviteEmail(contact: {
           Bonjour ${contact.name},${contact.companyName ? ` votre compte pour <strong>${contact.companyName}</strong> est prêt.` : ''}<br/>
           Cliquez sur le bouton ci-dessous pour vous connecter et accéder à votre portail client.
         </p>
-        <a href="${appUrl}/api/login" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+        <a href="${getAppUrl()}/api/login" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px;">
           Accéder au portail
         </a>
         <p style="margin: 24px 0 0; font-size: 13px; color: #888;">
