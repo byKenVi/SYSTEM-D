@@ -1316,16 +1316,10 @@ export async function registerRoutes(
   // Disconnect Zoho Inventory
   app.post("/api/auth/zoho/disconnect", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const existing = await storage.getAdminSettings();
-      await storage.upsertAdminSettings({
-        ...(existing || {}),
-        zohoInventoryRefreshToken: null,
-        zohoInventoryOrgId: null,
-        zohoInventoryOrgName: null,
-        zohoAccessToken: null,
-        zohoTokenExpiresAt: null,
-        zohoRegion: "us",
-      });
+      // Targeted update — only clears Inventory columns.
+      // Zoho Projects settings (portalId, portalName) are preserved intentionally
+      // so they survive reconnection without requiring reconfiguration.
+      await storage.disconnectZohoInventory();
       res.json({ message: "Disconnected" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });

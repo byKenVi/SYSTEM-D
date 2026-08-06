@@ -791,13 +791,25 @@ export default function AdminSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {!isZohoConnected ? (
-                  <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
                     <div className="text-sm">
-                      <p className="font-medium text-amber-800 dark:text-amber-300">Zoho non connecté</p>
-                      <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">
-                        Connectez d'abord Zoho Inventory (carte ci-dessus), puis revenez ici pour activer Zoho Projects.
-                      </p>
+                      {adminSettings?.zohoProjectsPortalId ? (
+                        <>
+                          <p className="font-medium text-blue-800 dark:text-blue-300">Configuration conservée</p>
+                          <p className="text-blue-700 dark:text-blue-400 text-xs mt-0.5">
+                            Portail <strong>{adminSettings.zohoProjectsPortalName || adminSettings.zohoProjectsPortalId}</strong> enregistré.
+                            Reconnectez Zoho Inventory (carte ci-dessus) pour réactiver Zoho Projects — aucune reconfiguration nécessaire.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium text-blue-800 dark:text-blue-300">Zoho Inventory requis</p>
+                          <p className="text-blue-700 dark:text-blue-400 text-xs mt-0.5">
+                            Connectez d'abord Zoho Inventory (carte ci-dessus), puis revenez ici pour configurer Zoho Projects.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (

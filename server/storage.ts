@@ -56,6 +56,7 @@ export interface IStorage {
   getAdminSettings(): Promise<AdminSettings | undefined>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
   updateZohoTokens(accessToken: string, expiresAt: Date): Promise<void>;
+  disconnectZohoInventory(): Promise<void>;
   updateZohoLastSyncAt(syncedAt: Date): Promise<void>;
   updateZohoProjectsSettings(data: { portalId: string | null; portalName: string | null; lastTestedAt: Date | null }): Promise<void>;
   updateFormZohoProjectId(formId: number, projectId: string): Promise<void>;
@@ -354,6 +355,20 @@ export class DatabaseStorage implements IStorage {
   async updateZohoTokens(accessToken: string, expiresAt: Date): Promise<void> {
     // Targeted update: only touch the two token columns, never spread stale settings.
     await db.update(adminSettings).set({ zohoAccessToken: accessToken, zohoTokenExpiresAt: expiresAt });
+  }
+
+  async disconnectZohoInventory(): Promise<void> {
+    // Targeted update: only clear Inventory-specific columns.
+    // Zoho Projects settings (portalId, portalName, lastTestedAt) are intentionally
+    // preserved so they survive an Inventory reconnection without requiring reconfiguration.
+    await db.update(adminSettings).set({
+      zohoInventoryRefreshToken: null,
+      zohoInventoryOrgId: null,
+      zohoInventoryOrgName: null,
+      zohoAccessToken: null,
+      zohoTokenExpiresAt: null,
+      zohoRegion: "us",
+    });
   }
 
   async updateZohoLastSyncAt(syncedAt: Date): Promise<void> {
