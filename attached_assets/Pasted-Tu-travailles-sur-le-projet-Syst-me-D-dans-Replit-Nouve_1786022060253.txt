@@ -1,0 +1,160 @@
+Tu travailles sur le projet Système D dans Replit.
+
+Nouvelle tâche :
+Migrer l’intégration Resend actuelle vers le compte Resend du client.
+
+Contexte :
+Jusqu’à maintenant, l’application utilisait notre propre compte Resend pour gérer l’envoi et la réception des emails.
+Le client a maintenant donné accès à son compte Resend.
+L’objectif est d’utiliser le compte Resend du client avant le déploiement en production.
+
+IMPORTANT :
+Ne remplace pas directement les clés sans audit.
+Ne casse pas les emails existants.
+Ne déploie rien en production.
+Ne supprime pas l’ancienne configuration tant que la nouvelle n’est pas testée.
+Ne log jamais les clés API ou secrets.
+
+==================================================
+PHASE 1 — AUDIT SANS MODIFICATION
+==================================================
+
+Ne modifie aucun fichier pour commencer.
+
+Inspecte le projet et réponds aux questions suivantes :
+
+A. Intégration Resend actuelle
+- Où Resend est-il initialisé ?
+- Quelles variables d’environnement sont utilisées ?
+- Quelle clé API est utilisée ?
+- Quels emails sont envoyés par l’application ?
+- Quels emails sont reçus par l’application ?
+- Y a-t-il des webhooks Resend ?
+- Y a-t-il une signature webhook ou un secret ?
+- Quels domaines / adresses d’expéditeur sont utilisés ?
+- Quels templates ou contenus emails existent ?
+- Quels modules dépendent de Resend : invitations, notifications, soumissions, commandes, documents, auth, etc. ?
+
+B. Envoi d’emails
+Liste tous les flux d’envoi :
+- invitation client ;
+- notification soumission ;
+- notification admin ;
+- changement de statut ;
+- commande ;
+- livraison ;
+- réinitialisation mot de passe si applicable ;
+- autre.
+
+Pour chaque flux, indique :
+- déclencheur ;
+- destinataire ;
+- expéditeur ;
+- reply-to ;
+- contenu ;
+- fichier concerné ;
+- risque si l’email échoue.
+
+C. Réception d’emails
+Analyse si l’application reçoit vraiment des emails via Resend.
+
+Si oui :
+- endpoint webhook ;
+- type d’événements reçus ;
+- données traitées ;
+- stockage éventuel ;
+- sécurité du webhook ;
+- comportement si Resend ne peut pas livrer le webhook.
+
+Si non :
+- explique clairement que le projet utilise Resend seulement pour envoyer ;
+- indique ce qu’il faudrait ajouter pour la réception.
+
+D. Compte Resend du client
+Prépare la migration vers le compte client.
+
+À vérifier manuellement dans Resend :
+- le domaine du client est-il vérifié ?
+- les DNS SPF / DKIM sont-ils validés ?
+- quelle adresse d’expéditeur doit être utilisée ?
+- faut-il une adresse reply-to ?
+- faut-il activer la réception inbound ?
+- faut-il créer un webhook entrant ?
+- faut-il un webhook pour les statuts d’emails envoyés ?
+
+E. Variables d’environnement recommandées
+Propose une configuration claire, par exemple :
+
+RESEND_API_KEY
+RESEND_FROM_EMAIL
+RESEND_REPLY_TO_EMAIL
+RESEND_INBOUND_WEBHOOK_SECRET
+RESEND_WEBHOOK_SECRET
+
+Si certaines existent déjà, ne les duplique pas inutilement.
+Garde une séparation claire entre dev et prod.
+
+F. Plan de migration
+Propose un plan qui permet de tester sans casser l’existant :
+
+1. Ajouter les nouvelles variables du compte client en environnement de dev.
+2. Tester l’envoi d’un email simple.
+3. Tester chaque flux email important.
+4. Tester la réception si elle existe.
+5. Vérifier les logs Resend côté client.
+6. Vérifier que les emails arrivent en inbox, pas spam.
+7. Après validation seulement, utiliser les mêmes variables en production.
+8. Garder l’ancien compte Resend comme rollback temporaire.
+
+==================================================
+PHASE 1 — FORMAT DE RÉPONSE
+==================================================
+
+Réponds avec :
+
+A. État actuel de Resend dans le projet
+B. Emails envoyés actuellement
+C. Emails reçus actuellement
+D. Variables utilisées
+E. Ce qu’il faut configurer dans le compte Resend client
+F. Risques avant production
+G. Plan de migration recommandé
+H. Fichiers qui seraient modifiés
+I. Tests à faire
+J. Rollback
+
+Termine par :
+
+“ANALYSE RESEND TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION AVANT D’IMPLÉMENTER.”
+
+==================================================
+PHASE 2 — APRÈS VALIDATION
+==================================================
+
+Ne commence l’implémentation que si je réponds :
+
+“VALIDÉ — EXÉCUTE LE PLAN RESEND APPROUVÉ.”
+
+Après validation :
+
+1. Mets à jour l’intégration pour utiliser le compte Resend du client.
+2. Ne hardcode aucune clé.
+3. Utilise uniquement les secrets Replit / variables d’environnement.
+4. Ne log jamais les clés.
+5. Garde des messages d’erreur propres côté client.
+6. Garde les détails techniques uniquement dans les logs serveur.
+7. Ajoute ou corrige la vérification webhook si la réception email est utilisée.
+8. Préserve tous les flux email existants.
+9. Ajoute un test ou endpoint admin de test email si utile.
+10. Exécute typecheck, build et tests disponibles.
+
+Rapport final attendu :
+- fichiers modifiés ;
+- variables à ajouter dans dev ;
+- variables à ajouter en prod ;
+- emails testés ;
+- réception testée ou non ;
+- résultat typecheck ;
+- résultat build ;
+- limites restantes ;
+- procédure rollback.
