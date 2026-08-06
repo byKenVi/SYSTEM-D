@@ -1,0 +1,235 @@
+Tu travailles sur le projet Système D dans Replit.
+
+Nouvelle tâche :
+Ajouter l’intégration Zoho Projects.
+
+Objectifs :
+1. Préparer l’intégration Zoho Projects dans l’application, sur le même modèle que les intégrations Zoho Inventory et Shopify déjà présentes.
+2. Permettre de configurer le site / domaine / paramètres nécessaires dans la page d’intégration.
+3. Quand une commande est passée dans l’application, créer automatiquement un projet dans Zoho Projects avec les informations utiles de la commande.
+4. Pour le moment, ne pas créer de tâches dans le projet Zoho Projects. La création des tâches sera un prochain lot.
+5. Comprendre et documenter comment un client peut créer ou ajouter des produits dans l’application, car ce point n’est pas clair pour moi.
+
+==================================================
+RÈGLE BLOQUANTE — DEUX PHASES
+==================================================
+
+PHASE 1 — ANALYSE SANS MODIFICATION
+
+Ne modifie aucun fichier.
+Ne crée aucune migration.
+Ne change aucune intégration existante.
+Ne touche pas à Zoho Inventory, Shopify, Stripe ou aux permissions.
+Ne commence pas l’implémentation avant validation.
+
+==================================================
+A. CONFIGURATION ZOHO PROJECTS
+==================================================
+
+Inspecte le projet et identifie :
+
+1. Comment les intégrations Zoho existantes sont configurées :
+   - Zoho Inventory ;
+   - Zoho CRM si présent ;
+   - Shopify ;
+   - autres intégrations Zoho existantes.
+
+2. Où sont stockés :
+   - les tokens ;
+   - les refresh tokens ;
+   - les client IDs ;
+   - les client secrets ;
+   - les domaines ;
+   - les URLs de redirection ;
+   - les paramètres d’intégration.
+
+3. Où se trouve la page Settings / Intégrations.
+
+4. Comment ajouter Zoho Projects proprement au même modèle.
+
+5. Ce qui doit être fait manuellement dans Zoho :
+   - ajouter Zoho Projects à l’organisation Zoho One ;
+   - créer ou sélectionner le portail Zoho Projects ;
+   - récupérer l’identifiant du portail ;
+   - configurer les accès OAuth ;
+   - ajouter le domaine / site web autorisé si nécessaire ;
+   - vérifier les scopes nécessaires.
+
+Important :
+Zoho Projects a un fonctionnement avec portail/projets. Il faut donc identifier le portalId nécessaire pour créer les projets via API.
+
+==================================================
+B. CRÉATION DE PROJET DEPUIS UNE COMMANDE
+==================================================
+
+Inspecte la logique actuelle des commandes :
+
+1. Quels types de commandes existent dans l’app ?
+   - commandes Système D ;
+   - commandes Shopify ;
+   - commandes issues de soumissions ;
+   - autres commandes.
+
+2. Quelle commande doit déclencher la création d’un projet Zoho Projects ?
+   - uniquement commande Système D ?
+   - uniquement commande payée ?
+   - commande créée mais paiement en attente ?
+   - commande approuvée ?
+   - autre statut ?
+
+3. Où la commande est créée dans le code ?
+
+4. Quels champs sont disponibles sur une commande :
+   - numéro / ID ;
+   - client ;
+   - contact ;
+   - entreprise ;
+   - produits ;
+   - quantités ;
+   - total ;
+   - statut ;
+   - date ;
+   - adresse ;
+   - instructions ;
+   - fichiers ;
+   - lien vers la commande dans l’app.
+
+5. Quelles informations doivent être envoyées dans le projet Zoho Projects.
+
+Proposition de mapping à valider :
+
+Nom du projet :
+Commande Système D - [Nom client] - [ID commande]
+
+Description du projet :
+- client ;
+- contact ;
+- email ;
+- numéro de commande ;
+- date ;
+- statut ;
+- produits commandés ;
+- quantités ;
+- montant ;
+- lien interne vers la commande ;
+- notes ou instructions si disponibles.
+
+Statut :
+- créer le projet uniquement lorsque la commande est confirmée ;
+- si Stripe n’est pas encore connecté, documenter la limite et proposer le comportement temporaire.
+
+Important :
+Ne crée pas encore de tâches dans Zoho Projects.
+Le projet seulement est dans le scope.
+
+==================================================
+C. ÉVITER LES DOUBLONS
+==================================================
+
+Il ne faut jamais créer plusieurs projets Zoho Projects pour la même commande.
+
+Analyse et propose une stratégie :
+
+- stocker l’ID du projet Zoho créé sur la commande ;
+- vérifier avant création si un projet existe déjà ;
+- rendre l’opération idempotente ;
+- gérer le cas où l’appel Zoho réussit mais l’écriture locale échoue ;
+- gérer le cas où Zoho est temporairement indisponible ;
+- prévoir un retry manuel depuis l’admin si nécessaire.
+
+==================================================
+D. PAGE SETTINGS / INTÉGRATIONS
+==================================================
+
+Propose l’ajout d’une section Zoho Projects dans les paramètres, cohérente avec les autres intégrations.
+
+Elle devrait permettre de voir ou configurer :
+
+- statut connecté / non connecté ;
+- portalId Zoho Projects ;
+- domaine / site configuré ;
+- dernier test de connexion ;
+- bouton “Tester la connexion” ;
+- bouton “Créer le projet manquant” ou “Réessayer” si pertinent ;
+- message clair si Zoho Projects n’est pas encore configuré.
+
+Tous les textes visibles doivent être en français.
+
+==================================================
+E. COMMENT UN CLIENT CRÉE OU AJOUTE DES PRODUITS
+==================================================
+
+Je n’ai pas compris comment un client peut créer ou ajouter des produits dans l’application.
+
+Analyse précisément le parcours actuel :
+
+1. Est-ce qu’un client peut créer un produit lui-même ?
+2. Si oui, depuis quelle page ?
+3. Si non, comment un produit client est-il normalement créé ?
+4. Est-ce via :
+   - une soumission acceptée ;
+   - un formulaire ;
+   - un ajout admin ;
+   - Zoho Inventory ;
+   - Shopify ;
+   - un autre workflow ?
+5. Quelles pages client permettent seulement de commander un produit existant ?
+6. Quelles pages admin permettent de créer ou associer un produit à un client ?
+7. Est-ce que la création de produit client est dans le scope actuel ou non ?
+
+Réponds clairement avec :
+- parcours actuel client ;
+- parcours actuel admin ;
+- ce qui est possible aujourd’hui ;
+- ce qui n’est pas possible ;
+- ce qui manque si on veut permettre au client de demander ou créer un produit.
+
+==================================================
+F. CONTRAINTES
+==================================================
+
+Ne modifie pas :
+- la synchronisation Zoho Inventory ;
+- Stripe ;
+- Shopify ;
+- les PDF ;
+- les permissions ;
+- les commandes existantes ;
+- les produits ;
+- les notifications.
+
+Ne crée pas de tâches Zoho Projects dans ce lot.
+
+Ne déclenche pas la création d’un projet avant d’avoir confirmé :
+- quelle commande est concernée ;
+- à quel statut elle doit déclencher le projet ;
+- quels champs sont disponibles ;
+- comment éviter les doublons ;
+- comment stocker l’ID du projet Zoho.
+
+==================================================
+FORMAT DE RÉPONSE ATTENDU — PHASE 1
+==================================================
+
+Réponds avec un audit complet :
+
+A. Intégrations Zoho existantes
+B. Ce qu’il faut configurer manuellement dans Zoho One / Zoho Projects
+C. Ce qu’il faut ajouter dans l’application
+D. Scopes et paramètres nécessaires
+E. Commandes concernées par la création du projet
+F. Moment exact où créer le projet
+G. Mapping commande → projet Zoho Projects
+H. Stratégie anti-doublon
+I. Gestion des erreurs et retry
+J. Modifications Settings / Intégrations
+K. Comment un client crée ou ajoute des produits aujourd’hui
+L. Ce qui est hors scope
+M. Fichiers à modifier
+N. Migrations nécessaires
+O. Plan d’implémentation
+P. Tests à exécuter
+
+Termine exactement par :
+
+“ANALYSE ZOHO PROJECTS TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION AVANT D’IMPLÉMENTER.”
