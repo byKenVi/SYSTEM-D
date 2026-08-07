@@ -1,0 +1,194 @@
+Après correction du filtre boutique Système D, mon objectif est de déployer en production.
+
+Je veux donc une dernière vérification complète “Release Candidate” avant déploiement.
+
+Ne fais pas de nouvelle refonte.
+Ne change pas la logique métier sans validation.
+Ne modifie que les bugs bloquants ou clairement nécessaires au déploiement.
+
+==================================================
+1. VÉRIFICATION BOUTIQUE SYSTÈME D
+==================================================
+
+Confirme que le filtre corrigé donne le bon résultat :
+
+- Test D visible ;
+- Test D2 visible même en rupture ;
+- les services opérationnels ENT / LIV / TRI / INS / F015 sont invisibles ;
+- les produits clients ne sont pas visibles ;
+- les produits unresolved ne sont pas visibles ;
+- les produits en rupture restent visibles avec badge “Rupture” ;
+- aucun filtre stock ne cache les produits.
+
+Donne :
+- nombre total de produits Système D visibles ;
+- liste des produits visibles ;
+- liste des services opérationnels exclus ;
+- règle exacte appliquée.
+
+==================================================
+2. QA FINALE RELEASE CANDIDATE
+==================================================
+
+Teste les parcours principaux :
+
+A. Client
+- connexion client ;
+- dashboard ;
+- boutique ;
+- produits Système D ;
+- page produit ;
+- panier ;
+- commandes ;
+- soumissions ;
+- brouillons ;
+- notifications ;
+- livraisons ;
+- profil.
+
+B. Admin
+- dashboard ;
+- clients ;
+- boutique ;
+- inventaire ;
+- soumissions ;
+- commandes ;
+- livraisons ;
+- notifications ;
+- paramètres ;
+- mode view-as si présent.
+
+C. Formulaires
+- création brouillon ;
+- soumission ;
+- validation des champs numériques ;
+- erreur si dimension négative ;
+- erreur si quantité invalide ;
+- approbation admin ;
+- création commande opérationnelle ;
+- création Zoho Sales Order si configuré ;
+- création Zoho Project si configuré.
+
+D. PDF
+- PDF court ;
+- PDF long ;
+- aucune page vide ;
+- marge bas propre ;
+- nom de fichier correct ;
+- contenu complet.
+
+E. Notifications
+- badge non lu ;
+- notification cliquable ;
+- marquage automatique comme lu ;
+- permission correcte.
+
+F. Emails Resend
+- invitation client ;
+- confirmation de soumission ;
+- notification admin ;
+- changement de statut ;
+- aucun usage de onboarding@resend.dev ;
+- erreur propre si Resend est mal configuré.
+
+G. Intégrations
+- Zoho Inventory connecté ;
+- Zoho Projects connecté ;
+- portail Zoho Projects sélectionné ;
+- Resend configuré ;
+- Shopify : confirmer si nécessaire pour la prod ;
+- Stripe : confirmer explicitement si hors scope ou non connecté.
+
+==================================================
+3. CONFIGURATION PRODUCTION À VÉRIFIER
+==================================================
+
+Vérifie et liste les variables nécessaires en production :
+
+- Zoho client ID ;
+- Zoho client secret ;
+- Zoho region ;
+- Resend API key ;
+- Resend from email ;
+- Resend reply-to si utilisé ;
+- Shopify token si utilisé ;
+- Stripe secret si le paiement est dans le scope prod ;
+- domaine public de production ;
+- URL de callback Zoho production ;
+- secrets webhook éventuels.
+
+Important :
+Si le domaine production est différent du domaine dev, vérifie que le redirect URI Zoho en production est bien configuré dans Zoho API Console.
+
+==================================================
+4. MIGRATIONS / BASE DE DONNÉES
+==================================================
+
+Confirme que toutes les migrations nécessaires sont prêtes pour la production :
+
+- zoho_catalog ;
+- zoho_sync_runs ;
+- colonnes Zoho Projects ;
+- colonnes checkout / commandes ;
+- corrections Resend si besoin ;
+- aucune migration destructive ;
+- rollback possible.
+
+Donne la liste exacte des migrations appliquées en dev et à appliquer en prod.
+
+==================================================
+5. SÉCURITÉ / PERMISSIONS
+==================================================
+
+Vérifie :
+
+- un client ne voit jamais les données d’un autre client ;
+- un client ne voit pas les produits client d’un autre client ;
+- un client ne voit pas les soumissions d’un autre client ;
+- un client ne voit pas les commandes d’un autre client ;
+- notifications sécurisées ;
+- aucun secret exposé dans le frontend ;
+- aucune erreur technique brute visible côté client.
+
+==================================================
+6. BUILD FINAL
+==================================================
+
+Exécute :
+
+- typecheck ;
+- build ;
+- tests disponibles si existants.
+
+Vérifie aussi :
+- console navigateur sans erreur critique ;
+- logs serveur sans erreur critique répétée ;
+- pas de 401 en boucle ;
+- pas de 500 sur les parcours principaux.
+
+==================================================
+7. RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis un rapport clair :
+
+A. Statut global : GO / NO-GO
+B. Corrections appliquées depuis la dernière QA
+C. Parcours client validés
+D. Parcours admin validés
+E. Intégrations validées
+F. Points non testables en dev
+G. Points à configurer en production
+H. Variables production requises
+I. Migrations production requises
+J. Risques restants
+K. Checklist de déploiement
+L. Checklist post-déploiement
+
+Si tout est bon, termine par :
+
+“GO POUR DÉPLOIEMENT PRODUCTION — SOUS RÉSERVE DE CONFIGURATION DES SECRETS PROD.”
+
+Si un point bloque, termine par :
+
+“NO-GO PRODUCTION — BLOCAGES À CORRIGER AVANT DÉPLOYER.”
