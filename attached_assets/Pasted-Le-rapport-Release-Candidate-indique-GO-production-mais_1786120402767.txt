@@ -1,0 +1,101 @@
+Le rapport Release Candidate indique GO production, mais je veux corriger ce point :
+
+Shopify doit fonctionner en production et la gestion des produits doit être intuitive. Ce n’est pas hors scope.
+
+Donc le statut ne peut pas être GO complet tant que Shopify n’est pas testé et validé.
+
+Nouvelle tâche :
+Faire un audit Shopify + gestion des produits avant production.
+
+Ne déploie rien.
+Ne fais pas de refonte.
+Ne modifie pas Zoho, Resend, Stripe ou les PDFs.
+Commence par une analyse sans modification.
+
+==================================================
+PHASE 1 — AUDIT SHOPIFY / PRODUITS SANS MODIFICATION
+==================================================
+
+Analyse précisément :
+
+1. Configuration Shopify actuelle
+- Où est configuré Shopify ?
+- Où est stocké le token ?
+- Pourquoi le token actuel retourne 401 ?
+- Est-ce que chaque client a sa propre boutique Shopify ou une seule boutique globale ?
+- Quels paramètres sont nécessaires pour la prod ?
+- Qu’est-ce que l’admin doit configurer dans Settings ?
+
+2. Flux produits Shopify
+Explique clairement :
+- comment les produits Shopify sont importés ;
+- comment ils sont associés à un client ;
+- comment ils sont affichés côté admin ;
+- comment ils sont affichés côté client ;
+- comment ils sont synchronisés ;
+- ce qui est manuel ;
+- ce qui est automatique ;
+- ce qui peut échouer.
+
+3. Gestion des produits côté admin
+Vérifie si l’admin peut facilement :
+- voir les produits Shopify ;
+- importer les produits ;
+- associer un produit à un client ;
+- relancer une synchronisation ;
+- voir les erreurs de synchronisation ;
+- comprendre si un produit vient de Shopify, Zoho ou Système D ;
+- distinguer produits client, produits Système D et produits Shopify.
+
+4. UX actuelle
+Dis-moi si l’interface est intuitive pour :
+- configurer Shopify ;
+- importer des produits ;
+- gérer les produits ;
+- comprendre les erreurs ;
+- savoir quoi faire quand le token est invalide ;
+- savoir quoi faire quand aucun produit ne s’affiche.
+
+5. Logs et erreurs
+Le token Shopify invalide ne doit pas générer un flood d’erreurs toutes les 60 secondes en production.
+Analyse :
+- quel scheduler appelle Shopify ;
+- à quelle fréquence ;
+- comment les erreurs sont loguées ;
+- comment éviter de polluer les logs ;
+- comment afficher une erreur claire dans l’admin sans spam serveur.
+
+6. Critères de validation production
+Définis ce qui doit être vrai avant production :
+- token Shopify valide ;
+- test connexion OK ;
+- import produit OK ;
+- affichage admin OK ;
+- affichage client OK ;
+- erreurs propres si token invalide ;
+- pas de 401 en boucle ;
+- parcours produit compréhensible.
+
+==================================================
+FORMAT DE RÉPONSE ATTENDU
+==================================================
+
+Réponds avec :
+
+A. État actuel Shopify
+B. Cause exacte du 401
+C. Flux complet de gestion produits Shopify
+D. Ce qui marche
+E. Ce qui ne marche pas
+F. Ce qui est confus pour l’admin
+G. Ce qui est confus pour le client
+H. Corrections nécessaires avant production
+I. Fichiers à modifier
+J. Tests à faire
+K. Statut recommandé :
+   - GO production avec Shopify ;
+   - ou NO-GO tant que Shopify n’est pas corrigé.
+
+Termine par :
+
+“ANALYSE SHOPIFY / PRODUITS TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION.”
