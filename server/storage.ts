@@ -717,14 +717,32 @@ export class DatabaseStorage implements IStorage {
       eq(zohoCatalog.assignmentState, state),
       eq(zohoCatalog.isDeleted, false),
     ];
-    // For the Système D storefront, apply strict catalogue-product filter:
-    // only items that are explicitly goods AND marked as sellable are shown.
-    // Items with null product_type or null can_be_sold are excluded (safe default).
-    // This prevents operational services (Zoho Sales Order line items, bons de travail, etc.)
-    // from appearing in the client-facing catalogue.
+    // For the Système D storefront, exclude operational service items generated
+    // by Zoho when Sales Orders are created (ENT-xxx, LIV-xxx, TRI-xxx, INS-xxx, F[0-9]-xxx).
+    //
+    // Rule (bi-level):
+    //   1. All assignment_state = 'systemd' items are candidates.
+    //   2. Exclude items where product_type = 'service' AND name starts with an
+    //      operational prefix that identifies Zoho billing line items.
+    //
+    // Why not filter by product_type = 'goods' alone:
+    //   In this Zoho setup, legitimate catalogue products can be stored as
+    //   product_type = 'service', so a strict goods-only filter hides real products.
+    //
+    // Why not filter by can_be_sold alone:
+    //   All operational services currently have can_be_sold = true, so that field
+    //   does not discriminate. It is not used here.
+    //
+    // Short-term note: this filter relies on Zoho naming conventions for operational
+    // items. A more robust long-term solution would be a dedicated Zoho custom field
+    // (e.g. cf_is_catalogue_product) to explicitly tag products intended for the storefront.
     if (state === "systemd") {
-      conditions.push(eq(zohoCatalog.productType, "goods"));
-      conditions.push(eq(zohoCatalog.canBeSold, true));
+      conditions.push(
+        sql`NOT (
+          ${zohoCatalog.productType} = 'service'
+          AND ${zohoCatalog.name} ~ '^(ENT|LIV|TRI|INS|F[0-9]+)-'
+        )`
+      );
     }
     return db.select().from(zohoCatalog)
       .where(and(...conditions))

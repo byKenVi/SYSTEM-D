@@ -1,0 +1,56 @@
+VALIDÉ — CORRIGE LE FILTRE BOUTIQUE SYSTÈME D.
+
+Le diagnostic est accepté.
+
+Le filtre précédent product_type = goods + can_be_sold = true est trop strict, car de vrais produits catalogue Système D peuvent être enregistrés comme service dans Zoho.
+
+Objectif :
+- garder visibles les vrais produits Système D comme Test D et Test D2 ;
+- garder visibles les produits en rupture avec badge “Rupture” ;
+- masquer les items opérationnels générés depuis les soumissions / bons de travail : ENT, LIV, TRI, INS, F015, etc. ;
+- ne jamais afficher les produits client ;
+- ne jamais afficher les produits unresolved.
+
+Correction autorisée :
+Dans server/storage.ts, remplace le filtre strict par une exclusion des services opérationnels selon le pattern identifié.
+
+Règle attendue :
+- assignment_state = systemd ;
+- status = active ;
+- is_deleted = false ;
+- exclure les items dont product_type = service ET dont le nom commence par un préfixe opérationnel :
+  ENT-
+  LIV-
+  TRI-
+  INS-
+  F[0-9]-
+
+Ne filtre pas par stock.
+Ne cache pas les produits en rupture.
+Ne restaure pas les services opérationnels dans la boutique.
+
+Important :
+Ce correctif est accepté comme solution court terme.
+Ajoute un commentaire dans le code expliquant que le filtre repose sur la nomenclature des items opérationnels Zoho, et qu’une solution plus robuste serait un champ Zoho dédié pour identifier les vrais produits boutique.
+
+Tests à faire :
+- Test D visible ;
+- Test D2 visible avec badge “Rupture” ;
+- ENT-006 invisible ;
+- ENT-007 invisible ;
+- F015-003 invisible ;
+- INS-001 invisible ;
+- LIV-004 invisible ;
+- TRI-002 invisible ;
+- aucun produit client visible ;
+- aucun produit unresolved visible.
+
+Après correction :
+- exécute typecheck ;
+- exécute build ;
+- donne le nombre final de produits visibles dans la boutique Système D ;
+- liste les produits visibles ;
+- liste les services opérationnels exclus.
+
+Termine par :
+“FILTRE BOUTIQUE SYSTÈME D CORRIGÉ — PRÊT POUR REVUE MANUELLE.”
