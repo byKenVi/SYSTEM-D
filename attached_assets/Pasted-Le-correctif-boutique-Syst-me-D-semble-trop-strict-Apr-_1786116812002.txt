@@ -1,0 +1,107 @@
+Le correctif boutique Système D semble trop strict.
+
+Après ajout du filtre product_type = goods + can_be_sold = true, je ne vois plus qu’un seul produit dans la boutique Système D, alors qu’il y en avait normalement plusieurs.
+
+AUCUNE CORRECTION À L’AVEUGLE.
+Ne rollback pas tout de suite.
+Fais d’abord un diagnostic précis.
+
+Objectif :
+On veut exclure les services opérationnels comme ENT / LIV / TRI / F015, mais on ne doit pas cacher les vrais produits Système D vendables.
+
+==================================================
+1. DIAGNOSTIC DES PRODUITS EXCLUS
+==================================================
+
+Analyse la table locale du catalogue et donne les compteurs suivants :
+
+- total assignment_state = systemd ;
+- systemd + status = active ;
+- systemd + status = active + product_type = goods ;
+- systemd + status = active + can_be_sold = true ;
+- systemd + status = active + product_type = goods + can_be_sold = true ;
+- systemd + status = active + stock > 0 ;
+- systemd + status = active + stock = 0 ;
+- systemd + status = active + product_type null ;
+- systemd + status = active + can_be_sold null.
+
+Liste ensuite les produits Système D exclus avec :
+
+- nom ;
+- SKU ;
+- stock ;
+- status ;
+- product_type ;
+- can_be_sold ;
+- assignment_state ;
+- prix ;
+- raison exacte d’exclusion.
+
+==================================================
+2. VÉRIFIER SI UN FILTRE STOCK A ÉTÉ AJOUTÉ PAR ERREUR
+==================================================
+
+Je remarque que le seul produit visible semble être celui qui a du stock.
+
+Vérifie si la boutique Système D filtre maintenant par stock > 0.
+
+Si oui :
+- retire ce filtre ;
+- les produits en rupture doivent rester visibles si ce sont de vrais produits catalogue ;
+- ils doivent simplement afficher “Rupture” et désactiver l’ajout au panier.
+
+La disponibilité doit être une information d’affichage, pas forcément un filtre d’exclusion.
+
+==================================================
+3. REVOIR LA RÈGLE DE FILTRAGE
+==================================================
+
+La bonne règle métier est :
+
+Afficher dans la boutique Système D uniquement les vrais produits catalogue non assignés à un client.
+
+Ne pas afficher :
+- services opérationnels ;
+- soumissions ;
+- commandes ;
+- bons de travail ;
+- projets ;
+- items internes créés pour facturation.
+
+Mais attention :
+Si Zoho ne remplit pas product_type ou can_be_sold de façon fiable, ne pas cacher automatiquement tous les vrais produits.
+
+Propose une règle plus robuste, par exemple :
+
+- assignment_state = systemd ;
+- status = active ;
+- is_deleted = false ;
+- exclure clairement product_type = service ;
+- exclure les items liés à une soumission / bon de travail ;
+- exclure les noms ou SKU opérationnels ENT / LIV / TRI / F015 seulement comme garde-fou secondaire, pas comme règle principale ;
+- ne pas exiger can_be_sold = true si le champ est souvent null pour de vrais produits ;
+- ne pas filtrer par stock.
+
+==================================================
+4. SOLUTION ATTENDUE
+==================================================
+
+Propose une correction qui permet :
+
+- de masquer ENT-006, ENT-007, LIV, TRI, F015 ;
+- de garder les vrais produits Système D visibles ;
+- de garder les produits en rupture visibles avec badge “Rupture” ;
+- de ne jamais afficher les produits client ;
+- de ne jamais afficher les produits unresolved ;
+- de ne pas dépendre uniquement de can_be_sold si la donnée est incomplète.
+
+Présente :
+A. Cause du problème
+B. Produits exclus par le nouveau filtre
+C. Produits qui devraient être visibles
+D. Nouvelle règle recommandée
+E. Fichiers à modifier
+F. Tests à refaire
+
+Termine par :
+“DIAGNOSTIC FILTRE BOUTIQUE SYSTEMD TERMINÉ — J’ATTENDS VALIDATION AVANT CORRECTION.”
