@@ -2320,6 +2320,47 @@ export async function registerRoutes(
       if (status && status !== form.status) {
         updateData.status = status;
 
+        // ── Validation numérique côté serveur — soumission de brouillon ─────────
+        // S'applique uniquement au passage draft→submitted.
+        // Empêche les valeurs négatives ou nulles de passer si le frontend est contourné.
+        if (status === "submitted" && form.status === "draft") {
+          const effectiveData = (data !== undefined ? data : form.data) as Record<string, unknown> || {};
+          const checkPositive = (val: unknown, label: string): string | null => {
+            if (val === undefined || val === null || val === "") return null;
+            const n = Number(val);
+            if (isNaN(n) || n <= 0) return `${label} doit être un nombre positif.`;
+            return null;
+          };
+          let validationError: string | null = null;
+          if (form.formType === "entreposage") {
+            validationError =
+              checkPositive(effectiveData.longueur, "La longueur") ||
+              checkPositive(effectiveData.largeur, "La largeur") ||
+              checkPositive(effectiveData.hauteur, "La hauteur") ||
+              checkPositive(effectiveData.poids, "Le poids") ||
+              checkPositive(effectiveData.paletteNbUnites, "Le nombre d'unités par palette");
+          } else if (form.formType === "livraison") {
+            validationError =
+              checkPositive(effectiveData.nbUnites, "Le nombre d'unités") ||
+              checkPositive(effectiveData.poidsTotal, "Le poids total");
+          } else if (form.formType === "tri") {
+            validationError =
+              checkPositive(effectiveData.uniteParBoite, "Le nombre d'unités par boîte") ||
+              checkPositive(effectiveData.besoinQuotidien, "Le besoin quotidien") ||
+              checkPositive(effectiveData.cycleTri, "La durée du cycle");
+          } else if (form.formType === "inspection") {
+            const pct = effectiveData.customSamplePercent;
+            if (pct !== undefined && pct !== null && pct !== "") {
+              const n = Number(pct);
+              if (isNaN(n) || n < 0 || n > 100)
+                validationError = "Le pourcentage d'échantillonnage doit être compris entre 0 et 100.";
+            }
+          }
+          if (validationError) {
+            return res.status(400).json({ message: validationError });
+          }
+        }
+
         if (status === "submitted" && form.status === "draft") {
           const history = Array.isArray(form.revisionHistory) ? [...(form.revisionHistory as Record<string, unknown>[])] : [];
           history.push({

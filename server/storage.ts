@@ -713,8 +713,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getZohoCatalogByAssignmentState(state: string): Promise<ZohoCatalogItem[]> {
+    const conditions = [
+      eq(zohoCatalog.assignmentState, state),
+      eq(zohoCatalog.isDeleted, false),
+    ];
+    // For the Système D storefront, apply strict catalogue-product filter:
+    // only items that are explicitly goods AND marked as sellable are shown.
+    // Items with null product_type or null can_be_sold are excluded (safe default).
+    // This prevents operational services (Zoho Sales Order line items, bons de travail, etc.)
+    // from appearing in the client-facing catalogue.
+    if (state === "systemd") {
+      conditions.push(eq(zohoCatalog.productType, "goods"));
+      conditions.push(eq(zohoCatalog.canBeSold, true));
+    }
     return db.select().from(zohoCatalog)
-      .where(and(eq(zohoCatalog.assignmentState, state), eq(zohoCatalog.isDeleted, false)))
+      .where(and(...conditions))
       .orderBy(zohoCatalog.name);
   }
 

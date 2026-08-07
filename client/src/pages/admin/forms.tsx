@@ -206,7 +206,7 @@ export default function AdminForms() {
           )}
           <Button onClick={() => setNewFormOpen(true)} data-testid="button-new-form">
             <Plus className="h-4 w-4 mr-1.5" />
-            Nouvelle demande
+            Saisir une demande client
           </Button>
         </div>
       </div>
@@ -405,7 +405,10 @@ export default function AdminForms() {
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nouvelle demande</DialogTitle>
+            <DialogTitle>Saisir une demande client</DialogTitle>
+            <DialogDescription>
+              Créez une demande au nom d'un client pour une demande reçue hors portail.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

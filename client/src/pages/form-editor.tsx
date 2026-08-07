@@ -113,15 +113,57 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
 
   function validateBeforeSubmit(): string | null {
     if (!formData) return "Aucune donnée à soumettre.";
+
+    // Helper : retourne un message d'erreur si la valeur est présente mais ≤ 0 ou non numérique
+    const checkPositive = (val: unknown, label: string): string | null => {
+      if (val === undefined || val === null || val === "") return null; // champ optionnel
+      const n = Number(val);
+      if (isNaN(n) || n <= 0) return `${label} doit être un nombre positif.`;
+      return null;
+    };
+
     if (form?.formType === "tri") {
-      if (!formData.client?.trim()) return "Le champ Client est requis.";
-      if (!formData.nomProjet?.trim()) return "Le champ Nom du projet est requis.";
-      if (!formData.codePiece?.trim()) return "Le champ Code pièce est requis.";
+      if (!(formData as any).client?.trim()) return "Le champ Client est requis.";
+      if (!(formData as any).nomProjet?.trim()) return "Le champ Nom du projet est requis.";
+      if (!(formData as any).codePiece?.trim()) return "Le champ Code pièce est requis.";
+      return (
+        checkPositive((formData as any).uniteParBoite, "Le nombre d'unités par boîte") ||
+        checkPositive((formData as any).besoinQuotidien, "Le besoin quotidien") ||
+        checkPositive((formData as any).cycleTri, "La durée du cycle")
+      );
     }
+
     if (form?.formType === "inspection") {
-      if (!formData.customer?.trim()) return "Le champ Client est requis.";
-      if (!formData.partNumber?.trim()) return "Le champ Numéro de pièce est requis.";
+      if (!(formData as any).customer?.trim()) return "Le champ Client est requis.";
+      if (!(formData as any).partNumber?.trim()) return "Le champ Numéro de pièce est requis.";
+      const pct = (formData as any).customSamplePercent;
+      if (pct !== undefined && pct !== null && pct !== "") {
+        const n = Number(pct);
+        if (isNaN(n) || n < 0 || n > 100)
+          return "Le pourcentage d'échantillonnage doit être compris entre 0 et 100.";
+      }
+      return null;
     }
+
+    if (form?.formType === "entreposage") {
+      const d = formData as any;
+      return (
+        checkPositive(d.longueur, "La longueur") ||
+        checkPositive(d.largeur, "La largeur") ||
+        checkPositive(d.hauteur, "La hauteur") ||
+        checkPositive(d.poids, "Le poids") ||
+        checkPositive(d.paletteNbUnites, "Le nombre d'unités par palette")
+      );
+    }
+
+    if (form?.formType === "livraison") {
+      const d = formData as any;
+      return (
+        checkPositive(d.nbUnites, "Le nombre d'unités") ||
+        checkPositive(d.poidsTotal, "Le poids total")
+      );
+    }
+
     return null;
   }
 

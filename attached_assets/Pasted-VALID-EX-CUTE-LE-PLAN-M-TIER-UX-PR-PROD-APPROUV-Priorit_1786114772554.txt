@@ -1,0 +1,204 @@
+VALIDÉ — EXÉCUTE LE PLAN MÉTIER/UX PRÉ-PROD APPROUVÉ.
+
+Priorité absolue :
+1. Corriger la boutique Système D.
+2. Ajouter les validations numériques frontend + backend.
+3. Corriger le PDF.
+4. Améliorer les raccourcis et libellés UX principaux.
+
+Ne fais pas de refonte.
+Ne modifie pas Zoho OAuth.
+Ne modifie pas Resend.
+Ne modifie pas Stripe.
+Ne modifie pas Shopify.
+Ne modifie pas la synchronisation Zoho sauf si le filtre d’affichage Système D l’exige.
+Ne traite pas les P2 sauf si c’est trivial et sans risque.
+
+==================================================
+LOT 1 — P0 DONNÉES / BOUTIQUE / VALIDATION
+==================================================
+
+1. Boutique Système D
+
+Corrige l’affichage des produits Système D.
+
+Problème :
+Des éléments comme ENT-006, ENT-007, TRI, LIV, F015 apparaissent dans les produits Système D alors qu’ils correspondent à des services, soumissions, bons de travail ou commandes opérationnelles.
+
+Correction attendue :
+Dans la boutique Système D, afficher uniquement les vrais produits catalogue vendables.
+
+Critères attendus :
+- produit non assigné à un client ;
+- statut actif ;
+- non supprimé ;
+- type produit = goods ;
+- peut être vendu = true.
+
+Si product_type ou can_be_sold est null ou absent :
+- ne pas afficher côté client par défaut ;
+- loguer ou rendre visible côté admin si utile pour diagnostic ;
+- ne jamais exposer un item douteux dans la boutique client.
+
+Objectif :
+Les services opérationnels Zoho comme ENT-006, ENT-007, LIV, TRI, F015 ne doivent plus apparaître dans la boutique Système D.
+
+Important :
+Ne fais pas un filtre basé uniquement sur le nom ENT/LIV/TRI/F015. Le filtre principal doit être métier : produit catalogue vendable.
+
+2. Validation numérique frontend
+
+Ajoute les validations numériques dans le formulaire avant soumission.
+
+À bloquer :
+- dimensions négatives ;
+- poids négatifs ;
+- quantités négatives ;
+- valeurs nulles ou non numériques lorsqu’un nombre positif est attendu ;
+- pourcentage hors plage.
+
+Messages en français, par exemple :
+- “La longueur doit être un nombre positif.”
+- “La quantité doit être supérieure à 0.”
+- “Le pourcentage doit être compris entre 0 et 100.”
+
+Le formulaire doit scroller vers la zone concernée ou au moins vers le formulaire avec un message clair.
+
+3. Validation numérique backend
+
+Ajoute aussi la validation côté serveur.
+
+Important :
+Le frontend ne suffit pas.
+Le backend doit refuser une soumission invalide même si quelqu’un contourne l’interface.
+
+Appliquer la validation au moment où un formulaire est soumis ou passe au statut submitted.
+
+Ne casse pas les anciens formulaires déjà approuvés ou complétés.
+La validation doit s’appliquer aux nouvelles soumissions ou aux brouillons qu’on tente de soumettre.
+
+==================================================
+LOT 2 — P1 UX NAVIGATION ET CLARTÉ
+==================================================
+
+1. Raccourcis cliquables
+
+Ajoute les raccourcis utiles sans changer la logique métier :
+
+- numéro de commande → ouvrir la soumission / formulaire lié ;
+- numéro de livraison → ouvrir la soumission / formulaire lié ;
+- nom du client → ouvrir la fiche client ;
+- Zoho Sales Order → ouvrir Zoho dans un nouvel onglet si URL disponible ;
+- projet Zoho Projects → afficher un lien si l’ID ou l’URL est disponible.
+
+Respecte les permissions.
+Ne rends rien cliquable si la destination n’existe pas.
+
+2. Commandes et livraisons
+
+Clarifie les liens entre :
+- soumission ;
+- commande opérationnelle ;
+- livraison ;
+- projet Zoho Projects ;
+- Zoho Sales Order.
+
+Si une livraison est liée à un formulaire co-packing, affiche le lien vers le formulaire source.
+
+3. Libellé admin
+
+Renomme le bouton admin ambigu :
+- ancien : “Nouvelle demande” ou “Créer une demande”
+- nouveau : “Saisir une demande client” ou “Nouvelle demande pour un client”
+
+Ajoute dans le dialog une phrase claire :
+“Créez une demande au nom d’un client pour une demande reçue hors portail.”
+
+Le sélecteur client doit rester obligatoire.
+
+==================================================
+LOT 3 — P1 PDF
+==================================================
+
+Corrige les PDFs de soumission.
+
+Problème :
+Certains PDFs génèrent des pages supplémentaires presque vides avec seulement header, footer ou pagination.
+
+Correction attendue :
+- pas de page vide ;
+- pas de page avec seulement footer / pagination ;
+- marges basses propres ;
+- footer propre ;
+- contenu complet conservé ;
+- pas de perte d’information.
+
+Attention :
+Ne fais pas seulement un ajustement visuel approximatif.
+Teste avec :
+- une soumission courte ;
+- une soumission longue ;
+- un formulaire co-packing ;
+- un formulaire avec plusieurs lignes ;
+- un formulaire avec peu de données.
+
+Si la correction proposée dans l’audit n’est pas suffisante, propose et applique une correction plus robuste, mais reste dans le périmètre PDF.
+
+==================================================
+TESTS OBLIGATOIRES
+==================================================
+
+Après implémentation, exécute :
+- typecheck ;
+- build ;
+- tests disponibles si existants.
+
+Tests manuels obligatoires :
+
+Produits Système D :
+- vérifier que ENT-006, ENT-007, TRI, LIV, F015 disparaissent de la boutique ;
+- vérifier que les vrais produits catalogue Système D restent visibles ;
+- vérifier qu’un produit douteux n’est pas visible côté client.
+
+Validation :
+- soumettre un entreposage avec longueur = -1 → bloqué ;
+- soumettre une livraison avec quantité = 0 → bloqué ;
+- soumettre un poids négatif → bloqué ;
+- soumettre un pourcentage inspection > 100 → bloqué ;
+- soumettre un formulaire valide → accepté.
+
+PDF :
+- PDF court → pas de page vide ;
+- PDF long → pas de page vide ;
+- footer propre ;
+- pagination correcte ;
+- nom du fichier inchangé.
+
+Navigation :
+- clic numéro commande → bonne soumission ;
+- clic numéro livraison → bonne soumission ;
+- clic client → fiche client ;
+- lien Zoho SO → nouvel onglet ;
+- projet Zoho affiché si disponible.
+
+==================================================
+RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+1. fichiers modifiés ;
+2. corrections P0 appliquées ;
+3. corrections P1 appliquées ;
+4. P2 traités ou laissés de côté ;
+5. résultat typecheck ;
+6. résultat build ;
+7. preuves des tests produits Système D ;
+8. preuves des tests validation formulaire ;
+9. preuves des tests PDF ;
+10. preuves des tests navigation ;
+11. limites restantes ;
+12. statut final : GO ou NO-GO pour revue manuelle avant production.
+
+Termine par :
+
+“CORRECTIONS MÉTIER/UX PRÉ-PROD TERMINÉES — PRÊT POUR REVUE MANUELLE.”

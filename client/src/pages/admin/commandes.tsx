@@ -259,7 +259,12 @@ export default function AdminCommandes() {
                         onClick={() => setSelected(form)}
                       >
                         <TableCell className="font-mono font-semibold text-sm">
-                          {form.formNumber}
+                          <button
+                            className="text-primary hover:underline font-mono font-semibold"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/forms/${form.id}`); }}
+                          >
+                            {form.formNumber}
+                          </button>
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[form.formType] || "bg-gray-100 text-gray-700"}`}>
@@ -267,7 +272,14 @@ export default function AdminCommandes() {
                           </span>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {contact?.companyName || contact?.name || "—"}
+                          {contact ? (
+                            <button
+                              className="hover:underline text-left"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/admin/contacts/${form.contactId}`); }}
+                            >
+                              {contact.companyName || contact.name || "—"}
+                            </button>
+                          ) : "—"}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {form.updatedAt ? new Date(form.updatedAt).toLocaleDateString("fr-CA") : "—"}
@@ -406,6 +418,20 @@ export default function AdminCommandes() {
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Zoho Projects */}
+                {selected.zohoProjectId && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Projet Zoho Projects</p>
+                      <div className="flex items-center gap-2">
+                        <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-mono font-medium text-sm">{selected.zohoProjectId}</span>
                       </div>
                     </div>
                   </>

@@ -298,9 +298,21 @@ export default function AdminLivraisons() {
                         data-testid={`row-livraison-${form.id}`}
                       >
                         <TableCell className="font-mono text-xs font-semibold text-primary">
-                          {form.formNumber}
+                          <button
+                            className="hover:underline text-primary font-mono font-semibold"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/forms/${form.id}`); }}
+                          >
+                            {form.formNumber}
+                          </button>
                         </TableCell>
-                        <TableCell className="text-sm max-w-[120px] truncate">{clientName}</TableCell>
+                        <TableCell className="text-sm max-w-[120px] truncate">
+                          <button
+                            className="hover:underline text-left truncate"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/contacts/${form.contactId}`); }}
+                          >
+                            {clientName}
+                          </button>
+                        </TableCell>
                         <TableCell className="text-sm">{d.typeMarchandise || "—"}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums">
                           {d.nbUnites || "—"}
@@ -524,6 +536,24 @@ export default function AdminLivraisons() {
                         <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                         <p className="text-sm text-foreground/80 leading-relaxed">{d.instructionsSpeciales}</p>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Formulaire source co-packing */}
+                  {selected.linkedFormId && (
+                    <div className="px-6 py-4 border-t">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Formulaire source</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full gap-2 justify-start font-mono text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => { setSelected(null); navigate(`/admin/forms/${selected.linkedFormId}`); }}
+                        data-testid="button-open-linked-form"
+                      >
+                        <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+                        Voir le formulaire co-packing lié
+                        <ArrowUpRight className="h-3 w-3 ml-auto" />
+                      </Button>
                     </div>
                   )}
 

@@ -477,6 +477,24 @@ function renderLivraisonForm(doc: PDFKit.PDFDocument, data: Record<string, any>)
 
 function renderRevisionHistory(doc: PDFKit.PDFDocument, history: any[]) {
   if (!history?.length) return;
+
+  // Estimate total space needed for the entire section so we can decide
+  // whether to move it entirely to a new page rather than splitting it
+  // and leaving a near-empty last page with only a few rows.
+  const ROW_H = 25;
+  const SECTION_TITLE_H = 36;
+  const TABLE_HEADER_H = ROW_H + 10;
+  const estimatedHeight = SECTION_TITLE_H + TABLE_HEADER_H + history.length * (ROW_H + 2);
+  const availableSpace = doc.page.height - 60 - doc.y; // threshold is height - 60
+
+  // If the full section doesn't fit on the remaining page, start a fresh page upfront.
+  // This prevents a situation where the title renders at the bottom of a page and
+  // only 1–2 table rows appear before a page break, leaving the last page mostly empty.
+  if (availableSpace < estimatedHeight) {
+    doc.addPage();
+    doc.y = doc.page.margins.top;
+  }
+
   sectionTitle(doc, "Historique des révisions");
   const headers = ["Rév.", "Date", "Description", "Par"];
   const rows = history.map((h: any) => [
@@ -553,11 +571,13 @@ export function generateFormPdf(
       doc.text("Système-D  •  Confidentiel", 50, bottom, { width: doc.page.width - 100, align: "center", lineBreak: false });
     }
 
-    // Revenir à la dernière page et repositionner le curseur dans la zone
-    // de contenu pour éviter que PDFKit n'ajoute une page blanche au moment
-    // de doc.end() lorsque doc.y dépasse la marge basse.
+    // Revenir à la dernière page et repositionner le curseur juste au-dessus
+    // de la zone de footer pour éviter que PDFKit n'ajoute une page blanche
+    // au moment de doc.end() si doc.y dépasse la marge basse.
+    // On utilise height - margins.bottom - 20 (= 722 sur LETTER) plutôt que
+    // margins.top (= 50) pour exprimer "le contenu est terminé près du bas".
     doc.switchToPage(range.start + range.count - 1);
-    (doc as any).y = doc.page.margins.top;
+    (doc as any).y = doc.page.height - doc.page.margins.bottom - 20;
 
     doc.end();
   });
