@@ -1,0 +1,367 @@
+Nouvelle passe d’audit avant production.
+
+IMPORTANT :
+Ne corrige rien immédiatement.
+Ne déploie rien.
+Ne modifie aucun fichier pendant la première phase.
+Je veux d’abord comprendre les causes et valider les corrections.
+
+Plusieurs problèmes métier et UX ont été identifiés. Certains peuvent bloquer la mise en production.
+
+==================================================
+PHASE 1 — AUDIT SANS MODIFICATION
+==================================================
+
+Ne modifie aucun fichier.
+Ne crée aucune migration.
+Ne change aucune règle métier.
+Ne touche pas à Zoho, Stripe, Shopify ou Resend sans analyse validée.
+
+Analyse les points suivants.
+
+==================================================
+1. PRODUITS SYSTÈME D — DONNÉES INCORRECTES
+==================================================
+
+Problème observé :
+Dans l’onglet “Produits Système D”, je vois des éléments comme :
+- ENT-006 — Entreposage
+- ENT-007 — Entreposage
+- ENT-008 — Entreposage
+- ENT-010 — Entreposage
+
+Ces éléments ressemblent à des soumissions, services, projets ou commandes opérationnelles, pas à des produits achetables.
+
+Ce n’est pas normal si la boutique Système D doit afficher uniquement des produits catalogue que le client peut acheter.
+
+À analyser :
+
+1. D’où viennent exactement ces éléments ?
+   - Zoho Inventory ?
+   - soumissions approuvées ?
+   - Zoho Sales Order ?
+   - Zoho Projects ?
+   - produits/services générés automatiquement ?
+   - table locale ?
+   - autre source ?
+
+2. Pourquoi ces éléments sont classés comme Produits Système D ?
+   - absence de client ?
+   - absence de cf_client ?
+   - mauvais filtre ?
+   - service Zoho considéré comme produit ?
+   - données opérationnelles synchronisées comme produits catalogue ?
+
+3. Quelle est la définition actuelle d’un produit Système D dans le code ?
+
+4. Quelle devrait être la vraie définition ?
+   Je pense que la boutique Système D devrait afficher uniquement :
+   - des produits réellement achetables ;
+   - actifs ;
+   - non assignés à un client ;
+   - autorisés à la vente ;
+   - pas des soumissions ;
+   - pas des services opérationnels ;
+   - pas des projets ;
+   - pas des commandes ;
+   - pas des bons de travail.
+
+5. Comment différencier proprement :
+   - produit catalogue ;
+   - service opérationnel ;
+   - soumission ;
+   - commande ;
+   - projet Zoho Projects ;
+   - bon de travail ?
+
+6. Existe-t-il des champs fiables :
+   - product_type ;
+   - can_be_sold ;
+   - sku ;
+   - nom commençant par ENT / LIV / F015 / TRI ;
+   - source ;
+   - catégorie ;
+   - custom fields ;
+   - lien avec form_submission ;
+   - lien avec Zoho Sales Order ?
+
+7. Propose une correction sûre pour que seuls les vrais produits catalogue apparaissent dans la boutique.
+
+Ne corrige pas encore. Présente d’abord le diagnostic.
+
+==================================================
+2. COMMANDES — FLUX PAS CLAIR
+==================================================
+
+Problème :
+La gestion des commandes n’est pas intuitive.
+Je ne comprends pas clairement :
+- ce qu’est une commande dans l’app ;
+- quand elle est créée ;
+- depuis quelle source ;
+- comment elle évolue ;
+- qui doit agir dessus ;
+- comment elle est liée à une soumission, une livraison, un projet ou une commande Shopify.
+
+À analyser :
+
+1. Quels types de commandes existent dans l’application ?
+   - commandes opérationnelles issues des soumissions ;
+   - commandes Système D ;
+   - commandes Shopify ;
+   - autres ?
+
+2. Quelles pages affichent chaque type de commande ?
+
+3. Quand une commande opérationnelle est-elle créée ?
+   - à la soumission ?
+   - à l’approbation ?
+   - à la création du Zoho Sales Order ?
+   - à la création du projet Zoho Projects ?
+
+4. Quel est le cycle de vie complet ?
+   Exemple attendu :
+   Brouillon → Soumis → En révision → Approuvé → En cours → Terminé.
+
+5. Quels statuts existent vraiment dans le code ?
+
+6. Quels statuts sont visibles côté admin ?
+
+7. Quels statuts sont visibles côté client ?
+
+8. Quelles actions l’admin peut faire à chaque statut ?
+
+9. Quelles actions le client peut faire à chaque statut ?
+
+10. Quelles colonnes / boutons devraient être cliquables comme raccourcis ?
+   Par exemple :
+   - numéro de commande ;
+   - client ;
+   - Zoho SO ;
+   - projet Zoho Projects ;
+   - soumission liée ;
+   - livraison liée.
+
+Objectif :
+Produire une explication claire du flux complet, puis proposer des améliorations UX.
+
+==================================================
+3. LIVRAISONS — FLUX PAS CLAIR
+==================================================
+
+Problème :
+La gestion des livraisons n’est pas claire non plus.
+
+À analyser :
+
+1. Quand une livraison est-elle créée ?
+2. Est-ce qu’une livraison vient :
+   - d’une soumission de type livraison ?
+   - d’une commande opérationnelle ?
+   - d’une commande Shopify ?
+   - d’un tracking transporteur ?
+   - d’une saisie admin ?
+3. Quels statuts de livraison existent ?
+4. Qui peut créer / modifier une livraison ?
+5. Que voit le client ?
+6. Que voit l’admin ?
+7. Quels éléments devraient être cliquables ?
+8. Quelle page devrait être la source de vérité ?
+
+Objectif :
+Expliquer le flux complet et proposer les corrections nécessaires pour le rendre intuitif.
+
+==================================================
+4. BROUILLONS — FLUX AMBIGU
+==================================================
+
+Problème :
+La gestion des brouillons n’est pas claire.
+
+À analyser :
+
+1. Qui peut créer un brouillon ?
+2. Où sont les brouillons visibles ?
+3. Est-ce qu’un brouillon appartient toujours à un client ?
+4. Est-ce qu’un admin peut créer un brouillon pour un client ?
+5. Si oui, pourquoi ?
+6. Est-ce que l’admin crée une demande au nom du client ?
+7. Est-ce un vrai besoin métier ou une fonctionnalité confuse ?
+8. Que se passe-t-il quand un brouillon est soumis ?
+9. Peut-on supprimer ou modifier un brouillon ?
+10. Le client peut-il reprendre un brouillon ?
+
+Objectif :
+Expliquer le flux complet et proposer une UX plus claire si nécessaire.
+
+==================================================
+5. SOUMISSIONS ADMIN — POURQUOI L’ADMIN PEUT CRÉER UNE DEMANDE ?
+==================================================
+
+Problème :
+Côté admin, la gestion des soumissions est ambiguë.
+Je ne comprends pas pourquoi l’admin peut créer une nouvelle demande.
+
+À analyser :
+
+1. Est-ce que l’admin crée une demande pour lui-même ?
+2. Est-ce que l’admin crée une demande au nom d’un client ?
+3. Est-ce une fonctionnalité prévue pour saisir manuellement une demande reçue hors portail ?
+4. Est-ce lié à un workflow interne ?
+5. Est-ce utile ou dangereux ?
+6. Comment l’interface devrait l’expliquer ?
+7. Faut-il renommer le bouton ?
+   Exemple :
+   - “Créer une demande”
+   - “Créer une demande pour un client”
+   - “Saisir une demande manuelle”
+   - “Nouvelle soumission client”
+8. Faut-il forcer la sélection d’un client avant création ?
+
+Objectif :
+Rendre le flux compréhensible pour l’admin.
+
+==================================================
+6. VALIDATION DES FORMULAIRES — DONNÉES INVALIDES
+==================================================
+
+Problème :
+L’utilisateur peut soumettre des valeurs incohérentes, par exemple des dimensions négatives.
+
+À analyser :
+
+1. Quels champs numériques existent dans les formulaires ?
+   - dimensions ;
+   - poids ;
+   - quantités ;
+   - palettes ;
+   - prix ;
+   - dates ;
+   - autres.
+
+2. Quels champs devraient être strictement positifs ?
+
+3. Quels champs peuvent être zéro ?
+
+4. Quels champs ne doivent jamais être négatifs ?
+
+5. Quelles validations existent déjà côté frontend ?
+
+6. Quelles validations existent côté backend ?
+
+7. Est-ce que le backend bloque les valeurs invalides, ou seulement l’UI ?
+
+8. Propose une stratégie de validation complète :
+   - frontend pour aider l’utilisateur ;
+   - backend pour sécuriser ;
+   - messages français clairs ;
+   - scroll vers les erreurs ;
+   - empêcher la soumission invalide.
+
+Exemples :
+- longueur > 0 ;
+- largeur > 0 ;
+- hauteur > 0 ;
+- poids > 0 ;
+- quantité > 0 ;
+- nombre de palettes >= 0 ou > 0 selon le champ ;
+- date requise si nécessaire ;
+- date ne doit pas être dans le passé si applicable.
+
+Ne modifie pas encore : liste d’abord tous les champs concernés.
+
+==================================================
+7. PDF SOUMISSION — MARGES ET PAGES EN TROP
+==================================================
+
+Problème :
+Les PDFs ont un problème de marge en bas et génèrent des pages supplémentaires inutiles.
+Exemple observé :
+- page principale avec contenu ;
+- puis pages presque vides avec seulement header / footer / pagination.
+
+À analyser :
+
+1. Quel moteur génère le PDF ?
+2. Où sont définies les marges ?
+3. Où sont définis header / footer ?
+4. Pourquoi des pages supplémentaires sont créées ?
+5. Est-ce dû à :
+   - hauteur fixe ;
+   - footer en position incorrecte ;
+   - page-break ;
+   - margin-bottom trop grand ;
+   - container trop haut ;
+   - élément invisible ;
+   - CSS print ;
+   - pagination mal calculée ?
+
+6. Corriger sans perdre les informations du PDF.
+7. Le PDF final ne doit pas avoir de pages vides.
+8. Le footer doit apparaître proprement.
+9. La marge basse doit être correcte.
+10. Tester avec :
+   - soumission courte ;
+   - soumission longue ;
+   - formulaire avec beaucoup de blocs ;
+   - formulaire sans certaines données.
+
+==================================================
+8. BOUTONS ET RACCOURCIS CLIQUABLES
+==================================================
+
+Problème :
+Certains éléments devraient être cliquables pour servir de raccourcis.
+
+À analyser sur les pages admin et client :
+
+1. Numéros de soumission.
+2. Numéros de commande.
+3. Clients.
+4. Zoho Sales Order.
+5. Projet Zoho Projects.
+6. Notifications.
+7. Produits.
+8. Livraisons.
+9. Documents PDF.
+
+Pour chaque élément :
+- est-ce déjà cliquable ?
+- vers quelle page devrait-il mener ?
+- faut-il une icône d’ouverture ?
+- faut-il ouvrir dans un nouvel onglet pour les liens Zoho externes ?
+- faut-il vérifier les permissions ?
+
+Objectif :
+Rendre la navigation plus intuitive sans modifier la logique métier.
+
+==================================================
+9. RAPPORT ATTENDU — PHASE 1
+==================================================
+
+Réponds avec un audit structuré :
+
+A. Résumé des problèmes critiques
+B. Pourquoi les projets / services apparaissent dans Produits Système D
+C. Correction recommandée pour Produits Système D
+D. Explication complète du flux Commandes
+E. Explication complète du flux Livraisons
+F. Explication complète du flux Brouillons
+G. Explication complète du flux Soumissions admin
+H. Validation des formulaires : champs concernés et règles proposées
+I. PDF : cause probable des pages en trop et correction proposée
+J. Raccourcis cliquables recommandés
+K. Priorités P0 / P1 / P2
+L. Fichiers à modifier
+M. Risques
+N. Plan d’implémentation proposé
+O. Tests nécessaires
+
+Classe les points ainsi :
+- P0 : données métier incorrectes, validation absente, fuite ou confusion critique ;
+- P1 : UX importante ou flux ambigu ;
+- P2 : confort ou amélioration visuelle.
+
+Termine exactement par :
+
+“ANALYSE MÉTIER/UX PRÉ-PROD TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION AVANT D’IMPLÉMENTER.”
