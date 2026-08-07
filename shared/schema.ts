@@ -39,6 +39,11 @@ export const shopifyIntegrations = pgTable("shopify_integrations", {
   orderSyncFrequencyMinutes: integer("order_sync_frequency_minutes").notNull().default(0),
   lastOrderSyncAt: timestamp("last_order_sync_at"),
   isActive: boolean("is_active").notNull().default(true),
+  connectionStatus: text("connection_status").notNull().default("unknown"), // 'ok' | 'invalid_token' | 'error' | 'unknown'
+  lastConnectionTestedAt: timestamp("last_connection_tested_at"),
+  lastConnectionError: text("last_connection_error"),
+  consecutiveErrors: integer("consecutive_errors").notNull().default(0),
+  syncPausedUntil: timestamp("sync_paused_until"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

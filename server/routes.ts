@@ -907,7 +907,14 @@ export async function registerRoutes(
   app.get("/api/shopify-integrations", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const integrations = await storage.getShopifyIntegrations();
-      res.json(integrations);
+      // Enrich each integration with product count for the contact
+      const enriched = await Promise.all(
+        integrations.map(async (integration) => {
+          const contactProducts = await storage.getProductsByContactId(integration.contactId);
+          return { ...integration, productCount: contactProducts.length };
+        })
+      );
+      res.json(enriched);
     } catch (error) {
       console.error("Error fetching integrations:", error);
       res.status(500).json({ message: "Failed to fetch integrations" });
@@ -979,6 +986,33 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting integration:", error);
       res.status(500).json({ message: "Failed to delete integration" });
+    }
+  });
+
+  // ── Test connexion Shopify (intégration existante) ──────────────────────────
+  app.post("/api/shopify-integrations/:id/test-connection", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const integration = await storage.getShopifyIntegration(Number(req.params.id));
+      if (!integration) return res.status(404).json({ message: "Intégration non trouvée" });
+
+      const result = await testShopifyConnection(integration.storeUrl, integration.accessToken);
+      const status = result.success
+        ? "ok"
+        : result.error?.includes("401") || result.error?.includes("403")
+        ? "invalid_token"
+        : "error";
+
+      await storage.updateShopifyIntegration(integration.id, {
+        connectionStatus: status,
+        lastConnectionTestedAt: new Date(),
+        lastConnectionError: result.success ? null : (result.error ?? null),
+        ...(result.success ? { consecutiveErrors: 0, syncPausedUntil: null } : {}),
+      } as any);
+
+      res.json({ status, shopName: result.shopName ?? null, error: result.success ? null : result.error });
+    } catch (error: any) {
+      console.error("Error testing Shopify connection:", error);
+      res.status(500).json({ message: "Erreur lors du test de connexion" });
     }
   });
 

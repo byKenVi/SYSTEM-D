@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contact, AdminSettings, ShopifyIntegration, ActivityLog } from "@shared/schema";
+type IntegrationWithCount = ShopifyIntegration & { productCount: number };
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,7 +133,7 @@ export default function AdminSettingsPage() {
     queryKey: ["/api/contacts"],
   });
 
-  const { data: integrations } = useQuery<ShopifyIntegration[]>({
+  const { data: integrations } = useQuery<IntegrationWithCount[]>({
     queryKey: ["/api/shopify-integrations"],
   });
 
@@ -323,6 +324,26 @@ export default function AdminSettingsPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Échec de la synchronisation des commandes.", variant: "destructive" });
+    },
+  });
+
+  const testShopifyConnectionMutation = useMutation({
+    mutationFn: async (integrationId: number) => {
+      const res = await apiRequest("POST", `/api/shopify-integrations/${integrationId}/test-connection`);
+      return res.json() as Promise<{ status: string; shopName?: string; error?: string }>;
+    },
+    onSuccess: (data, integrationId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
+      if (data.status === "ok") {
+        toast({ title: "Connexion OK", description: `Boutique ${data.shopName ? `"${data.shopName}"` : ""} accessible.` });
+      } else if (data.status === "invalid_token") {
+        toast({ title: "Token invalide", description: "Le jeton d'accès Shopify est invalide ou révoqué. Déconnectez et reconnectez la boutique avec un nouveau token.", variant: "destructive" });
+      } else {
+        toast({ title: "Erreur de connexion", description: data.error || "Store inaccessible.", variant: "destructive" });
+      }
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de tester la connexion.", variant: "destructive" });
     },
   });
 
@@ -1086,105 +1107,176 @@ export default function AdminSettingsPage() {
                                 : <SiShopify className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                               }
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                   <p className="text-sm font-medium truncate" data-testid={`text-shopify-store-${integration.id}`}>
                                     {integration.shopName || integration.storeUrl}
                                   </p>
                                   <Badge variant="outline" className={`text-[10px] px-1.5 py-0 flex-shrink-0 ${isWoo ? "border-purple-300 text-purple-600 dark:text-purple-400" : "border-green-300 text-green-600 dark:text-green-400"}`}>
                                     {isWoo ? "WooCommerce" : "Shopify"}
                                   </Badge>
+                                  {/* Connection status badge */}
+                                  {(() => {
+                                    const cs = integration.connectionStatus ?? "unknown";
+                                    if (cs === "ok") return (
+                                      <Badge className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800 flex-shrink-0" variant="outline">
+                                        ✓ Connexion OK
+                                      </Badge>
+                                    );
+                                    if (cs === "invalid_token") return (
+                                      <Badge className="text-[10px] px-1.5 py-0 bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-800 flex-shrink-0" variant="outline">
+                                        ✗ Token invalide
+                                      </Badge>
+                                    );
+                                    if (cs === "error") return (
+                                      <Badge className="text-[10px] px-1.5 py-0 bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-800 flex-shrink-0" variant="outline">
+                                        ⚠ Erreur de connexion
+                                      </Badge>
+                                    );
+                                    return (
+                                      <Badge className="text-[10px] px-1.5 py-0 flex-shrink-0" variant="outline">
+                                        Jamais testé
+                                      </Badge>
+                                    );
+                                  })()}
                                 </div>
                                 {contact && (
                                   <p className="text-xs text-muted-foreground truncate">
                                     {contact.companyName || contact.name}
+                                    {(integration as any).productCount != null && (
+                                      <span className="ml-1.5 text-muted-foreground/60">· {(integration as any).productCount} produit{(integration as any).productCount !== 1 ? "s" : ""} importé{(integration as any).productCount !== 1 ? "s" : ""}</span>
+                                    )}
+                                  </p>
+                                )}
+                                {integration.lastConnectionTestedAt && (
+                                  <p className="text-[10px] text-muted-foreground/60">
+                                    Testé le {new Date(integration.lastConnectionTestedAt).toLocaleString("fr-CA")}
+                                  </p>
+                                )}
+                                {integration.connectionStatus !== "ok" && integration.lastConnectionError && (
+                                  <p className="text-[10px] text-red-500 dark:text-red-400 truncate max-w-xs" title={integration.lastConnectionError}>
+                                    {integration.lastConnectionError.slice(0, 80)}{integration.lastConnectionError.length > 80 ? "…" : ""}
+                                  </p>
+                                )}
+                                {integration.syncPausedUntil && new Date(integration.syncPausedUntil) > new Date() && (
+                                  <p className="text-[10px] text-orange-500 dark:text-orange-400">
+                                    Sync suspendue jusqu'à {new Date(integration.syncPausedUntil).toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" })}
                                   </p>
                                 )}
                               </div>
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:bg-destructive/10 flex-shrink-0"
-                              onClick={() => disconnectShopifyMutation.mutate(integration.id)}
-                              disabled={disconnectShopifyMutation.isPending}
-                              data-testid={`button-disconnect-shopify-${integration.id}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!isWoo && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => testShopifyConnectionMutation.mutate(integration.id)}
+                                  disabled={testShopifyConnectionMutation.isPending && testShopifyConnectionMutation.variables === integration.id}
+                                  data-testid={`button-test-connection-${integration.id}`}
+                                  title="Vérifie si le token Shopify est valide"
+                                >
+                                  {testShopifyConnectionMutation.isPending && testShopifyConnectionMutation.variables === integration.id
+                                    ? "Test…"
+                                    : "Tester la connexion"}
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:bg-destructive/10 flex-shrink-0"
+                                onClick={() => disconnectShopifyMutation.mutate(integration.id)}
+                                disabled={disconnectShopifyMutation.isPending}
+                                data-testid={`button-disconnect-shopify-${integration.id}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
 
                           {/* Product sync row */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Produits</span>
-                            <Select
-                              value={String(integration.syncFrequencyMinutes ?? 0)}
-                              onValueChange={(v) =>
-                                updateSyncFrequencyMutation.mutate({ id: integration.id, syncFrequencyMinutes: Number(v) })
-                              }
-                              disabled={updateSyncFrequencyMutation.isPending}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-sync-frequency-${integration.id}`}>
-                                <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {SYNC_OPTIONS.map((o) => (
-                                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => importProductsMutation.mutate(integration.id)}
-                              disabled={importProductsMutation.isPending}
-                              data-testid={`button-import-products-${integration.id}`}
-                            >
-                              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${importProductsMutation.isPending ? "animate-spin" : ""}`} />
-                              Importer
-                            </Button>
-                            {integration.lastAutoSyncAt && (
-                              <span className="text-xs text-muted-foreground">
-                                Dernier : {new Date(integration.lastAutoSyncAt).toLocaleString("fr-CA")}
-                              </span>
-                            )}
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Produits</span>
+                              <Select
+                                value={String(integration.syncFrequencyMinutes ?? 0)}
+                                onValueChange={(v) =>
+                                  updateSyncFrequencyMutation.mutate({ id: integration.id, syncFrequencyMinutes: Number(v) })
+                                }
+                                disabled={updateSyncFrequencyMutation.isPending}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-sync-frequency-${integration.id}`}>
+                                  <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SYNC_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => importProductsMutation.mutate(integration.id)}
+                                disabled={importProductsMutation.isPending}
+                                data-testid={`button-import-products-${integration.id}`}
+                                title="Importe ou réimporte tous les produits actifs depuis cette boutique Shopify"
+                              >
+                                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${importProductsMutation.isPending ? "animate-spin" : ""}`} />
+                                Importer tous les produits
+                              </Button>
+                              {integration.lastAutoSyncAt && (
+                                <span className="text-xs text-muted-foreground">
+                                  Dernier sync : {new Date(integration.lastAutoSyncAt).toLocaleString("fr-CA")}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground/60 ml-[88px]">
+                              Recharge le catalogue produits complet depuis Shopify. Les nouveaux produits actifs sont aussi ajoutés automatiquement lors des syncs programmées.
+                            </p>
                           </div>
 
                           {/* Orders sync row */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Commandes</span>
-                            <Select
-                              value={String(integration.orderSyncFrequencyMinutes ?? 0)}
-                              onValueChange={(v) =>
-                                updateOrderSyncFrequencyMutation.mutate({ id: integration.id, orderSyncFrequencyMinutes: Number(v) })
-                              }
-                              disabled={updateOrderSyncFrequencyMutation.isPending}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-order-sync-frequency-${integration.id}`}>
-                                <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {SYNC_OPTIONS.map((o) => (
-                                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => syncOrdersNowMutation.mutate()}
-                              disabled={syncOrdersNowMutation.isPending}
-                              data-testid={`button-sync-orders-${integration.id}`}
-                            >
-                              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncOrdersNowMutation.isPending ? "animate-spin" : ""}`} />
-                              Sync maintenant
-                            </Button>
-                            {integration.lastOrderSyncAt && (
-                              <span className="text-xs text-muted-foreground">
-                                Dernier : {new Date(integration.lastOrderSyncAt).toLocaleString("fr-CA")}
-                              </span>
-                            )}
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Commandes</span>
+                              <Select
+                                value={String(integration.orderSyncFrequencyMinutes ?? 0)}
+                                onValueChange={(v) =>
+                                  updateOrderSyncFrequencyMutation.mutate({ id: integration.id, orderSyncFrequencyMinutes: Number(v) })
+                                }
+                                disabled={updateOrderSyncFrequencyMutation.isPending}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-order-sync-frequency-${integration.id}`}>
+                                  <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SYNC_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => syncOrdersNowMutation.mutate()}
+                                disabled={syncOrdersNowMutation.isPending}
+                                data-testid={`button-sync-orders-${integration.id}`}
+                                title="Met à jour les commandes Shopify immédiatement"
+                              >
+                                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncOrdersNowMutation.isPending ? "animate-spin" : ""}`} />
+                                Sync commandes
+                              </Button>
+                              {integration.lastOrderSyncAt && (
+                                <span className="text-xs text-muted-foreground">
+                                  Dernier sync : {new Date(integration.lastOrderSyncAt).toLocaleString("fr-CA")}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground/60 ml-[88px]">
+                              Met à jour les commandes Shopify uniquement. N'importe pas de nouveaux produits.
+                            </p>
                           </div>
                         </div>
                       );

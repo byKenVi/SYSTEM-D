@@ -280,6 +280,11 @@ export class DatabaseStorage implements IStorage {
       and(
         eq(shopifyIntegrations.isActive, true),
         gt(shopifyIntegrations.syncFrequencyMinutes, 0),
+        // Exclude integrations paused due to consecutive errors
+        or(
+          isNull(shopifyIntegrations.syncPausedUntil),
+          sql`${shopifyIntegrations.syncPausedUntil} <= NOW()`
+        ),
         or(
           isNull(shopifyIntegrations.lastAutoSyncAt),
           sql`${shopifyIntegrations.lastAutoSyncAt} < NOW() - (${shopifyIntegrations.syncFrequencyMinutes} || ' minutes')::interval`

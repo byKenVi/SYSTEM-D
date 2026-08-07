@@ -4,6 +4,8 @@ import { fetchWooProducts } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
+const MAX_CONSECUTIVE_ERRORS = 3;
+const PAUSE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 let isSyncing = false;
 
 export function startShopifySyncScheduler() {
@@ -22,12 +24,19 @@ export function startShopifySyncScheduler() {
       log(`Found ${integrations.length} integration(s) due for sync`, "sync");
 
       for (const integration of integrations) {
+        // Skip if sync is paused due to consecutive errors
+        if (integration.syncPausedUntil && new Date(integration.syncPausedUntil) > new Date()) {
+          log(`Skipping paused integration ${integration.id} (${integration.storeUrl}) — paused until ${integration.syncPausedUntil}`, "sync");
+          continue;
+        }
+
         try {
           const existingProducts = await storage.getProductsByContactId(integration.contactId);
           const importedVariantIds = new Set(
             existingProducts.filter((p) => p.shopifyVariantId).map((p) => p.shopifyVariantId!)
           );
 
+          // If nothing imported yet, skip — admin should do first import manually
           if (importedVariantIds.size === 0) {
             await storage.updateShopifyIntegration(integration.id, { lastAutoSyncAt: new Date() } as any);
             continue;
@@ -48,14 +57,44 @@ export function startShopifySyncScheduler() {
           );
 
           let updated = 0;
+          let added = 0;
           for (const p of normalized) {
-            if (!importedVariantIds.has(p.shopifyVariantId)) continue;
-
+            const isNew = !importedVariantIds.has(p.shopifyVariantId);
             const existing = existingByVariant.get(p.shopifyVariantId);
-            // Only trust the Zoho stock value when it is explicitly positive, OR when Shopify also
-            // reports 0 (no discrepancy). A Zoho value of 0 while Shopify still has stock indicates a
-            // failed or incomplete sync — in that case keep the Shopify quantity to avoid a false
-            // out-of-stock and flag the discrepancy in the activity log.
+
+            // For new products: simply upsert with Shopify data
+            if (isNew) {
+              await storage.upsertProductByShopifyVariant(integration.contactId, p.shopifyVariantId, {
+                contactId: integration.contactId,
+                shopifyProductId: p.shopifyProductId,
+                shopifyVariantId: p.shopifyVariantId,
+                shopifyInventoryItemId: p.shopifyInventoryItemId,
+                shopifyStoreUrl: integration.storeUrl,
+                name: p.name,
+                sku: p.sku,
+                barcode: p.barcode,
+                description: p.description,
+                imageUrl: p.imageUrl,
+                vendor: p.vendor,
+                productType: p.productType,
+                tags: p.tags,
+                weight: p.weight,
+                weightUnit: p.weightUnit,
+                price: p.price,
+                compareAtPrice: p.compareAtPrice,
+                inventoryQuantity: p.inventoryQuantity,
+                zohoInventoryQuantity: null,
+                shopifyStatus: p.shopifyStatus,
+                shopifyHandle: p.shopifyHandle,
+                pushedToZoho: false,
+                zohoItemId: null,
+                lastSyncedAt: new Date(),
+              });
+              added++;
+              continue;
+            }
+
+            // For existing products: apply Zoho stock priority logic
             const zohoQty = existing?.zohoInventoryQuantity ?? null;
             const zohoIsZeroWithPositiveShopify =
               existing?.pushedToZoho &&
@@ -67,7 +106,6 @@ export function startShopifySyncScheduler() {
               !zohoIsZeroWithPositiveShopify;
 
             if (zohoIsZeroWithPositiveShopify) {
-              // Log the discrepancy so the admin can investigate
               storage
                 .createActivityLog({
                   type: "zoho_inventory_sync",
@@ -106,12 +144,53 @@ export function startShopifySyncScheduler() {
             updated++;
           }
 
-          await storage.updateShopifyIntegration(integration.id, { lastAutoSyncAt: new Date() } as any);
-          log(`Auto-synced ${updated} products for integration ${integration.id} (${integration.storeUrl})`, "sync");
-          await storage.createActivityLog({ type: "shopify_auto_sync", status: "success", message: `Auto-sync: updated ${updated} product${updated !== 1 ? "s" : ""} from ${integration.storeUrl}` });
+          // Success — reset error counters
+          await storage.updateShopifyIntegration(integration.id, {
+            lastAutoSyncAt: new Date(),
+            consecutiveErrors: 0,
+            connectionStatus: "ok",
+            syncPausedUntil: null,
+            lastConnectionError: null,
+          } as any);
+
+          const summary = [
+            updated > 0 && `${updated} mis à jour`,
+            added > 0 && `${added} nouveau${added > 1 ? "x" : ""}`,
+          ].filter(Boolean).join(", ");
+          log(`Auto-synced (${summary || "aucun changement"}) for integration ${integration.id} (${integration.storeUrl})`, "sync");
+          if (updated > 0 || added > 0) {
+            await storage.createActivityLog({ type: "shopify_auto_sync", status: "success", message: `Auto-sync : ${summary} produit(s) depuis ${integration.storeUrl}` });
+          }
         } catch (err: any) {
-          log(`Auto-sync error for integration ${integration.id}: ${err.message}`, "sync");
-          await storage.createActivityLog({ type: "shopify_auto_sync", status: "error", message: `Auto-sync failed for ${integration.storeUrl}: ${err.message}` });
+          const is401 = err.message?.includes("401");
+          const prevErrors = (integration as any).consecutiveErrors ?? 0;
+          const newConsecutiveErrors = prevErrors + 1;
+          const shouldPause = newConsecutiveErrors >= MAX_CONSECUTIVE_ERRORS;
+
+          const updateData: Record<string, any> = {
+            consecutiveErrors: newConsecutiveErrors,
+            connectionStatus: is401 ? "invalid_token" : "error",
+            lastConnectionError: err.message,
+          };
+          if (shouldPause) {
+            updateData.syncPausedUntil = new Date(Date.now() + PAUSE_DURATION_MS);
+          }
+          await storage.updateShopifyIntegration(integration.id, updateData as any);
+
+          // Only log on first error or when pausing — avoid flooding activity_logs
+          if (newConsecutiveErrors === 1 || shouldPause) {
+            const msg = shouldPause
+              ? `Sync suspendue pour ${integration.storeUrl} après ${newConsecutiveErrors} erreurs consécutives (reprise dans 30 min). Erreur : ${err.message}`
+              : `Auto-sync error for integration ${integration.id}: ${err.message}`;
+            log(msg, "sync");
+            await storage.createActivityLog({
+              type: "shopify_auto_sync",
+              status: "error",
+              message: shouldPause
+                ? `Sync Shopify suspendue pour ${integration.storeUrl} — token invalide ou store inaccessible. Reprise automatique dans 30 min.`
+                : `Auto-sync failed for ${integration.storeUrl}: ${err.message}`,
+            });
+          }
         }
       }
     } catch (err: any) {

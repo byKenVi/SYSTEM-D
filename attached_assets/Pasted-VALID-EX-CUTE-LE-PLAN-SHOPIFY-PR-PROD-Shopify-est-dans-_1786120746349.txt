@@ -1,0 +1,169 @@
+VALIDÉ — EXÉCUTE LE PLAN SHOPIFY PRÉ-PROD.
+
+Shopify est dans le scope production.
+La gestion des produits Shopify doit fonctionner et être intuitive.
+Le statut production reste NO-GO tant que Shopify n’est pas corrigé, configuré et testé.
+
+Ne modifie pas Zoho.
+Ne modifie pas Resend.
+Ne modifie pas Stripe.
+Ne modifie pas les PDFs.
+Ne fais pas de refonte générale.
+
+==================================================
+LOT 1 — CORRECTIONS BLOQUANTES SHOPIFY
+==================================================
+
+1. Backoff / suspension sur erreurs 401
+
+Problème :
+Le scheduler Shopify génère actuellement une erreur 401 toutes les 60 secondes avec un token invalide.
+C’est inacceptable en production.
+
+Correction attendue :
+- détecter les erreurs Shopify 401 / token invalide ;
+- ne pas spammer activity_logs à chaque cycle ;
+- après plusieurs erreurs consécutives, suspendre temporairement la sync de cette intégration ;
+- afficher clairement dans l’admin que la connexion Shopify est invalide ;
+- permettre à l’admin de corriger le token puis retester.
+
+Implémentation possible :
+- ajouter un champ syncPausedUntil ou équivalent ;
+- ajouter un champ lastSyncError / lastConnectionStatus si nécessaire ;
+- ne pas désactiver silencieusement l’intégration sans message admin ;
+- ne pas supprimer les produits déjà importés si le token devient invalide.
+
+Important :
+Les produits déjà importés doivent rester visibles.
+Un token invalide doit bloquer la mise à jour, pas vider le catalogue.
+
+==================================================
+LOT 2 — TEST CONNEXION SHOPIFY
+==================================================
+
+Ajouter un vrai test de connexion sur les intégrations Shopify existantes.
+
+Attendu côté backend :
+- endpoint admin-only pour tester une intégration Shopify existante ;
+- test via Shopify /shop.json ou équivalent déjà utilisé dans le connect initial ;
+- réponse claire :
+  - connexion OK ;
+  - token invalide ;
+  - store inaccessible ;
+  - autre erreur propre.
+
+Attendu côté frontend :
+- bouton “Tester la connexion” sur chaque intégration Shopify ;
+- badge visible :
+  - “Connexion OK” ;
+  - “Token invalide” ;
+  - “Jamais testé” ;
+  - “Erreur de connexion”.
+- afficher la date du dernier test si disponible.
+
+Ne jamais exposer le token dans le frontend.
+
+==================================================
+LOT 3 — UX GESTION PRODUITS SHOPIFY
+==================================================
+
+Clarifier les boutons et les états.
+
+Renommer :
+- “Importer” → “Importer tous les produits Shopify”
+- “Sync maintenant” → “Synchroniser les commandes Shopify maintenant”
+ou autre libellé équivalent mais clair.
+
+Ajouter une explication courte :
+- “Importer tous les produits Shopify” recharge le catalogue produits depuis Shopify.
+- “Synchroniser les commandes Shopify maintenant” met à jour les commandes Shopify.
+- Si le token est invalide, l’import et la synchronisation ne peuvent pas fonctionner.
+
+Afficher clairement :
+- dernier import produits ;
+- dernière synchronisation réussie ;
+- dernière erreur si présente ;
+- nombre de produits importés pour le client ;
+- client associé à la boutique Shopify.
+
+==================================================
+LOT 4 — NOUVEAUX PRODUITS SHOPIFY
+==================================================
+
+L’audit indique que l’auto-sync met à jour uniquement les variants déjà importés et ignore les nouveaux produits Shopify.
+
+Analyse puis corrige si possible sans refonte :
+- soit l’auto-sync produit doit aussi upsert les nouveaux produits actifs Shopify ;
+- soit il faut clairement limiter l’auto-sync aux mises à jour et rendre le bouton “Importer tous les produits Shopify” évident pour ajouter les nouveaux produits.
+
+Ma préférence :
+Si le risque est faible, corriger l’auto-sync pour upsert aussi les nouveaux produits actifs.
+Si le risque est trop élevé avant prod, ne change pas la logique automatique, mais rends le fonctionnement explicite dans l’interface.
+
+Dans tous les cas, l’admin doit comprendre comment faire apparaître un nouveau produit Shopify dans Système D.
+
+==================================================
+LOT 5 — CONFIGURATION MANUELLE À GUIDER
+==================================================
+
+Après les corrections code, donne-moi les étapes exactes pour régénérer le token Shopify :
+
+- où aller dans Shopify ;
+- quel token récupérer ;
+- où le remettre dans Système D ;
+- s’il faut déconnecter/reconnecter ou simplement remplacer ;
+- quel bouton cliquer ensuite ;
+- comment confirmer que ça marche.
+
+Ne mets jamais le token dans les logs.
+Ne demande pas de coller le token dans le chat.
+
+==================================================
+TESTS OBLIGATOIRES
+==================================================
+
+Après implémentation :
+
+1. Typecheck.
+2. Build.
+3. Test avec token invalide :
+   - badge “Token invalide” visible ;
+   - pas de flood 401 toutes les 60 secondes ;
+   - produits déjà importés toujours visibles ;
+   - message admin clair.
+
+4. Test avec token valide, si disponible :
+   - test connexion OK ;
+   - import produits OK ;
+   - produits visibles côté admin ;
+   - produits visibles côté portail client ;
+   - dernier import / dernière sync affichés clairement.
+
+5. Test UX :
+   - l’admin comprend la différence entre import produits et sync commandes ;
+   - l’admin sait quoi faire si le token est invalide ;
+   - l’admin sait comment importer de nouveaux produits.
+
+==================================================
+RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+
+A. Fichiers modifiés
+B. Corrections appliquées
+C. Nouveaux champs DB si ajoutés
+D. Comportement token invalide
+E. Comportement token valide
+F. Explication du flux produit Shopify final
+G. Étapes manuelles pour régénérer/reconnecter le token
+H. Résultat typecheck
+I. Résultat build
+J. Tests réalisés
+K. Statut final :
+   - GO Shopify production
+   - ou NO-GO Shopify production avec raisons précises
+
+Termine par :
+
+“CORRECTIONS SHOPIFY PRÉ-PROD TERMINÉES — PRÊT POUR VALIDATION MANUELLE.”
