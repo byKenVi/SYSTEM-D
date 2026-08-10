@@ -1,0 +1,181 @@
+VALIDÉ — EXÉCUTE LES CORRECTIONS ARTICLES ZOHO / INVENTAIRE AVANT PRODUCTION.
+
+Objectif :
+Je veux déployer après cette phase, donc il ne faut pas seulement masquer le problème.
+Il faut corriger l’affichage Inventaire ET empêcher que Zoho Inventory soit pollué par un nouvel article à chaque soumission approuvée.
+
+Ne déploie rien.
+Ne supprime aucun article Zoho existant.
+Ne rends aucun ancien article inactif automatiquement.
+Ne modifie pas Shopify, Resend, Stripe ou les PDFs.
+Ne change pas Zoho OAuth.
+
+==================================================
+LOT 1 — INVENTAIRE ADMIN : MASQUER LES ARTICLES OPÉRATIONNELS
+==================================================
+
+Problème :
+Dans Admin > Inventaire, on voit des articles opérationnels créés depuis les soumissions :
+- ENT-006 - Entreposage
+- ENT-007 - Entreposage
+- INS-001 - Inspection
+- F015-006 - Co-packing
+- LIV / TRI, etc.
+
+Correction attendue :
+Dans la page Inventaire principale, masquer par défaut les items opérationnels dont :
+
+- product_type = service
+ET
+- name commence par un préfixe opérationnel :
+  ENT-
+  LIV-
+  TRI-
+  INS-
+  F[0-9]-
+
+Important :
+- Ne pas masquer les vrais produits catalogue.
+- Ne pas filtrer par stock.
+- Les produits en rupture doivent rester visibles.
+- Les produits client doivent rester visibles dans le bon contexte admin.
+- Ne jamais exposer les produits unresolved côté client.
+
+Ajouter si simple :
+- un toggle admin “Afficher les services opérationnels”
+- désactivé par défaut
+- utile seulement pour diagnostic.
+
+==================================================
+LOT 2 — NE PLUS CRÉER UN ARTICLE ZOHO PAR SOUMISSION
+==================================================
+
+Problème actuel :
+createFormSalesOrder() crée toujours un nouvel item Zoho via POST /items avec le nom :
+{formNumber} - {formType}
+
+Exemples :
+- ENT-006 - Entreposage
+- F015-006 - Co-packing
+- INS-001 - Inspection
+
+Ce comportement ne doit pas continuer en production.
+
+Correction attendue :
+Remplacer la création d’un article unique par soumission par une logique de réutilisation d’articles/services génériques.
+
+Articles génériques à utiliser :
+- Service - Entreposage
+- Service - Co-packing
+- Service - Inspection
+- Service - Livraison
+- Service - Tri
+
+Nouvelle logique dans createFormSalesOrder() :
+
+1. Déterminer l’article générique selon formType.
+2. Chercher dans Zoho Inventory si cet article générique existe déjà.
+3. Si l’article existe :
+   - réutiliser son item_id.
+4. Si l’article n’existe pas :
+   - le créer une seule fois dans Zoho Inventory comme service sales.
+5. Créer le Sales Order avec cet item générique.
+6. Mettre les détails spécifiques de la soumission dans :
+   - description de ligne ;
+   - notes du Sales Order ;
+   - référence ;
+   - numéro de soumission ;
+   - nom du client ;
+   - détails utiles du formulaire.
+
+Important :
+Le nom de l’article Zoho ne doit plus être ENT-006 / F015-006 / INS-001.
+Le numéro de soumission doit être dans la description ou les notes, pas dans le nom d’un nouvel article.
+
+==================================================
+LOT 3 — DÉDUPLICATION / RETRY
+==================================================
+
+Corrige aussi le risque de doublon.
+
+Si un Sales Order Zoho existe déjà pour une soumission :
+- ne pas créer un nouveau Sales Order ;
+- ne pas créer un nouvel item ;
+- retourner clairement que le Sales Order existe déjà.
+
+Si un retry admin est nécessaire :
+- il doit réutiliser l’article générique ;
+- il ne doit pas créer un article Zoho opérationnel supplémentaire.
+
+==================================================
+LOT 4 — ANCIENS ARTICLES ZOHO
+==================================================
+
+Ne touche pas automatiquement aux anciens articles Zoho déjà créés :
+- ENT-006
+- ENT-007
+- F015-006
+- INS-001
+- etc.
+
+Ils peuvent rester dans Zoho pour préserver les Sales Orders existants.
+
+Mais dans Système D :
+- ils ne doivent plus apparaître par défaut dans Inventaire ;
+- ils ne doivent pas apparaître dans la boutique ;
+- ils peuvent être visibles seulement via un filtre diagnostic admin si implémenté.
+
+==================================================
+TESTS OBLIGATOIRES
+==================================================
+
+Après correction :
+
+1. Typecheck.
+2. Build.
+
+Tests inventaire :
+- Admin > Inventaire ne montre plus ENT / LIV / TRI / INS / F015 par défaut.
+- Les vrais produits restent visibles.
+- Les produits en rupture restent visibles.
+- Le toggle diagnostic, si ajouté, permet de voir les services opérationnels.
+
+Tests Zoho Sales Order :
+- Approuver une nouvelle soumission Entreposage.
+- Vérifier dans Zoho Inventory qu’aucun nouvel article ENT-xxx n’est créé.
+- Vérifier que le Sales Order utilise “Service - Entreposage”.
+- Vérifier que le numéro ENT-xxx apparaît dans la description / notes du Sales Order.
+
+Tests autres types :
+- Co-packing → utilise “Service - Co-packing”.
+- Inspection → utilise “Service - Inspection”.
+- Livraison → utilise “Service - Livraison”.
+- Tri → utilise “Service - Tri”.
+
+Tests retry :
+- Cliquer retry sur une soumission déjà liée à Zoho.
+- Vérifier qu’aucun doublon d’article n’est créé.
+- Vérifier qu’aucun doublon de Sales Order n’est créé si un Sales Order existe déjà.
+
+==================================================
+RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+
+A. Fichiers modifiés
+B. Nouvelle règle Inventaire
+C. Nouvelle logique createFormSalesOrder()
+D. Liste des articles génériques utilisés
+E. Comportement si l’article générique existe déjà
+F. Comportement si l’article générique n’existe pas
+G. Comportement retry
+H. Impact sur les anciens articles ENT / F015 / INS / LIV / TRI
+I. Résultat typecheck
+J. Résultat build
+K. Tests réalisés
+L. Statut final GO / NO-GO production
+
+Termine par :
+
+“CORRECTIONS ARTICLES ZOHO / INVENTAIRE TERMINÉES — PRÊT POUR VALIDATION MANUELLE.”

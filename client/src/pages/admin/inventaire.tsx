@@ -40,6 +40,7 @@ import {
   ExternalLink,
   BoxIcon,
   Trash2,
+  Wrench,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contact } from "@shared/schema";
@@ -66,6 +67,13 @@ interface InventoryResponse {
   total: number;
 }
 
+// Pattern matching operational service items created per soumission
+const OPERATIONAL_PREFIX_RE = /^(ENT|LIV|TRI|INS|F\d+)-/i;
+
+function isOperationalItem(item: ZohoInventoryItem): boolean {
+  return item.productType === "service" && OPERATIONAL_PREFIX_RE.test(item.name);
+}
+
 export default function AdminInventaire() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -73,6 +81,7 @@ export default function AdminInventaire() {
   const [groupBy, setGroupBy] = useState<boolean>(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<ZohoInventoryItem | null>(null);
+  const [showOperational, setShowOperational] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: (zohoItemId: string) => apiRequest("DELETE", `/api/zoho/items/${zohoItemId}`),
@@ -105,7 +114,10 @@ export default function AdminInventaire() {
 
   const items = data?.items ?? [];
 
+  const operationalCount = useMemo(() => items.filter(isOperationalItem).length, [items]);
+
   const filtered = useMemo(() => items.filter((item) => {
+    if (!showOperational && isOperationalItem(item)) return false;
     const matchesSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       (item.sku || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -116,7 +128,7 @@ export default function AdminInventaire() {
         ? !item.contactId
         : String(item.contactId) === clientFilter);
     return matchesSearch && matchesClient;
-  }), [items, search, clientFilter]);
+  }), [items, search, clientFilter, showOperational]);
 
   const groupedByClient = useMemo(() => {
     if (!groupBy) return [];
@@ -266,6 +278,22 @@ export default function AdminInventaire() {
         >
           <Layers className="h-3.5 w-3.5" />
           Grouper par client
+        </Button>
+        <Button
+          variant={showOperational ? "secondary" : "outline"}
+          size="sm"
+          className={`h-9 gap-1.5 text-xs ${showOperational ? "border-orange-400 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-700" : ""}`}
+          onClick={() => setShowOperational((p) => !p)}
+          data-testid="button-toggle-operational"
+          title="Services opérationnels créés par soumission (ENT-, LIV-, TRI-, INS-, F[n]-)"
+        >
+          <Wrench className="h-3.5 w-3.5" />
+          Services opérationnels
+          {operationalCount > 0 && (
+            <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 h-4">
+              {operationalCount}
+            </Badge>
+          )}
         </Button>
         {filtered.length !== items.length && (
           <Badge variant="secondary" className="tabular-nums">

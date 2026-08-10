@@ -2610,6 +2610,18 @@ export async function registerRoutes(
       if (!form) return res.status(404).json({ message: "Form not found" });
       if (form.status !== "approved") return res.status(400).json({ message: "Form must be approved" });
 
+      // LOT 3 — Deduplication: if a SO already exists, return it without creating a duplicate
+      if (form.zohoSalesOrderId) {
+        const region = await getZohoRegion();
+        return res.status(409).json({
+          message: "Un bon de commande Zoho existe déjà pour cette soumission.",
+          salesOrderId: form.zohoSalesOrderId,
+          salesOrderNumber: form.zohoSalesOrderNumber,
+          zohoSalesOrderUrl: form.zohoSalesOrderUrl ?? getZohoSOUrl(region, form.zohoSalesOrderId),
+          alreadyExists: true,
+        });
+      }
+
       const contact = await storage.getContact(form.contactId);
       if (!contact) return res.status(404).json({ message: "Contact not found" });
 

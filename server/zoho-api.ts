@@ -579,7 +579,52 @@ function buildFormDescription(formType: string, formData: any): string {
   }
 }
 
-// Create a service item + sales order in Zoho Inventory for an approved service request form
+// Generic service items reused across all soumissions (one per service type, not one per form)
+const GENERIC_SERVICE_ITEMS: Record<string, string> = {
+  entreposage: "Service - Entreposage",
+  tri:         "Service - Tri",
+  inspection:  "Service - Inspection",
+  copacking:   "Service - Co-packing",
+  livraison:   "Service - Livraison",
+};
+
+/**
+ * Find a generic service item in Zoho by name, or create it once if absent.
+ * Avoids creating a new Zoho article for every form approval.
+ */
+async function findOrCreateGenericItem(formType: string, region: string): Promise<string> {
+  const genericName = GENERIC_SERVICE_ITEMS[formType]
+    ?? `Service - ${FORM_TYPE_LABELS[formType] || formType}`;
+
+  // Search existing items by name
+  const searchData = await zohoRequest("GET", `/items?search_text=${encodeURIComponent(genericName)}&item_type=sales`, undefined, region);
+  const items: any[] = searchData.items ?? [];
+  const existing = items.find(
+    (i: any) => i.name?.trim().toLowerCase() === genericName.toLowerCase() && i.status !== "inactive",
+  );
+  if (existing?.item_id) {
+    console.log(`[zoho] Reusing generic item "${genericName}" (${existing.item_id})`);
+    return existing.item_id;
+  }
+
+  // Create the generic item once
+  console.log(`[zoho] Creating generic item "${genericName}"`);
+  const created = await zohoRequest("POST", "/items", {
+    name: genericName,
+    product_type: "service",
+    item_type: "sales",
+    unit: "qty",
+    rate: 0,
+    description: `Article générique réutilisé pour tous les bons de service de type ${FORM_TYPE_LABELS[formType] || formType}. Les détails spécifiques de chaque soumission figurent dans la description et les notes du bon de commande.`,
+  }, region);
+
+  const newId = created.item?.item_id;
+  if (!newId) throw new Error(`Failed to create generic Zoho item "${genericName}"`);
+  return newId;
+}
+
+// Create a sales order in Zoho Inventory for an approved service request form.
+// Uses a reusable generic service item instead of creating one per soumission.
 export async function createFormSalesOrder(params: {
   formNumber: string;
   formType: string;
@@ -593,33 +638,37 @@ export async function createFormSalesOrder(params: {
   // 1. Ensure customer exists in Zoho
   const customerId = await ensureZohoContact(params.contact);
 
-  // 2. Create a service-type item for this form
-  const itemName = `${params.formNumber} - ${FORM_TYPE_LABELS[params.formType] || params.formType}`;
-  const description = buildFormDescription(params.formType, params.formData);
+  // 2. Find or create the reusable generic service item (no new item per form)
+  const genericItemId = await findOrCreateGenericItem(params.formType, region);
 
-  const itemData = await zohoRequest("POST", "/items", {
-    name: itemName,
-    description,
-    rate: params.rate,
-    product_type: "service",
-    item_type: "sales",
-    unit: "qty",
-  }, region);
+  // 3. Build the line-item description with all submission-specific details
+  const genericName = GENERIC_SERVICE_ITEMS[params.formType]
+    ?? `Service - ${FORM_TYPE_LABELS[params.formType] || params.formType}`;
+  const formDetail = buildFormDescription(params.formType, params.formData);
+  const lineDescription = [
+    `Réf. soumission : ${params.formNumber}`,
+    formDetail ? `Détails : ${formDetail}` : null,
+    params.contact.companyName ? `Client : ${params.contact.companyName}` : null,
+  ].filter(Boolean).join("\n");
 
-  const itemId = itemData.item?.item_id;
-  if (!itemId) throw new Error("Failed to create Zoho service item");
+  const soNotes = [
+    `Demande de service ${params.formNumber} approuvée via Système D`,
+    params.contact.companyName ? `Client : ${params.contact.companyName}` : null,
+    formDetail ? `Détails : ${formDetail}` : null,
+  ].filter(Boolean).join("\n");
 
-  // 3. Create the sales order
+  // 4. Create the sales order using the generic item
   const soData = await zohoRequest("POST", "/salesorders", {
     customer_id: customerId,
+    reference_number: params.formNumber,
     line_items: [{
-      item_id: itemId,
-      name: itemName,
-      description,
+      item_id: genericItemId,
+      name: genericName,
+      description: lineDescription,
       quantity: params.quantity,
       rate: params.rate,
     }],
-    notes: `Demande de service ${params.formNumber} approuvée via Système D`,
+    notes: soNotes,
   }, region);
 
   const so = soData.salesorder;
