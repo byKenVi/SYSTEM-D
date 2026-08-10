@@ -728,7 +728,7 @@ export default function AdminBoutique() {
                     key={product.zohoItemId}
                     className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     data-testid={`card-systemd-product-${product.zohoItemId}`}
-                    onClick={() => navigate(`/portal/systemd/${product.zohoItemId}`)}
+                    onClick={() => window.open(`/portal/systemd/${product.zohoItemId}`, "_blank", "noopener,noreferrer")}
                   >
                     <div className="aspect-square bg-muted/30 border-b flex items-center justify-center overflow-hidden">
                       <img

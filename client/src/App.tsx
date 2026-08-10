@@ -93,7 +93,24 @@ function AdminLayout() {
   );
 }
 
-function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
+function AdminPortalBanner() {
+  return (
+    <div className="bg-amber-500/10 border-b border-amber-400/30 px-6 py-2 flex items-center justify-between gap-4 flex-wrap shrink-0" data-testid="banner-admin-on-portal">
+      <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+        <Eye className="h-4 w-4 flex-shrink-0" />
+        <span className="font-medium">Vous consultez la vue client en tant qu'administrateur</span>
+      </div>
+      <Link href="/admin/dashboard">
+        <Button size="sm" variant="outline" className="h-8 text-xs font-semibold border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20" data-testid="button-return-to-admin">
+          <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+          Retour à l'admin
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: number; showAdminReturn?: boolean }) {
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -119,6 +136,7 @@ function ClientLayout({ viewAsContactId }: { viewAsContactId?: number }) {
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
       <SidebarInset className="overflow-hidden bg-background">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
+        {showAdminReturn && <AdminPortalBanner />}
         {/* En-tête mobile : visible uniquement en dessous de md */}
         <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-2.5 bg-background/95 backdrop-blur-sm border-b border-border/50 shrink-0">
           <SidebarTrigger className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg" />
@@ -264,6 +282,7 @@ function AccessDenied() {
 function AuthenticatedApp() {
   const { data: userRole, isLoading: roleLoading, isError, error } = useQuery<UserRole>({
     queryKey: ["/api/auth/role"],
+    staleTime: 1000 * 60 * 5, // 5 min — prevents aggressive refetch that could flash wrong role
     retry: (failureCount, err) => {
       if (err instanceof Error && err.message.startsWith("401:")) return false;
       return failureCount < 2;
@@ -321,7 +340,9 @@ function AuthenticatedApp() {
   }
 
   if (location.startsWith("/admin")) {
-    if (role !== "admin") return <Redirect to="/portal/profile" />;
+    // Never redirect a non-admin to /portal — show access denied instead.
+    // A transient wrong role must not silently switch the user out of admin context.
+    if (role !== "admin") return <AccessDenied />;
     return <AdminLayout />;
   }
 
@@ -329,7 +350,9 @@ function AuthenticatedApp() {
     const params = new URLSearchParams(window.location.search);
     const viewAs = params.get("viewAs");
     const viewAsContactId = role === "admin" && viewAs ? Number(viewAs) : undefined;
-    return <ClientLayout viewAsContactId={viewAsContactId} />;
+    // Admin browsing portal without explicit viewAs gets a return-to-admin banner
+    const isAdminOnPortal = role === "admin" && !viewAs;
+    return <ClientLayout viewAsContactId={viewAsContactId} showAdminReturn={isAdminOnPortal} />;
   }
 
   return <Redirect to={role === "admin" ? "/admin/dashboard" : "/portal/dashboard"} />;

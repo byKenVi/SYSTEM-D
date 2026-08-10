@@ -1,0 +1,152 @@
+Nouveau bug critique pré-production — bascule non volontaire Admin → Client.
+
+Problème observé :
+De temps en temps, sans action claire, l’application bascule de la vue admin vers la vue client.
+Exemples :
+- l’URL passe de /admin/... à /portal ou /portal/...
+- certaines pages admin deviennent inaccessibles ;
+- il faut parfois ajouter /admin manuellement dans l’URL ;
+- parfois il faut hard refresh plusieurs fois pour retrouver la vue admin.
+
+C’est bloquant avant production.
+
+Contexte :
+Je comprends l’utilité de pouvoir switcher entre vue admin et vue client, mais ce switch doit être fait volontairement par l’utilisateur.
+Il ne doit jamais arriver automatiquement à cause d’un refresh, d’un état localStorage, d’un role guard, d’une erreur d’auth ou d’un fallback route.
+
+Ne déploie rien.
+Ne fais pas de refonte.
+Ne modifie pas les intégrations Zoho, Shopify, Resend ou paiement.
+Commence par analyser puis corrige le bug si la cause est claire.
+
+==================================================
+1. ANALYSE DES ROUTES ET REDIRECTIONS
+==================================================
+
+Analyse toute la logique de routing :
+
+- routes /admin/*
+- routes /portal/*
+- ProtectedRoute
+- AdminRoute
+- ClientRoute
+- redirects après login
+- redirects après refresh
+- redirects si rôle manquant
+- redirects si session en loading
+- fallback route
+- navigation sidebar
+- view-as mode si présent
+- stockage localStorage/sessionStorage lié au rôle ou à la vue
+
+Cherche précisément ce qui peut provoquer :
+- un navigate("/portal")
+- un redirect vers /portal
+- un remplacement de /admin par /portal
+- un fallback vers le portail client quand l’état auth est temporairement vide ou loading.
+
+==================================================
+2. CAUSES PROBABLES À VÉRIFIER
+==================================================
+
+Vérifie notamment :
+
+1. Est-ce que pendant le chargement de l’utilisateur, le rôle est temporairement undefined/null, puis l’app redirige vers /portal ?
+2. Est-ce qu’un admin qui a aussi un contactId client est traité comme client par défaut ?
+3. Est-ce que le système choisit /portal comme destination par défaut si plusieurs rôles existent ?
+4. Est-ce que localStorage garde une ancienne vue “portal” et force le redirect ?
+5. Est-ce que le mode view-as client reste actif après refresh ou navigation ?
+6. Est-ce qu’un 401/403 temporaire sur une route admin renvoie vers /portal au lieu d’afficher une erreur ou de garder la page ?
+7. Est-ce qu’un composant Layout admin déclenche un navigate vers /portal ?
+8. Est-ce que la sidebar ou le menu utilisateur contient un lien incorrect ?
+9. Est-ce qu’une query auth/refetch déclenche un redirect avant d’avoir fini de charger ?
+10. Est-ce que le rôle admin est bien prioritaire sur client quand l’utilisateur est admin ?
+
+==================================================
+3. RÈGLES ATTENDUES
+==================================================
+
+Règles à appliquer :
+
+1. Si l’utilisateur est admin et se trouve sur /admin/* :
+   - ne jamais le rediriger automatiquement vers /portal.
+   - attendre la fin du chargement auth avant toute décision.
+
+2. Si l’utilisateur est admin + client :
+   - admin doit rester admin par défaut sur les routes /admin.
+   - portal ne doit être utilisé que si l’utilisateur clique volontairement sur une action de switch.
+
+3. Si le mode view-as existe :
+   - il doit être explicite ;
+   - il doit afficher un indicateur clair “Vue client active” ;
+   - il doit avoir un bouton “Retour admin” visible ;
+   - il ne doit pas persister de façon dangereuse après logout / changement de compte ;
+   - il ne doit pas rediriger automatiquement un admin vers /portal sans confirmation.
+
+4. Si l’utilisateur n’a pas accès à une page :
+   - afficher une erreur claire ou rediriger vers la bonne zone selon son rôle réel ;
+   - ne pas faire de fallback silencieux vers /portal.
+
+5. Pendant auth/loading :
+   - afficher un loader ;
+   - ne pas rediriger tant que le rôle n’est pas connu.
+
+==================================================
+4. CORRECTION ATTENDUE
+==================================================
+
+Corrige la cause identifiée.
+
+Objectif :
+- un admin reste sur /admin tant qu’il n’a pas volontairement choisi de passer en vue client ;
+- un refresh sur /admin/... reste sur /admin/... ;
+- une navigation admin ne bascule jamais vers /portal ;
+- le view-as ne s’active jamais automatiquement ;
+- le retour admin est simple et visible ;
+- aucune boucle de redirection ;
+- aucun besoin de hard refresh pour récupérer l’accès admin.
+
+Ajoute si utile :
+- logs de debug temporaires côté serveur ou console uniquement en dev ;
+- tests de route guard ;
+- garde-fous localStorage/sessionStorage.
+
+Ne laisse pas de logs verbeux en production.
+
+==================================================
+5. TESTS OBLIGATOIRES
+==================================================
+
+Tester :
+
+1. Connexion admin → arrive sur dashboard admin.
+2. Refresh sur /admin/settings → reste sur /admin/settings.
+3. Refresh sur /admin/boutique → reste sur /admin/boutique.
+4. Refresh sur /admin/inventaire → reste sur /admin/inventaire.
+5. Navigation admin entre pages → jamais redirigé vers /portal.
+6. Admin avec contactId client → reste admin sur /admin.
+7. Passage volontaire en vue client → fonctionne.
+8. Retour volontaire admin → fonctionne.
+9. Après retour admin, refresh → reste admin.
+10. Logout/login → aucun ancien mode view-as ne force /portal.
+11. URL /portal utilisée volontairement par admin → autorisée si logique prévue, mais ne doit pas casser /admin.
+12. Client non-admin → ne peut pas accéder à /admin.
+
+==================================================
+6. RAPPORT FINAL ATTENDU
+==================================================
+
+Fournis :
+
+A. Cause exacte du switch admin → portal
+B. Fichiers modifiés
+C. Règle de redirection corrigée
+D. Comportement du mode view-as après correction
+E. Résultat typecheck
+F. Résultat build
+G. Tests réalisés
+H. Statut final GO / NO-GO production
+
+Termine par :
+
+“BUG SWITCH ADMIN/CLIENT CORRIGÉ — PRÊT POUR VALIDATION MANUELLE.”
