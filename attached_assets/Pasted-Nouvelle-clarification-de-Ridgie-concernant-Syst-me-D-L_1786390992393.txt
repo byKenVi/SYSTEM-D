@@ -1,0 +1,120 @@
+Nouvelle clarification de Ridgie concernant Système D :
+
+Le paiement ne se fera pas avec Stripe.
+Ridgie confirme :
+“Ce ne sera pas Stripe, ce sera Global Payments. Je vais te mettre en contact avec le responsable quand nous aurons une boutique à brancher.”
+
+Donc :
+- ne pas implémenter Stripe ;
+- ne pas supprimer à l’aveugle le code existant si cela risque de casser l’app ;
+- préparer l’architecture pour Global Payments ;
+- empêcher toute confusion dans l’interface ;
+- bloquer proprement tout paiement carte tant que Global Payments n’est pas configuré.
+
+Ne déploie rien.
+Ne touche pas à Zoho.
+Ne touche pas à Resend.
+Ne touche pas aux PDFs.
+Ne touche pas à la logique Shopify produit sauf si nécessaire pour le paiement.
+Ne crée pas de fausse intégration Global Payments.
+
+==================================================
+PHASE 1 — ANALYSE SANS MODIFICATION
+==================================================
+
+Analyse le code actuel et réponds d’abord sans modifier :
+
+1. Où Stripe est encore mentionné dans le code ?
+   - frontend ;
+   - backend ;
+   - routes ;
+   - variables d’environnement ;
+   - checkout ;
+   - logs ;
+   - messages utilisateur ;
+   - checklist production.
+
+2. Est-ce qu’un vrai paiement Stripe est actuellement fonctionnel ?
+3. Est-ce que le checkout Système D dépend encore de Stripe ?
+4. Qu’est-ce qui se passe aujourd’hui quand un client clique sur checkout / payer ?
+5. Est-ce qu’il existe un mode dev bypass ?
+6. Est-ce que ce bypass peut être actif en production ?
+7. Quels endroits doivent être changés pour remplacer la notion “Stripe” par une notion générique :
+   - paiement par carte ;
+   - fournisseur de paiement ;
+   - Global Payments à configurer.
+
+==================================================
+PHASE 2 — CORRECTION AUTORISÉE
+==================================================
+
+Après analyse, corrige uniquement ce qui est nécessaire pour préparer la prod sans Stripe.
+
+Objectifs :
+
+1. Ne plus afficher Stripe dans l’interface
+- Remplacer les libellés “Stripe” par “Paiement par carte” ou “Global Payments”, selon le contexte.
+- Dans les paramètres admin, afficher :
+  “Global Payments — à configurer”
+  plutôt que Stripe.
+
+2. Empêcher un paiement carte non configuré
+- Si le mode paiement carte est sélectionné mais que Global Payments n’est pas configuré :
+  - ne pas créer de faux paiement ;
+  - ne pas afficher une erreur technique ;
+  - afficher un message français clair :
+    “Le paiement par carte n’est pas encore configuré. Veuillez contacter l’administration.”
+- Côté backend, refuser aussi l’opération si le paiement carte n’est pas configuré.
+- Ne jamais faire confiance seulement au frontend.
+
+3. Préparer une architecture propre pour Global Payments
+- Ajouter une abstraction de fournisseur de paiement si nécessaire :
+  - provider = global_payments
+  - status = not_configured / configured / error
+- Ne pas coder l’appel API Global Payments tant qu’on n’a pas :
+  - documentation ;
+  - credentials ;
+  - sandbox ;
+  - webhook details ;
+  - responsable technique.
+
+4. Shopify Credit
+- Ne pas confondre Shopify Credit et Global Payments.
+- Laisser le paiement par crédit Shopify comme mode séparé seulement si déjà prévu.
+- Si ce mode n’est pas encore fonctionnel, afficher clairement qu’il est à configurer/tester.
+- Ne pas déduire de crédit Shopify sans token Shopify valide.
+
+5. Sécurité prod
+- Vérifier que SYSTEMD_DEV_CHECKOUT_BYPASS ne peut jamais être utilisé en production.
+- Si Stripe env vars existent encore, elles ne doivent pas être requises pour la prod.
+- La checklist prod doit mentionner Global Payments, pas Stripe.
+
+6. Rapport Release Candidate
+- Mettre à jour le statut :
+  - Stripe : hors scope / remplacé par Global Payments.
+  - Global Payments : à configurer quand Ridgie fournit le responsable et la boutique.
+  - Paiement carte : NO-GO si le paiement carte est requis au go-live.
+  - GO possible seulement si la vente/paiement en ligne est explicitement hors scope du premier déploiement.
+
+==================================================
+RAPPORT ATTENDU
+==================================================
+
+Réponds avec :
+
+A. Tous les endroits où Stripe était encore présent
+B. Ce qui a été remplacé
+C. Ce qui a été désactivé ou sécurisé
+D. Nouveau comportement checkout si Global Payments n’est pas configuré
+E. Statut Shopify Credit
+F. Variables d’environnement prod à retirer ou ajouter
+G. Fichiers modifiés
+H. Résultat typecheck
+I. Résultat build
+J. Statut final :
+   - GO si paiement en ligne hors scope du déploiement
+   - NO-GO si paiement en ligne requis avant prod
+
+Termine par :
+
+“PRÉPARATION GLOBAL PAYMENTS TERMINÉE — PRÊT POUR VALIDATION MANUELLE.”

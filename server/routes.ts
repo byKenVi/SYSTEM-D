@@ -3716,67 +3716,18 @@ export async function registerRoutes(
         return res.json({ url: `${host}/portal/boutique?tab=systemd-orders&payment=success` });
       }
 
-      // ── Flux Stripe normal ───────────────────────────────────────────────────
-      // Étape 1 : lecture rapide (couvre ~99 % des doublons — renvoi après quelques
-      // secondes/minutes avec le même panier). Vérifie pending ET paid (webhook
-      // peut avoir confirmé entre temps).
-      const existingOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
-      if (existingOrder?.stripeCheckoutUrl) {
-        console.log(`[systemd-checkout] Commande existante #${existingOrder.id} réutilisée (${existingOrder.status})`);
-        return res.json({ url: existingOrder.stripeCheckoutUrl });
-      }
-
-      // Étape 2 : création de la session Stripe (hors verrou DB — appel réseau ~1-2 s).
-      const { getUncachableStripeClient } = await import("./stripeClient");
-      const stripe = await getUncachableStripeClient();
-      const host = `${req.protocol}://${req.get("host")}`;
-
-      const stripeLineItems = resolvedItems.map((item) => ({
-        price_data: {
-          currency: "cad",
-          product_data: {
-            name: item.name,
-            metadata: { zohoItemId: item.zohoItemId, sku: item.sku || "" },
-          },
-          unit_amount: Math.round(item.unitPrice * 100),
-        },
-        quantity: item.quantity,
-      }));
-
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: stripeLineItems,
-        mode: "payment",
-        success_url: `${host}/portal/boutique?tab=systemd-orders&payment=success`,
-        cancel_url:  `${host}/portal/boutique?tab=systemd&payment=cancelled`,
-        metadata: {
-          contactId: String(contactId),
-          source: "systemd_store",
-        },
+      // ── Global Payments — non encore configuré ──────────────────────────────
+      // Le paiement par carte sera fourni par Global Payments (pas Stripe).
+      // Ce module sera activé dès que Ridgie fournira le responsable technique,
+      // les credentials et les détails sandbox/webhook.
+      // En attendant : on refuse proprement toute tentative de paiement carte.
+      // Idempotence : si une ancienne commande Stripe pending existe encore, on ne
+      // la réutilise pas — l'URL Stripe serait de toute façon expirée.
+      console.log(`[systemd-checkout] Paiement par carte refusé — Global Payments non configuré (contact: ${contactId}, total: ${totalAmountCents / 100} CAD)`);
+      return res.status(503).json({
+        message: "Le paiement par carte n'est pas encore configuré. Veuillez contacter l'administration.",
+        code: "PAYMENT_NOT_CONFIGURED",
       });
-
-      // Étape 3 : insertion atomique — ON CONFLICT DO NOTHING sur l'index partiel
-      // unique (uq_systemd_orders_intent_active). Si deux requêtes concurrentes ont
-      // passé l'étape 1 simultanément, seule l'une s'insère ; l'autre récupère la
-      // commande gagnante et renvoie son URL. La session Stripe de la "perdante"
-      // reste orpheline et expirera sans être payée (cas extrêmement rare).
-      const { order, created } = await storage.tryInsertSystemdOrder({
-        contactId,
-        stripeCheckoutSessionId: session.id,
-        stripeCheckoutUrl: session.url,
-        checkoutIntentKey: intentKey,
-        amount: totalAmountCents,
-        currency: "cad",
-        status: "pending",
-        lineItems: resolvedItems as any,
-      });
-
-      if (!created && order.stripeCheckoutUrl) {
-        console.log(`[systemd-checkout] Race condition détectée — URL existante renvoyée (commande #${order.id})`);
-        return res.json({ url: order.stripeCheckoutUrl });
-      }
-
-      res.json({ url: session.url });
     } catch (error: any) {
       // Log technique conservé côté serveur uniquement
       console.error("Erreur création session checkout SystemD :", error);

@@ -393,7 +393,7 @@ export default function AdminOrders() {
         </CardContent>
       </Card>
 
-      {/* ══ Commandes SystemD (Stripe) ══ */}
+      {/* ══ Commandes Boutique Système D ══ */}
       <div className="mt-10">
         <div className="flex items-center gap-3 mb-4">
           <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
@@ -401,7 +401,7 @@ export default function AdminOrders() {
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight">Commandes SystemD</h2>
-            <p className="text-sm text-muted-foreground">Achats depuis la boutique Produits SystemD via Stripe</p>
+            <p className="text-sm text-muted-foreground">Achats depuis la boutique Produits Système D</p>
           </div>
           {systemdOrders && systemdOrders.length > 0 && (
             <Badge variant="secondary" className="ml-auto tabular-nums font-bold">
@@ -517,7 +517,7 @@ export default function AdminOrders() {
                                       </div>
                                     ))}
                                     {order.stripeCheckoutSessionId && (
-                                      <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">Session: {order.stripeCheckoutSessionId}</p>
+                                      <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">Réf. paiement: {order.stripeCheckoutSessionId}</p>
                                     )}
                                   </div>
                                 </TableCell>
