@@ -1,0 +1,97 @@
+Nouvelle vérification avant production.
+
+J’ai constaté dans Zoho Inventory > Articles que les soumissions / bons de travail validés apparaissent comme des articles :
+- ENT-010 - Entreposage
+- ENT-006 - Entreposage
+- INS-001 - Inspection
+- F015-006 - Co-packing
+etc.
+
+Question métier :
+Est-ce que l’application crée un nouvel article Zoho Inventory à chaque soumission approuvée / commande opérationnelle ?
+
+Je veux une analyse sans modification d’abord.
+
+Ne modifie aucun fichier.
+Ne déploie rien.
+Ne change pas Zoho OAuth.
+Ne change pas Shopify.
+Ne change pas Resend.
+
+Analyse :
+
+1. Dans quel fichier et quelle fonction ces articles Zoho sont créés ?
+   Probablement autour de createFormSalesOrder ou création de Zoho Sales Order.
+
+2. Est-ce que l’app crée un nouvel item Zoho Inventory pour chaque soumission ?
+   Exemple :
+   - ENT-006 - Entreposage
+   - F015-006 - Co-packing
+   - INS-001 - Inspection
+
+3. Est-ce que ces items sont nécessaires pour créer un Zoho Sales Order ?
+   Ou peut-on utiliser un article/service générique existant ?
+
+4. Quelle est la logique actuelle :
+   - création d’un item par soumission ?
+   - réutilisation d’un item existant ?
+   - recherche par nom ?
+   - création automatique si introuvable ?
+
+5. Est-ce que ces articles opérationnels ont un champ permettant de les identifier ?
+   - product_type
+   - can_be_sold
+   - custom fields
+   - SKU
+   - nom préfixé ENT / F015 / LIV / INS / TRI
+
+6. Risque actuel :
+   - pollution du catalogue Zoho Inventory ;
+   - confusion avec les vrais produits ;
+   - obligation de filtrer côté boutique ;
+   - accumulation d’articles opérationnels en production.
+
+7. Propose une meilleure architecture.
+
+Option recommandée :
+Ne pas créer un nouvel article Zoho par soumission.
+Créer ou utiliser quelques articles/services génériques dans Zoho Inventory :
+- Service - Entreposage
+- Service - Co-packing
+- Service - Inspection
+- Service - Livraison
+- Service - Tri
+
+Puis créer le Zoho Sales Order avec ces items génériques, et mettre le numéro de soumission / bon de travail dans :
+- description de ligne ;
+- référence ;
+- notes ;
+- custom field ;
+- lien vers la soumission ;
+- lien vers Zoho Project si disponible.
+
+8. Est-ce possible sans casser les Sales Orders existants ?
+9. Que faire des anciens articles ENT / F015 / LIV / INS / TRI déjà créés ?
+   - les laisser archivés ?
+   - les marquer inactive ?
+   - ne pas les supprimer automatiquement ?
+10. Quels changements code seraient nécessaires ?
+11. Quels changements manuels Zoho seraient nécessaires ?
+12. Est-ce bloquant avant production ou peut-on le faire juste après ?
+
+Réponds avec :
+
+A. Cause exacte
+B. Fichier/fonction responsable
+C. Est-ce qu’un article est créé par soumission ?
+D. Pourquoi cela arrive
+E. Risques production
+F. Architecture recommandée
+G. Plan de correction
+H. Impact sur les Sales Orders existants
+I. Actions manuelles Zoho nécessaires
+J. Statut recommandé : GO ou NO-GO prod
+
+Termine par :
+
+“ANALYSE ARTICLES ZOHO / SOUMISSIONS TERMINÉE — AUCUNE MODIFICATION EFFECTUÉE. J’ATTENDS VALIDATION.”

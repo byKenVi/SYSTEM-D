@@ -1,0 +1,69 @@
+Ajout important au sujet Zoho Inventory / soumissions.
+
+J’ai aussi constaté que les articles opérationnels apparaissent dans la section Inventaire de Système D, pas seulement dans la boutique.
+
+Exemples visibles dans Inventaire :
+- ENT-006 - Entreposage
+- ENT-007 - Entreposage
+- ENT-010 - Entreposage
+- INS-001 - Inspection
+- F015-006 - Co-packing
+
+Ce n’est pas acceptable pour la prod si la page Inventaire est censée représenter les vrais produits / articles catalogue à gérer.
+
+Ne déploie rien.
+Ne supprime aucun article Zoho.
+Ne fais pas de suppression automatique.
+Analyse puis corrige après validation.
+
+Objectifs :
+
+1. Identifier quelle route alimente la page Admin > Inventaire.
+2. Vérifier si elle lit directement zoho_catalog.
+3. Vérifier pourquoi les services opérationnels ENT / LIV / TRI / INS / F015 sont affichés comme inventaire.
+4. Appliquer une règle cohérente avec la boutique :
+   - les vrais produits catalogue doivent rester visibles ;
+   - les produits client doivent rester visibles uniquement dans les bons contextes admin ;
+   - les services opérationnels créés depuis les soumissions ne doivent pas apparaître par défaut dans l’inventaire principal ;
+   - les produits en rupture doivent rester visibles ;
+   - aucun filtre stock ne doit cacher un produit.
+
+Correction attendue côté Système D :
+- Dans Admin > Inventaire, masquer par défaut les items opérationnels :
+  ENT-
+  LIV-
+  TRI-
+  INS-
+  F[0-9]-
+- Ne pas masquer les vrais produits catalogue comme Test D / Test D2.
+- Ajouter si nécessaire un filtre admin secondaire “Afficher les services opérationnels” uniquement pour diagnostic, mais pas par défaut.
+
+Point plus profond à analyser :
+L’application ne devrait probablement pas créer un nouvel article Zoho Inventory pour chaque soumission approuvée.
+Il faut analyser si createFormSalesOrder crée des articles Zoho du type :
+- ENT-006 - Entreposage
+- F015-006 - Co-packing
+- INS-001 - Inspection
+
+Si oui, proposer une correction avant production :
+- utiliser des articles/services génériques Zoho :
+  - Service - Entreposage
+  - Service - Co-packing
+  - Service - Inspection
+  - Service - Livraison
+  - Service - Tri
+- mettre le numéro de soumission dans la description, la référence, les notes ou les custom fields du Sales Order ;
+- ne plus créer un nouvel article Zoho par soumission.
+
+Rapport attendu :
+A. Route/fichier qui alimente Admin > Inventaire
+B. Pourquoi les services opérationnels y apparaissent
+C. Correction court terme pour l’affichage Inventaire
+D. Cause de la création des articles ENT / F015 / INS dans Zoho
+E. Correction recommandée pour ne plus polluer Zoho Inventory
+F. Impact sur les anciens articles déjà créés
+G. Tests à faire
+H. Statut GO / NO-GO production
+
+Termine par :
+“ANALYSE INVENTAIRE / ARTICLES OPÉRATIONNELS TERMINÉE — J’ATTENDS VALIDATION.”
