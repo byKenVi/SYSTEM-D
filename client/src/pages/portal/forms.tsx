@@ -19,6 +19,7 @@ const TYPE_LABELS: Record<string, string> = {
   inspection: "Inspection",
   copacking: "Co-packing",
   livraison: "Livraison",
+  product_work_order: "Bon de travail produit",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -248,6 +249,9 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                               <TypeIcon className={`h-4 w-4 ${typeCfg?.text || "text-muted-foreground"}`} />
                             </div>
                             <span className="font-bold text-sm text-foreground">{TYPE_LABELS[form.formType] || form.formType}</span>
+                            {form.formType === "product_work_order" && (form.data as any)?.sourceProductName && (
+                              <span className="text-xs text-muted-foreground">{(form.data as any).sourceProductName}</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="py-4">

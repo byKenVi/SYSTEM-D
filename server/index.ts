@@ -181,6 +181,9 @@ async function initStripe() {
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_customer_gid TEXT`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_credit_account_id TEXT`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_credit_transaction_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS fulfillment_status TEXT NOT NULL DEFAULT 'to_process'`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reservation_status TEXT NOT NULL DEFAULT 'pending'`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reserved_at TIMESTAMP`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent ON systemd_orders (checkout_intent_key) WHERE status = 'pending'`);
   // Contrainte d'unicité partielle pour garantir l'atomicité de l'idempotence :
   // une seule commande active (non expirée / non annulée) par clé d'intention.

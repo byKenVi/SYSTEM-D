@@ -72,6 +72,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   inspection: "Inspection",
   copacking: "Co-packing",
   livraison: "Livraison",
+  product_work_order: "Bon de travail produit",
 };
 
 function getAppUrl(): string {
@@ -178,6 +179,38 @@ export async function sendFormAdminNotificationEmail(data: {
     });
   } catch (err) {
     console.error("[resend] sendFormAdminNotificationEmail error:", err);
+  }
+}
+
+export async function sendSystemdOrderConfirmationEmail(data: {
+  email: string;
+  name: string;
+  orderId: number;
+  amount: string;
+  repName: string;
+}) {
+  try {
+    const { client, fromEmail, replyTo } = await getUncachableResendClient();
+    await client.emails.send({
+      from: `Services Système-D <${fromEmail}>`,
+      to: data.email,
+      ...(replyTo ? { replyTo } : {}),
+      subject: `Commande Système D #${data.orderId} confirmée`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
+          <h2 style="margin: 0 0 8px;">Commande confirmée</h2>
+          <p style="margin: 0 0 24px; color: #555;">
+            Bonjour ${data.name}, votre commande <strong>#${data.orderId}</strong> de <strong>${data.amount}</strong> est confirmée.
+            Le crédit du rep <strong>${data.repName}</strong> a été débité. Notre équipe va maintenant traiter la commande.
+          </p>
+          <a href="${getAppUrl()}/portal/boutique?tab=orders&orderId=${data.orderId}" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+            Voir ma commande
+          </a>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error("[resend] sendSystemdOrderConfirmationEmail error:", err);
   }
 }
 

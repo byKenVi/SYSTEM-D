@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
-import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail } from "./resend";
+import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail, sendSystemdOrderConfirmationEmail } from "./resend";
 import { db } from "./db";
 import { users as usersTable } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
@@ -2155,6 +2155,96 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/portal/product-work-orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) {
+        return res.status(403).json({ message: "Non autorisé" });
+      }
+      const productId = Number(req.body.productId);
+      const requestedQuantity = Number(req.body.requestedQuantity);
+      if (!Number.isInteger(productId) || !Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+        return res.status(400).json({ message: "Produit ou quantité invalide." });
+      }
+
+      const product = await storage.getProduct(productId);
+      const contactIds = await getProductContactIds(role.contactId);
+      if (!product || !contactIds.includes(product.contactId)) {
+        return res.status(403).json({ message: "Ce produit n'appartient pas à votre entreprise." });
+      }
+
+      const [contact, formNumber] = await Promise.all([
+        storage.getContact(role.contactId),
+        storage.getNextFormNumber("product_work_order"),
+      ]);
+      const userId = req.user?.claims?.sub;
+      const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || contact?.name || "Utilisateur portail";
+      const submission = await storage.createFormSubmission({
+        formType: "product_work_order",
+        formNumber,
+        contactId: role.contactId,
+        submittedBy: userId,
+        submittedByName: userName,
+        status: "submitted",
+        data: {
+          source: "portal_product",
+          sourceProductId: product.id,
+          sourceProductName: product.name,
+          sourceProductSku: product.sku,
+          requestedQuantity,
+        },
+        revision: 1,
+        revisionHistory: [{
+          date: new Date().toISOString(),
+          rev: 1,
+          description: `Bon de travail créé depuis le produit ${product.name}`,
+          modifiedBy: userName,
+        }],
+      });
+
+      if (await storage.isNotificationEnabled(role.contactId, "compte")) {
+        await storage.createNotification({
+          contactId: role.contactId,
+          category: "compte",
+          type: "reception_soumission",
+          title: "Bon de travail soumis",
+          message: `Votre demande ${formNumber} pour ${product.name} a été reçue et attend une révision.`,
+          metadata: { formId: submission.id, formNumber, formType: "product_work_order", productId: product.id },
+        });
+      }
+
+      if (contact?.email) {
+        sendFormSubmissionEmail({
+          email: contact.email,
+          name: contact.name,
+          formType: "product_work_order",
+          formNumber,
+        }).catch((error) => console.error("Product work order client email error:", error));
+      }
+      const settings = await storage.getAdminSettings();
+      if (settings?.adminUserId) {
+        const [adminUser] = await db.select().from(usersTable).where(eq(usersTable.id, settings.adminUserId));
+        if (adminUser?.email) {
+          sendFormAdminNotificationEmail({
+            adminEmail: adminUser.email,
+            clientName: contact?.name || `Contact #${role.contactId}`,
+            formType: "product_work_order",
+            formNumber,
+          }).catch((error) => console.error("Product work order admin email error:", error));
+        }
+      }
+      await storage.createActivityLog({
+        type: "form_submission",
+        status: "success",
+        message: `Bon de travail ${formNumber} soumis depuis le produit "${product.name}" par ${userName}`,
+      });
+      res.status(201).json({ ...submission, viewUrl: `/portal/forms/${submission.id}` });
+    } catch (error: any) {
+      console.error("Error creating product work order:", error);
+      res.status(500).json({ message: error.message || "Impossible de créer le bon de travail." });
+    }
+  });
+
   app.get("/api/activity-logs", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const logs = await storage.getActivityLogs();
@@ -2367,6 +2457,43 @@ export async function registerRoutes(
 
       const { data, status, revisionDescription, price, approvedQuantity } = req.body;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
+
+      // Flux isolé : les bons de travail créés depuis un produit ne passent jamais
+      // dans les validations ni les automatisations Zoho des formulaires existants.
+      if (form.formType === "product_work_order") {
+        if (role.role !== "admin") return res.status(403).json({ message: "Ce bon de travail est en lecture seule." });
+        if (!status || status === form.status) return res.json(form);
+        const allowedTransitions: Record<string, string[]> = {
+          submitted: ["in_review"],
+          in_review: ["approved"],
+          approved: ["completed"],
+        };
+        if (!(allowedTransitions[form.status] ?? []).includes(status)) {
+          return res.status(403).json({ message: `Transition impossible de ${form.status} vers ${status}` });
+        }
+        const updated = await storage.updateFormSubmission(form.id, { status });
+        const contact = await storage.getContact(form.contactId);
+        if (contact?.email) {
+          sendFormStatusEmail({ email: contact.email, name: contact.name, formNumber: form.formNumber, newStatus: status })
+            .catch((error) => console.error("Product work order status email error:", error));
+        }
+        if (await storage.isNotificationEnabled(form.contactId, "compte")) {
+          await storage.createNotification({
+            contactId: form.contactId,
+            category: "compte",
+            type: "statut_soumission",
+            title: `Mise à jour du bon de travail ${form.formNumber}`,
+            message: `Le statut de votre bon de travail est maintenant « ${status} ».` ,
+            metadata: { formId: form.id, formNumber: form.formNumber, formType: form.formType },
+          });
+        }
+        await storage.createActivityLog({
+          type: "product_work_order_status",
+          status: "success",
+          message: `Bon de travail produit ${form.formNumber}: ${form.status} → ${status} par ${userName}`,
+        });
+        return res.json(updated);
+      }
 
       if (status && status !== form.status) {
         const clientAllowed: Record<string, string[]> = { draft: ["submitted"] };
@@ -2802,6 +2929,9 @@ export async function registerRoutes(
 
       if (form.status === "draft") {
         return res.status(400).json({ message: "Cannot generate PDF for draft forms" });
+      }
+      if (form.formType === "product_work_order") {
+        return res.status(400).json({ message: "Aucun PDF n'est généré pour les bons de travail produit." });
       }
 
       const contact = await storage.getContact(form.contactId);
@@ -3417,6 +3547,55 @@ export async function registerRoutes(
       }
     });
 
+    app.get("/api/portal/mapi/reps", isAuthenticated, async (req: any, res) => {
+      try {
+        const role = await getUserRole(req);
+        const integration = await getMapiIntegration();
+        if (!integration?.isActive || !integration.accessToken) {
+          return res.status(503).json({ message: "Connexion Shopify requise." });
+        }
+        if (!await roleCanAccessMapi(role, integration) || role?.role !== "client" || !role.contactId) {
+          return res.status(403).json({ message: "Accès refusé." });
+        }
+        const contact = await storage.getContact(role.contactId);
+        const reps: any[] = [];
+        let cursor: string | undefined;
+        let pages = 0;
+        do {
+          const page = await listRepsFromShopify(cursor);
+          for (const rep of page.reps) {
+            const cad = rep.balances.find((balance) => balance.currencyCode === "CAD") ?? rep.balances[0];
+            reps.push({
+              id: rep.shopifyCustomerId.split("/").pop(),
+              gid: rep.shopifyCustomerId,
+              firstName: rep.firstName,
+              lastName: rep.lastName,
+              email: rep.email || null,
+              balance: cad?.amount ?? "0.00",
+              currency: cad?.currencyCode ?? "CAD",
+              status: "active",
+              isCurrentContact: !!contact?.email && rep.email?.toLowerCase() === contact.email.toLowerCase(),
+            });
+          }
+          cursor = page.nextCursor;
+          pages++;
+        } while (cursor && pages < 100);
+        await storage.createActivityLog({
+          type: "shopify_credit_read",
+          status: "success",
+          message: `Liste des reps et soldes Shopify consultée par le contact #${role.contactId}`,
+        }).catch(() => {});
+        res.json({ reps });
+      } catch (error: any) {
+        await storage.createActivityLog({
+          type: creditErrorActivityType(error, "shopify_credit_error"),
+          status: "error",
+          message: `Lecture de la liste des crédits reps échouée: ${error.message}`,
+        }).catch(() => {});
+        res.status(creditErrorStatus(error.message)).json({ message: error.message || "Crédit Shopify indisponible." });
+      }
+    });
+
     app.post("/api/portal/mapi/reps/:id/credit", isAuthenticated, async (req: any, res) => {
       try {
         const role = await getUserRole(req);
@@ -3767,7 +3946,10 @@ export async function registerRoutes(
       if (!role) return res.status(401).json({ message: "Unauthorized" });
 
       // Lecture depuis le cache local — ZÉRO appel vers l'API Zoho
-      const catalogItems = await storage.getZohoCatalogByAssignmentState("systemd");
+      const [catalogItems, reservedQuantities] = await Promise.all([
+        storage.getZohoCatalogByAssignmentState("systemd"),
+        storage.getReservedSystemdStockQuantities(),
+      ]);
       const systemdItems = catalogItems
         .filter((item) => item.status === "active") // is_deleted déjà filtré par getZohoCatalogByAssignmentState
         .map((item) => ({
@@ -3777,7 +3959,9 @@ export async function registerRoutes(
           description: item.description ?? null,
           imageUrl:    item.imageName ? `/api/zoho/item-image/${item.zohoItemId}` : null,
           price:       item.price != null ? Number(item.price) : 0,
-          stock:       item.stock != null ? Math.round(Number(item.stock)) : 0,
+          stock:       Math.max(0, (item.stock != null ? Math.round(Number(item.stock)) : 0) - (reservedQuantities[item.zohoItemId] ?? 0)),
+          zohoStock:   item.stock != null ? Math.round(Number(item.stock)) : 0,
+          reserved:    reservedQuantities[item.zohoItemId] ?? 0,
         }));
 
       res.json(systemdItems);
@@ -3812,7 +3996,10 @@ export async function registerRoutes(
   // assignment_state = 'unresolved' → 503 unverifiable (jamais exposé au client)
   // introuvable / soft-deleted      → 404 not_found
   const resolveSystemdProductDetail = async (zohoItemId: string): Promise<SystemdResolveResult> => {
-    const item = await storage.getZohoCatalogItem(zohoItemId); // exclut is_deleted=true
+    const [item, reservedQuantities] = await Promise.all([
+      storage.getZohoCatalogItem(zohoItemId),
+      storage.getReservedSystemdStockQuantities(),
+    ]); // exclut is_deleted=true
     if (!item) return { status: "not_found" };
 
     switch (item.assignmentState) {
@@ -3827,7 +4014,7 @@ export async function registerRoutes(
             description: item.description ?? null,
             imageUrl:    item.imageName ? `/api/zoho/item-image/${item.zohoItemId}` : null,
             price:       item.price != null ? Number(item.price) : 0,
-            stock:       item.stock != null ? Math.round(Number(item.stock)) : 0,
+            stock:       Math.max(0, (item.stock != null ? Math.round(Number(item.stock)) : 0) - (reservedQuantities[item.zohoItemId] ?? 0)),
           },
         };
       case "client":
@@ -3953,10 +4140,6 @@ export async function registerRoutes(
         if (catalogItem.status !== "active") {
           return res.status(400).json({ message: `Produit non disponible : ${catalogItem.name}` });
         }
-        const stock = Math.round(Number(catalogItem.stock ?? 0));
-        if (cartItem.quantity > stock) {
-          return res.status(400).json({ message: `Stock insuffisant pour : ${catalogItem.name}` });
-        }
         resolvedItems.push({
           zohoItemId: cartItem.zohoItemId,
           name:       catalogItem.name,
@@ -3971,6 +4154,52 @@ export async function registerRoutes(
         (sum, i) => sum + Math.round(i.unitPrice * 100) * i.quantity, 0
       );
       const totalAmount = (totalAmountCents / 100).toFixed(2);
+
+      // ── Idempotence : clé d'intention ────────────────────────────────────────
+      // SHA256(contactId | items triés par zohoItemId | total en centimes)
+      // Fenêtre : 10 minutes. Si une commande pending identique existe, on réutilise son URL.
+      const intentPayload = [
+        String(contactId),
+        resolvedItems
+          .slice()
+          .sort((a, b) => a.zohoItemId.localeCompare(b.zohoItemId))
+          .map((i) => `${i.zohoItemId}:${i.quantity}`)
+          .join(","),
+        String(totalAmountCents),
+        shopifyCustomerGid,
+      ].join("|");
+      const intentKey = createHash("sha256").update(intentPayload).digest("hex").slice(0, 64);
+
+      // Protection atomique : une intention identique ne peut créer qu'une seule
+      // commande active (pending ou paid) pendant la fenêtre d'idempotence.
+      const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
+      const host = `${req.protocol}://${req.get("host")}`;
+      if (previousOrder?.status === "paid") {
+        await storage.reserveSystemdOrderStock(previousOrder.id).catch(async () => {
+          await storage.updateSystemdOrder(previousOrder.id, {
+            stockReservationStatus: "stock_to_reserve",
+            fulfillmentStatus: "stock_to_reserve",
+          }).catch(() => {});
+          return { status: "stock_to_reserve" as const };
+        });
+        return res.json({
+          url: `${host}/portal/boutique?tab=orders&payment=success&orderId=${previousOrder.id}`,
+          orderId: previousOrder.id,
+          reused: true,
+        });
+      }
+      if (previousOrder?.status === "pending") {
+        return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
+      }
+
+      const reservedQuantities = await storage.getReservedSystemdStockQuantities();
+      for (const item of resolvedItems) {
+        const catalogItem = await storage.getZohoCatalogItem(item.zohoItemId);
+        const availableStock = Math.max(0, Math.round(Number(catalogItem?.stock ?? 0)) - (reservedQuantities[item.zohoItemId] ?? 0));
+        if (item.quantity > availableStock) {
+          return res.status(400).json({ message: `Stock disponible insuffisant pour : ${item.name}` });
+        }
+      }
 
       let balances: Awaited<ReturnType<typeof getRepBalance>>;
       try {
@@ -3994,36 +4223,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Crédit insuffisant." });
       }
 
-      // ── Idempotence : clé d'intention ────────────────────────────────────────
-      // SHA256(contactId | items triés par zohoItemId | total en centimes)
-      // Fenêtre : 10 minutes. Si une commande pending identique existe, on réutilise son URL.
-      const intentPayload = [
-        String(contactId),
-        resolvedItems
-          .slice()
-          .sort((a, b) => a.zohoItemId.localeCompare(b.zohoItemId))
-          .map((i) => `${i.zohoItemId}:${i.quantity}`)
-          .join(","),
-        String(totalAmountCents),
-        shopifyCustomerGid,
-      ].join("|");
-      const intentKey = createHash("sha256").update(intentPayload).digest("hex").slice(0, 64);
-
-      // Protection atomique : une intention identique ne peut créer qu'une seule
-      // commande active (pending ou paid) pendant la fenêtre d'idempotence.
-      const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
-      const host = `${req.protocol}://${req.get("host")}`;
-      if (previousOrder?.status === "paid") {
-        return res.json({
-          url: `${host}/portal/boutique?tab=orders&payment=success`,
-          orderId: previousOrder.id,
-          reused: true,
-        });
-      }
-      if (previousOrder?.status === "pending") {
-        return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
-      }
-
       const { order, created } = await storage.tryInsertSystemdOrder({
         contactId,
         stripeCheckoutSessionId: null,
@@ -4034,6 +4233,8 @@ export async function registerRoutes(
         amount: totalAmountCents,
         currency: "cad",
         status: "pending",
+        fulfillmentStatus: "to_process",
+        stockReservationStatus: "pending",
         lineItems: resolvedItems as any,
       });
       if (!created) {
@@ -4098,6 +4299,20 @@ export async function registerRoutes(
         currentBalanceCurrency: debitResult.newBalance.currencyCode,
         lastBalanceRefreshAt: new Date(),
       }).catch(() => {});
+      const reservation = await storage.reserveSystemdOrderStock(order.id).catch(async (error: any) => {
+        await storage.updateSystemdOrder(order.id, {
+          stockReservationStatus: "stock_to_reserve",
+          fulfillmentStatus: "stock_to_reserve",
+        }).catch(() => {});
+        return { status: "stock_to_reserve" as const, message: error.message || "Réservation locale indisponible." };
+      });
+      await storage.createActivityLog({
+        type: reservation.status === "stock_to_reserve" ? "systemd_stock_to_reserve" : "systemd_stock_reserved",
+        status: reservation.status === "stock_to_reserve" ? "error" : "success",
+        message: reservation.status === "stock_to_reserve"
+          ? `Commande #${order.id} payée — stock à réserver manuellement. ${reservation.message ?? ""}`.trim()
+          : `Stock local réservé pour la commande #${order.id}`,
+      }).catch(() => {});
       await storage.createMapiRepCreditLog({
         repId: rep.id,
         shopifyCustomerGid,
@@ -4111,13 +4326,35 @@ export async function registerRoutes(
       await storage.createActivityLog({
         type: "shopify_credit_checkout",
         status: "success",
-        message: `Crédit déduit avec succès pour la commande #${order.id}: ${totalAmount} CAD`,
+        message: `Crédit déduit avec succès pour la commande #${order.id}: ${totalAmount} CAD — rep ${shopifyCustomer.email || shopifyCustomerGid}`,
       }).catch(() => {});
 
+      const repName = [shopifyCustomer.first_name, shopifyCustomer.last_name].filter(Boolean).join(" ") || shopifyCustomer.email || `Rep #${shopifyCustomerId}`;
+      const contact = await storage.getContact(contactId);
+      if (await storage.isNotificationEnabled(contactId, "commande")) {
+        await storage.createNotification({
+          contactId,
+          category: "commande",
+          type: "systemd_order_paid",
+          title: `Commande Système D #${order.id} confirmée`,
+          message: `Le crédit de ${repName} a été débité. Votre commande est maintenant à traiter.`,
+          metadata: { systemdOrderId: order.id, tab: "orders", repName, amount: totalAmount },
+        }).catch((error) => console.error("SystemD order notification error:", error));
+      }
+      if (contact?.email) {
+        sendSystemdOrderConfirmationEmail({
+          email: contact.email,
+          name: contact.name,
+          orderId: order.id,
+          amount: `${totalAmount} CAD`,
+          repName,
+        }).catch((error) => console.error("SystemD order email error:", error));
+      }
+
       return res.json({
-        url: `${host}/portal/boutique?tab=orders&payment=success`,
+        url: `${host}/portal/boutique?tab=orders&payment=success&orderId=${order.id}`,
         orderId: order.id,
-        message: "Crédit déduit avec succès.",
+        message: "Commande confirmée. Le crédit du rep sélectionné a été débité. Vous pouvez suivre cette commande dans Mes commandes.",
       });
     } catch (error: any) {
       // Log technique conservé côté serveur uniquement
@@ -4133,14 +4370,17 @@ export async function registerRoutes(
       const allOrders = await storage.getSystemdOrders();
       const allContacts = await storage.getContacts();
       const contactMap = new Map(allContacts.map((c) => [c.id, c]));
-      const enriched = allOrders.map((order) => {
+      const enriched = await Promise.all(allOrders.map(async (order) => {
         const contact = contactMap.get(order.contactId);
+        const rep = order.shopifyCustomerGid ? await storage.getMapiRepByGid(order.shopifyCustomerGid) : undefined;
         return {
           ...order,
           contactName: contact?.name ?? null,
           companyName: contact?.companyName ?? null,
+          repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
+          repEmail: rep?.email ?? null,
         };
-      });
+      }));
       res.json(enriched);
     } catch (error: any) {
       console.error("Error fetching SystemD orders:", error);
@@ -4155,7 +4395,15 @@ export async function registerRoutes(
       const orders = role.role === "client" && role.contactId
         ? await storage.getSystemdOrdersByContactIds(await getProductContactIds(role.contactId))
         : await storage.getSystemdOrders();
-      res.json(orders);
+      const enriched = await Promise.all(orders.map(async (order) => {
+        const rep = order.shopifyCustomerGid ? await storage.getMapiRepByGid(order.shopifyCustomerGid) : undefined;
+        return {
+          ...order,
+          repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
+          repEmail: rep?.email ?? null,
+        };
+      }));
+      res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

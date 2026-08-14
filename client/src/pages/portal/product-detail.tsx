@@ -46,18 +46,18 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   const restockMutation = useMutation({
     mutationFn: async () => {
       if (!product) return;
-      await apiRequest("POST", "/api/portal/restock-requests", {
+      const response = await apiRequest("POST", "/api/portal/product-work-orders", {
         productId: product.id,
         requestedQuantity: Number(restockQty),
-        contactId: product.contactId,
-        status: "Processing",
       });
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/restock-requests"] });
+    onSuccess: (submission: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
       setRestockOpen(false);
       setRestockQty("");
-      toast({ title: "Bon de travail soumis", description: "Votre bon de travail a été créé avec succès." });
+      toast({ title: "Bon de travail soumis", description: "Vous pouvez le suivre dans Soumissions." });
+      if (submission?.id) navigate(`/portal/forms/${submission.id}`);
     },
     onError: () => {
       toast({ title: "Erreur", description: "Échec de la soumission du bon de travail.", variant: "destructive" });

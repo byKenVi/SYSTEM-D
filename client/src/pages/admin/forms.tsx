@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<string, string> = {
   inspection: "Inspection",
   copacking: "Co-packing",
   livraison: "Livraison",
+  product_work_order: "Bon de travail produit",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -1010,7 +1011,7 @@ export function AdminFormDetail({ id }: { id: number }) {
                   disabled={statusMutation.isPending}
                   data-testid="button-advance-status"
                   onClick={() => {
-                    if (nextStatus === "approved") {
+                    if (nextStatus === "approved" && form.formType !== "product_work_order") {
                       const fd = form.data as any;
                       let defaultQty = form.approvedQuantity ? String(form.approvedQuantity) : "";
                       if (!defaultQty && form.formType === "copacking") defaultQty = fd?.paletteNb || "";
@@ -1144,7 +1145,7 @@ export function AdminFormDetail({ id }: { id: number }) {
       )}
 
       {/* Work Order (Zoho Sales Order) — retry if approved but SO missing */}
-      {!form.zohoSalesOrderId && (form.status === "approved" || form.status === "completed") && (
+      {form.formType !== "product_work_order" && !form.zohoSalesOrderId && (form.status === "approved" || form.status === "completed") && (
         <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">

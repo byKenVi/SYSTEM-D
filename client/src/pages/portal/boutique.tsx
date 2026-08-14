@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Product, RestockRequest } from "@shared/schema";
+import type { Product, FormSubmission } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,16 @@ interface ShopifyCustomer {
   storeUrl: string;
 }
 interface CustomersResponse { customers: ShopifyCustomer[]; totalCount: number }
+interface CheckoutRep {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  balance: string;
+  currency: string;
+  status: string;
+  isCurrentContact: boolean;
+}
 
 interface ShopifyOrder {
   shopifyOrderId: string;
@@ -121,19 +131,23 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [shopifyCustomerId, setShopifyCustomerId] = useState("");
-  const { data: repsData, isLoading: repsLoading } = useQuery<CustomersResponse>({
-    queryKey: ["/api/portal/customers", "checkout-reps"],
+  const { data: repsData, isLoading: repsLoading } = useQuery<{ reps: CheckoutRep[] }>({
+    queryKey: ["/api/portal/mapi/reps"],
     queryFn: async () => {
-      const response = await fetch("/api/portal/customers", { credentials: "include" });
+      const response = await fetch("/api/portal/mapi/reps", { credentials: "include" });
       if (!response.ok) throw new Error("Connexion Shopify requise.");
       return response.json();
     },
     enabled: open,
     staleTime: 60_000,
   });
-  const reps = (repsData?.customers ?? []).filter(
-    (customer) => customer.storeUrl.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "") === "tnt5ar-ki.myshopify.com",
-  );
+  const reps = repsData?.reps ?? [];
+
+  useEffect(() => {
+    if (!open || shopifyCustomerId || reps.length === 0) return;
+    const currentRep = reps.find((rep) => rep.isCurrentContact);
+    if (currentRep) setShopifyCustomerId(currentRep.id);
+  }, [open, reps, shopifyCustomerId]);
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
@@ -240,14 +254,19 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
               <Label htmlFor="checkout-rep" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Rep à débiter
               </Label>
+              <p className="text-xs text-muted-foreground">Le crédit du rep sélectionné sera utilisé pour payer cette commande.</p>
               <Select value={shopifyCustomerId} onValueChange={setShopifyCustomerId} disabled={repsLoading || reps.length === 0}>
                 <SelectTrigger id="checkout-rep" data-testid="select-checkout-rep">
                   <SelectValue placeholder={repsLoading ? "Chargement des reps..." : "Sélectionner un rep"} />
                 </SelectTrigger>
                 <SelectContent>
                   {reps.map((rep) => {
-                    const name = `${rep.first_name ?? ""} ${rep.last_name ?? ""}`.trim();
-                    return <SelectItem key={rep.id} value={String(rep.id)}>{name || rep.email || `Rep #${rep.id}`}</SelectItem>;
+                    const name = `${rep.firstName ?? ""} ${rep.lastName ?? ""}`.trim();
+                    return (
+                      <SelectItem key={rep.id} value={rep.id}>
+                        {name || `Rep #${rep.id}`} · {rep.email || "email indisponible"} · {money(rep.balance, rep.currency)}
+                      </SelectItem>
+                    );
                   })}
                 </SelectContent>
               </Select>
@@ -565,12 +584,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   });
   const systemdOrdersList = systemdOrdersData ?? [];
 
-  const { data: submissionsData, isLoading: submissionsLoading } = useQuery<RestockRequest[]>({
+  const { data: submissionsData, isLoading: submissionsLoading } = useQuery<FormSubmission[]>({
     queryKey: viewAsContactId
-      ? ["/api/admin/view-as", viewAsContactId, "restock-requests"]
-      : ["/api/portal/restock-requests"],
+      ? ["/api/admin/view-as", viewAsContactId, "forms"]
+      : ["/api/portal/forms"],
   });
   const submissions = submissionsData ?? [];
+  const [expandedSystemdOrderId, setExpandedSystemdOrderId] = useState<number | null>(null);
 
   /* Orders state */
   const [orderSearch, setOrderSearch] = useState("");
@@ -582,6 +602,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
   /* Payment success/cancelled toast — validé contre l'état réel des commandes */
   const paymentStatus = params.get("payment");
+  const confirmedOrderId = Number(params.get("orderId")) || null;
   const paymentToastFired = useRef(false);
 
   // Effet 1 : invalide le cache dès détection de "payment=success" (déclenche refetch).
@@ -616,15 +637,18 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     const windowMs = 15 * 60 * 1000; // fenêtre de 15 min
     const now = Date.now();
 
-    const recentPaid = systemdOrdersList.find(
-      (o: any) => o.status === "paid" && now - new Date(o.createdAt).getTime() < windowMs
-    );
+    const recentPaid = confirmedOrderId
+      ? systemdOrdersList.find((o: any) => o.id === confirmedOrderId && o.status === "paid")
+      : systemdOrdersList.find((o: any) => o.status === "paid" && now - new Date(o.createdAt).getTime() < windowMs);
     const recentPending = systemdOrdersList.find(
       (o: any) => o.status === "pending" && now - new Date(o.createdAt).getTime() < windowMs
     );
 
     if (recentPaid) {
-      toast({ title: "Paiement confirmé !", description: "Votre commande SystemD a bien été enregistrée." });
+      toast({
+        title: "Commande confirmée",
+        description: "Le crédit du rep sélectionné a été débité. Vous pouvez suivre cette commande dans Mes commandes.",
+      });
     } else if (recentPending) {
       toast({
         title: "Paiement reçu",
@@ -636,7 +660,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
         description: "Si votre paiement a bien été effectué, la commande apparaîtra ici dans quelques instants.",
       });
     }
-  }, [paymentStatus, systemdOrdersFetching, systemdOrdersList, isViewAs]);
+  }, [paymentStatus, confirmedOrderId, systemdOrdersFetching, systemdOrdersList, isViewAs]);
 
   /* Data fetching */
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
@@ -710,18 +734,18 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const restockMutation = useMutation({
     mutationFn: async () => {
       if (!restockProduct) return;
-      await apiRequest("POST", "/api/portal/restock-requests", {
+      const response = await apiRequest("POST", "/api/portal/product-work-orders", {
         productId: restockProduct.id,
         requestedQuantity: Number(restockQty),
-        contactId: restockProduct.contactId,
-        status: "Processing",
       });
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/restock-requests"] });
+    onSuccess: (submission: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
       setRestockProduct(null);
       setRestockQty("");
-      toast({ title: "Bon de travail soumis", description: "Votre bon de travail a été créé avec succès." });
+      toast({ title: "Bon de travail soumis", description: "Vous pouvez le suivre dans Soumissions." });
+      if (submission?.id) navigate(`/portal/forms/${submission.id}`);
     },
     onError: () => {
       toast({ title: "Erreur", description: "Échec de la soumission du bon de travail.", variant: "destructive" });
@@ -1055,6 +1079,28 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
           {/* Commandes Système D — regroupées dans Mes commandes */}
           <TabsContent value="orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+            {paymentStatus === "success" && confirmedOrderId && (
+              <Card className="border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                <CardContent className="flex items-center justify-between gap-4 p-4 flex-wrap">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-emerald-900 dark:text-emerald-200">Paiement accepté. Votre commande est confirmée.</p>
+                      <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">Commande Système D #{confirmedOrderId}</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setExpandedSystemdOrderId(confirmedOrderId);
+                      document.getElementById(`systemd-order-${confirmedOrderId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                  >
+                    Voir ma commande
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <div className="flex items-center gap-2 pt-1">
               <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Commandes Système D</h2>
               <Badge variant="outline">Système D</Badge>
@@ -1087,7 +1133,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             ) : (
               <div className="space-y-3">
                 {systemdOrdersList.map((order: any) => (
-                  <Card key={order.id} className="border-border/50 shadow-sm">
+                  <Card key={order.id} id={`systemd-order-${order.id}`} className="border-border/50 shadow-sm scroll-mt-24">
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="space-y-1">
@@ -1111,7 +1157,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                           </span>
                           {order.status === "paid" && (
                             <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20">
-                              Payé
+                              Payée
                             </span>
                           )}
                           {order.status === "pending" && (
@@ -1126,7 +1172,31 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                           )}
                         </div>
                       </div>
-                      {Array.isArray(order.lineItems) && order.lineItems.length > 0 && (
+                      <div className="mt-3 flex items-center gap-2 flex-wrap text-xs">
+                        {order.repName || order.repEmail ? (
+                          <span className="text-muted-foreground">
+                            Rep débité : <span className="font-semibold text-foreground">{order.repName || order.repEmail}</span>
+                            {order.repName && order.repEmail ? ` (${order.repEmail})` : ""}
+                          </span>
+                        ) : null}
+                        {order.stockReservationStatus === "reserved" && (
+                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300">Stock réservé</Badge>
+                        )}
+                        {order.stockReservationStatus === "stock_to_reserve" && (
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300">Stock à réserver</Badge>
+                        )}
+                        {order.fulfillmentStatus === "to_process" && <Badge variant="secondary">À traiter</Badge>}
+                      </div>
+                      <div className="mt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedSystemdOrderId(expandedSystemdOrderId === order.id ? null : order.id)}
+                        >
+                          {expandedSystemdOrderId === order.id ? "Masquer le détail" : "Voir le détail"}
+                        </Button>
+                      </div>
+                      {expandedSystemdOrderId === order.id && Array.isArray(order.lineItems) && order.lineItems.length > 0 && (
                         <div className="mt-3 pt-3 border-t space-y-1">
                           {order.lineItems.map((li: any, idx: number) => (
                             <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1293,8 +1363,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           {(submissionsLoading || submissions.length > 0) && (
             <TabsContent value="orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
               <div className="flex items-center gap-2 pt-1">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Bons de travail</h2>
-                <Badge variant="outline">Soumission</Badge>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Bons de travail / Soumissions</h2>
+                    <Badge variant="outline">Soumission</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">Un bon de travail est une demande à traiter, pas une commande payée.</p>
+                </div>
               </div>
               <Card className="border-border shadow-sm overflow-hidden">
                 <CardContent className="p-0">
@@ -1307,27 +1382,31 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                           <TableRow className="bg-muted/30 hover:bg-muted/30">
                             <TableHead>Soumission</TableHead>
                             <TableHead>Produit</TableHead>
-                            <TableHead className="text-right">Quantité</TableHead>
+                            <TableHead>Type</TableHead>
                             <TableHead>Statut</TableHead>
-                            <TableHead>Référence</TableHead>
+                            <TableHead className="text-right">Montant</TableHead>
+                            <TableHead className="text-right">Détail</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {submissions.map((submission) => {
-                            const product = products?.find((candidate) => candidate.id === submission.productId);
+                            const submissionData = (submission.data || {}) as Record<string, unknown>;
                             return (
                               <TableRow key={submission.id} data-testid={`row-order-submission-${submission.id}`}>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold">#{submission.id}</span>
+                                    <span className="font-mono font-bold">{submission.formNumber || `#${submission.id}`}</span>
                                     <Badge variant="outline" className="text-[10px]">Soumission</Badge>
                                   </div>
                                   {submission.createdAt && <p className="text-[10px] text-muted-foreground mt-1">{new Date(submission.createdAt).toLocaleDateString("fr-CA")}</p>}
                                 </TableCell>
-                                <TableCell className="font-medium">{product?.name ?? "—"}</TableCell>
-                                <TableCell className="text-right font-mono">{submission.requestedQuantity}</TableCell>
+                                <TableCell className="font-medium">{String(submissionData.sourceProductName || "—")}</TableCell>
+                                <TableCell>{submission.formType === "product_work_order" ? "Bon de travail produit" : submission.formType}</TableCell>
                                 <TableCell><Badge variant="secondary">{submission.status}</Badge></TableCell>
-                                <TableCell className="font-mono text-sm text-muted-foreground">{submission.zohoSalesOrderRef ?? "—"}</TableCell>
+                                <TableCell className="text-right font-mono text-sm">{submission.price ? money(submission.price) : "—"}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="ghost" size="sm" onClick={() => navigate(`/portal/forms/${submission.id}`)}>Voir</Button>
+                                </TableCell>
                               </TableRow>
                             );
                           })}

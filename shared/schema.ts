@@ -293,6 +293,9 @@ export const systemdOrders = pgTable("systemd_orders", {
   amount: integer("amount").notNull().default(0),
   currency: text("currency").notNull().default("cad"),
   status: text("status").notNull().default("pending"),
+  fulfillmentStatus: text("fulfillment_status").notNull().default("to_process"),
+  stockReservationStatus: text("stock_reservation_status").notNull().default("pending"),
+  stockReservedAt: timestamp("stock_reserved_at"),
   lineItems: jsonb("line_items").notNull().default([]),
   createdAt: timestamp("created_at").defaultNow(),
 });

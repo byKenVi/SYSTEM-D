@@ -39,9 +39,15 @@ interface SystemdOrder {
   companyName: string | null;
   stripeCheckoutSessionId: string | null;
   stripePaymentIntentId: string | null;
+  paymentMethod: string | null;
+  repName: string | null;
+  repEmail: string | null;
   amount: number;
   currency: string;
   status: string;
+  fulfillmentStatus: string;
+  stockReservationStatus: string;
+  stockReservedAt: string | null;
   lineItems: { name: string; zohoItemId: string; quantity: number; unitPrice: number }[];
   createdAt: string | null;
 }
@@ -433,7 +439,9 @@ export default function AdminOrders() {
                     <TableHead>Date</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Produits</TableHead>
+                    <TableHead>Rep débité</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead>Traitement / Stock</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="w-8" />
                   </TableRow>
@@ -442,14 +450,14 @@ export default function AdminOrders() {
                   {sdLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 6 }).map((_, j) => (
+                        {Array.from({ length: 8 }).map((_, j) => (
                           <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                         ))}
                       </TableRow>
                     ))
                   ) : !systemdOrders || systemdOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-40 text-center">
+                      <TableCell colSpan={8} className="h-40 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <Warehouse className="h-8 w-8 text-muted-foreground/20" />
                           <p className="text-sm font-medium text-muted-foreground">Aucune commande SystemD</p>
@@ -464,7 +472,8 @@ export default function AdminOrders() {
                         if (!q) return true;
                         const clientName = (o.contactName ?? o.companyName ?? "").toLowerCase();
                         const products = Array.isArray(o.lineItems) ? o.lineItems.map((l: any) => l.name ?? "").join(" ").toLowerCase() : "";
-                        return clientName.includes(q) || products.includes(q);
+                        const rep = `${o.repName ?? ""} ${o.repEmail ?? ""}`.toLowerCase();
+                        return clientName.includes(q) || products.includes(q) || rep.includes(q);
                       });
                       return sdFiltered.map((order) => {
                         const isExpanded = sdExpandedId === order.id;
@@ -490,7 +499,25 @@ export default function AdminOrders() {
                               <TableCell>
                                 <Badge variant="outline" className="font-mono text-xs border-dashed">{totalQty} article{totalQty !== 1 ? "s" : ""}</Badge>
                               </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{order.repName || order.repEmail || "—"}</span>
+                                  {order.repName && order.repEmail && <span className="text-[10px] text-muted-foreground">{order.repEmail}</span>}
+                                </div>
+                              </TableCell>
                               <TableCell><SystemdStatusBadge status={order.status} /></TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {order.stockReservationStatus === "reserved" ? (
+                                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300">Stock réservé</Badge>
+                                  ) : order.stockReservationStatus === "stock_to_reserve" ? (
+                                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300">Stock à réserver</Badge>
+                                  ) : (
+                                    <Badge variant="outline">Réservation en attente</Badge>
+                                  )}
+                                  {order.fulfillmentStatus === "to_process" && <Badge variant="secondary">À traiter</Badge>}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-right font-bold text-sm tabular-nums font-mono">
                                 {(order.amount / 100).toLocaleString("fr-CA", { style: "currency", currency: order.currency.toUpperCase() })}
                               </TableCell>
@@ -500,7 +527,7 @@ export default function AdminOrders() {
                             </TableRow>
                             {isExpanded && lineItems.length > 0 && (
                               <TableRow key={`${order.id}-detail`} className="bg-muted/20 hover:bg-muted/20">
-                                <TableCell colSpan={6} className="py-3 px-6">
+                                <TableCell colSpan={8} className="py-3 px-6">
                                   <div className="space-y-2">
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Détail commande</p>
                                     {lineItems.map((item: any, idx: number) => (

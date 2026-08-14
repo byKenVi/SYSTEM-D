@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download, User, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, Send, Loader2, Cloud, CloudOff, Link as LinkIcon, Truck, Download, User, FileText, CheckCircle2, AlertCircle, Package } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { TriForm, defaultTriData, type TriFormData } from "@/components/forms/tri-form";
@@ -25,6 +25,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   inspection: "Instructions d'inspection / Tri / Rework",
   copacking: "Bon de travail / Co-packing",
   livraison: "Formulaire de livraison",
+  product_work_order: "Bon de travail produit",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -334,7 +335,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             </>
           )}
 
-          {role === "admin" && !isDraft && (
+          {role === "admin" && !isDraft && form.formType !== "product_work_order" && (
             <Button 
               variant="default" 
               onClick={() => {
@@ -353,7 +354,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             </Button>
           )}
 
-          {!isDraft && (
+          {!isDraft && form.formType !== "product_work_order" && (
             <Button variant="outline" asChild className="font-bold flex-1 sm:flex-none" data-testid="button-download-pdf">
               <a href={`/api/forms/${formId}/pdf`} download>
                 <Download className="h-4 w-4 mr-2" />
@@ -428,6 +429,25 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             )}
             {form.formType === "livraison" && (
               <LivraisonForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
+            )}
+            {form.formType === "product_work_order" && (
+              <div className="space-y-6" data-testid="product-work-order-detail">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                    <Package className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit source</p>
+                    <h2 className="text-xl font-bold">{(formData as any).sourceProductName || "Produit non renseigné"}</h2>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs text-muted-foreground mb-1">SKU</p><p className="font-mono font-bold">{(formData as any).sourceProductSku || "—"}</p></div>
+                  <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs text-muted-foreground mb-1">Quantité demandée</p><p className="font-mono font-bold">{(formData as any).requestedQuantity ?? "—"}</p></div>
+                  <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs text-muted-foreground mb-1">Référence produit</p><p className="font-mono font-bold">#{(formData as any).sourceProductId ?? "—"}</p></div>
+                </div>
+                <p className="text-sm text-muted-foreground">Cette demande provient de « Mes produits ». Elle est distincte des formulaires Entreposage, Co-packing, Inspection, Livraison et Tri.</p>
+              </div>
             )}
 
             {/* ── Barre d'action bas (visible côté client, brouillon uniquement) ── */}

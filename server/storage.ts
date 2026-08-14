@@ -17,7 +17,7 @@ import {
   zohoCatalog, type ZohoCatalogItem, type InsertZohoCatalogItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gt, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
+import { eq, and, asc, desc, gt, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   getContacts(): Promise<Contact[]>;
@@ -121,6 +121,8 @@ export interface IStorage {
    * simultanément.
    */
   tryInsertSystemdOrder(data: InsertSystemdOrder): Promise<{ order: SystemdOrder; created: boolean }>;
+  getReservedSystemdStockQuantities(): Promise<Record<string, number>>;
+  reserveSystemdOrderStock(orderId: number): Promise<{ status: "reserved" | "already_reserved" | "stock_to_reserve"; message?: string }>;
 
   // Zoho Sync Runs
   createZohoSyncRun(data: { triggeredBy: string; status?: string }): Promise<ZohoSyncRun>;
@@ -487,6 +489,7 @@ export class DatabaseStorage implements IStorage {
       inspection: "INS",
       copacking: "F015",
       livraison: "LIV",
+      product_work_order: "BTP",
     };
     const prefix = prefixMap[formType] || formType.toUpperCase();
     const [result] = await db
@@ -716,6 +719,86 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { order: existing, created: false };
+  }
+
+  async getReservedSystemdStockQuantities(): Promise<Record<string, number>> {
+    const orders = await db.select({ lineItems: systemdOrders.lineItems })
+      .from(systemdOrders)
+      .where(and(
+        eq(systemdOrders.status, "paid"),
+        eq(systemdOrders.stockReservationStatus, "reserved"),
+      ));
+    const totals: Record<string, number> = {};
+    for (const order of orders) {
+      const items = Array.isArray(order.lineItems) ? order.lineItems as any[] : [];
+      for (const item of items) {
+        if (!item?.zohoItemId) continue;
+        totals[item.zohoItemId] = (totals[item.zohoItemId] ?? 0) + Number(item.quantity ?? 0);
+      }
+    }
+    return totals;
+  }
+
+  async reserveSystemdOrderStock(orderId: number): Promise<{ status: "reserved" | "already_reserved" | "stock_to_reserve"; message?: string }> {
+    return db.transaction(async (tx) => {
+      const [order] = await tx.select().from(systemdOrders)
+        .where(eq(systemdOrders.id, orderId))
+        .for("update");
+      if (!order || order.status !== "paid") {
+        return { status: "stock_to_reserve", message: "La commande n'est pas payée." };
+      }
+      if (order.stockReservationStatus === "reserved") return { status: "already_reserved" };
+
+      const items = Array.isArray(order.lineItems) ? order.lineItems as any[] : [];
+      const zohoItemIds = Array.from(new Set(items.map((item) => String(item.zohoItemId ?? "")).filter(Boolean))).sort();
+      if (zohoItemIds.length === 0) {
+        await tx.update(systemdOrders).set({
+          stockReservationStatus: "stock_to_reserve",
+          fulfillmentStatus: "stock_to_reserve",
+        }).where(eq(systemdOrders.id, orderId));
+        return { status: "stock_to_reserve", message: "Aucun produit réservable." };
+      }
+
+      const catalogRows = await tx.select().from(zohoCatalog)
+        .where(inArray(zohoCatalog.zohoItemId, zohoItemIds))
+        .orderBy(asc(zohoCatalog.zohoItemId))
+        .for("update");
+      const catalogById = new Map(catalogRows.map((item) => [item.zohoItemId, item]));
+      const reservedOrders = await tx.select({ lineItems: systemdOrders.lineItems })
+        .from(systemdOrders)
+        .where(and(
+          eq(systemdOrders.status, "paid"),
+          eq(systemdOrders.stockReservationStatus, "reserved"),
+        ));
+      const alreadyReserved: Record<string, number> = {};
+      for (const reservedOrder of reservedOrders) {
+        const reservedItems = Array.isArray(reservedOrder.lineItems) ? reservedOrder.lineItems as any[] : [];
+        for (const item of reservedItems) {
+          if (!item?.zohoItemId) continue;
+          alreadyReserved[item.zohoItemId] = (alreadyReserved[item.zohoItemId] ?? 0) + Number(item.quantity ?? 0);
+        }
+      }
+
+      for (const item of items) {
+        const catalogItem = catalogById.get(String(item.zohoItemId));
+        const available = Math.max(0, Number(catalogItem?.stock ?? 0) - (alreadyReserved[item.zohoItemId] ?? 0));
+        if (!catalogItem || Number(item.quantity ?? 0) > available) {
+          const message = `Stock à réserver pour ${item.name ?? item.zohoItemId}: ${item.quantity} demandé(s), ${available} disponible(s).`;
+          await tx.update(systemdOrders).set({
+            stockReservationStatus: "stock_to_reserve",
+            fulfillmentStatus: "stock_to_reserve",
+          }).where(eq(systemdOrders.id, orderId));
+          return { status: "stock_to_reserve", message };
+        }
+      }
+
+      await tx.update(systemdOrders).set({
+        stockReservationStatus: "reserved",
+        stockReservedAt: new Date(),
+        fulfillmentStatus: "to_process",
+      }).where(eq(systemdOrders.id, orderId));
+      return { status: "reserved" };
+    });
   }
 
   // ─── Zoho Sync Runs ────────────────────────────────────────────────────────

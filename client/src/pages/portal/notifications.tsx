@@ -76,6 +76,7 @@ function timeAgo(dateString: string | null | undefined) {
 function getNotificationUrl(n: Notification): string | null {
   const meta = (n.metadata ?? {}) as Record<string, unknown>;
   if (meta.formId) return `/portal/forms/${meta.formId}`;
+  if (meta.systemdOrderId) return `/portal/boutique?tab=orders&orderId=${meta.systemdOrderId}`;
   return null;
 }
 
