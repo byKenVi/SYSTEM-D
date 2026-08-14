@@ -1043,7 +1043,9 @@ export default function AdminSettingsPage() {
                             placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
                             data-testid="input-shopify-access-token"
                           />
-                          <p className="text-xs text-muted-foreground">Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code> et <code>write_inventory</code>.</p>
+                          <p className="text-xs text-muted-foreground">
+                            Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code>, <code>write_inventory</code>, <code>read_customers</code>, <code>read_store_credit_accounts</code> et <code>write_store_credit_account_transactions</code>.
+                          </p>
                         </div>
                       ) : (
                         <>

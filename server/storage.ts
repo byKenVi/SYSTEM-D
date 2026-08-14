@@ -39,6 +39,7 @@ export interface IStorage {
 
   getRestockRequests(): Promise<RestockRequest[]>;
   getRestockRequestsByContactId(contactId: number): Promise<RestockRequest[]>;
+  getRestockRequestsByContactIds(contactIds: number[]): Promise<RestockRequest[]>;
   createRestockRequest(data: InsertRestockRequest): Promise<RestockRequest>;
   updateRestockRequest(id: number, data: Partial<InsertRestockRequest>): Promise<RestockRequest | undefined>;
   deleteRestockRequests(ids: number[]): Promise<void>;
@@ -52,6 +53,7 @@ export interface IStorage {
   getShopifyIntegrationsDueForOrderSync(): Promise<ShopifyIntegration[]>;
 
   getShopifyOrders(filters?: { contactId?: number }): Promise<ShopifyOrder[]>;
+  getShopifyOrdersByContactIds(contactIds: number[]): Promise<ShopifyOrder[]>;
   upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
@@ -97,6 +99,7 @@ export interface IStorage {
   getMapiReps(status?: string): Promise<MapiRep[]>;
   getMapiRep(id: string): Promise<MapiRep | undefined>;
   getMapiRepByGid(gid: string): Promise<MapiRep | undefined>;
+  upsertMapiRepByGid(gid: string, data: InsertMapiRep): Promise<MapiRep>;
   createMapiRep(data: InsertMapiRep): Promise<MapiRep>;
   updateMapiRep(id: string, data: Partial<InsertMapiRep>): Promise<MapiRep | undefined>;
   createMapiRepCreditLog(data: InsertMapiRepCreditLog): Promise<MapiRepCreditLog>;
@@ -105,6 +108,7 @@ export interface IStorage {
   // SystemD Orders
   createSystemdOrder(data: InsertSystemdOrder): Promise<SystemdOrder>;
   getSystemdOrders(filters?: { contactId?: number }): Promise<SystemdOrder[]>;
+  getSystemdOrdersByContactIds(contactIds: number[]): Promise<SystemdOrder[]>;
   updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
   getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined>;
@@ -236,6 +240,13 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(restockRequests).where(eq(restockRequests.contactId, contactId)).orderBy(desc(restockRequests.createdAt));
   }
 
+  async getRestockRequestsByContactIds(contactIds: number[]): Promise<RestockRequest[]> {
+    if (contactIds.length === 0) return [];
+    return db.select().from(restockRequests)
+      .where(inArray(restockRequests.contactId, contactIds))
+      .orderBy(desc(restockRequests.createdAt));
+  }
+
   async createRestockRequest(data: InsertRestockRequest): Promise<RestockRequest> {
     const [request] = await db.insert(restockRequests).values(data).returning();
     return request;
@@ -319,6 +330,13 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(shopifyOrders.shopifyCreatedAt));
     }
     return db.select().from(shopifyOrders).orderBy(desc(shopifyOrders.shopifyCreatedAt));
+  }
+
+  async getShopifyOrdersByContactIds(contactIds: number[]): Promise<ShopifyOrder[]> {
+    if (contactIds.length === 0) return [];
+    return db.select().from(shopifyOrders)
+      .where(inArray(shopifyOrders.contactId, contactIds))
+      .orderBy(desc(shopifyOrders.shopifyCreatedAt));
   }
 
   async upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void> {
@@ -577,6 +595,17 @@ export class DatabaseStorage implements IStorage {
     return rep;
   }
 
+  async upsertMapiRepByGid(gid: string, data: InsertMapiRep): Promise<MapiRep> {
+    const [rep] = await db.insert(mapiReps)
+      .values({ ...data, shopifyCustomerGid: gid })
+      .onConflictDoUpdate({
+        target: mapiReps.shopifyCustomerGid,
+        set: { ...data, shopifyCustomerGid: gid, updatedAt: new Date() },
+      })
+      .returning();
+    return rep;
+  }
+
   async createMapiRep(data: InsertMapiRep): Promise<MapiRep> {
     const [rep] = await db.insert(mapiReps).values(data).returning();
     return rep;
@@ -619,6 +648,13 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(systemdOrders.createdAt));
     }
     return db.select().from(systemdOrders).orderBy(desc(systemdOrders.createdAt));
+  }
+
+  async getSystemdOrdersByContactIds(contactIds: number[]): Promise<SystemdOrder[]> {
+    if (contactIds.length === 0) return [];
+    return db.select().from(systemdOrders)
+      .where(inArray(systemdOrders.contactId, contactIds))
+      .orderBy(desc(systemdOrders.createdAt));
   }
 
   async updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined> {

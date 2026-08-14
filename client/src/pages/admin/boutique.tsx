@@ -198,6 +198,19 @@ export default function AdminBoutique() {
   const orders = ordersData?.orders ?? [];
   const customers = customersData?.customers ?? [];
 
+  const syncMapiRepsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/admin/mapi/reps/sync");
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps"] });
+      toast({ title: "Synchronisation terminée", description: `${data.synced ?? 0} rep(s) Mapei synchronisé(s).` });
+    },
+    onError: (error: any) => toast({ title: "Erreur Shopify", description: error.message, variant: "destructive" }),
+  });
+
   /* Products mutations */
   const pushToZohoMutation = useMutation({
     mutationFn: async (productIds: number[]) => { await apiRequest("POST", "/api/products/push-to-zoho", { productIds }); },
@@ -930,6 +943,17 @@ export default function AdminBoutique() {
                   <Input placeholder="Rechercher client, email, téléphone…" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} className="pl-8 h-9" data-testid="input-search-customers" />
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => syncMapiRepsMutation.mutate()}
+                    disabled={syncMapiRepsMutation.isPending}
+                    data-testid="button-sync-mapi-reps"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${syncMapiRepsMutation.isPending ? "animate-spin" : ""}`} />
+                    {syncMapiRepsMutation.isPending ? "Synchronisation..." : "Synchroniser les reps Mapei"}
+                  </Button>
                   <Select value={customerClientFilter} onValueChange={setCustomerClientFilter}>
                     <SelectTrigger className="h-9 w-44 text-xs" data-testid="select-customer-client-filter"><SelectValue placeholder="Tous les clients" /></SelectTrigger>
                     <SelectContent>

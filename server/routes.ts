@@ -10,6 +10,7 @@ import { db } from "./db";
 import { users as usersTable } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 import { resolveClientProductContactIds } from "./client-product-scope";
+import { isShopifyCreditSufficient, normalizeShopifyStoreUrl, shopifyCreditHttpStatus } from "./shopify-credit-policy";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -629,7 +630,8 @@ export async function registerRoutes(
 
       results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       const contactIdFilter = req.query.contactId ? Number(req.query.contactId) : null;
-      const filtered = contactIdFilter ? results.filter((c) => c.contactId === contactIdFilter) : results;
+      const scopedContactIds = contactIdFilter ? await getProductContactIds(contactIdFilter) : null;
+      const filtered = scopedContactIds ? results.filter((c) => scopedContactIds.includes(c.contactId)) : results;
       res.json({ customers: filtered, totalCount: filtered.length });
     } catch (error: any) {
       console.error("Error fetching admin customers:", error);
@@ -1822,7 +1824,8 @@ export async function registerRoutes(
   app.get("/api/admin/view-as/:contactId/orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.contactId);
-      const orders = await storage.getShopifyOrders({ contactId });
+      const contactIds = await getProductContactIds(contactId);
+      const orders = await storage.getShopifyOrdersByContactIds(contactIds);
       res.json({ orders });
     } catch (error) {
       console.error("Error fetching view-as orders:", error);
@@ -1972,7 +1975,8 @@ export async function registerRoutes(
       if (!role || role.role !== "client" || !role.contactId) {
         return res.json({ orders: [] });
       }
-      const orders = await storage.getShopifyOrders({ contactId: role.contactId });
+      const contactIds = await getProductContactIds(role.contactId);
+      const orders = await storage.getShopifyOrdersByContactIds(contactIds);
       res.json({ orders });
     } catch (error) {
       console.error("Error fetching portal orders:", error);
@@ -1995,8 +1999,9 @@ export async function registerRoutes(
         integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
       } else {
         if (!role.contactId) return res.status(403).json({ message: "Forbidden" });
+        const contactIds = await getProductContactIds(role.contactId);
         integration = integrations.find(
-          (i) => i.isActive && i.storeUrl === storeUrl && i.contactId === role.contactId
+          (i) => i.isActive && i.storeUrl === storeUrl && contactIds.includes(i.contactId)
         );
       }
       if (!integration) {
@@ -2030,8 +2035,9 @@ export async function registerRoutes(
       } else {
         // Clients can only access their own contact's integrations
         if (!role.contactId) return res.status(403).json({ message: "Forbidden" });
+        const contactIds = await getProductContactIds(role.contactId);
         integration = integrations.find(
-          (i) => i.isActive && i.storeUrl === storeUrl && i.contactId === role.contactId
+          (i) => i.isActive && i.storeUrl === storeUrl && contactIds.includes(i.contactId)
         );
       }
       if (!integration) return res.status(404).json({ message: "Shopify integration not found" });
@@ -2058,11 +2064,17 @@ export async function registerRoutes(
       }
       const { fetchShopifyCustomers } = await import("./shopify-api");
       const integrations = await storage.getShopifyIntegrations();
-      const active = integrations.filter((i) => i.isActive && i.contactId === role.contactId);
+      const contactIds = await getProductContactIds(role.contactId);
+      const scopedActive = integrations.filter((i) => i.isActive && contactIds.includes(i.contactId));
+      const mapiActive = scopedActive.filter(
+        (integration) => normalizeShopifyStoreUrl(integration.storeUrl) === "tnt5ar-ki.myshopify.com",
+      );
+      const active = mapiActive.length > 0 ? mapiActive : scopedActive;
       const results: any[] = [];
+      let failedStores = 0;
       for (const integration of active) {
         try {
-          const customers = await fetchShopifyCustomers(integration.storeUrl, integration.accessToken);
+          const customers = await fetchShopifyCustomers(integration.storeUrl, integration.accessToken, 5_000);
           for (const c of customers) {
             results.push({
               ...c,
@@ -2071,11 +2083,22 @@ export async function registerRoutes(
             });
           }
         } catch (err: any) {
+          failedStores++;
           console.error(`Failed to fetch portal customers from ${integration.storeUrl}: ${err.message}`);
+          await storage.createActivityLog({
+            type: /401|invalid.?token/i.test(err.message) ? "shopify_token_invalid" : "shopify_reps_sync_error",
+            status: "error",
+            message: `Échec lecture reps Shopify pour ${integration.storeUrl} (aucun secret journalisé)`,
+          }).catch(() => {});
         }
       }
       results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      res.json({ customers: results, totalCount: results.length });
+      await storage.createActivityLog({
+        type: "shopify_reps_sync",
+        status: failedStores === 0 ? "success" : "error",
+        message: `Lecture reps Shopify: ${results.length} rep(s), ${failedStores} boutique(s) en erreur`,
+      }).catch(() => {});
+      res.json({ customers: results, totalCount: results.length, failedStores });
     } catch (error: any) {
       console.error("Error fetching portal customers:", error);
       res.status(500).json({ message: error.message || "Failed to fetch customers" });
@@ -2088,7 +2111,7 @@ export async function registerRoutes(
       if (!role || role.role !== "client" || !role.contactId) {
         return res.json([]);
       }
-      const requests = await storage.getRestockRequestsByContactId(role.contactId);
+      const requests = await storage.getRestockRequestsByContactIds(await getProductContactIds(role.contactId));
       res.json(requests);
     } catch (error) {
       console.error("Error fetching portal restock requests:", error);
@@ -3239,7 +3262,212 @@ export async function registerRoutes(
       getRepTransactionHistory,
       renewRepBudget,
       deactivateRepInShopify,
+      listRepsFromShopify,
+      MAPI_STORE_URL,
+      MAPI_CREDIT_REQUIRED_SCOPES,
     } = await import("./mapi-rep-budget");
+
+    const getMapiIntegration = async () => {
+      const integrations = await storage.getShopifyIntegrations();
+      return integrations.find((integration) => normalizeShopifyStoreUrl(integration.storeUrl) === MAPI_STORE_URL);
+    };
+
+    const roleCanAccessMapi = async (role: Awaited<ReturnType<typeof getUserRole>>, integration: { contactId: number } | undefined) => {
+      if (!role || !integration) return false;
+      if (role.role === "admin") return true;
+      if (!role.contactId) return false;
+      const contactIds = await getProductContactIds(role.contactId);
+      return contactIds.includes(integration.contactId);
+    };
+
+    const creditErrorStatus = shopifyCreditHttpStatus;
+    const creditErrorActivityType = (error: any, fallback: string) => {
+      if (error?.code === "SHOPIFY_PERMISSION_INSUFFICIENT" || /scope|permission|access denied|403/i.test(error?.message ?? "")) {
+        return "shopify_permission_insufficient";
+      }
+      if (error?.code === "SHOPIFY_TOKEN_INVALID" || /invalid.?token|401|connexion shopify requise/i.test(error?.message ?? "")) {
+        return "shopify_token_invalid";
+      }
+      return fallback;
+    };
+
+    const getOrCreateRepDetail = async (input: {
+      customerId: string;
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+      performedByUserId?: string | null;
+    }) => {
+      const gid = `gid://shopify/Customer/${input.customerId}`;
+      let rep = await storage.getMapiRepByGid(gid);
+      if (!rep) {
+        rep = await storage.createMapiRep({
+          shopifyCustomerGid: gid,
+          email: input.email || `customer-${input.customerId}@placeholder.local`,
+          firstName: input.firstName ?? null,
+          lastName: input.lastName ?? null,
+          status: "active",
+          currentBalance: "0.00",
+          currentBalanceCurrency: "CAD",
+        });
+      }
+
+      const balances = await getRepBalance(rep.shopifyCustomerGid);
+      const cad = balances.find((balance: any) => balance.currencyCode === "CAD") ?? balances[0];
+      if (cad) {
+        const updated = await storage.updateMapiRep(rep.id, {
+          currentBalance: cad.amount,
+          currentBalanceCurrency: cad.currencyCode,
+          lastBalanceRefreshAt: new Date(),
+        });
+        if (updated) rep = updated;
+      }
+
+      const [logs, shopifyTransactions] = await Promise.all([
+        storage.getMapiRepCreditLogs(rep.id),
+        getRepTransactionHistory(rep.shopifyCustomerGid).catch(() => []),
+      ]);
+      await storage.createActivityLog({
+        type: "shopify_credit_read",
+        status: "success",
+        message: `Solde crédit Shopify consulté pour le rep ${rep.email}`,
+      }).catch(() => {});
+      return { rep, logs, shopifyTransactions };
+    };
+
+    app.post("/api/admin/mapi/reps/sync", isAuthenticated, isAdmin, async (_req, res) => {
+      try {
+        const integration = await getMapiIntegration();
+        if (!integration?.isActive || !integration.accessToken) {
+          return res.status(503).json({ message: "Connexion Shopify requise." });
+        }
+
+        let cursor: string | undefined;
+        let synced = 0;
+        let pages = 0;
+        do {
+          const page = await listRepsFromShopify(cursor);
+          for (const shopifyRep of page.reps) {
+            const cad = shopifyRep.balances.find((balance) => balance.currencyCode === "CAD") ?? shopifyRep.balances[0];
+            const existing = await storage.getMapiRepByGid(shopifyRep.shopifyCustomerId);
+            await storage.upsertMapiRepByGid(shopifyRep.shopifyCustomerId, {
+              shopifyCustomerGid: shopifyRep.shopifyCustomerId,
+              email: shopifyRep.email || existing?.email || "email-indisponible@placeholder.local",
+              firstName: shopifyRep.firstName,
+              lastName: shopifyRep.lastName,
+              status: existing?.status ?? "active",
+              monthlyBudgetAmount: existing?.monthlyBudgetAmount ?? null,
+              monthlyBudgetCurrency: existing?.monthlyBudgetCurrency ?? "CAD",
+              currentBalance: cad?.amount ?? existing?.currentBalance ?? "0.00",
+              currentBalanceCurrency: cad?.currencyCode ?? existing?.currentBalanceCurrency ?? "CAD",
+              lastBalanceRefreshAt: new Date(),
+            });
+            synced++;
+          }
+          cursor = page.nextCursor;
+          pages++;
+        } while (cursor && pages < 100);
+
+        await storage.createActivityLog({
+          type: "shopify_reps_sync",
+          status: "success",
+          message: `Synchronisation reps Mapei terminée: ${synced} rep(s)`,
+        });
+        res.json({ synced, requiredScopes: MAPI_CREDIT_REQUIRED_SCOPES });
+      } catch (err: any) {
+        await storage.createActivityLog({
+          type: creditErrorActivityType(err, "shopify_reps_sync_error"),
+          status: "error",
+          message: `Synchronisation reps Mapei échouée: ${err.message}`,
+        }).catch(() => {});
+        res.status(creditErrorStatus(err.message)).json({ message: err.message || "Crédit Shopify indisponible." });
+      }
+    });
+
+    app.get("/api/portal/mapi/reps/by-shopify-customer/:customerId", isAuthenticated, async (req: any, res) => {
+      try {
+        const role = await getUserRole(req);
+        const integration = await getMapiIntegration();
+        if (!integration?.isActive || !integration.accessToken) {
+          return res.status(503).json({ message: "Connexion Shopify requise." });
+        }
+        if (!await roleCanAccessMapi(role, integration)) {
+          return res.status(403).json({ message: "Accès refusé." });
+        }
+
+        const customerId = String(req.params.customerId);
+        if (!/^\d+$/.test(customerId)) return res.status(400).json({ message: "Rep Shopify invalide." });
+        const { fetchShopifyCustomerDetail } = await import("./shopify-api");
+        const customer: any = await fetchShopifyCustomerDetail(integration.storeUrl, integration.accessToken, customerId);
+        const payload = await getOrCreateRepDetail({
+          customerId,
+          email: customer.email,
+          firstName: customer.first_name,
+          lastName: customer.last_name,
+          performedByUserId: req.user?.claims?.sub ?? null,
+        });
+        res.json({ ...payload, canManageCredit: true });
+      } catch (err: any) {
+        await storage.createActivityLog({
+          type: creditErrorActivityType(err, "shopify_credit_error"),
+          status: "error",
+          message: `Lecture crédit Shopify échouée: ${err.message}`,
+        }).catch(() => {});
+        res.status(creditErrorStatus(err.message)).json({ message: err.message || "Crédit Shopify indisponible." });
+      }
+    });
+
+    app.post("/api/portal/mapi/reps/:id/credit", isAuthenticated, async (req: any, res) => {
+      try {
+        const role = await getUserRole(req);
+        const integration = await getMapiIntegration();
+        if (!integration?.isActive || !integration.accessToken) {
+          return res.status(503).json({ message: "Connexion Shopify requise." });
+        }
+        if (!await roleCanAccessMapi(role, integration)) {
+          return res.status(403).json({ message: "Accès refusé." });
+        }
+
+        const { amount, currency = "CAD", reason } = req.body;
+        if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ message: "Montant invalide." });
+        const rep = await storage.getMapiRep(String(req.params.id));
+        if (!rep) return res.status(404).json({ message: "Rep Shopify introuvable." });
+
+        const result = await creditRep({
+          shopifyCustomerId: rep.shopifyCustomerGid,
+          amount: parseFloat(amount).toFixed(2),
+          currencyCode: currency,
+        });
+        const updatedRep = await storage.updateMapiRep(rep.id, {
+          currentBalance: result.newBalance.amount,
+          currentBalanceCurrency: result.newBalance.currencyCode,
+          lastBalanceRefreshAt: new Date(),
+        });
+        await storage.createMapiRepCreditLog({
+          repId: rep.id,
+          shopifyCustomerGid: rep.shopifyCustomerGid,
+          action: "credit",
+          amount: parseFloat(amount).toFixed(2),
+          currency,
+          reason: reason ?? "Crédit assigné depuis le portail Mapei",
+          performedByUserId: req.user?.claims?.sub ?? null,
+          shopifyTransactionId: result.transactionId,
+        });
+        await storage.createActivityLog({
+          type: "shopify_credit_add",
+          status: "success",
+          message: `Crédit Shopify ajouté au rep ${rep.email}: ${parseFloat(amount).toFixed(2)} ${currency}`,
+        });
+        res.json({ rep: updatedRep, message: "Crédit ajouté avec succès." });
+      } catch (err: any) {
+        await storage.createActivityLog({
+          type: creditErrorActivityType(err, "shopify_credit_error"),
+          status: "error",
+          message: `Ajout crédit Shopify échoué: ${err.message}`,
+        }).catch(() => {});
+        res.status(creditErrorStatus(err.message)).json({ message: err.message || "Crédit Shopify indisponible." });
+      }
+    });
 
     // List all reps
     app.get("/api/mapi/reps", isAuthenticated, isAdmin, async (req, res) => {
@@ -3418,7 +3646,13 @@ export async function registerRoutes(
           currency,
           reason: reason ?? null,
           performedByUserId: req.user?.id ?? null,
-          shopifyTransactionId: result.accountId,
+          shopifyTransactionId: result.transactionId,
+        });
+
+        await storage.createActivityLog({
+          type: "shopify_credit_add",
+          status: "success",
+          message: `Crédit Shopify ajouté au rep ${rep.email}: ${parseFloat(amount).toFixed(2)} ${currency}`,
         });
 
         res.json({ rep: updatedRep });
@@ -3455,7 +3689,13 @@ export async function registerRoutes(
           currency,
           reason: reason ?? null,
           performedByUserId: req.user?.id ?? null,
-          shopifyTransactionId: result.accountId,
+          shopifyTransactionId: result.transactionId,
+        });
+
+        await storage.createActivityLog({
+          type: "shopify_credit_debit",
+          status: "success",
+          message: `Crédit Shopify débité pour le rep ${rep.email}: ${parseFloat(amount).toFixed(2)} ${currency}`,
         });
 
         res.json({ rep: updatedRep });
@@ -3649,15 +3889,56 @@ export async function registerRoutes(
   app.post("/api/portal/systemd-checkout", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
-      if (!role) return res.status(401).json({ message: "Non autorisé" });
+      if (!role || role.role !== "client" || !role.contactId) {
+        return res.status(403).json({ message: "Non autorisé" });
+      }
 
-      const { items } = req.body as { items: { zohoItemId: string; quantity: number }[] };
+      const { items, shopifyCustomerId } = req.body as {
+        items: { zohoItemId: string; quantity: number }[];
+        shopifyCustomerId?: string;
+      };
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "Le panier est vide" });
       }
       if (items.some((i) => !i.zohoItemId || !Number.isInteger(i.quantity) || i.quantity < 1)) {
         return res.status(400).json({ message: "Articles du panier invalides" });
       }
+      if (!shopifyCustomerId || !/^\d+$/.test(String(shopifyCustomerId))) {
+        return res.status(400).json({ message: "Sélectionnez un rep Shopify." });
+      }
+
+      const integration = await getMapiIntegration();
+      if (!integration?.isActive || !integration.accessToken || integration.connectionStatus === "invalid_token") {
+        await storage.createActivityLog({
+          type: "shopify_token_invalid",
+          status: "error",
+          message: "Checkout crédit refusé: connexion Shopify Mapei requise",
+        }).catch(() => {});
+        return res.status(503).json({ message: "Connexion Shopify requise." });
+      }
+      if (!await roleCanAccessMapi(role, integration)) {
+        return res.status(403).json({ message: "Ce compte n'est pas autorisé à utiliser le crédit Mapei." });
+      }
+
+      const { fetchShopifyCustomerDetail } = await import("./shopify-api");
+      let shopifyCustomer: any;
+      try {
+        shopifyCustomer = await fetchShopifyCustomerDetail(
+          integration.storeUrl,
+          integration.accessToken,
+          String(shopifyCustomerId),
+        );
+      } catch (error: any) {
+        await storage.createActivityLog({
+          type: creditErrorActivityType(error, "shopify_credit_error"),
+          status: "error",
+          message: `Checkout crédit: rep Shopify introuvable ou indisponible (${error.message})`,
+        }).catch(() => {});
+        return res.status(error.message?.includes("401") ? 503 : 400).json({
+          message: error.message?.includes("401") ? "Connexion Shopify requise." : "Rep Shopify introuvable.",
+        });
+      }
+      const shopifyCustomerGid = `gid://shopify/Customer/${shopifyCustomerId}`;
 
       // Résolution depuis zoho_catalog — ZÉRO appel vers l'API Zoho.
       const resolvedItems: { zohoItemId: string; name: string; sku: string | null; quantity: number; unitPrice: number }[] = [];
@@ -3685,10 +3966,33 @@ export async function registerRoutes(
         });
       }
 
-      const contactId = role.role === "client" ? role.contactId! : (req.body.contactId || 0);
+      const contactId = role.contactId;
       const totalAmountCents = resolvedItems.reduce(
         (sum, i) => sum + Math.round(i.unitPrice * 100) * i.quantity, 0
       );
+      const totalAmount = (totalAmountCents / 100).toFixed(2);
+
+      let balances: Awaited<ReturnType<typeof getRepBalance>>;
+      try {
+        balances = await getRepBalance(shopifyCustomerGid);
+      } catch (error: any) {
+        await storage.createActivityLog({
+          type: creditErrorActivityType(error, "shopify_credit_error"),
+          status: "error",
+          message: `Lecture crédit checkout échouée: ${error.message}`,
+        }).catch(() => {});
+        return res.status(503).json({ message: error.message || "Crédit Shopify indisponible." });
+      }
+      const cadBalance = balances.find((balance) => balance.currencyCode === "CAD");
+      const availableCredit = Number(cadBalance?.amount ?? 0);
+      if (!isShopifyCreditSufficient(availableCredit, totalAmount)) {
+        await storage.createActivityLog({
+          type: "shopify_credit_insufficient",
+          status: "error",
+          message: `Checkout crédit refusé pour ${shopifyCustomer.email || shopifyCustomerGid}: solde insuffisant`,
+        }).catch(() => {});
+        return res.status(400).json({ message: "Crédit insuffisant." });
+      }
 
       // ── Idempotence : clé d'intention ────────────────────────────────────────
       // SHA256(contactId | items triés par zohoItemId | total en centimes)
@@ -3701,46 +4005,119 @@ export async function registerRoutes(
           .map((i) => `${i.zohoItemId}:${i.quantity}`)
           .join(","),
         String(totalAmountCents),
+        shopifyCustomerGid,
       ].join("|");
       const intentKey = createHash("sha256").update(intentPayload).digest("hex").slice(0, 64);
 
-      // ── Mode bypass DEV ──────────────────────────────────────────────────────
-      // Traité en premier, avant le flux Stripe.
-      // Protection atomique : tryInsertSystemdOrder utilise ON CONFLICT DO NOTHING
-      // sur l'index partiel unique — deux appels identiques simultanés (pending OU
-      // paid) ne créent qu'UNE seule commande, sans lire avant d'insérer.
-      if (process.env.NODE_ENV === "development" && process.env.SYSTEMD_DEV_CHECKOUT_BYPASS === "true") {
-        const devSessionId = `DEV-${Date.now()}-${contactId}`;
-        const { order: devOrder, created: devCreated } = await storage.tryInsertSystemdOrder({
-          contactId,
-          stripeCheckoutSessionId: devSessionId,
-          stripeCheckoutUrl: null,
-          checkoutIntentKey: intentKey,
-          amount: totalAmountCents,
-          currency: "cad",
-          status: "paid",
-          lineItems: resolvedItems as any,
+      // Protection atomique : une intention identique ne peut créer qu'une seule
+      // commande active (pending ou paid) pendant la fenêtre d'idempotence.
+      const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
+      const host = `${req.protocol}://${req.get("host")}`;
+      if (previousOrder?.status === "paid") {
+        return res.json({
+          url: `${host}/portal/boutique?tab=orders&payment=success`,
+          orderId: previousOrder.id,
+          reused: true,
         });
-        if (devCreated) {
-          console.log(`[DEV BYPASS] Commande SystemD #${devOrder.id} créée (session: ${devSessionId})`);
-        } else {
-          console.log(`[DEV BYPASS] Commande #${devOrder.id} existante réutilisée — idempotence (${devOrder.status})`);
-        }
-        const host = `${req.protocol}://${req.get("host")}`;
-        return res.json({ url: `${host}/portal/boutique?tab=systemd-orders&payment=success` });
+      }
+      if (previousOrder?.status === "pending") {
+        return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
       }
 
-      // ── Global Payments — non encore configuré ──────────────────────────────
-      // Le paiement par carte sera fourni par Global Payments (pas Stripe).
-      // Ce module sera activé dès que Ridgie fournira le responsable technique,
-      // les credentials et les détails sandbox/webhook.
-      // En attendant : on refuse proprement toute tentative de paiement carte.
-      // Idempotence : si une ancienne commande Stripe pending existe encore, on ne
-      // la réutilise pas — l'URL Stripe serait de toute façon expirée.
-      console.log(`[systemd-checkout] Paiement par carte refusé — Global Payments non configuré (contact: ${contactId}, total: ${totalAmountCents / 100} CAD)`);
-      return res.status(503).json({
-        message: "Le paiement par carte n'est pas encore configuré. Veuillez contacter l'administration.",
-        code: "PAYMENT_NOT_CONFIGURED",
+      const { order, created } = await storage.tryInsertSystemdOrder({
+        contactId,
+        stripeCheckoutSessionId: null,
+        stripeCheckoutUrl: null,
+        checkoutIntentKey: intentKey,
+        paymentMethod: "shopify_credit",
+        shopifyCustomerGid,
+        amount: totalAmountCents,
+        currency: "cad",
+        status: "pending",
+        lineItems: resolvedItems as any,
+      });
+      if (!created) {
+        return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
+      }
+
+      let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
+      try {
+        debitResult = await debitRep({
+          shopifyCustomerId: shopifyCustomerGid,
+          amount: totalAmount,
+          currencyCode: "CAD",
+        });
+        const paidOrder = await storage.updateSystemdOrder(order.id, {
+          status: "paid",
+          shopifyCreditAccountId: debitResult.accountId,
+          shopifyCreditTransactionId: debitResult.transactionId,
+        });
+        if (!paidOrder) throw new Error("Impossible d'enregistrer la commande payée.");
+      } catch (error: any) {
+        if (debitResult) {
+          await creditRep({
+            shopifyCustomerId: shopifyCustomerGid,
+            amount: totalAmount,
+            currencyCode: "CAD",
+          }).catch(async (compensationError: any) => {
+            await storage.createActivityLog({
+              type: "shopify_credit_compensation_error",
+              status: "error",
+              message: `ÉCHEC compensation crédit commande #${order.id}: ${compensationError.message}`,
+            }).catch(() => {});
+          });
+        }
+        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
+        await storage.createActivityLog({
+          type: creditErrorActivityType(error, "shopify_credit_checkout_error"),
+          status: "error",
+          message: `Checkout crédit commande #${order.id} échoué: ${error.message}`,
+        }).catch(() => {});
+        return res.status(creditErrorStatus(error.message)).json({
+          message: error.message || "Crédit Shopify indisponible.",
+        });
+      }
+
+      if (!debitResult) {
+        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
+        return res.status(503).json({ message: "Crédit Shopify indisponible." });
+      }
+
+      const existingRep = await storage.getMapiRepByGid(shopifyCustomerGid);
+      const rep = existingRep ?? await storage.createMapiRep({
+        shopifyCustomerGid,
+        email: shopifyCustomer.email || `customer-${shopifyCustomerId}@placeholder.local`,
+        firstName: shopifyCustomer.first_name ?? null,
+        lastName: shopifyCustomer.last_name ?? null,
+        status: "active",
+        currentBalance: debitResult.newBalance.amount,
+        currentBalanceCurrency: debitResult.newBalance.currencyCode,
+      });
+      await storage.updateMapiRep(rep.id, {
+        currentBalance: debitResult.newBalance.amount,
+        currentBalanceCurrency: debitResult.newBalance.currencyCode,
+        lastBalanceRefreshAt: new Date(),
+      }).catch(() => {});
+      await storage.createMapiRepCreditLog({
+        repId: rep.id,
+        shopifyCustomerGid,
+        action: "checkout_debit",
+        amount: totalAmount,
+        currency: "CAD",
+        reason: `Commande Système D #${order.id}`,
+        performedByUserId: req.user?.claims?.sub ?? null,
+        shopifyTransactionId: debitResult.transactionId,
+      }).catch(() => {});
+      await storage.createActivityLog({
+        type: "shopify_credit_checkout",
+        status: "success",
+        message: `Crédit déduit avec succès pour la commande #${order.id}: ${totalAmount} CAD`,
+      }).catch(() => {});
+
+      return res.json({
+        url: `${host}/portal/boutique?tab=orders&payment=success`,
+        orderId: order.id,
+        message: "Crédit déduit avec succès.",
       });
     } catch (error: any) {
       // Log technique conservé côté serveur uniquement
@@ -3775,8 +4152,9 @@ export async function registerRoutes(
     try {
       const role = await getUserRole(req);
       if (!role) return res.status(401).json({ message: "Unauthorized" });
-      const contactId = role.role === "client" ? role.contactId! : undefined;
-      const orders = contactId ? await storage.getSystemdOrders({ contactId }) : await storage.getSystemdOrders();
+      const orders = role.role === "client" && role.contactId
+        ? await storage.getSystemdOrdersByContactIds(await getProductContactIds(role.contactId))
+        : await storage.getSystemdOrders();
       res.json(orders);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Product } from "@shared/schema";
+import type { Product, RestockRequest } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -120,9 +120,27 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { items, updateQty, removeItem, clearCart, subtotal } = useCart();
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [shopifyCustomerId, setShopifyCustomerId] = useState("");
+  const { data: repsData, isLoading: repsLoading } = useQuery<CustomersResponse>({
+    queryKey: ["/api/portal/customers", "checkout-reps"],
+    queryFn: async () => {
+      const response = await fetch("/api/portal/customers", { credentials: "include" });
+      if (!response.ok) throw new Error("Connexion Shopify requise.");
+      return response.json();
+    },
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const reps = (repsData?.customers ?? []).filter(
+    (customer) => customer.storeUrl.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "") === "tnt5ar-ki.myshopify.com",
+  );
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
+    if (!shopifyCustomerId) {
+      toast({ title: "Rep requis", description: "Sélectionnez le rep dont le crédit Shopify sera utilisé.", variant: "destructive" });
+      return;
+    }
     setIsCheckingOut(true);
     try {
       // Only send zohoItemId + quantity — server resolves authoritative prices from Zoho
@@ -134,7 +152,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: payload }),
+        body: JSON.stringify({ items: payload, shopifyCustomerId }),
       });
       if (!resp.ok) {
         const err = await resp.json();
@@ -218,14 +236,33 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
               <span className="font-medium text-muted-foreground">Sous-total</span>
               <span className="font-mono font-bold text-lg text-foreground">{money(subtotal)}</span>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="checkout-rep" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Rep à débiter
+              </Label>
+              <Select value={shopifyCustomerId} onValueChange={setShopifyCustomerId} disabled={repsLoading || reps.length === 0}>
+                <SelectTrigger id="checkout-rep" data-testid="select-checkout-rep">
+                  <SelectValue placeholder={repsLoading ? "Chargement des reps..." : "Sélectionner un rep"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {reps.map((rep) => {
+                    const name = `${rep.first_name ?? ""} ${rep.last_name ?? ""}`.trim();
+                    return <SelectItem key={rep.id} value={String(rep.id)}>{name || rep.email || `Rep #${rep.id}`}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+              {!repsLoading && reps.length === 0 && (
+                <p className="text-xs text-amber-600">Aucun rep Mapei disponible. Une synchronisation Shopify peut être nécessaire.</p>
+              )}
+            </div>
             <Button
               className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20"
               onClick={handleCheckout}
-              disabled={isCheckingOut}
+              disabled={isCheckingOut || repsLoading || !shopifyCustomerId}
               data-testid="button-checkout"
             >
               <CreditCard className="h-5 w-5 mr-2" />
-              {isCheckingOut ? "Redirection..." : "Procéder au paiement"}
+              {isCheckingOut ? "Débit en cours..." : "Payer avec le crédit Shopify"}
             </Button>
             <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={clearCart}>
               <Trash2 className="h-3.5 w-3.5 mr-2" />
@@ -528,6 +565,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   });
   const systemdOrdersList = systemdOrdersData ?? [];
 
+  const { data: submissionsData, isLoading: submissionsLoading } = useQuery<RestockRequest[]>({
+    queryKey: viewAsContactId
+      ? ["/api/admin/view-as", viewAsContactId, "restock-requests"]
+      : ["/api/portal/restock-requests"],
+  });
+  const submissions = submissionsData ?? [];
+
   /* Orders state */
   const [orderSearch, setOrderSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -720,19 +764,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               <Warehouse className="h-4 w-4 mr-2" />
               Produits SystemD
             </TabsTrigger>
-            <TabsTrigger value="systemd-orders" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-systemd-orders">
-              <CreditCard className="h-4 w-4 mr-2" />
-              Commandes SystemD
-              {!isViewAs && systemdOrdersList.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{systemdOrdersList.length}</Badge>}
-            </TabsTrigger>
             <TabsTrigger value="orders" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-orders">
               <ShoppingCart className="h-4 w-4 mr-2" />
-              Commandes Shopify
-              {orders.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{orders.length}</Badge>}
+              Mes commandes
+              {(orders.length + (!isViewAs ? systemdOrdersList.length : 0) + submissions.length) > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{orders.length + (!isViewAs ? systemdOrdersList.length : 0) + submissions.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="customers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-customers">
               <Users className="h-4 w-4 mr-2" />
-              Clients Shopify
+              Mes reps
               {customers.length > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{customers.length}</Badge>}
             </TabsTrigger>
           </TabsList>
@@ -1014,8 +1053,12 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             <SystemdProductsTab viewAsContactId={viewAsContactId} />
           </TabsContent>
 
-          {/* ══ COMMANDES SYSTEMD TAB ══ */}
-          <TabsContent value="systemd-orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+          {/* Commandes Système D — regroupées dans Mes commandes */}
+          <TabsContent value="orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+            <div className="flex items-center gap-2 pt-1">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Commandes Système D</h2>
+              <Badge variant="outline">Système D</Badge>
+            </div>
             {isViewAs ? (
               <Card className="border-border/50 shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center p-10 text-center">
@@ -1048,7 +1091,10 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="space-y-1">
-                          <p className="font-bold text-sm text-foreground">Commande #{order.id}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-sm text-foreground">Commande #{order.id}</p>
+                            <Badge variant="outline" className="text-[10px]">Système D</Badge>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {new Date(order.createdAt).toLocaleDateString("fr-CA", {
                               year: "numeric", month: "long", day: "numeric",
@@ -1103,8 +1149,12 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             )}
           </TabsContent>
 
-          {/* ══ COMMANDES TAB ══ */}
+          {/* Commandes Shopify — regroupées dans Mes commandes */}
           <TabsContent value="orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+            <div className="flex items-center gap-2 pt-1">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Commandes Shopify</h2>
+              <Badge variant="outline">Shopify</Badge>
+            </div>
             <Card className="border-border/50 shadow-sm">
               <CardContent className="p-2">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
@@ -1199,7 +1249,10 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             >
                               <TableCell className="py-4">
                                 <div className="flex flex-col">
-                                  <span className="font-mono font-bold text-base text-foreground">{order.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold text-base text-foreground">{order.name}</span>
+                                    <Badge variant="outline" className="text-[10px]">Shopify</Badge>
+                                  </div>
                                   {order.shopifyCreatedAt && (
                                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
                                       {new Date(order.shopifyCreatedAt).toLocaleDateString("fr-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -1237,7 +1290,57 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             </Card>
           </TabsContent>
 
-          {/* ══ CLIENTS TAB ══ */}
+          {(submissionsLoading || submissions.length > 0) && (
+            <TabsContent value="orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
+              <div className="flex items-center gap-2 pt-1">
+                <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Bons de travail</h2>
+                <Badge variant="outline">Soumission</Badge>
+              </div>
+              <Card className="border-border shadow-sm overflow-hidden">
+                <CardContent className="p-0">
+                  {submissionsLoading ? (
+                    <div className="p-6 space-y-3">{Array.from({ length: 2 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div>
+                  ) : (
+                    <div className="overflow-x-auto scrollbar-hide">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableHead>Soumission</TableHead>
+                            <TableHead>Produit</TableHead>
+                            <TableHead className="text-right">Quantité</TableHead>
+                            <TableHead>Statut</TableHead>
+                            <TableHead>Référence</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {submissions.map((submission) => {
+                            const product = products?.find((candidate) => candidate.id === submission.productId);
+                            return (
+                              <TableRow key={submission.id} data-testid={`row-order-submission-${submission.id}`}>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold">#{submission.id}</span>
+                                    <Badge variant="outline" className="text-[10px]">Soumission</Badge>
+                                  </div>
+                                  {submission.createdAt && <p className="text-[10px] text-muted-foreground mt-1">{new Date(submission.createdAt).toLocaleDateString("fr-CA")}</p>}
+                                </TableCell>
+                                <TableCell className="font-medium">{product?.name ?? "—"}</TableCell>
+                                <TableCell className="text-right font-mono">{submission.requestedQuantity}</TableCell>
+                                <TableCell><Badge variant="secondary">{submission.status}</Badge></TableCell>
+                                <TableCell className="font-mono text-sm text-muted-foreground">{submission.zohoSalesOrderRef ?? "—"}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* Reps Shopify */}
           <TabsContent value="customers" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
             <Card className="border-border/50 shadow-sm">
               <CardContent className="p-2">
@@ -1279,9 +1382,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
                                 <Users className="h-10 w-10 text-muted-foreground/50" />
                               </div>
-                              <h3 className="text-xl font-bold tracking-tight">Aucun client trouvé</h3>
+                              <h3 className="text-xl font-bold tracking-tight">Aucun rep trouvé</h3>
                               <p className="text-sm text-muted-foreground max-w-sm">
-                                Votre base de données clients Shopify.
+                                Aucun rep Mapei n'est disponible. Une synchronisation Shopify peut être nécessaire.
                               </p>
                             </div>
                           </TableCell>
@@ -1310,7 +1413,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                     <span className="text-sm font-bold text-primary">{initials}</span>
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="font-bold text-sm text-foreground">{name || "Client Anonyme"}</span>
+                                    <span className="font-bold text-sm text-foreground">{name || "Rep sans nom"}</span>
                                     <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 mt-0.5">
                                       {customer.email || "Pas d'email"}
                                     </span>

@@ -277,7 +277,7 @@ export const insertMapiRepCreditLogSchema = createInsertSchema(mapiRepCreditLog)
 export type InsertMapiRepCreditLog = z.infer<typeof insertMapiRepCreditLogSchema>;
 export type MapiRepCreditLog = typeof mapiRepCreditLog.$inferSelect;
 
-// ─── SystemD Orders (Stripe purchases) ──────────────────────────────────────
+// ─── SystemD Orders ──────────────────────────────────────────────────────────
 
 export const systemdOrders = pgTable("systemd_orders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -286,6 +286,10 @@ export const systemdOrders = pgTable("systemd_orders", {
   stripeCheckoutSessionId: text("stripe_checkout_session_id"),
   stripeCheckoutUrl: text("stripe_checkout_url"),
   checkoutIntentKey: text("checkout_intent_key"),
+  paymentMethod: text("payment_method").notNull().default("card"),
+  shopifyCustomerGid: text("shopify_customer_gid"),
+  shopifyCreditAccountId: text("shopify_credit_account_id"),
+  shopifyCreditTransactionId: text("shopify_credit_transaction_id"),
   amount: integer("amount").notNull().default(0),
   currency: text("currency").notNull().default("cad"),
   status: text("status").notNull().default("pending"),

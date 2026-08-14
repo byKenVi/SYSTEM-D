@@ -133,6 +133,8 @@ export default function PortalCustomerDetail() {
   const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}&tab=customers` : "/portal/boutique?tab=customers";
   const shopifyCustomerId = params.id;
   const isAdminViewAs = !!viewAs;
+  const normalizedStore = store.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const isMapiStore = normalizedStore === "tnt5ar-ki.myshopify.com";
 
   const [showCreditDialog, setShowCreditDialog] = useState(false);
   const [showDebitDialog, setShowDebitDialog] = useState(false);
@@ -154,30 +156,33 @@ export default function PortalCustomerDetail() {
     enabled: !!shopifyCustomerId && !!store,
   });
 
-  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[] } | null>({
-    queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId],
+  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[]; canManageCredit?: boolean } | null>({
+    queryKey: [isAdminViewAs ? "/api/mapi/reps/by-shopify-customer" : "/api/portal/mapi/reps/by-shopify-customer", shopifyCustomerId],
     queryFn: async () => {
       const customer = data?.customer;
       const params = new URLSearchParams();
       if (customer?.email) params.set("email", customer.email);
       if (customer?.first_name) params.set("firstName", customer.first_name);
       if (customer?.last_name) params.set("lastName", customer.last_name);
-      const res = await fetch(`/api/mapi/reps/by-shopify-customer/${shopifyCustomerId}?${params}`, { credentials: "include" });
+      if (!isAdminViewAs) params.set("store", store);
+      const basePath = isAdminViewAs ? "/api/mapi/reps/by-shopify-customer" : "/api/portal/mapi/reps/by-shopify-customer";
+      const res = await fetch(`${basePath}/${shopifyCustomerId}?${params}`, { credentials: "include" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: isAdminViewAs && !!shopifyCustomerId && !!data,
+    enabled: isMapiStore && !!shopifyCustomerId && (!isAdminViewAs || !!data),
   });
 
   const creditMutation = useMutation({
     mutationFn: async () => {
       if (!mapiData?.rep) throw new Error("Rep introuvable");
-      const res = await apiRequest("POST", `/api/mapi/reps/${mapiData.rep.id}/credit`, { amount: creditAmount, currency: "CAD", reason: creditReason });
+      const basePath = isAdminViewAs ? "/api/mapi/reps" : "/api/portal/mapi/reps";
+      const res = await apiRequest("POST", `${basePath}/${mapiData.rep.id}/credit`, { amount: creditAmount, currency: "CAD", reason: creditReason });
       return res.json();
     },
     onSuccess: (d) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId] });
+      queryClient.invalidateQueries({ queryKey: [isAdminViewAs ? "/api/mapi/reps/by-shopify-customer" : "/api/portal/mapi/reps/by-shopify-customer", shopifyCustomerId] });
       toast({ title: "Crédit ajouté", description: `Nouveau solde : ${mapiMoney(d.rep?.currentBalance)}` });
       setCreditAmount(""); setCreditReason(""); setShowCreditDialog(false);
     },
@@ -595,22 +600,26 @@ export default function PortalCustomerDetail() {
         </CardContent>
       </Card>
 
-      {/* ── MAPI Credit Section (admin view-as only) ── */}
-      {isAdminViewAs && (
+      {/* Crédit Shopify Mapei */}
+      {isMapiStore && (
         <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
           <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-primary" /> Compte représentant MAPI
+                <Wallet className="h-4 w-4 text-primary" /> Crédit Shopify du rep
               </CardTitle>
               {mapiData?.rep && mapiData.rep.status === "active" && (
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="font-bold text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => setShowCreditDialog(true)} data-testid="button-credit-rep">
-                    <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Créditer
-                  </Button>
-                  <Button size="sm" variant="outline" className="font-bold text-red-500 border-red-500/30 hover:bg-red-500/10" onClick={() => setShowDebitDialog(true)} disabled={parseFloat(mapiData.rep.currentBalance ?? "0") <= 0} data-testid="button-debit-rep">
-                    <TrendingDown className="h-3.5 w-3.5 mr-1.5" />Débiter
-                  </Button>
+                  {(isAdminViewAs || mapiData.canManageCredit) && (
+                    <Button size="sm" variant="outline" className="font-bold text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => setShowCreditDialog(true)} data-testid="button-credit-rep">
+                      <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Créditer
+                    </Button>
+                  )}
+                  {isAdminViewAs && (
+                    <Button size="sm" variant="outline" className="font-bold text-red-500 border-red-500/30 hover:bg-red-500/10" onClick={() => setShowDebitDialog(true)} disabled={parseFloat(mapiData.rep.currentBalance ?? "0") <= 0} data-testid="button-debit-rep">
+                      <TrendingDown className="h-3.5 w-3.5 mr-1.5" />Débiter
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -623,8 +632,8 @@ export default function PortalCustomerDetail() {
                 <div className="h-14 w-14 rounded-full bg-muted/50 flex items-center justify-center mb-4">
                   <Wallet className="h-7 w-7 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm font-bold text-foreground mb-1">Ce client n'est pas un rep MAPI</p>
-                <p className="text-xs text-muted-foreground">Les représentants sont identifiés par le tag <code className="bg-muted px-1 rounded">mapi-rep</code> dans Shopify.</p>
+                <p className="text-sm font-bold text-foreground mb-1">Crédit Shopify indisponible.</p>
+                <p className="text-xs text-muted-foreground">Vérifiez la connexion et les permissions Shopify depuis l'administration.</p>
               </div>
             ) : (
               <div className="space-y-6">
