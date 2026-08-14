@@ -9,6 +9,7 @@ import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendForm
 import { db } from "./db";
 import { users as usersTable } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
+import { resolveClientProductContactIds } from "./client-product-scope";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -221,6 +222,14 @@ export async function registerRoutes(
     }
 
     return null;
+  }
+
+  async function getProductContactIds(contactId: number): Promise<number[]> {
+    const [contact, contacts] = await Promise.all([
+      storage.getContact(contactId),
+      storage.getContacts(),
+    ]);
+    return contact ? resolveClientProductContactIds(contact, contacts) : [];
   }
 
   const isAdmin: RequestHandler = async (req: any, res, next) => {
@@ -1780,7 +1789,8 @@ export async function registerRoutes(
   app.get("/api/admin/view-as/:contactId/products", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const contactId = Number(req.params.contactId);
-      const products = await storage.getProductsByContactId(contactId);
+      const productContactIds = await getProductContactIds(contactId);
+      const products = await storage.getProductsByContactIds(productContactIds);
       res.json(products);
     } catch (error) {
       console.error("Error fetching view-as products:", error);
@@ -1894,7 +1904,8 @@ export async function registerRoutes(
       if (!role || role.role !== "client" || !role.contactId) {
         return res.json([]);
       }
-      const products = await storage.getProductsByContactId(role.contactId);
+      const productContactIds = await getProductContactIds(role.contactId);
+      const products = await storage.getProductsByContactIds(productContactIds);
       res.json(products);
     } catch (error) {
       console.error("Error fetching portal products:", error);
@@ -1909,7 +1920,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Not authorized" });
       }
       const product = await storage.getProduct(Number(req.params.id));
-      if (!product || product.contactId !== role.contactId) {
+      const productContactIds = await getProductContactIds(role.contactId);
+      if (!product || !productContactIds.includes(product.contactId)) {
         return res.status(404).json({ message: "Product not found" });
       }
       res.json(product);
@@ -1923,7 +1935,8 @@ export async function registerRoutes(
     try {
       const contactId = Number(req.params.contactId);
       const product = await storage.getProduct(Number(req.params.productId));
-      if (!product || product.contactId !== contactId) {
+      const productContactIds = await getProductContactIds(contactId);
+      if (!product || !productContactIds.includes(product.contactId)) {
         return res.status(404).json({ message: "Product not found" });
       }
       res.json(product);
@@ -2095,9 +2108,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request data" });
       }
 
-      // Verify product belongs to this client
+      // Verify product belongs to the authenticated client's organization.
       const product = await storage.getProduct(productId);
-      if (!product || product.contactId !== role.contactId) {
+      const productContactIds = await getProductContactIds(role.contactId);
+      if (!product || !productContactIds.includes(product.contactId)) {
         return res.status(403).json({ message: "Product not found or not yours" });
       }
 

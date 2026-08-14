@@ -31,6 +31,7 @@ import {
   Tag,
   Warehouse,
   AlertCircle,
+  Eye,
   LayoutGrid,
   LayoutList,
 } from "lucide-react";
@@ -817,14 +818,22 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             {product.sku && <Badge variant="outline" className="font-mono text-[10px] border-dashed">{product.sku}</Badge>}
                             <div className="flex items-center justify-between pt-1">
                               <span className="font-mono font-bold text-sm">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</span>
-                              <Badge variant="secondary" className={`font-mono text-xs px-2 py-0.5 rounded-md border-0 ${product.inventoryQuantity <= 5 ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-muted text-foreground"}`}>{product.inventoryQuantity} un.</Badge>
+                              <Badge variant="secondary" className={`font-mono text-xs px-2 py-0.5 rounded-md border-0 ${product.inventoryQuantity <= 5 ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-muted text-foreground"}`}>
+                                {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
+                              </Badge>
                             </div>
-                            {!isViewAs && (
-                              <Button size="sm" variant="outline" className="w-full font-bold mt-1 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
-                                <RefreshCw className="h-3.5 w-3.5 mr-2" />
-                                Bon de travail
+                            <div className="flex gap-2 pt-1">
+                              <Button size="sm" variant="secondary" className="flex-1 font-bold" onClick={(e) => { e.stopPropagation(); const path = viewAsContactId ? `/portal/products/${product.id}?viewAs=${viewAsContactId}` : `/portal/products/${product.id}`; navigate(path); }} data-testid={`button-product-detail-${product.id}`}>
+                                <Eye className="h-3.5 w-3.5 mr-2" />
+                                Détail
                               </Button>
-                            )}
+                              {!isViewAs && (
+                                <Button size="sm" variant="outline" className="flex-1 font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
+                                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                                  Bon de travail
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -838,7 +847,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
-                          {!isViewAs && <TableHead className="w-48 py-4" />}
+                          <TableHead className="w-72 py-4" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -881,11 +890,27 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             </TableCell>
                             <TableCell className="text-right py-4">
                               <Badge variant="secondary" className={`font-mono text-sm px-2.5 py-1 rounded-md border-0 ${product.inventoryQuantity <= 5 ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-muted text-foreground"}`}>
-                                {product.inventoryQuantity} un.
+                                {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </TableCell>
-                            {!isViewAs && (
-                              <TableCell className="text-right py-4" onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="text-right py-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="font-bold"
+                                  onClick={() => {
+                                    const path = viewAsContactId
+                                      ? `/portal/products/${product.id}?viewAs=${viewAsContactId}`
+                                      : `/portal/products/${product.id}`;
+                                    navigate(path);
+                                  }}
+                                  data-testid={`button-product-detail-${product.id}`}
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-2" />
+                                  Détail
+                                </Button>
+                                {!isViewAs && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -896,8 +921,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                   <RefreshCw className="h-3.5 w-3.5 mr-2" />
                                   Bon de travail
                                 </Button>
-                              </TableCell>
-                            )}
+                                )}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
