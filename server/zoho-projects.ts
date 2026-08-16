@@ -126,11 +126,13 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   inspection: "Inspection",
   copacking: "Co-packing",
   livraison: "Livraison",
+  product_work_order: "BTP",
 };
 
 // ── Build project payload from a form submission ──────────────────────────────
 export function buildProjectPayload(
   form: {
+    id?: number;
     formNumber: string;
     formType: string;
     data: unknown;
@@ -144,7 +146,10 @@ export function buildProjectPayload(
   appDomain: string
 ): { name: string; description: string } {
   const typeLabel = FORM_TYPE_LABELS[form.formType] || form.formType;
-  const name = `${typeLabel} ${form.formNumber} — ${contact.name}`;
+  const data = (form.data as Record<string, any>) || {};
+  const name = form.formType === "product_work_order"
+    ? `${form.formNumber} — ${data.sourceProductName || "Produit"} — ${contact.companyName || contact.name}`
+    : `${typeLabel} ${form.formNumber} — ${contact.name}`;
 
   const lines: string[] = [
     `Numéro de commande : ${form.formNumber}`,
@@ -173,8 +178,10 @@ export function buildProjectPayload(
   }
 
   // Extract key fields from JSONB data
-  const data = (form.data as Record<string, any>) || {};
   const extraFields: string[] = [];
+  if (data.sourceProductName) extraFields.push(`Produit            : ${data.sourceProductName}`);
+  if (data.sourceProductSku) extraFields.push(`SKU                : ${data.sourceProductSku}`);
+  if (data.requestedQuantity) extraFields.push(`Quantité demandée  : ${data.requestedQuantity}`);
   if (data.client) extraFields.push(`Client formulaire  : ${data.client}`);
   if (data.projet) extraFields.push(`Projet             : ${data.projet}`);
   if (data.reference) extraFields.push(`Référence          : ${data.reference}`);
@@ -183,7 +190,7 @@ export function buildProjectPayload(
   if (data.workInstruction) extraFields.push(`Instruction travail: ${data.workInstruction}`);
   if (extraFields.length > 0) lines.push("", ...extraFields);
 
-  lines.push(``, `Lien interne : ${appDomain}/admin/forms/`);
+  lines.push(``, `Lien interne : ${appDomain}/admin/forms/${form.id ?? ""}`);
 
   return { name, description: lines.join("\n") };
 }

@@ -42,7 +42,18 @@ test("le type produit sort avant les validations et automatisations historiques"
   assert.ok(legacyNumericUpdate > isolatedBranch);
   assert.ok(legacySalesOrder > isolatedBranch);
   assert.match(routes.slice(isolatedBranch, legacyNumericUpdate), /return res\.json\(updated\)/);
+  assert.match(routes.slice(isolatedBranch, legacyNumericUpdate), /createZohoProject\(/);
+  assert.match(routes.slice(isolatedBranch, legacyNumericUpdate), /zoho_project_create_error/);
+  assert.doesNotMatch(routes.slice(isolatedBranch, legacyNumericUpdate), /createFormSalesOrder\(/);
   assert.match(routes, /\/api\/portal\/restock-requests/);
+});
+
+test("le projet BTP possède un nom et une description opérationnels", () => {
+  const projects = readFileSync(new URL("./zoho-projects.ts", import.meta.url), "utf8");
+  assert.match(projects, /product_work_order: "BTP"/);
+  assert.match(projects, /sourceProductName/);
+  assert.match(projects, /sourceProductSku/);
+  assert.match(projects, /requestedQuantity/);
 });
 
 test("la réservation locale est idempotente et ne décrémente pas Zoho", () => {

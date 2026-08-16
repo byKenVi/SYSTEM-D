@@ -9,7 +9,6 @@ import { startZohoSyncScheduler } from "./zoho-sync";
 import { startShopifyWritebackScheduler } from "./shopify-writeback";
 import { startMapiBalanceRefreshScheduler } from "./mapi-balance-refresh";
 import { pool } from "./db";
-import { WebhookHandlers } from "./webhookHandlers";
 
 const app = express();
 const httpServer = createServer(app);
@@ -19,26 +18,6 @@ declare module "http" {
     rawBody: unknown;
   }
 }
-
-// ── Stripe webhook MUST be registered BEFORE express.json() ──────────────────
-app.post(
-  "/api/stripe/webhook",
-  express.raw({ type: "application/json" }),
-  async (req: any, res: any) => {
-    const signature = req.headers["stripe-signature"];
-    if (!signature) {
-      return res.status(400).json({ error: "Missing stripe-signature" });
-    }
-    try {
-      const sig = Array.isArray(signature) ? signature[0] : signature;
-      await WebhookHandlers.processWebhook(req.body as Buffer, sig);
-      res.status(200).json({ received: true });
-    } catch (error: any) {
-      console.error("Stripe webhook error:", error.message);
-      res.status(400).json({ error: "Webhook processing error" });
-    }
-  }
-);
 
 app.use(
   express.json({
@@ -86,32 +65,6 @@ app.use((req, res, next) => {
 
   next();
 });
-
-async function initStripe() {
-  try {
-    const { runMigrations } = await import("stripe-replit-sync");
-    const { getStripeSync } = await import("./stripeClient");
-
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) return;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await runMigrations({ databaseUrl } as any);
-    log("Stripe schema ready", "stripe");
-
-    const stripeSync = await getStripeSync();
-
-    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-    await stripeSync.findOrCreateManagedWebhook(`${webhookBaseUrl}/api/stripe/webhook`);
-    log("Stripe webhook configured", "stripe");
-
-    stripeSync.syncBackfill().catch((err: any) => {
-      console.error("Stripe backfill error:", err.message);
-    });
-  } catch (err: any) {
-    console.warn("Stripe init skipped (not connected):", err.message);
-  }
-}
 
 (async () => {
   await pool.query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS additional_admin_emails TEXT`);
@@ -229,7 +182,6 @@ async function initStripe() {
       startZohoSyncScheduler();
       startShopifyWritebackScheduler();
       startMapiBalanceRefreshScheduler();
-      initStripe();
     },
   );
 })();

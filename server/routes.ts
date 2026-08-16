@@ -225,6 +225,17 @@ export async function registerRoutes(
     return null;
   }
 
+  async function getAuthenticatedEmail(req: any): Promise<string | null> {
+    const claimedEmail = req.user?.claims?.email;
+    if (typeof claimedEmail === "string" && claimedEmail.trim()) {
+      return claimedEmail.trim().toLowerCase();
+    }
+    const userId = req.user?.claims?.sub;
+    if (!userId) return null;
+    const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    return dbUser?.email?.trim().toLowerCase() || null;
+  }
+
   async function getProductContactIds(contactId: number): Promise<number[]> {
     const [contact, contacts] = await Promise.all([
       storage.getContact(contactId),
@@ -992,7 +1003,13 @@ export async function registerRoutes(
 
   app.delete("/api/shopify-integrations/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
+      const integration = await storage.getShopifyIntegration(Number(req.params.id));
       await storage.deleteShopifyIntegration(Number(req.params.id));
+      await storage.createActivityLog({
+        type: "shopify_disconnect",
+        status: "success",
+        message: `Intégration Shopify déconnectée${integration ? `: ${integration.storeUrl}` : ""}. Les produits importés sont conservés.`,
+      });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting integration:", error);
@@ -1019,6 +1036,14 @@ export async function registerRoutes(
         lastConnectionError: result.success ? null : (result.error ?? null),
         ...(result.success ? { consecutiveErrors: 0, syncPausedUntil: null } : {}),
       } as any);
+
+      await storage.createActivityLog({
+        type: "shopify_connection_test",
+        status: result.success ? "success" : "error",
+        message: result.success
+          ? `Connexion Shopify validée pour ${integration.storeUrl}`
+          : `Échec du test Shopify pour ${integration.storeUrl} (aucun secret journalisé)`,
+      });
 
       res.json({ status, shopName: result.shopName ?? null, error: result.success ? null : result.error });
     } catch (error: any) {
@@ -1367,6 +1392,11 @@ export async function registerRoutes(
       // Zoho Projects settings (portalId, portalName) are preserved intentionally
       // so they survive reconnection without requiring reconfiguration.
       await storage.disconnectZohoInventory();
+      await storage.createActivityLog({
+        type: "zoho_inventory_disconnect",
+        status: "success",
+        message: "Zoho Inventory déconnecté. La configuration Zoho Projects est conservée.",
+      });
       res.json({ message: "Disconnected" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -2234,7 +2264,7 @@ export async function registerRoutes(
         }
       }
       await storage.createActivityLog({
-        type: "form_submission",
+        type: "product_work_order_create",
         status: "success",
         message: `Bon de travail ${formNumber} soumis depuis le produit "${product.name}" par ${userName}`,
       });
@@ -2471,7 +2501,7 @@ export async function registerRoutes(
         if (!(allowedTransitions[form.status] ?? []).includes(status)) {
           return res.status(403).json({ message: `Transition impossible de ${form.status} vers ${status}` });
         }
-        const updated = await storage.updateFormSubmission(form.id, { status });
+        let updated = await storage.updateFormSubmission(form.id, { status });
         const contact = await storage.getContact(form.contactId);
         if (contact?.email) {
           sendFormStatusEmail({ email: contact.email, name: contact.name, formNumber: form.formNumber, newStatus: status })
@@ -2492,6 +2522,52 @@ export async function registerRoutes(
           status: "success",
           message: `Bon de travail produit ${form.formNumber}: ${form.status} → ${status} par ${userName}`,
         });
+
+        // Le BTP est hors facturation : aucun Sales Order. À l'approbation, il
+        // crée uniquement un Zoho Project si Projects est configuré. L'échec
+        // externe est journalisé mais ne revient jamais sur l'approbation.
+        if (status === "approved" && !form.zohoProjectId) {
+          try {
+            const settings = await storage.getAdminSettings();
+            if (settings?.zohoProjectsPortalId && contact) {
+              const rawDomain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost:5000";
+              const domain = rawDomain.split(",").map((value) => value.trim()).filter(Boolean)[0];
+              const appDomain = /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
+              const payload = buildProjectPayload(
+                {
+                  id: form.id,
+                  formNumber: form.formNumber,
+                  formType: form.formType,
+                  data: form.data,
+                  createdAt: form.createdAt,
+                  updatedAt: new Date(),
+                },
+                { name: contact.name, email: contact.email, companyName: contact.companyName },
+                appDomain,
+              );
+              const project = await createZohoProject(settings.zohoProjectsPortalId, payload);
+              await storage.updateFormZohoProjectId(form.id, project.id);
+              updated = await storage.getFormSubmission(form.id);
+              await storage.createActivityLog({
+                type: "zoho_project_create",
+                status: "success",
+                message: `Projet Zoho ${project.id} créé pour le BTP ${form.formNumber}`,
+              });
+            } else {
+              await storage.createActivityLog({
+                type: "zoho_project_skipped",
+                status: "info",
+                message: `BTP ${form.formNumber} approuvé — Zoho Projects non configuré`,
+              });
+            }
+          } catch (error: any) {
+            await storage.createActivityLog({
+              type: "zoho_project_create_error",
+              status: "error",
+              message: `BTP ${form.formNumber} approuvé, mais création Zoho Project échouée: ${error.message}`,
+            }).catch(() => {});
+          }
+        }
         return res.json(updated);
       }
 
@@ -3399,7 +3475,12 @@ export async function registerRoutes(
 
     const getMapiIntegration = async () => {
       const integrations = await storage.getShopifyIntegrations();
-      return integrations.find((integration) => normalizeShopifyStoreUrl(integration.storeUrl) === MAPI_STORE_URL);
+      const matching = integrations.filter(
+        (integration) => normalizeShopifyStoreUrl(integration.storeUrl) === MAPI_STORE_URL,
+      );
+      return matching.find((integration) => integration.isActive && integration.accessToken)
+        ?? matching.find((integration) => integration.accessToken)
+        ?? matching[0];
     };
 
     const roleCanAccessMapi = async (role: Awaited<ReturnType<typeof getUserRole>>, integration: { contactId: number } | undefined) => {
@@ -3408,6 +3489,20 @@ export async function registerRoutes(
       if (!role.contactId) return false;
       const contactIds = await getProductContactIds(role.contactId);
       return contactIds.includes(integration.contactId);
+    };
+
+    const findMapiRepByEmail = async (email: string) => {
+      const normalizedEmail = email.trim().toLowerCase();
+      let cursor: string | undefined;
+      let pages = 0;
+      do {
+        const page = await listRepsFromShopify(cursor);
+        const match = page.reps.find((rep) => rep.email?.trim().toLowerCase() === normalizedEmail);
+        if (match) return match;
+        cursor = page.nextCursor;
+        pages++;
+      } while (cursor && pages < 100);
+      return null;
     };
 
     const creditErrorStatus = shopifyCreditHttpStatus;
@@ -3557,7 +3652,7 @@ export async function registerRoutes(
         if (!await roleCanAccessMapi(role, integration) || role?.role !== "client" || !role.contactId) {
           return res.status(403).json({ message: "Accès refusé." });
         }
-        const contact = await storage.getContact(role.contactId);
+        const authenticatedEmail = await getAuthenticatedEmail(req);
         const reps: any[] = [];
         let cursor: string | undefined;
         let pages = 0;
@@ -3573,8 +3668,24 @@ export async function registerRoutes(
               email: rep.email || null,
               balance: cad?.amount ?? "0.00",
               currency: cad?.currencyCode ?? "CAD",
+              numberOfOrders: Number(rep.numberOfOrders ?? 0),
+              amountSpent: rep.amountSpent ?? "0",
+              createdAt: rep.createdAt,
               status: "active",
-              isCurrentContact: !!contact?.email && rep.email?.toLowerCase() === contact.email.toLowerCase(),
+              isCurrentContact: !!authenticatedEmail && rep.email?.trim().toLowerCase() === authenticatedEmail,
+            });
+            const existing = await storage.getMapiRepByGid(rep.shopifyCustomerId);
+            await storage.upsertMapiRepByGid(rep.shopifyCustomerId, {
+              shopifyCustomerGid: rep.shopifyCustomerId,
+              email: rep.email || existing?.email || "email-indisponible@placeholder.local",
+              firstName: rep.firstName,
+              lastName: rep.lastName,
+              status: existing?.status ?? "active",
+              monthlyBudgetAmount: existing?.monthlyBudgetAmount ?? null,
+              monthlyBudgetCurrency: existing?.monthlyBudgetCurrency ?? "CAD",
+              currentBalance: cad?.amount ?? existing?.currentBalance ?? "0.00",
+              currentBalanceCurrency: cad?.currencyCode ?? existing?.currentBalanceCurrency ?? "CAD",
+              lastBalanceRefreshAt: new Date(),
             });
           }
           cursor = page.nextCursor;
@@ -3592,6 +3703,31 @@ export async function registerRoutes(
           status: "error",
           message: `Lecture de la liste des crédits reps échouée: ${error.message}`,
         }).catch(() => {});
+        const role = await getUserRole(req);
+        const integration = await getMapiIntegration();
+        if (role?.role === "client" && role.contactId && await roleCanAccessMapi(role, integration)) {
+          const authenticatedEmail = await getAuthenticatedEmail(req);
+          const cached = await storage.getMapiReps("active");
+          if (cached.length > 0) {
+            return res.json({
+              stale: true,
+              reps: cached.map((rep) => ({
+                id: rep.shopifyCustomerGid.split("/").pop(),
+                gid: rep.shopifyCustomerGid,
+                firstName: rep.firstName,
+                lastName: rep.lastName,
+                email: rep.email,
+                balance: rep.currentBalance ?? "0.00",
+                currency: rep.currentBalanceCurrency ?? "CAD",
+                numberOfOrders: 0,
+                amountSpent: "0",
+                createdAt: rep.createdAt,
+                status: rep.status,
+                isCurrentContact: !!authenticatedEmail && rep.email.trim().toLowerCase() === authenticatedEmail,
+              })),
+            });
+          }
+        }
         res.status(creditErrorStatus(error.message)).json({ message: error.message || "Crédit Shopify indisponible." });
       }
     });
@@ -3937,6 +4073,9 @@ export async function registerRoutes(
 
     // ─── SystemD Products & Checkout ────────────────────────────────────────
 
+  const isOperationalCatalogItem = (item: { name: string; sku: string | null; productType: string | null }) =>
+    item.productType === "service" && /^(ENT|LIV|TRI|INS|BTP|F\d+)-/i.test(item.sku || item.name);
+
   // ── Boutique SystemD — lit depuis zoho_catalog (aucun appel Zoho) ─────────────
   // Filtre strict : assignment_state = systemd, status = active, is_deleted = false.
   // Les produits client et unresolved ne sont JAMAIS exposés ici.
@@ -3951,7 +4090,7 @@ export async function registerRoutes(
         storage.getReservedSystemdStockQuantities(),
       ]);
       const systemdItems = catalogItems
-        .filter((item) => item.status === "active") // is_deleted déjà filtré par getZohoCatalogByAssignmentState
+        .filter((item) => item.status === "active" && !isOperationalCatalogItem(item)) // is_deleted déjà filtré
         .map((item) => ({
           zohoItemId:  item.zohoItemId,
           name:        item.name,
@@ -4004,7 +4143,7 @@ export async function registerRoutes(
 
     switch (item.assignmentState) {
       case "systemd":
-        if (item.status !== "active") return { status: "not_found" };
+        if (item.status !== "active" || isOperationalCatalogItem(item)) return { status: "not_found" };
         return {
           status: "ok",
           product: {
@@ -4080,9 +4219,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Non autorisé" });
       }
 
-      const { items, shopifyCustomerId } = req.body as {
+      const { items } = req.body as {
         items: { zohoItemId: string; quantity: number }[];
-        shopifyCustomerId?: string;
       };
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "Le panier est vide" });
@@ -4090,10 +4228,6 @@ export async function registerRoutes(
       if (items.some((i) => !i.zohoItemId || !Number.isInteger(i.quantity) || i.quantity < 1)) {
         return res.status(400).json({ message: "Articles du panier invalides" });
       }
-      if (!shopifyCustomerId || !/^\d+$/.test(String(shopifyCustomerId))) {
-        return res.status(400).json({ message: "Sélectionnez un rep Shopify." });
-      }
-
       const integration = await getMapiIntegration();
       if (!integration?.isActive || !integration.accessToken || integration.connectionStatus === "invalid_token") {
         await storage.createActivityLog({
@@ -4107,25 +4241,38 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Ce compte n'est pas autorisé à utiliser le crédit Mapei." });
       }
 
-      const { fetchShopifyCustomerDetail } = await import("./shopify-api");
-      let shopifyCustomer: any;
+      const authenticatedEmail = await getAuthenticatedEmail(req);
+      if (!authenticatedEmail) {
+        return res.status(400).json({
+          message: "Aucun compte crédit Shopify n’est associé à votre utilisateur. Veuillez contacter l’administration.",
+        });
+      }
+
+      let shopifyCustomer: Awaited<ReturnType<typeof findMapiRepByEmail>>;
       try {
-        shopifyCustomer = await fetchShopifyCustomerDetail(
-          integration.storeUrl,
-          integration.accessToken,
-          String(shopifyCustomerId),
-        );
+        shopifyCustomer = await findMapiRepByEmail(authenticatedEmail);
       } catch (error: any) {
         await storage.createActivityLog({
           type: creditErrorActivityType(error, "shopify_credit_error"),
           status: "error",
-          message: `Checkout crédit: rep Shopify introuvable ou indisponible (${error.message})`,
+          message: `Checkout crédit: recherche du compte Shopify par email échouée (${error.message})`,
         }).catch(() => {});
         return res.status(error.message?.includes("401") ? 503 : 400).json({
-          message: error.message?.includes("401") ? "Connexion Shopify requise." : "Rep Shopify introuvable.",
+          message: error.message?.includes("401") ? "Connexion Shopify requise." : "Crédit Shopify indisponible.",
         });
       }
-      const shopifyCustomerGid = `gid://shopify/Customer/${shopifyCustomerId}`;
+      if (!shopifyCustomer) {
+        await storage.createActivityLog({
+          type: "shopify_credit_account_missing",
+          status: "error",
+          message: `Checkout crédit refusé: aucun rep Shopify ne correspond à l’utilisateur ${authenticatedEmail}`,
+        }).catch(() => {});
+        return res.status(400).json({
+          message: "Aucun compte crédit Shopify n’est associé à votre utilisateur. Veuillez contacter l’administration.",
+        });
+      }
+      const shopifyCustomerGid = shopifyCustomer.shopifyCustomerId;
+      const shopifyCustomerId = shopifyCustomerGid.split("/").pop()!;
 
       // Résolution depuis zoho_catalog — ZÉRO appel vers l'API Zoho.
       const resolvedItems: { zohoItemId: string; name: string; sku: string | null; quantity: number; unitPrice: number }[] = [];
@@ -4136,6 +4283,9 @@ export async function registerRoutes(
         }
         if (catalogItem.assignmentState !== "systemd") {
           return res.status(403).json({ message: `Ce produit n'est pas disponible dans la boutique SystemD : ${cartItem.zohoItemId}` });
+        }
+        if (isOperationalCatalogItem(catalogItem)) {
+          return res.status(403).json({ message: `Ce service opérationnel n'est pas achetable : ${cartItem.zohoItemId}` });
         }
         if (catalogItem.status !== "active") {
           return res.status(400).json({ message: `Produit non disponible : ${catalogItem.name}` });
@@ -4288,8 +4438,8 @@ export async function registerRoutes(
       const rep = existingRep ?? await storage.createMapiRep({
         shopifyCustomerGid,
         email: shopifyCustomer.email || `customer-${shopifyCustomerId}@placeholder.local`,
-        firstName: shopifyCustomer.first_name ?? null,
-        lastName: shopifyCustomer.last_name ?? null,
+        firstName: shopifyCustomer.firstName ?? null,
+        lastName: shopifyCustomer.lastName ?? null,
         status: "active",
         currentBalance: debitResult.newBalance.amount,
         currentBalanceCurrency: debitResult.newBalance.currencyCode,
@@ -4329,7 +4479,7 @@ export async function registerRoutes(
         message: `Crédit déduit avec succès pour la commande #${order.id}: ${totalAmount} CAD — rep ${shopifyCustomer.email || shopifyCustomerGid}`,
       }).catch(() => {});
 
-      const repName = [shopifyCustomer.first_name, shopifyCustomer.last_name].filter(Boolean).join(" ") || shopifyCustomer.email || `Rep #${shopifyCustomerId}`;
+      const repName = [shopifyCustomer.firstName, shopifyCustomer.lastName].filter(Boolean).join(" ") || shopifyCustomer.email || `Rep #${shopifyCustomerId}`;
       const contact = await storage.getContact(contactId);
       if (await storage.isNotificationEnabled(contactId, "commande")) {
         await storage.createNotification({
@@ -4354,7 +4504,7 @@ export async function registerRoutes(
       return res.json({
         url: `${host}/portal/boutique?tab=orders&payment=success&orderId=${order.id}`,
         orderId: order.id,
-        message: "Commande confirmée. Le crédit du rep sélectionné a été débité. Vous pouvez suivre cette commande dans Mes commandes.",
+        message: "Commande confirmée. Le crédit associé à votre utilisateur a été débité. Vous pouvez suivre cette commande dans Mes commandes.",
       });
     } catch (error: any) {
       // Log technique conservé côté serveur uniquement

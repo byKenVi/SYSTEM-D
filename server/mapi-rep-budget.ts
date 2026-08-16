@@ -13,9 +13,10 @@ export const MAPI_CREDIT_REQUIRED_SCOPES = [
 
 async function getMAPIToken(): Promise<string> {
   const integrations = await db.select().from(shopifyIntegrations);
-  const integration = integrations.find(
+  const matching = integrations.filter(
     (candidate) => normalizeShopifyStoreUrl(candidate.storeUrl) === MAPI_STORE_URL,
   );
+  const integration = matching.find((candidate) => candidate.isActive && candidate.accessToken);
   if (!integration?.accessToken) {
     throw new Error("Connexion Shopify requise.");
   }

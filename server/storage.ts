@@ -848,7 +848,7 @@ export class DatabaseStorage implements IStorage {
       eq(zohoCatalog.isDeleted, false),
     ];
     // For the Système D storefront, exclude operational service items generated
-    // by Zoho when Sales Orders are created (ENT-xxx, LIV-xxx, TRI-xxx, INS-xxx, F[0-9]-xxx).
+    // by Zoho when Sales Orders are created (ENT-, LIV-, TRI-, INS-, BTP-, F[0-9]-).
     //
     // Rule (bi-level):
     //   1. All assignment_state = 'systemd' items are candidates.
@@ -870,7 +870,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         sql`NOT (
           ${zohoCatalog.productType} = 'service'
-          AND ${zohoCatalog.name} ~ '^(ENT|LIV|TRI|INS|F[0-9]+)-'
+          AND COALESCE(${zohoCatalog.sku}, ${zohoCatalog.name}) ~* '^(ENT|LIV|TRI|INS|BTP|F[0-9]+)-'
         )`
       );
     }

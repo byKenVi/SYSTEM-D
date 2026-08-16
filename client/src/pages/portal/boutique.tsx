@@ -55,7 +55,7 @@ function money(amount: number | string | null | undefined, currency = "CAD") {
 
 /* ── Types ── */
 interface ShopifyCustomer {
-  id: number;
+  id: number | string;
   email: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -69,6 +69,9 @@ interface ShopifyCustomer {
   default_address?: { city: string | null; province: string | null; country: string | null };
   shopName: string | null;
   storeUrl: string;
+  creditBalance?: string;
+  creditCurrency?: string;
+  isCurrentContact?: boolean;
 }
 interface CustomersResponse { customers: ShopifyCustomer[]; totalCount: number }
 interface CheckoutRep {
@@ -80,6 +83,9 @@ interface CheckoutRep {
   currency: string;
   status: string;
   isCurrentContact: boolean;
+  numberOfOrders?: number;
+  amountSpent?: string;
+  createdAt?: string;
 }
 
 interface ShopifyOrder {
@@ -130,8 +136,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { items, updateQty, removeItem, clearCart, subtotal } = useCart();
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [shopifyCustomerId, setShopifyCustomerId] = useState("");
-  const { data: repsData, isLoading: repsLoading } = useQuery<{ reps: CheckoutRep[] }>({
+  const { data: repsData, isLoading: repsLoading, isError: repsError } = useQuery<{ reps: CheckoutRep[] }>({
     queryKey: ["/api/portal/mapi/reps"],
     queryFn: async () => {
       const response = await fetch("/api/portal/mapi/reps", { credentials: "include" });
@@ -142,17 +147,16 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
     staleTime: 60_000,
   });
   const reps = repsData?.reps ?? [];
-
-  useEffect(() => {
-    if (!open || shopifyCustomerId || reps.length === 0) return;
-    const currentRep = reps.find((rep) => rep.isCurrentContact);
-    if (currentRep) setShopifyCustomerId(currentRep.id);
-  }, [open, reps, shopifyCustomerId]);
+  const currentRep = reps.find((rep) => rep.isCurrentContact);
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
-    if (!shopifyCustomerId) {
-      toast({ title: "Rep requis", description: "Sélectionnez le rep dont le crédit Shopify sera utilisé.", variant: "destructive" });
+    if (!currentRep) {
+      toast({
+        title: "Compte crédit introuvable",
+        description: "Aucun compte crédit Shopify n’est associé à votre utilisateur. Veuillez contacter l’administration.",
+        variant: "destructive",
+      });
       return;
     }
     setIsCheckingOut(true);
@@ -166,7 +170,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: payload, shopifyCustomerId }),
+        body: JSON.stringify({ items: payload }),
       });
       if (!resp.ok) {
         const err = await resp.json();
@@ -254,30 +258,30 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
               <Label htmlFor="checkout-rep" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Rep à débiter
               </Label>
-              <p className="text-xs text-muted-foreground">Le crédit du rep sélectionné sera utilisé pour payer cette commande.</p>
-              <Select value={shopifyCustomerId} onValueChange={setShopifyCustomerId} disabled={repsLoading || reps.length === 0}>
-                <SelectTrigger id="checkout-rep" data-testid="select-checkout-rep">
-                  <SelectValue placeholder={repsLoading ? "Chargement des reps..." : "Sélectionner un rep"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {reps.map((rep) => {
-                    const name = `${rep.firstName ?? ""} ${rep.lastName ?? ""}`.trim();
-                    return (
-                      <SelectItem key={rep.id} value={rep.id}>
-                        {name || `Rep #${rep.id}`} · {rep.email || "email indisponible"} · {money(rep.balance, rep.currency)}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {!repsLoading && reps.length === 0 && (
-                <p className="text-xs text-amber-600">Aucun rep Mapei disponible. Une synchronisation Shopify peut être nécessaire.</p>
+              {repsLoading ? (
+                <Skeleton className="h-16 w-full rounded-lg" />
+              ) : currentRep ? (
+                <div id="checkout-rep" className="rounded-lg border border-primary/20 bg-primary/5 p-3" data-testid="checkout-current-rep">
+                  <p className="text-sm font-bold">
+                    {[currentRep.firstName, currentRep.lastName].filter(Boolean).join(" ") || "Compte Shopify"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{currentRep.email}</p>
+                  <p className="mt-1 text-sm font-mono font-bold text-primary">
+                    Crédit disponible : {money(currentRep.balance, currentRep.currency)}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300" role="alert">
+                  {repsError
+                    ? "Le service de crédit Shopify est temporairement indisponible. Veuillez réessayer."
+                    : "Aucun compte crédit Shopify n’est associé à votre utilisateur. Veuillez contacter l’administration."}
+                </div>
               )}
             </div>
             <Button
               className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20"
               onClick={handleCheckout}
-              disabled={isCheckingOut || repsLoading || !shopifyCustomerId}
+              disabled={isCheckingOut || repsLoading || !currentRep}
               data-testid="button-checkout"
             >
               <CreditCard className="h-5 w-5 mr-2" />
@@ -684,10 +688,37 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
   const customersUrl = isViewAs
     ? `/api/admin/customers?contactId=${viewAsContactId}`
-    : "/api/portal/customers";
+    : "/api/portal/mapi/reps";
   const { data: customersData, isLoading: customersLoading } = useQuery<CustomersResponse>({
-    queryKey: isViewAs ? ["/api/admin/customers", viewAsContactId] : ["/api/portal/customers"],
-    queryFn: () => fetch(customersUrl, { credentials: "include" }).then((r) => r.json()),
+    queryKey: isViewAs ? ["/api/admin/customers", viewAsContactId] : ["/api/portal/mapi/reps", "directory"],
+    queryFn: async () => {
+      const response = await fetch(customersUrl, { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les reps Mapei.");
+      const payload = await response.json();
+      if (isViewAs) return payload;
+      const reps = (payload.reps ?? []) as CheckoutRep[];
+      return {
+        customers: reps.map((rep) => ({
+          id: rep.id,
+          email: rep.email,
+          first_name: rep.firstName,
+          last_name: rep.lastName,
+          phone: null,
+          orders_count: rep.numberOfOrders ?? 0,
+          total_spent: rep.amountSpent ?? "0",
+          state: rep.status,
+          verified_email: true,
+          tags: "mapi-rep",
+          created_at: rep.createdAt ?? "",
+          shopName: "Mapei",
+          storeUrl: "tnt5ar-ki.myshopify.com",
+          creditBalance: rep.balance,
+          creditCurrency: rep.currency,
+          isCurrentContact: rep.isCurrentContact,
+        })),
+        totalCount: reps.length,
+      };
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1442,10 +1473,10 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   <Table className="min-w-[800px]">
                     <TableHeader>
                       <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
-                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Client</TableHead>
-                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Localisation</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Rep</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Association</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Commandes</TableHead>
-                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Total Dépensé</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Crédit disponible</TableHead>
                         <TableHead className="w-12 py-4" />
                       </TableRow>
                     </TableHeader>
@@ -1500,14 +1531,20 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 </div>
                               </TableCell>
                               <TableCell className="py-4">
-                                <span className="text-sm font-medium text-foreground">{location || "—"}</span>
+                                {customer.isCurrentContact ? (
+                                  <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">Votre compte</Badge>
+                                ) : (
+                                  <span className="text-sm font-medium text-foreground">{location || "Mapei"}</span>
+                                )}
                               </TableCell>
                               <TableCell className="py-4 text-center">
                                 <Badge variant="outline" className="font-mono text-xs border-dashed bg-muted/30">{customer.orders_count}</Badge>
                               </TableCell>
                               <TableCell className="py-4 text-right">
                                 <span className="font-mono font-bold text-foreground">
-                                  ${Number(customer.total_spent).toFixed(2)}
+                                  {customer.creditBalance !== undefined
+                                    ? money(customer.creditBalance, customer.creditCurrency || "CAD")
+                                    : "—"}
                                 </span>
                               </TableCell>
                               <TableCell className="py-4 text-right">

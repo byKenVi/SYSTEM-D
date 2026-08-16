@@ -13,10 +13,19 @@ test("le portail expose Mes reps et un seul onglet Mes commandes", () => {
   assert.doesNotMatch(boutique, /TabsTrigger value="systemd-orders"/);
 });
 
-test("le checkout sélectionne un rep et envoie son identifiant au backend", () => {
+test("le checkout résout automatiquement le rep par l'email authentifié", () => {
   assert.match(boutique, /Rep à débiter/);
-  assert.match(boutique, /JSON\.stringify\(\{ items: payload, shopifyCustomerId \}\)/);
+  assert.match(boutique, /JSON\.stringify\(\{ items: payload \}\)/);
+  assert.doesNotMatch(boutique, /data-testid="select-checkout-rep"/);
+  assert.match(routes, /findMapiRepByEmail\(authenticatedEmail\)/);
+  assert.match(routes, /Aucun compte crédit Shopify n’est associé à votre utilisateur/);
   assert.match(routes, /paymentMethod: "shopify_credit"/);
+});
+
+test("Mes reps lit les soldes Mapei et identifie le compte de l'utilisateur", () => {
+  assert.match(boutique, /\/api\/portal\/mapi\/reps/);
+  assert.match(boutique, /Crédit disponible/);
+  assert.match(routes, /isCurrentContact: !!authenticatedEmail/);
 });
 
 test("la fiche rep utilise les routes crédit sécurisées du portail", () => {

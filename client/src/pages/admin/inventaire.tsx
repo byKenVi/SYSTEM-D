@@ -68,7 +68,7 @@ interface InventoryResponse {
 }
 
 // Pattern matching operational service items created per soumission
-const OPERATIONAL_PREFIX_RE = /^(ENT|LIV|TRI|INS|F\d+)-/i;
+const OPERATIONAL_PREFIX_RE = /^(ENT|LIV|TRI|INS|BTP|F\d+)-/i;
 
 function isOperationalItem(item: ZohoInventoryItem): boolean {
   return item.productType === "service" && OPERATIONAL_PREFIX_RE.test(item.name);
@@ -285,7 +285,7 @@ export default function AdminInventaire() {
           className={`h-9 gap-1.5 text-xs ${showOperational ? "border-orange-400 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-700" : ""}`}
           onClick={() => setShowOperational((p) => !p)}
           data-testid="button-toggle-operational"
-          title="Services opérationnels créés par soumission (ENT-, LIV-, TRI-, INS-, F[n]-)"
+          title="Services opérationnels créés par soumission (ENT-, LIV-, TRI-, INS-, BTP-, F[n]-)"
         >
           <Wrench className="h-3.5 w-3.5" />
           Services opérationnels
