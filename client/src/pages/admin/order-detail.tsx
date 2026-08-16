@@ -176,6 +176,9 @@ interface OrderDetailResponse {
   shopName: string | null;
   storeUrl: string;
   platform?: string;
+  integrationId?: number;
+  liveUnavailable?: boolean;
+  warning?: string;
 }
 
 function FinancialBadge({ status }: { status?: string | null }) {
@@ -259,14 +262,23 @@ export default function AdminOrderDetail() {
   const shopifyOrderId = pathParts[pathParts.length - 1];
   const searchParams = new URLSearchParams(window.location.search);
   const storeUrl = searchParams.get("store") ?? "";
+  const integrationId = searchParams.get("integrationId") ?? "";
+  const requestedReturnTo = searchParams.get("returnTo") ?? "";
+  const backHref = requestedReturnTo.startsWith("/admin/") ? requestedReturnTo : "/admin/boutique?tab=orders";
 
   const { data, isLoading, error } = useQuery<OrderDetailResponse>({
-    queryKey: ["/api/admin/orders", shopifyOrderId, storeUrl],
-    queryFn: () =>
-      fetch(`/api/admin/orders/${shopifyOrderId}?store=${encodeURIComponent(storeUrl)}`, {
+    queryKey: ["/api/admin/orders", shopifyOrderId, storeUrl, integrationId],
+    queryFn: async () => {
+      const query = new URLSearchParams();
+      if (storeUrl) query.set("store", storeUrl);
+      if (integrationId) query.set("integrationId", integrationId);
+      const response = await fetch(`/api/admin/orders/${shopifyOrderId}?${query}`, {
         credentials: "include",
-      }).then((r) => r.json()),
-    enabled: !!shopifyOrderId && !!storeUrl,
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || "Commande introuvable");
+      return response.json();
+    },
+    enabled: !!shopifyOrderId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -290,7 +302,7 @@ export default function AdminOrderDetail() {
   if (error || !order) {
     return (
       <div>
-        <Link href="/admin/boutique">
+        <Link href={backHref}>
           <Button variant="ghost" size="sm" className="mb-4 -ml-2">
             <ArrowLeft className="h-4 w-4 mr-1.5" />Retour
           </Button>
@@ -315,6 +327,12 @@ export default function AdminOrderDetail() {
   return (
     <div className="space-y-5">
       {/* WooCommerce notice */}
+      {data?.liveUnavailable && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 px-4 py-3 flex items-center gap-3 text-sm text-amber-700 dark:text-amber-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{data.warning || "Détails locaux affichés. Shopify live indisponible."}</span>
+        </div>
+      )}
       {isWooCommerce && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 px-4 py-3 flex items-center gap-3 text-sm text-amber-700 dark:text-amber-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -324,7 +342,7 @@ export default function AdminOrderDetail() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <Link href="/admin/boutique">
+          <Link href={backHref}>
             <Button variant="ghost" size="sm" className="-ml-2 mb-1" data-testid="button-back-orders">
               <ArrowLeft className="h-4 w-4 mr-1.5" />Retour aux commandes
             </Button>

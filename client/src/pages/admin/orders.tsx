@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Fragment, useState, useMemo } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Select,
   SelectContent,
@@ -128,16 +130,34 @@ export default function AdminOrders() {
   const [sdSearch, setSdSearch] = useState("");
   const [sdExpandedId, setSdExpandedId] = useState<number | null>(null);
 
-  const { data, isLoading } = useQuery<OrdersResponse>({
+  const { data, isLoading, isError: ordersError, refetch: refetchOrders } = useQuery<OrdersResponse>({
     queryKey: ["/api/admin/orders"],
-    queryFn: () => fetch("/api/admin/orders", { credentials: "include" }).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch("/api/admin/orders", { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les commandes Shopify");
+      return response.json();
+    },
     staleTime: 60 * 1000,
+    placeholderData: (previous) => previous,
   });
 
-  const { data: systemdOrders, isLoading: sdLoading } = useQuery<SystemdOrder[]>({
+  const { data: systemdOrders, isLoading: sdLoading, isError: systemdError, refetch: refetchSystemd } = useQuery<SystemdOrder[]>({
     queryKey: ["/api/admin/systemd-orders"],
-    queryFn: () => fetch("/api/admin/systemd-orders", { credentials: "include" }).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch("/api/admin/systemd-orders", { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les commandes Système D");
+      return response.json();
+    },
     staleTime: 60 * 1000,
+    placeholderData: (previous) => previous,
+  });
+
+  const fulfillmentMutation = useMutation({
+    mutationFn: async ({ id, fulfillmentStatus }: { id: number; fulfillmentStatus: "processing" | "completed" }) => {
+      const response = await apiRequest("PATCH", `/api/admin/systemd-orders/${id}/fulfillment`, { fulfillmentStatus });
+      return response.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] }),
   });
 
   const orders = data?.orders ?? [];
@@ -189,6 +209,13 @@ export default function AdminOrders() {
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Commandes</h1>
         <p className="text-muted-foreground mt-1">Toutes les commandes de vos boutiques Shopify connectées</p>
       </div>
+
+      {(ordersError || systemdError) && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>Les dernières commandes chargées sont conservées. Une mise à jour a échoué.</span>
+          <Button variant="outline" size="sm" onClick={() => { if (ordersError) refetchOrders(); if (systemdError) refetchSystemd(); }}>Réessayer</Button>
+        </div>
+      )}
 
       {/* Stats */}
       {!isLoading && orders.length > 0 && (
@@ -480,9 +507,9 @@ export default function AdminOrders() {
                         const lineItems = Array.isArray(order.lineItems) ? order.lineItems : [];
                         const totalQty = lineItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
                         return (
-                          <>
+                          <Fragment key={order.id}>
                             <TableRow
-                              key={order.id}
+                              id={`systemd-${order.id}`}
                               className="cursor-pointer hover:bg-muted/50 transition-colors group"
                               onClick={() => setSdExpandedId(isExpanded ? null : order.id)}
                               data-testid={`row-systemd-order-${order.id}`}
@@ -516,6 +543,8 @@ export default function AdminOrders() {
                                     <Badge variant="outline">Réservation en attente</Badge>
                                   )}
                                   {order.fulfillmentStatus === "to_process" && <Badge variant="secondary">À traiter</Badge>}
+                                  {order.fulfillmentStatus === "processing" && <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-300">En cours</Badge>}
+                                  {order.fulfillmentStatus === "completed" && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300">Traitée</Badge>}
                                 </div>
                               </TableCell>
                               <TableCell className="text-right font-bold text-sm tabular-nums font-mono">
@@ -546,11 +575,29 @@ export default function AdminOrders() {
                                     {order.stripeCheckoutSessionId && (
                                       <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">Réf. paiement: {order.stripeCheckoutSessionId}</p>
                                     )}
+                                    {order.status === "paid" && order.fulfillmentStatus !== "completed" && (
+                                      <div className="flex justify-end pt-3">
+                                        <Button
+                                          size="sm"
+                                          disabled={fulfillmentMutation.isPending}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            fulfillmentMutation.mutate({
+                                              id: order.id,
+                                              fulfillmentStatus: order.fulfillmentStatus === "processing" ? "completed" : "processing",
+                                            });
+                                          }}
+                                          data-testid={`button-process-systemd-order-${order.id}`}
+                                        >
+                                          {order.fulfillmentStatus === "processing" ? "Marquer comme traitée" : "Commencer le traitement"}
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </Fragment>
                         );
                       });
                     })()

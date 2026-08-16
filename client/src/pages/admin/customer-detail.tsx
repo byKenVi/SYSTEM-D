@@ -130,6 +130,9 @@ export default function AdminCustomerDetail() {
 
   const searchParams = new URLSearchParams(window.location.search);
   const store = searchParams.get("store") ?? "";
+  const integrationId = searchParams.get("integrationId") ?? "";
+  const requestedReturnTo = searchParams.get("returnTo") ?? "";
+  const backHref = requestedReturnTo.startsWith("/admin/") ? requestedReturnTo : "/admin/boutique?tab=customers";
 
   const shopifyCustomerId = params.id;
 
@@ -141,15 +144,16 @@ export default function AdminCustomerDetail() {
   const [debitReason, setDebitReason] = useState("");
 
   const { data, isLoading, error } = useQuery<any>({
-    queryKey: ["/api/admin/customers", shopifyCustomerId, store],
+    queryKey: ["/api/admin/customers", shopifyCustomerId, store, integrationId],
     queryFn: async () => {
-      const res = await fetch(
-        `/api/admin/customers/${shopifyCustomerId}?store=${encodeURIComponent(store)}`
-      );
+      const query = new URLSearchParams();
+      if (store) query.set("store", store);
+      if (integrationId) query.set("integrationId", integrationId);
+      const res = await fetch(`/api/admin/customers/${shopifyCustomerId}?${query}`);
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: !!shopifyCustomerId && !!store,
+    enabled: !!shopifyCustomerId,
   });
 
   const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[] } | null>({
@@ -210,7 +214,7 @@ export default function AdminCustomerDetail() {
             variant="ghost"
             size="icon"
             className="mt-0.5 flex-shrink-0"
-            onClick={() => navigate("/admin/boutique?tab=customers")}
+            onClick={() => navigate(backHref)}
             data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -272,6 +276,14 @@ export default function AdminCustomerDetail() {
           <CardContent className="pt-5 flex items-center gap-2 text-destructive text-sm">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             Impossible de charger le client : {(error as Error).message}
+          </CardContent>
+        </Card>
+      )}
+      {data?.liveUnavailable && !error && (
+        <Card className="border-amber-300 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <CardContent className="pt-5 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-sm">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {data.warning || "Données Shopify live indisponibles. Dernières données synchronisées affichées."}
           </CardContent>
         </Card>
       )}

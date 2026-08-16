@@ -72,6 +72,7 @@ interface ShopifyCustomer {
   creditBalance?: string;
   creditCurrency?: string;
   isCurrentContact?: boolean;
+  integrationId?: number;
 }
 interface CustomersResponse { customers: ShopifyCustomer[]; totalCount: number }
 interface CheckoutRep {
@@ -86,6 +87,8 @@ interface CheckoutRep {
   numberOfOrders?: number;
   amountSpent?: string;
   createdAt?: string;
+  integrationId?: number;
+  storeUrl?: string;
 }
 
 interface ShopifyOrder {
@@ -102,6 +105,7 @@ interface ShopifyOrder {
   lineItems: { id?: number; title: string; quantity: number }[];
   shopName: string | null;
   storeUrl: string;
+  integrationId?: number;
 }
 interface OrdersResponse { orders: ShopifyOrder[] }
 
@@ -559,7 +563,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const params = new URLSearchParams(window.location.search);
-  const initialTab = params.get("tab") ?? "products";
+  const requestedTab = params.get("tab") ?? "products";
+  const initialTab = ["products", "systemd", "orders", "customers"].includes(requestedTab) ? requestedTab : "products";
+  const setActiveTab = (tab: string) => {
+    const next = new URLSearchParams(window.location.search);
+    next.set("tab", tab);
+    navigate(`/portal/boutique?${next}`);
+  };
 
   /* Products state */
   const [search, setSearch] = useState("");
@@ -576,15 +586,16 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const isViewAs = !!viewAsContactId;
 
   /* SystemD orders */
-  const { data: systemdOrdersData, isLoading: systemdOrdersLoading, isFetching: systemdOrdersFetching } = useQuery<any[]>({
+  const { data: systemdOrdersData, isLoading: systemdOrdersLoading, isFetching: systemdOrdersFetching, isError: systemdOrdersError, refetch: refetchSystemdOrders } = useQuery<any[]>({
     queryKey: ["/api/portal/systemd-orders"],
     queryFn: () =>
       fetch("/api/portal/systemd-orders", { credentials: "include" }).then(async (r) => {
-        if (!r.ok) return [];
+        if (!r.ok) throw new Error("Impossible de charger les commandes Système D");
         return r.json();
       }),
     enabled: !isViewAs,
     staleTime: 30_000,
+    placeholderData: (previous) => previous,
   });
   const systemdOrdersList = systemdOrdersData ?? [];
 
@@ -711,10 +722,11 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           tags: "mapi-rep",
           created_at: rep.createdAt ?? "",
           shopName: "Mapei",
-          storeUrl: "tnt5ar-ki.myshopify.com",
+          storeUrl: rep.storeUrl || "tnt5ar-ki.myshopify.com",
           creditBalance: rep.balance,
           creditCurrency: rep.currency,
           isCurrentContact: rep.isCurrentContact,
+          integrationId: rep.integrationId,
         })),
         totalCount: reps.length,
       };
@@ -807,7 +819,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           </div>
         </div>
 
-        <Tabs defaultValue={initialTab} className="w-full">
+        <Tabs value={initialTab} onValueChange={setActiveTab} className="w-full">
           <div className="relative mb-6">
           <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
             <TabsTrigger value="products" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-products">
@@ -1136,6 +1148,12 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Commandes Système D</h2>
               <Badge variant="outline">Système D</Badge>
             </div>
+            {systemdOrdersError && (
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+                <span>{systemdOrdersList.length > 0 ? "Dernières commandes chargées conservées. La mise à jour a échoué." : "Impossible de charger vos commandes pour le moment."}</span>
+                <Button variant="outline" size="sm" onClick={() => refetchSystemdOrders()}>Réessayer</Button>
+              </div>
+            )}
             {isViewAs ? (
               <Card className="border-border/50 shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center p-10 text-center">
@@ -1149,7 +1167,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   <Skeleton key={i} className="h-24 w-full rounded-xl" />
                 ))}
               </div>
-            ) : systemdOrdersList.length === 0 ? (
+            ) : systemdOrdersError && systemdOrdersList.length === 0 ? null : systemdOrdersList.length === 0 ? (
               <Card className="border-border/50 shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center p-16 text-center">
                   <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
@@ -1217,6 +1235,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                           <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300">Stock à réserver</Badge>
                         )}
                         {order.fulfillmentStatus === "to_process" && <Badge variant="secondary">À traiter</Badge>}
+                        {order.fulfillmentStatus === "stock_to_reserve" && <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300">Stock à réserver</Badge>}
+                        {order.fulfillmentStatus === "processing" && <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-300">En traitement</Badge>}
+                        {order.fulfillmentStatus === "completed" && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300">Traitée</Badge>}
                       </div>
                       <div className="mt-3">
                         <Button
@@ -1341,10 +1362,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               onClick={() => {
                                 if (!order.storeUrl) { console.warn("Order has no storeUrl, skipping navigation"); return; }
                                 if (!order.shopifyOrderId) { console.warn("Order has no ID, skipping navigation"); return; }
-                                const store = encodeURIComponent(order.storeUrl);
-                                const path = viewAsContactId
-                                  ? `/portal/orders/${order.shopifyOrderId}?viewAs=${viewAsContactId}&store=${store}`
-                                  : `/portal/orders/${order.shopifyOrderId}?store=${store}`;
+                                const detailParams = new URLSearchParams({
+                                  store: order.storeUrl,
+                                  returnTo: `/portal/boutique?tab=orders${viewAsContactId ? `&viewAs=${viewAsContactId}` : ""}`,
+                                });
+                                if (viewAsContactId) detailParams.set("viewAs", String(viewAsContactId));
+                                if (order.integrationId) detailParams.set("integrationId", String(order.integrationId));
+                                const path = `/portal/orders/${order.shopifyOrderId}?${detailParams}`;
                                 navigate(path);
                               }}
                             >
@@ -1513,6 +1537,8 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 const p = new URLSearchParams();
                                 if (viewAsContactId) p.set("viewAs", String(viewAsContactId));
                                 if (customer.storeUrl) p.set("store", customer.storeUrl);
+                                if (customer.integrationId) p.set("integrationId", String(customer.integrationId));
+                                p.set("returnTo", `/portal/boutique?tab=customers${viewAsContactId ? `&viewAs=${viewAsContactId}` : ""}`);
                                 const qs = p.toString();
                                 navigate(`/portal/customers/${customer.id}${qs ? `?${qs}` : ""}`);
                               }}

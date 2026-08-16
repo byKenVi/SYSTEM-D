@@ -214,6 +214,38 @@ export async function sendSystemdOrderConfirmationEmail(data: {
   }
 }
 
+export async function sendSystemdOrderAdminEmail(data: {
+  email: string;
+  orderId: number;
+  clientName: string;
+  amount: string;
+  repName: string;
+}) {
+  try {
+    const { client, fromEmail, replyTo } = await getUncachableResendClient();
+    await client.emails.send({
+      from: `Services Système-D <${fromEmail}>`,
+      to: data.email,
+      ...(replyTo ? { replyTo } : {}),
+      subject: `Nouvelle commande Système D #${data.orderId} à traiter`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
+          <h2 style="margin: 0 0 8px;">Nouvelle commande à traiter</h2>
+          <p style="margin: 0 0 24px; color: #555;">
+            La commande <strong>#${data.orderId}</strong> de <strong>${data.clientName}</strong>, d'un montant de
+            <strong>${data.amount}</strong>, a été payée avec le crédit de <strong>${data.repName}</strong>.
+          </p>
+          <a href="${getAppUrl()}/admin/orders#systemd-${data.orderId}" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+            Traiter la commande
+          </a>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error("[resend] sendSystemdOrderAdminEmail error:", err);
+  }
+}
+
 export async function sendInviteEmail(contact: {
   name: string;
   email: string;

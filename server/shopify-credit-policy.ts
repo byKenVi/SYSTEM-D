@@ -1,9 +1,25 @@
 export function normalizeShopifyStoreUrl(value: string | null | undefined): string {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/\/$/, "");
+  let normalized = String(value ?? "").trim();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const decoded = decodeURIComponent(normalized);
+      if (decoded === normalized) break;
+      normalized = decoded;
+    } catch {
+      break;
+    }
+  }
+  normalized = normalized.trim().toLowerCase();
+  if (!normalized) return "";
+  try {
+    const url = new URL(/^https?:\/\//i.test(normalized) ? normalized : `https://${normalized}`);
+    return url.hostname.replace(/\.$/, "");
+  } catch {
+    return normalized
+      .replace(/^https?:\/\//i, "")
+      .split(/[/?#]/, 1)[0]
+      .replace(/\.$/, "");
+  }
 }
 
 export function isShopifyCreditSufficient(

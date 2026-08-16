@@ -79,6 +79,7 @@ interface ShopifyCustomer {
   companyName: string | null;
   shopName: string | null;
   storeUrl: string;
+  integrationId: number;
 }
 interface CustomersResponse { customers: ShopifyCustomer[]; totalCount: number }
 
@@ -99,6 +100,7 @@ interface ShopifyOrder {
   companyName: string | null;
   shopName: string | null;
   storeUrl: string;
+  integrationId: number;
 }
 interface OrdersResponse {
   orders: ShopifyOrder[];
@@ -133,7 +135,10 @@ function FulfillmentBadge({ status }: { status: string | null }) {
 /* ── Main component ── */
 export default function AdminBoutique() {
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  const requestedTab = new URLSearchParams(window.location.search).get("tab") ?? "products";
+  const activeTab = ["products", "systemd", "orders", "customers"].includes(requestedTab) ? requestedTab : "products";
+  const setActiveTab = (tab: string) => navigate(`/admin/boutique?tab=${tab}`);
 
   /* Products state */
   const [search, setSearch] = useState("");
@@ -184,15 +189,25 @@ export default function AdminBoutique() {
     if (!q) return systemdProducts;
     return systemdProducts.filter((p) => p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q));
   }, [systemdProducts, systemdSearch]);
-  const { data: ordersData, isLoading: ordersLoading } = useQuery<OrdersResponse>({
+  const { data: ordersData, isLoading: ordersLoading, isError: ordersError, refetch: refetchOrders } = useQuery<OrdersResponse>({
     queryKey: ["/api/admin/orders"],
-    queryFn: () => fetch("/api/admin/orders", { credentials: "include" }).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch("/api/admin/orders", { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les commandes Shopify");
+      return response.json();
+    },
     staleTime: 60 * 1000,
+    placeholderData: (previous) => previous,
   });
-  const { data: customersData, isLoading: customersLoading } = useQuery<CustomersResponse>({
+  const { data: customersData, isLoading: customersLoading, isError: customersError, refetch: refetchCustomers } = useQuery<CustomersResponse>({
     queryKey: ["/api/admin/customers"],
-    queryFn: () => fetch("/api/admin/customers", { credentials: "include" }).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch("/api/admin/customers", { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les clients Shopify");
+      return response.json();
+    },
     staleTime: 5 * 60 * 1000,
+    placeholderData: (previous) => previous,
   });
 
   const orders = ordersData?.orders ?? [];
@@ -329,7 +344,14 @@ export default function AdminBoutique() {
         <p className="text-muted-foreground mt-1">Produits et commandes de vos boutiques Shopify connectées</p>
       </div>
 
-      <Tabs defaultValue="products">
+      {(ordersError || customersError) && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>Les dernières données chargées sont conservées. Une mise à jour Shopify a échoué.</span>
+          <Button variant="outline" size="sm" onClick={() => { if (ordersError) refetchOrders(); if (customersError) refetchCustomers(); }}>Réessayer</Button>
+        </div>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
           <TabsList className="w-max">
             <TabsTrigger value="products" className="whitespace-nowrap" data-testid="tab-products">
@@ -787,6 +809,17 @@ export default function AdminBoutique() {
 
         {/* ══ COMMANDES TAB ══ */}
         <TabsContent value="orders" className="mt-4 space-y-4">
+          <Card className="border-primary/25 bg-primary/5">
+            <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm font-bold">Commandes boutique : Shopify et Système D</p>
+                <p className="text-xs text-muted-foreground mt-1">Cette liste suit les commandes Shopify importées. Les commandes Système D payées se traitent dans la vue dédiée.</p>
+              </div>
+              <Button size="sm" onClick={() => navigate("/admin/orders#systemd")} data-testid="button-open-systemd-orders">
+                Traiter les commandes Système D
+              </Button>
+            </CardContent>
+          </Card>
           {!ordersLoading && orders.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Total commandes</span></div><p className="text-2xl font-bold tabular-nums">{stats.total}</p></CardContent></Card>
@@ -883,7 +916,12 @@ export default function AdminBoutique() {
                       filteredOrders.map((order) => {
                         const customer = order.customer ? `${order.customer.first_name} ${order.customer.last_name}`.trim() : order.email ?? null;
                         const shopifyOrderUrl = order.storeUrl ? `https://${order.storeUrl}/admin/orders/${order.id}` : null;
-                        const detailUrl = order.storeUrl && order.id ? `/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}` : null;
+                        const detailParams = new URLSearchParams({
+                          store: order.storeUrl,
+                          integrationId: String(order.integrationId),
+                          returnTo: `${location.split("?")[0]}?tab=orders`,
+                        });
+                        const detailUrl = order.id ? `/admin/orders/${order.id}?${detailParams}` : null;
                         return (
                           <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer" onClick={() => { if (detailUrl) navigate(detailUrl); }}>
                             <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
@@ -1003,7 +1041,10 @@ export default function AdminBoutique() {
                       const shopifyCustomerUrl = `https://${c.storeUrl}/admin/customers/${c.id}`;
                       const dateStr = new Date(c.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" });
                       return (
-                        <TableRow key={`${c.storeUrl}-${c.id}`} data-testid={`row-customer-${c.id}`} className="group cursor-pointer" onClick={() => navigate(`/admin/customers/${c.id}?store=${encodeURIComponent(c.storeUrl)}`)}>
+                        <TableRow key={`${c.storeUrl}-${c.id}`} data-testid={`row-customer-${c.id}`} className="group cursor-pointer" onClick={() => {
+                          const detailParams = new URLSearchParams({ store: c.storeUrl, integrationId: String(c.integrationId), returnTo: "/admin/boutique?tab=customers" });
+                          navigate(`/admin/customers/${c.id}?${detailParams}`);
+                        }}>
                           <TableCell>
                             <div className="flex items-center gap-2.5">
                               <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 text-xs font-semibold text-muted-foreground">

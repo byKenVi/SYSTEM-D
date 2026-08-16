@@ -8,6 +8,8 @@ import {
 
 test("normalise toutes les formes de l'URL de la boutique Mapei", () => {
   assert.equal(normalizeShopifyStoreUrl("HTTPS://TNT5AR-KI.MYSHOPIFY.COM/"), "tnt5ar-ki.myshopify.com");
+  assert.equal(normalizeShopifyStoreUrl("https%3A%2F%2Ftnt5ar-ki.myshopify.com%2F"), "tnt5ar-ki.myshopify.com");
+  assert.equal(normalizeShopifyStoreUrl("tnt5ar-ki.myshopify.com/admin/orders"), "tnt5ar-ki.myshopify.com");
 });
 
 test("un crédit insuffisant bloque le checkout", () => {

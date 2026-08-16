@@ -77,6 +77,7 @@ function fmt(d: string | null | undefined) {
 function getDestUrl(n: EnrichedNotification): string | null {
   const meta = (n.metadata ?? {}) as Record<string, unknown>;
   if (meta.formId) return `/admin/forms/${meta.formId}`;
+  if (meta.systemdOrderId) return `/admin/orders#systemd-${meta.systemdOrderId}`;
   return null;
 }
 
@@ -229,7 +230,7 @@ export default function AdminNotifications() {
                     </td>
                     <td className="px-4 py-3 font-medium text-foreground">
                       <span className="flex items-center gap-1.5">
-                        {n.title}
+                        {n.type === "systemd_order_paid" ? "Nouvelle commande Système D à traiter" : n.title}
                         {destUrl && (
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover/row:text-primary transition-colors shrink-0" />
                         )}

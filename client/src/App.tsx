@@ -27,6 +27,7 @@ import PortalLivraisons from "@/pages/portal/livraisons";
 import AdminForms, { AdminFormDetail } from "@/pages/admin/forms";
 import AdminBoutique from "@/pages/admin/boutique";
 import AdminOrderDetail from "@/pages/admin/order-detail";
+import AdminOrders from "@/pages/admin/orders";
 import AdminCustomerDetail from "@/pages/admin/customer-detail";
 import AdminInventaire from "@/pages/admin/inventaire";
 import FormEditor from "@/pages/form-editor";
@@ -66,13 +67,13 @@ function AdminLayout() {
             <Route path="/admin/products/:id" component={AdminProductDetail} />
             <Route path="/admin/boutique" component={AdminBoutique} />
             <Route path="/admin/orders/:id" component={AdminOrderDetail} />
+            <Route path="/admin/orders" component={AdminOrders} />
             <Route path="/admin/customers/:id" component={AdminCustomerDetail} />
             <Route path="/admin/inventaire" component={AdminInventaire} />
             <Route path="/admin/commandes" component={AdminCommandes} />
             <Route path="/admin/livraisons" component={AdminLivraisons} />
             <Route path="/admin/notifications" component={AdminNotifications} />
             <Route path="/admin/products"><Redirect to="/admin/boutique" /></Route>
-            <Route path="/admin/orders"><Redirect to="/admin/boutique" /></Route>
             <Route path="/admin/restock-requests"><Redirect to="/admin/commandes" /></Route>
             <Route path="/admin/forms/:id/edit">
               {(params) => <FormEditor formId={Number(params?.id)} role="admin" backUrl={`/admin/forms/${params?.id}`} />}

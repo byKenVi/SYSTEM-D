@@ -75,16 +75,26 @@ export default function PortalOrderDetail() {
   const shopifyOrderId = pathParts[pathParts.length - 1];
   const searchParams = new URLSearchParams(window.location.search);
   const storeUrl = searchParams.get("store") ?? "";
+  const integrationId = searchParams.get("integrationId") ?? "";
   const viewAs = searchParams.get("viewAs");
-  const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}` : "/portal/boutique";
+  const requestedReturnTo = searchParams.get("returnTo") ?? "";
+  const backHref = requestedReturnTo.startsWith("/portal/")
+    ? requestedReturnTo
+    : viewAs ? `/portal/boutique?tab=orders&viewAs=${viewAs}` : "/portal/boutique?tab=orders";
 
-  const { data, isLoading, error } = useQuery<{ order: any; shopName: string | null; storeUrl: string; platform?: string }>({
-    queryKey: ["/api/portal/orders", shopifyOrderId, storeUrl],
-    queryFn: () =>
-      fetch(`/api/portal/orders/${shopifyOrderId}?store=${encodeURIComponent(storeUrl)}`, {
+  const { data, isLoading, error } = useQuery<{ order: any; shopName: string | null; storeUrl: string; platform?: string; liveUnavailable?: boolean; warning?: string }>({
+    queryKey: ["/api/portal/orders", shopifyOrderId, storeUrl, integrationId],
+    queryFn: async () => {
+      const query = new URLSearchParams();
+      if (storeUrl) query.set("store", storeUrl);
+      if (integrationId) query.set("integrationId", integrationId);
+      const response = await fetch(`/api/portal/orders/${shopifyOrderId}?${query}`, {
         credentials: "include",
-      }).then((r) => r.json()),
-    enabled: !!shopifyOrderId && !!storeUrl,
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || "Commande introuvable");
+      return response.json();
+    },
+    enabled: !!shopifyOrderId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -136,6 +146,12 @@ export default function PortalOrderDetail() {
 
   return (
     <div className="space-y-8 animate-in w-full pb-12">
+      {data?.liveUnavailable && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50/80 px-4 py-3 flex items-center gap-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {data.warning || "Détails locaux affichés. Shopify live indisponible."}
+        </div>
+      )}
       
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">

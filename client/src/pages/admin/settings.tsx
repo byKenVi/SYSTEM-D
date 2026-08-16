@@ -1296,6 +1296,10 @@ export default function AdminSettingsPage() {
                 )}
               </CardContent>
             </Card>
+            <div className="rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-xs text-muted-foreground space-y-1">
+              <p>Les données déjà importées sont conservées même si Shopify doit être reconnecté.</p>
+              <p>Les opérations de crédit live nécessitent une connexion Shopify active.</p>
+            </div>
           </div>
 
           {/* Admin Emails Card */}

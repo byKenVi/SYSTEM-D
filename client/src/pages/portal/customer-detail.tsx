@@ -129,8 +129,12 @@ export default function PortalCustomerDetail() {
 
   const searchParams = new URLSearchParams(window.location.search);
   const store = searchParams.get("store") ?? "";
+  const integrationId = searchParams.get("integrationId") ?? "";
   const viewAs = searchParams.get("viewAs");
-  const backHref = viewAs ? `/portal/boutique?viewAs=${viewAs}&tab=customers` : "/portal/boutique?tab=customers";
+  const requestedReturnTo = searchParams.get("returnTo") ?? "";
+  const backHref = requestedReturnTo.startsWith("/portal/")
+    ? requestedReturnTo
+    : viewAs ? `/portal/boutique?viewAs=${viewAs}&tab=customers` : "/portal/boutique?tab=customers";
   const shopifyCustomerId = params.id;
   const isAdminViewAs = !!viewAs;
   const normalizedStore = store.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -144,16 +148,16 @@ export default function PortalCustomerDetail() {
   const [debitReason, setDebitReason] = useState("");
 
   const { data, isLoading, error } = useQuery<any>({
-    queryKey: ["/api/portal/customers", shopifyCustomerId, store],
+    queryKey: ["/api/portal/customers", shopifyCustomerId, store, integrationId],
     queryFn: async () => {
-      const res = await fetch(
-        `/api/portal/customers/${shopifyCustomerId}?store=${encodeURIComponent(store)}`,
-        { credentials: "include" }
-      );
+      const query = new URLSearchParams();
+      if (store) query.set("store", store);
+      if (integrationId) query.set("integrationId", integrationId);
+      const res = await fetch(`/api/portal/customers/${shopifyCustomerId}?${query}`, { credentials: "include" });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: !!shopifyCustomerId && !!store,
+    enabled: !!shopifyCustomerId,
   });
 
   const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[]; canManageCredit?: boolean } | null>({
@@ -237,6 +241,11 @@ export default function PortalCustomerDetail() {
 
   return (
     <div className="space-y-8 animate-in w-full pb-12">
+      {data?.liveUnavailable && (
+        <div className="rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+          {data.warning ?? "Dernières données synchronisées affichées. Shopify live est temporairement indisponible."}
+        </div>
+      )}
       
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">

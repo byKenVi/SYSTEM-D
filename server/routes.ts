@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
-import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail, sendSystemdOrderConfirmationEmail } from "./resend";
+import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail, sendSystemdOrderConfirmationEmail, sendSystemdOrderAdminEmail } from "./resend";
 import { db } from "./db";
 import { users as usersTable } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
@@ -242,6 +242,54 @@ export async function registerRoutes(
       storage.getContacts(),
     ]);
     return contact ? resolveClientProductContactIds(contact, contacts) : [];
+  }
+
+  function dedupeShopifyOrders<T extends { integrationId: number; shopifyOrderId: string; storeUrl: string; syncedAt?: Date | null }>(orders: T[]): T[] {
+    const byStoreAndOrder = new Map<string, T>();
+    for (const order of orders) {
+      const key = `${normalizeShopifyStoreUrl(order.storeUrl)}:${order.shopifyOrderId}`;
+      const current = byStoreAndOrder.get(key);
+      if (!current || Number(order.syncedAt ?? 0) > Number(current.syncedAt ?? 0)) {
+        byStoreAndOrder.set(key, order);
+      }
+    }
+    return [...byStoreAndOrder.values()];
+  }
+
+  function findShopifyIntegration(
+    integrations: Awaited<ReturnType<typeof storage.getShopifyIntegrations>>,
+    input: { integrationId?: number | null; storeUrl?: string | null; allowedContactIds?: number[]; activeOnly?: boolean },
+  ) {
+    const normalizedStore = normalizeShopifyStoreUrl(input.storeUrl);
+    const scoped = integrations.filter((integration) =>
+      (!input.allowedContactIds || input.allowedContactIds.includes(integration.contactId))
+      && (!input.activeOnly || integration.isActive),
+    );
+    if (input.integrationId) {
+      const byId = scoped.find((integration) => integration.id === input.integrationId);
+      if (byId) return byId;
+    }
+    if (normalizedStore) {
+      return scoped.find((integration) => normalizeShopifyStoreUrl(integration.storeUrl) === normalizedStore);
+    }
+    return undefined;
+  }
+
+  function cachedOrderAsShopify(order: any) {
+    return {
+      id: String(order.shopifyOrderId),
+      name: order.name,
+      created_at: order.shopifyCreatedAt?.toISOString?.() ?? order.shopifyCreatedAt ?? null,
+      financial_status: order.financialStatus,
+      fulfillment_status: order.fulfillmentStatus,
+      total_price: order.totalPrice,
+      currency: order.currency,
+      email: order.email,
+      customer: (order.customerFirstName || order.customerLastName)
+        ? { first_name: order.customerFirstName ?? "", last_name: order.customerLastName ?? "" }
+        : null,
+      line_items: Array.isArray(order.lineItems) ? order.lineItems : [],
+    };
   }
 
   const isAdmin: RequestHandler = async (req: any, res, next) => {
@@ -521,7 +569,7 @@ export async function registerRoutes(
   app.get("/api/admin/orders", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const allContacts = await storage.getContacts();
-      const cachedOrders = await storage.getShopifyOrders();
+      const cachedOrders = dedupeShopifyOrders(await storage.getShopifyOrders());
 
       const enriched = cachedOrders.map((o) => {
         const contact = allContacts.find((c) => c.id === o.contactId);
@@ -543,6 +591,7 @@ export async function registerRoutes(
           companyName: contact?.companyName ?? null,
           shopName: o.shopName,
           storeUrl: o.storeUrl,
+          integrationId: o.integrationId,
         };
       });
 
@@ -590,20 +639,35 @@ export async function registerRoutes(
   app.get("/api/admin/orders/:shopifyOrderId", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const shopifyOrderId = String(req.params.shopifyOrderId);
-      const storeUrl = req.query.store as string;
-      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
-
       const integrations = await storage.getShopifyIntegrations();
-      const integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
-      if (!integration) return res.status(404).json({ message: "Shopify integration not found for this store" });
-
-      const { fetchShopifyOrderDetail } = await import("./shopify-api");
-      const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
-
+      const integrationId = Number(req.query.integrationId) || null;
+      const requestedStore = req.query.store as string | undefined;
+      const cachedCandidates = dedupeShopifyOrders(await storage.getShopifyOrders())
+        .filter((order) => order.shopifyOrderId === shopifyOrderId);
+      const cached = cachedCandidates.find((order) => integrationId ? order.integrationId === integrationId : false)
+        ?? cachedCandidates.find((order) => normalizeShopifyStoreUrl(order.storeUrl) === normalizeShopifyStoreUrl(requestedStore))
+        ?? cachedCandidates[0];
+      const integration = findShopifyIntegration(integrations, {
+        integrationId: integrationId ?? cached?.integrationId,
+        storeUrl: requestedStore ?? cached?.storeUrl,
+        activeOnly: true,
+      });
       const allContacts = await storage.getContacts();
-      const contact = allContacts.find((c) => c.id === integration.contactId);
+      const contactId = integration?.contactId ?? cached?.contactId;
+      const contact = allContacts.find((c) => c.id === contactId);
 
-      res.json({ order, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl });
+      if (integration) {
+        try {
+          const { fetchShopifyOrderDetail } = await import("./shopify-api");
+          const order = await fetchShopifyOrderDetail(integration.storeUrl, integration.accessToken, shopifyOrderId);
+          return res.json({ order, contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl: normalizeShopifyStoreUrl(integration.storeUrl), integrationId: integration.id, liveUnavailable: false });
+        } catch (liveError: any) {
+          if (!cached) throw liveError;
+          await storage.createActivityLog({ type: "shopify_order_live_fallback", status: "error", message: `Détail local affiché pour ${cached.name}; Shopify live indisponible` }).catch(() => {});
+        }
+      }
+      if (!cached) return res.status(404).json({ message: "Commande introuvable" });
+      return res.json({ order: cachedOrderAsShopify(cached), contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: cached.shopName, storeUrl: normalizeShopifyStoreUrl(cached.storeUrl), integrationId: cached.integrationId, liveUnavailable: true, warning: "Détails locaux affichés. Shopify live indisponible." });
     } catch (error: any) {
       console.error("Error fetching order detail:", error);
       res.status(500).json({ message: error.message || "Failed to fetch order detail" });
@@ -632,6 +696,7 @@ export async function registerRoutes(
               companyName: contact?.companyName ?? null,
               shopName: integration.shopName ?? integration.storeUrl,
               storeUrl: integration.storeUrl,
+              integrationId: integration.id,
             });
           }
         } catch (err: any) {
@@ -654,30 +719,40 @@ export async function registerRoutes(
   app.get("/api/admin/customers/:shopifyCustomerId", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const shopifyCustomerId = String(req.params.shopifyCustomerId);
-      const storeUrl = req.query.store as string;
-      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
-
       const integrations = await storage.getShopifyIntegrations();
-      const integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
-      if (!integration) return res.status(404).json({ message: "Shopify integration not found" });
-
-      const { fetchShopifyCustomerDetail, fetchShopifyCustomerOrders } = await import("./shopify-api");
-      const [customer, orders] = await Promise.all([
-        fetchShopifyCustomerDetail(storeUrl, integration.accessToken, shopifyCustomerId),
-        fetchShopifyCustomerOrders(storeUrl, integration.accessToken, shopifyCustomerId),
-      ]);
-
+      const integrationId = Number(req.query.integrationId) || null;
+      const requestedStore = req.query.store as string | undefined;
+      const integration = findShopifyIntegration(integrations, { integrationId, storeUrl: requestedStore, activeOnly: true });
+      const localRep = await storage.getMapiRepByGid(`gid://shopify/Customer/${shopifyCustomerId}`);
+      if (!integration && !localRep) return res.status(404).json({ message: "Rep Shopify introuvable" });
       const allContacts = await storage.getContacts();
-      const contact = allContacts.find((c) => c.id === integration.contactId);
-
-      res.json({
-        customer,
-        orders,
-        contactId: integration.contactId,
+      const contact = allContacts.find((c) => c.id === integration?.contactId);
+      if (integration) {
+        try {
+          const { fetchShopifyCustomerDetail, fetchShopifyCustomerOrders } = await import("./shopify-api");
+          const [customer, orders] = await Promise.all([
+            fetchShopifyCustomerDetail(integration.storeUrl, integration.accessToken, shopifyCustomerId),
+            fetchShopifyCustomerOrders(integration.storeUrl, integration.accessToken, shopifyCustomerId),
+          ]);
+          return res.json({ customer, orders, contactId: integration.contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl: normalizeShopifyStoreUrl(integration.storeUrl), integrationId: integration.id, liveUnavailable: false });
+        } catch (liveError: any) {
+          if (!localRep) throw liveError;
+        }
+      }
+      const cachedOrders = localRep
+        ? dedupeShopifyOrders(await storage.getShopifyOrders()).filter((order) => order.email?.trim().toLowerCase() === localRep.email.trim().toLowerCase()).map(cachedOrderAsShopify)
+        : [];
+      return res.json({
+        customer: { id: shopifyCustomerId, email: localRep!.email, first_name: localRep!.firstName, last_name: localRep!.lastName, orders_count: cachedOrders.length, total_spent: "0", state: localRep!.status, created_at: localRep!.createdAt },
+        orders: cachedOrders,
+        contactId: integration?.contactId ?? null,
         contactName: contact?.name ?? null,
         companyName: contact?.companyName ?? null,
-        shopName: integration.shopName,
-        storeUrl,
+        shopName: integration?.shopName ?? "Mapei",
+        storeUrl: normalizeShopifyStoreUrl(integration?.storeUrl ?? requestedStore),
+        integrationId: integration?.id ?? integrationId,
+        liveUnavailable: true,
+        warning: "Données Shopify live indisponibles. Dernières données synchronisées affichées.",
       });
     } catch (error: any) {
       console.error("Error fetching customer detail:", error);
@@ -977,24 +1052,43 @@ export async function registerRoutes(
       if (!accessToken) {
         return res.status(400).json({ message: "accessToken is required for Shopify" });
       }
-      if (!validateShopifyStoreUrl(storeUrl)) {
+      const normalizedStore = normalizeShopifyStoreUrl(storeUrl);
+      if (!validateShopifyStoreUrl(normalizedStore)) {
         return res.status(400).json({ message: "Store URL must be a valid *.myshopify.com domain (e.g. mystore.myshopify.com)" });
       }
-      const test = await testShopifyConnection(storeUrl, accessToken);
+      const test = await testShopifyConnection(normalizedStore, accessToken);
       if (!test.success) {
         return res.status(400).json({ message: `Could not connect to Shopify store: ${test.error || "invalid token or store URL"}` });
       }
-      await storage.createShopifyIntegration({
-        contactId: Number(contactId),
-        platform: "shopify",
-        accessToken,
-        storeUrl,
-        shopName: test.shopName || storeUrl,
-        scope: null,
-        isActive: true,
-      } as any);
+      const integrations = await storage.getShopifyIntegrations();
+      const existing = integrations.find((integration) =>
+        integration.contactId === Number(contactId) &&
+        (integration.platform ?? "shopify") === "shopify" &&
+        normalizeShopifyStoreUrl(integration.storeUrl) === normalizedStore
+      );
+      const integration = existing
+        ? await storage.updateShopifyIntegration(existing.id, {
+            accessToken,
+            storeUrl: normalizedStore,
+            shopName: test.shopName || normalizedStore,
+            isActive: true,
+            connectionStatus: "ok",
+            lastConnectionTestedAt: new Date(),
+            lastConnectionError: null,
+            consecutiveErrors: 0,
+            syncPausedUntil: null,
+          } as any)
+        : await storage.createShopifyIntegration({
+            contactId: Number(contactId),
+            platform: "shopify",
+            accessToken,
+            storeUrl: normalizedStore,
+            shopName: test.shopName || normalizedStore,
+            scope: null,
+            isActive: true,
+          } as any);
       await storage.updateContact(Number(contactId), { shopifyConnected: true });
-      res.json({ success: true, shopName: test.shopName });
+      res.json({ success: true, shopName: test.shopName, integrationId: integration?.id, reconnected: Boolean(existing) });
     } catch (error: any) {
       console.error("Error connecting store:", error);
       res.status(500).json({ message: error.message || "Failed to connect store" });
@@ -1855,7 +1949,7 @@ export async function registerRoutes(
     try {
       const contactId = Number(req.params.contactId);
       const contactIds = await getProductContactIds(contactId);
-      const orders = await storage.getShopifyOrdersByContactIds(contactIds);
+      const orders = dedupeShopifyOrders(await storage.getShopifyOrdersByContactIds(contactIds));
       res.json({ orders });
     } catch (error) {
       console.error("Error fetching view-as orders:", error);
@@ -2020,28 +2114,29 @@ export async function registerRoutes(
       if (!role) return res.status(403).json({ message: "Forbidden" });
 
       const { shopifyOrderId } = req.params;
-      const storeUrl = req.query.store as string;
-      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
-
       const integrations = await storage.getShopifyIntegrations();
-      let integration;
-      if (role.role === "admin") {
-        integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
-      } else {
-        if (!role.contactId) return res.status(403).json({ message: "Forbidden" });
-        const contactIds = await getProductContactIds(role.contactId);
-        integration = integrations.find(
-          (i) => i.isActive && i.storeUrl === storeUrl && contactIds.includes(i.contactId)
-        );
+      const integrationId = Number(req.query.integrationId) || null;
+      const requestedStore = req.query.store as string | undefined;
+      const allowedContactIds = role.role === "client" && role.contactId ? await getProductContactIds(role.contactId) : undefined;
+      if (role.role === "client" && !allowedContactIds) return res.status(403).json({ message: "Forbidden" });
+      const cachedCandidates = dedupeShopifyOrders(allowedContactIds
+        ? await storage.getShopifyOrdersByContactIds(allowedContactIds)
+        : await storage.getShopifyOrders()).filter((order) => order.shopifyOrderId === shopifyOrderId);
+      const cached = cachedCandidates.find((order) => integrationId ? order.integrationId === integrationId : false)
+        ?? cachedCandidates.find((order) => normalizeShopifyStoreUrl(order.storeUrl) === normalizeShopifyStoreUrl(requestedStore))
+        ?? cachedCandidates[0];
+      const integration = findShopifyIntegration(integrations, { integrationId: integrationId ?? cached?.integrationId, storeUrl: requestedStore ?? cached?.storeUrl, allowedContactIds, activeOnly: true });
+      if (integration) {
+        try {
+          const { fetchShopifyOrderDetail } = await import("./shopify-api");
+          const order = await fetchShopifyOrderDetail(integration.storeUrl, integration.accessToken, shopifyOrderId);
+          return res.json({ order, shopName: integration.shopName, storeUrl: normalizeShopifyStoreUrl(integration.storeUrl), integrationId: integration.id, liveUnavailable: false });
+        } catch (liveError: any) {
+          if (!cached) throw liveError;
+        }
       }
-      if (!integration) {
-        return res.status(404).json({ message: "Shopify integration not found for this store" });
-      }
-
-      const { fetchShopifyOrderDetail } = await import("./shopify-api");
-      const order = await fetchShopifyOrderDetail(storeUrl, integration.accessToken, shopifyOrderId);
-
-      res.json({ order, shopName: integration.shopName, storeUrl });
+      if (!cached) return res.status(404).json({ message: "Commande introuvable" });
+      return res.json({ order: cachedOrderAsShopify(cached), shopName: cached.shopName, storeUrl: normalizeShopifyStoreUrl(cached.storeUrl), integrationId: cached.integrationId, liveUnavailable: true, warning: "Détails locaux affichés. Shopify live indisponible." });
     } catch (error: any) {
       console.error("Error fetching portal order detail:", error);
       res.status(500).json({ message: error.message || "Failed to fetch order detail" });
@@ -2054,31 +2149,31 @@ export async function registerRoutes(
       if (!role) return res.status(403).json({ message: "Forbidden" });
 
       const { shopifyCustomerId } = req.params;
-      const storeUrl = req.query.store as string;
-      if (!storeUrl) return res.status(400).json({ message: "Missing store query param" });
-
       const integrations = await storage.getShopifyIntegrations();
-      let integration;
-      if (role.role === "admin") {
-        // Admins (including view-as mode) can access any active integration by storeUrl
-        integration = integrations.find((i) => i.isActive && i.storeUrl === storeUrl);
-      } else {
-        // Clients can only access their own contact's integrations
-        if (!role.contactId) return res.status(403).json({ message: "Forbidden" });
-        const contactIds = await getProductContactIds(role.contactId);
-        integration = integrations.find(
-          (i) => i.isActive && i.storeUrl === storeUrl && contactIds.includes(i.contactId)
-        );
+      const integrationId = Number(req.query.integrationId) || null;
+      const requestedStore = req.query.store as string | undefined;
+      const allowedContactIds = role.role === "client" && role.contactId ? await getProductContactIds(role.contactId) : undefined;
+      if (role.role === "client" && !allowedContactIds) return res.status(403).json({ message: "Forbidden" });
+      const authorizedIntegration = findShopifyIntegration(integrations, { integrationId, storeUrl: requestedStore, allowedContactIds });
+      const integration = findShopifyIntegration(integrations, { integrationId, storeUrl: requestedStore, allowedContactIds, activeOnly: true });
+      const localRep = await storage.getMapiRepByGid(`gid://shopify/Customer/${shopifyCustomerId}`);
+      if (role.role === "client" && !authorizedIntegration) return res.status(403).json({ message: "Accès refusé" });
+      if (integration) {
+        try {
+          const { fetchShopifyCustomerDetail, fetchShopifyCustomerOrders } = await import("./shopify-api");
+          const [customer, orders] = await Promise.all([
+            fetchShopifyCustomerDetail(integration.storeUrl, integration.accessToken, shopifyCustomerId),
+            fetchShopifyCustomerOrders(integration.storeUrl, integration.accessToken, shopifyCustomerId),
+          ]);
+          return res.json({ customer, orders, shopName: integration.shopName, storeUrl: normalizeShopifyStoreUrl(integration.storeUrl), integrationId: integration.id, liveUnavailable: false });
+        } catch (liveError: any) {
+          if (!localRep) throw liveError;
+        }
       }
-      if (!integration) return res.status(404).json({ message: "Shopify integration not found" });
-
-      const { fetchShopifyCustomerDetail, fetchShopifyCustomerOrders } = await import("./shopify-api");
-      const [customer, orders] = await Promise.all([
-        fetchShopifyCustomerDetail(storeUrl, integration.accessToken, shopifyCustomerId),
-        fetchShopifyCustomerOrders(storeUrl, integration.accessToken, shopifyCustomerId),
-      ]);
-
-      res.json({ customer, orders, shopName: integration.shopName, storeUrl });
+      if (!localRep) return res.status(404).json({ message: "Rep Shopify introuvable" });
+      const cachedOrders = dedupeShopifyOrders(allowedContactIds ? await storage.getShopifyOrdersByContactIds(allowedContactIds) : await storage.getShopifyOrders())
+        .filter((order) => order.email?.trim().toLowerCase() === localRep.email.trim().toLowerCase()).map(cachedOrderAsShopify);
+      return res.json({ customer: { id: shopifyCustomerId, email: localRep.email, first_name: localRep.firstName, last_name: localRep.lastName, orders_count: cachedOrders.length, total_spent: "0", state: localRep.status, created_at: localRep.createdAt }, orders: cachedOrders, shopName: integration?.shopName ?? "Mapei", storeUrl: normalizeShopifyStoreUrl(integration?.storeUrl ?? authorizedIntegration?.storeUrl ?? requestedStore), integrationId: integration?.id ?? authorizedIntegration?.id ?? integrationId, liveUnavailable: true, warning: "Données Shopify live indisponibles. Dernières données synchronisées affichées." });
     } catch (error: any) {
       console.error("Error fetching portal customer detail:", error);
       res.status(500).json({ message: error.message || "Failed to fetch customer detail" });
@@ -2110,6 +2205,7 @@ export async function registerRoutes(
               ...c,
               shopName: integration.shopName ?? integration.storeUrl,
               storeUrl: integration.storeUrl,
+              integrationId: integration.id,
             });
           }
         } catch (err: any) {
@@ -3673,6 +3769,8 @@ export async function registerRoutes(
               createdAt: rep.createdAt,
               status: "active",
               isCurrentContact: !!authenticatedEmail && rep.email?.trim().toLowerCase() === authenticatedEmail,
+              integrationId: integration.id,
+              storeUrl: normalizeShopifyStoreUrl(integration.storeUrl),
             });
             const existing = await storage.getMapiRepByGid(rep.shopifyCustomerId);
             await storage.upsertMapiRepByGid(rep.shopifyCustomerId, {
@@ -3724,6 +3822,8 @@ export async function registerRoutes(
                 createdAt: rep.createdAt,
                 status: rep.status,
                 isCurrentContact: !!authenticatedEmail && rep.email.trim().toLowerCase() === authenticatedEmail,
+                integrationId: integration?.id ?? null,
+                storeUrl: normalizeShopifyStoreUrl(integration?.storeUrl),
               })),
             });
           }
@@ -4500,6 +4600,19 @@ export async function registerRoutes(
           repName,
         }).catch((error) => console.error("SystemD order email error:", error));
       }
+      const settings = await storage.getAdminSettings();
+      if (settings?.adminUserId) {
+        const [adminUser] = await db.select().from(usersTable).where(eq(usersTable.id, settings.adminUserId));
+        if (adminUser?.email) {
+          sendSystemdOrderAdminEmail({
+            email: adminUser.email,
+            orderId: order.id,
+            clientName: contact?.name ?? contact?.companyName ?? `Contact #${contactId}`,
+            amount: `${totalAmount} CAD`,
+            repName,
+          }).catch((error) => console.error("SystemD admin order email error:", error));
+        }
+      }
 
       return res.json({
         url: `${host}/portal/boutique?tab=orders&payment=success&orderId=${order.id}`,
@@ -4535,6 +4648,49 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error fetching SystemD orders:", error);
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/admin/systemd-orders/:id/fulfillment", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const orderId = Number(req.params.id);
+      const fulfillmentStatus = String(req.body?.fulfillmentStatus ?? "");
+      if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ message: "Commande invalide" });
+      if (!(["processing", "completed"] as const).includes(fulfillmentStatus as "processing" | "completed")) {
+        return res.status(400).json({ message: "Statut de traitement invalide" });
+      }
+
+      const order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
+      if (!order) return res.status(404).json({ message: "Commande Système D introuvable" });
+      if (order.status !== "paid") return res.status(409).json({ message: "Seule une commande payée peut être traitée" });
+      const allowedNext = order.fulfillmentStatus === "to_process" || order.fulfillmentStatus === "stock_to_reserve"
+        ? "processing"
+        : order.fulfillmentStatus === "processing" ? "completed" : null;
+      if (fulfillmentStatus !== allowedNext) {
+        return res.status(409).json({ message: "Transition de traitement invalide" });
+      }
+
+      const updated = await storage.updateSystemdOrder(orderId, { fulfillmentStatus });
+      await storage.createActivityLog({
+        type: "systemd_order_fulfillment",
+        status: "success",
+        message: `Commande Système D #${orderId}: ${order.fulfillmentStatus} → ${fulfillmentStatus}`,
+        metadata: JSON.stringify({ orderId, from: order.fulfillmentStatus, to: fulfillmentStatus, userId: req.user?.id ?? null }),
+      });
+      if (await storage.isNotificationEnabled(order.contactId, "commande")) {
+        await storage.createNotification({
+          contactId: order.contactId,
+          category: "commande",
+          type: fulfillmentStatus === "completed" ? "systemd_order_completed" : "systemd_order_processing",
+          title: fulfillmentStatus === "completed" ? `Commande Système D #${orderId} traitée` : `Commande Système D #${orderId} en cours de traitement`,
+          message: fulfillmentStatus === "completed" ? "Votre commande a été traitée par notre équipe." : "Notre équipe a commencé le traitement de votre commande.",
+          metadata: { systemdOrderId: orderId, tab: "orders" },
+        }).catch((error) => console.error("SystemD fulfillment notification error:", error));
+      }
+      return res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating SystemD fulfillment:", error);
+      return res.status(500).json({ message: error.message });
     }
   });
 
