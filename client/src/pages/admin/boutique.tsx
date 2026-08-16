@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { Label } from "@/components/ui/label";
 import {
@@ -136,9 +136,20 @@ function FulfillmentBadge({ status }: { status: string | null }) {
 export default function AdminBoutique() {
   const { toast } = useToast();
   const [location, navigate] = useLocation();
-  const requestedTab = new URLSearchParams(window.location.search).get("tab") ?? "products";
-  const activeTab = ["products", "systemd", "orders", "customers"].includes(requestedTab) ? requestedTab : "products";
-  const setActiveTab = (tab: string) => navigate(`/admin/boutique?tab=${tab}`);
+  const readTabFromUrl = () => {
+    const requested = new URLSearchParams(window.location.search).get("tab") ?? "products";
+    return ["products", "systemd", "orders", "customers"].includes(requested) ? requested : "products";
+  };
+  const [activeTab, setActiveTabState] = useState(readTabFromUrl);
+  useEffect(() => {
+    const syncTabFromHistory = () => setActiveTabState(readTabFromUrl());
+    window.addEventListener("popstate", syncTabFromHistory);
+    return () => window.removeEventListener("popstate", syncTabFromHistory);
+  }, []);
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    navigate(`/admin/boutique?tab=${tab}`);
+  };
 
   /* Products state */
   const [search, setSearch] = useState("");

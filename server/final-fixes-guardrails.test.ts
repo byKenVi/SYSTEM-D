@@ -19,7 +19,10 @@ test("les détails Shopify utilisent integrationId et conservent un fallback loc
 
 test("les onglets et retours boutique sont conservés dans l'URL", () => {
   assert.match(adminBoutique, /\/admin\/boutique\?tab=/);
+  assert.match(adminBoutique, /setActiveTabState\(tab\)/);
+  assert.match(adminBoutique, /addEventListener\("popstate"/);
   assert.match(portalBoutique, /next\.set\("tab", tab\)/);
+  assert.match(portalBoutique, /<Tabs value=\{activeTab\}/);
   assert.match(adminOrder, /returnTo/);
 });
 
@@ -28,6 +31,8 @@ test("les commandes Système D ont une vue et un workflow admin dédiés", () =>
   assert.match(routes, /\/api\/admin\/systemd-orders\/:id\/fulfillment/);
   assert.match(routes, /"processing", "completed"/);
   assert.match(routes, /systemd_order_fulfillment/);
+  assert.match(routes, /type: "systemd_order_admin_action"/);
+  assert.match(routes, /adminOnly: true/);
   assert.doesNotMatch(routes, /systemd_order[\s\S]{0,300}createZohoProject/);
 });
 

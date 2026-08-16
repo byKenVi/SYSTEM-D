@@ -3449,7 +3449,7 @@ export async function registerRoutes(
       const role = await getUserRole(req);
       if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
       const notifs = await storage.getNotificationsByContactId(role.contactId);
-      res.json(notifs);
+      res.json(notifs.filter((notification) => !(notification.metadata as any)?.adminOnly));
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -3459,7 +3459,8 @@ export async function registerRoutes(
     try {
       const role = await getUserRole(req);
       if (!role?.contactId) return res.json({ count: 0 });
-      const count = await storage.getUnreadNotificationCount(role.contactId);
+      const notifs = await storage.getNotificationsByContactId(role.contactId);
+      const count = notifs.filter((notification) => !notification.isRead && !(notification.metadata as any)?.adminOnly).length;
       res.json({ count });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -3486,7 +3487,7 @@ export async function registerRoutes(
 
       // Vérification d'appartenance — seul le propriétaire peut marquer comme lu
       const ownedNotifs = await storage.getNotificationsByContactId(role.contactId);
-      const belongs = ownedNotifs.some((n) => n.id === notifId);
+      const belongs = ownedNotifs.some((n) => n.id === notifId && !(n.metadata as any)?.adminOnly);
       if (!belongs) {
         return res.status(403).json({ message: "Accès refusé" });
       }
@@ -3505,7 +3506,9 @@ export async function registerRoutes(
       if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
       const since = req.query.since ? new Date(req.query.since as string) : new Date(0);
       const notifs = await storage.getAllNotifications();
-      const count = notifs.filter((n) => new Date(n.createdAt as unknown as string) > since).length;
+      const count = notifs.filter((n) =>
+        n.type !== "systemd_order_paid" && new Date(n.createdAt as unknown as string) > since
+      ).length;
       res.json({ count });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -3519,7 +3522,9 @@ export async function registerRoutes(
       const notifs = await storage.getAllNotifications();
       const contacts = await storage.getContacts();
       const contactMap = Object.fromEntries(contacts.map((c) => [c.id, c]));
-      const enriched = notifs.map((n) => ({ ...n, contact: contactMap[n.contactId] || null }));
+      const enriched = notifs
+        .filter((n) => n.type !== "systemd_order_paid")
+        .map((n) => ({ ...n, contact: contactMap[n.contactId] || null }));
       res.json(enriched);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -4581,6 +4586,14 @@ export async function registerRoutes(
 
       const repName = [shopifyCustomer.firstName, shopifyCustomer.lastName].filter(Boolean).join(" ") || shopifyCustomer.email || `Rep #${shopifyCustomerId}`;
       const contact = await storage.getContact(contactId);
+      await storage.createNotification({
+        contactId,
+        category: "commande",
+        type: "systemd_order_admin_action",
+        title: `Nouvelle commande Système D #${order.id} à traiter`,
+        message: `${contact?.name ?? contact?.companyName ?? `Contact #${contactId}`} a passé une commande de ${totalAmount} CAD avec le crédit de ${repName}.`,
+        metadata: { adminOnly: true, systemdOrderId: order.id, tab: "orders", repName, amount: totalAmount },
+      }).catch((error) => console.error("SystemD admin notification error:", error));
       if (await storage.isNotificationEnabled(contactId, "commande")) {
         await storage.createNotification({
           contactId,
@@ -4749,6 +4762,37 @@ export async function registerRoutes(
         res.status(400).json({ message: err.message });
       }
     });
+  }
+
+  // Rattrapage des commandes payées créées avant l'alerte Admin dédiée.
+  // La clé systemdOrderId rend cette opération idempotente à chaque redémarrage.
+  try {
+    const [orders, notifications] = await Promise.all([
+      storage.getSystemdOrders(),
+      storage.getAllNotifications(),
+    ]);
+    const notifiedOrderIds = new Set(
+      notifications
+        .filter((notification) => notification.type === "systemd_order_admin_action")
+        .map((notification) => Number((notification.metadata as any)?.systemdOrderId))
+        .filter(Number.isFinite),
+    );
+    for (const order of orders) {
+      if (order.status !== "paid" || order.fulfillmentStatus === "completed" || notifiedOrderIds.has(order.id)) continue;
+      const contact = await storage.getContact(order.contactId);
+      const rep = order.shopifyCustomerGid ? await storage.getMapiRepByGid(order.shopifyCustomerGid) : undefined;
+      const repName = rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : "rep Shopify";
+      await storage.createNotification({
+        contactId: order.contactId,
+        category: "commande",
+        type: "systemd_order_admin_action",
+        title: `Nouvelle commande Système D #${order.id} à traiter`,
+        message: `${contact?.name ?? contact?.companyName ?? `Contact #${order.contactId}`} a une commande payée de ${(order.amount / 100).toFixed(2)} ${order.currency.toUpperCase()} à traiter (${repName}).`,
+        metadata: { adminOnly: true, systemdOrderId: order.id, tab: "orders", backfilled: true },
+      });
+    }
+  } catch (error) {
+    console.error("SystemD admin notification backfill error:", error);
   }
 
   return httpServer;

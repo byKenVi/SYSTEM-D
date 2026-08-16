@@ -563,9 +563,18 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const params = new URLSearchParams(window.location.search);
-  const requestedTab = params.get("tab") ?? "products";
-  const initialTab = ["products", "systemd", "orders", "customers"].includes(requestedTab) ? requestedTab : "products";
+  const readTabFromUrl = () => {
+    const requested = new URLSearchParams(window.location.search).get("tab") ?? "products";
+    return ["products", "systemd", "orders", "customers"].includes(requested) ? requested : "products";
+  };
+  const [activeTab, setActiveTabState] = useState(readTabFromUrl);
+  useEffect(() => {
+    const syncTabFromHistory = () => setActiveTabState(readTabFromUrl());
+    window.addEventListener("popstate", syncTabFromHistory);
+    return () => window.removeEventListener("popstate", syncTabFromHistory);
+  }, []);
   const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
     const next = new URLSearchParams(window.location.search);
     next.set("tab", tab);
     navigate(`/portal/boutique?${next}`);
@@ -819,7 +828,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
           </div>
         </div>
 
-        <Tabs value={initialTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="relative mb-6">
           <TabsList className="w-full justify-start h-14 bg-card border border-border/50 shadow-sm p-1 rounded-xl overflow-x-auto overflow-y-hidden scrollbar-hide" data-testid="tabs-boutique">
             <TabsTrigger value="products" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-products">
