@@ -264,7 +264,7 @@ export default function AdminBoutique() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/dashboard/kpis"] });
-      toast({ title: "Statut mis à jour", description: "La commande Système D a été mise à jour." });
+      // UI updates via query invalidation above — no intrusive toast needed
     },
     onError: (error: Error) => toast({ title: "Mise à jour impossible", description: error.message, variant: "destructive" }),
   });

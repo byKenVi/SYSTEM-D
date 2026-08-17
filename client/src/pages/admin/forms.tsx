@@ -920,7 +920,6 @@ export function AdminFormDetail({ id }: { id: number }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
-      toast({ title: "Statut mis à jour" });
       setPriceDialog({ open: false, priceInput: "", quantityInput: "" });
     },
     onError: () => {

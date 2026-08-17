@@ -178,6 +178,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
                 <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-products">{products?.length ?? 0}</p>
               )}
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Produits Actifs</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 normal-case tracking-normal">Produits disponibles dans votre catalogue client.</p>
             </div>
           </CardContent>
         </Card>
@@ -195,7 +196,8 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               {loadingRestock ? <Skeleton className="h-10 w-16 mb-1" /> : (
                 <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-restock">{pendingRestock}</p>
               )}
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">En Attente</p>
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Réapprovisionnements</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 normal-case tracking-normal">Demandes de réapprovisionnement en attente de traitement.</p>
             </div>
           </CardContent>
         </Card>
@@ -213,7 +215,8 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               {loadingForms ? <Skeleton className="h-10 w-16 mb-1" /> : (
                 <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-forms">{activeForms.length}</p>
               )}
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Demandes En Cours</p>
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Demandes en traitement</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 normal-case tracking-normal">Demandes soumises ou en cours de réalisation par l'équipe Système D.</p>
             </div>
           </CardContent>
         </Card>
@@ -265,7 +268,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           {/* Recent Forms Activity */}
           <Card className="border-border/50 shadow-sm overflow-hidden">
             <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest">Services Récents</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest">Demandes Récentes</CardTitle>
               <Link href={`/portal/forms${qs}`}>
                 <Button variant="ghost" size="sm" className="h-8 text-xs font-bold hover:bg-muted" data-testid="link-view-all-forms">
                   Voir tout <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
@@ -332,13 +335,6 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary">Accès Rapide</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {!viewAsContactId && (
-                <Button asChild size="lg" className="w-full justify-start gap-3 h-12 shadow-sm font-bold" data-testid="link-quick-new-form">
-                  <Link href="/portal/forms">
-                    <Plus className="h-4 w-4" /> Nouvelle Demande
-                  </Link>
-                </Button>
-              )}
               <Button asChild variant="outline" size="lg" className="w-full justify-start gap-3 h-12 font-bold bg-background/50 hover:bg-background border-border/50" data-testid="link-quick-products">
                 <Link href={`/portal/boutique${qs ? qs + "&tab=products" : "?tab=products"}`}>
                   <ShoppingCart className="h-4 w-4 text-muted-foreground" /> Produits Clients

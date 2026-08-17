@@ -25,7 +25,7 @@ export default function Landing() {
     <div className="min-h-screen bg-background selection:bg-primary/20">
       <nav className="border-b border-white/10 bg-[#121218]">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <img src={logoSrc} alt="Système D" className="h-9 w-auto object-contain" />
+          <img src={logoSrc} alt="Système D" className="h-9 w-auto object-contain rounded-md bg-white/90 px-2 py-0.5" />
           <a href="/api/login">
             <Button className="font-semibold" data-testid="button-login">
               Accéder au portail <ArrowRight className="ml-2 h-4 w-4" />

@@ -369,7 +369,9 @@ export default function AdminCommandes() {
                         Prix (CAD)
                       </div>
                       <p className="text-xl font-bold font-mono">
-                        {selected.price ? `$${Number(selected.price).toFixed(2)}` : "—"}
+                        {selected.price
+                          ? `$${Number(selected.price).toFixed(2)}`
+                          : <span className="text-sm font-normal text-muted-foreground">Non défini</span>}
                       </p>
                     </div>
                     <div className="rounded-lg bg-muted/50 p-3 space-y-1">
@@ -380,7 +382,11 @@ export default function AdminCommandes() {
                       <p className="text-xl font-bold font-mono">
                         {selected.approvedQuantity
                           ? Number(selected.approvedQuantity).toLocaleString("fr-CA")
-                          : "—"}
+                          : (selected.data as any)?.requestedQuantity
+                            ? Number((selected.data as any).requestedQuantity).toLocaleString("fr-CA")
+                            : (selected.data as any)?.quantite
+                              ? String((selected.data as any).quantite)
+                              : <span className="text-sm font-normal text-muted-foreground">Non défini</span>}
                       </p>
                     </div>
                   </div>

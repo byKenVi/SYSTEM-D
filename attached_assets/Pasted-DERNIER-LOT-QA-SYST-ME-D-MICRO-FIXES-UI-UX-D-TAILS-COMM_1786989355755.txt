@@ -1,0 +1,283 @@
+DERNIER LOT QA SYSTÈME D — MICRO-FIXES UI/UX + DÉTAILS COMMANDES + DASHBOARD CLIENT
+
+Contexte :
+Après QA finale, le parcours principal Système D / Mapei fonctionne globalement.
+Il reste quelques détails gênants qui doivent être corrigés avant fermeture du projet.
+
+Objectif :
+Corriger uniquement les derniers irritants QA listés ci-dessous.
+Ne pas refaire l’architecture.
+Ne pas modifier les flows métier validés.
+Ne pas casser Shopify, Reps, checkout crédit, BTP, Zoho Projects, soumissions, commandes ou intégrations.
+Ne pas déployer automatiquement.
+
+==================================================
+1. SUPPRIMER LES PETITES NOTIFICATIONS BASSES INUTILES
+==================================================
+
+Problème :
+Des petites notifications/toasts apparaissent en bas de page, par exemple :
+- “Statut mis à jour”
+- messages mineurs après changement de statut
+- confirmations répétitives
+
+Ces toasts gênent l’expérience et doivent disparaître.
+
+Correction attendue :
+- Supprimer les toasts non essentiels de type “statut mis à jour”, “action réussie”, etc.
+- Garder uniquement les erreurs importantes si nécessaire.
+- Ne pas supprimer le vrai système de notifications dans la sidebar.
+- Ne pas casser les notifications admin/client existantes.
+- Si une action réussit, l’UI doit se mettre à jour directement sans popup intrusive.
+
+Tests :
+- changer le statut d’une commande ;
+- vérifier qu’aucun toast inutile n’apparaît en bas ;
+- vérifier que les erreurs importantes restent visibles ;
+- vérifier que le badge notifications sidebar fonctionne encore.
+
+==================================================
+2. COMMANDES AVEC DÉTAILS MANQUANTS
+==================================================
+
+Problème :
+Certaines commandes n’ont pas de détails complets :
+- prix manquant ;
+- quantité manquante ;
+- lignes de commande incomplètes ;
+- détail commande vide ou partiel.
+
+Correction attendue :
+Diagnostiquer les commandes concernées :
+- commandes Système D ;
+- commandes Shopify importées ;
+- commandes anciennes ou synchronisées partiellement.
+
+Pour chaque commande, le détail doit afficher au minimum :
+- numéro commande ;
+- client ;
+- rep / acheteur si disponible ;
+- date ;
+- statut paiement ;
+- statut traitement ;
+- articles ;
+- quantité ;
+- prix unitaire si disponible ;
+- total ligne ;
+- total commande.
+
+Si l’information existe en base locale :
+- l’utiliser en priorité.
+Si l’information existe dans Shopify :
+- l’utiliser comme enrichissement.
+Si l’information n’existe vraiment pas :
+- afficher un fallback propre :
+  “Détail produit indisponible”
+  au lieu de laisser une zone vide ou cassée.
+
+Important :
+- Ne pas faire dépendre l’affichage uniquement d’un appel live Shopify.
+- La page détail doit fonctionner avec les données locales.
+- Ne pas recréer de doublons de commandes.
+- Ne pas modifier la logique de paiement.
+
+Tests :
+- ouvrir plusieurs commandes Shopify importées ;
+- ouvrir plusieurs commandes Système D ;
+- vérifier prix, quantité, total ;
+- vérifier qu’aucune commande ne montre une page vide ;
+- vérifier qu’un fallback propre s’affiche si une ancienne commande est réellement incomplète.
+
+==================================================
+3. LOGO SYSTÈME D SUR LANDING / SIDEBAR
+==================================================
+
+Problème :
+Le logo Système D de la landing page n’est pas assez visible parce que la sidebar ou la zone autour utilise une couleur noire/sombre similaire.
+
+Correction attendue :
+Corriger la visibilité du logo sans gros redesign.
+
+Options acceptées :
+A. Utiliser une version blanche/claire du logo si elle existe déjà dans les assets.
+B. Créer une variante CSS adaptée pour mieux contraster.
+C. Changer légèrement la couleur de fond de la barre/zone sombre.
+D. Ajouter un fond clair discret derrière le logo.
+
+Ne pas changer toute l’identité visuelle.
+Ne pas remplacer le logo par un texte simple.
+Ne pas casser l’affichage du logo dans la sidebar admin/client.
+
+Tests :
+- landing page desktop ;
+- dashboard client ;
+- admin ;
+- sidebar fermée/ouverte si applicable ;
+- mobile rapide ;
+- logo lisible sur fond sombre.
+
+==================================================
+4. DASHBOARD CLIENT — KPI PAS ASSEZ EXPLICITES
+==================================================
+
+Problème :
+Dans la vue client, les KPI du dashboard ne sont pas clairs.
+On ne comprend pas bien la différence entre :
+- “En attente”
+- “Demandes en cours”
+- autres compteurs similaires
+
+Correction attendue :
+Renommer les KPI pour qu’ils soient explicites et ajouter une courte description sous chaque KPI.
+
+Exemples de libellés plus clairs :
+- “Demandes à réviser”
+  Description : “Demandes soumises, en attente d’analyse par l’équipe Système D.”
+- “Demandes en traitement”
+  Description : “Demandes déjà prises en charge ou en cours de réalisation.”
+- “Commandes à traiter”
+  Description : “Commandes payées ou reçues, en attente de traitement.”
+- “Livraisons en cours”
+  Description : “Livraisons planifiées ou en transit.”
+
+Choisir les libellés exacts selon les données réellement affichées par le dashboard.
+
+Important :
+- Ne pas inventer de KPI si la donnée n’existe pas.
+- Ne pas afficher de KPI vide ou trompeur.
+- Les descriptions doivent être courtes.
+- Le dashboard doit être compréhensible pour un client non technique.
+
+Tests :
+- dashboard client Mapei ;
+- client sans données ;
+- client avec commandes/soumissions ;
+- vérifier que les compteurs correspondent toujours aux bonnes données.
+
+==================================================
+5. RENOMMER “SERVICES RÉCENTS”
+==================================================
+
+Problème :
+L’appellation “Services récents” n’est pas claire.
+Dans le contexte Système D, il s’agit plutôt de demandes, soumissions ou activités récentes.
+
+Correction attendue :
+Remplacer “Services récents” par un libellé plus clair, par exemple :
+- “Demandes récentes”
+ou
+- “Soumissions récentes”
+ou
+- “Activités récentes”
+
+Choisir le libellé qui correspond exactement au contenu affiché.
+
+Si la section liste des formulaires/soumissions :
+- utiliser “Soumissions récentes” ou “Demandes récentes”.
+
+Si la section mélange commandes, soumissions et livraisons :
+- utiliser “Activités récentes”.
+
+Tests :
+- vérifier le dashboard client ;
+- vérifier que le libellé est cohérent avec les éléments affichés ;
+- vérifier français propre.
+
+==================================================
+6. SUPPRIMER LE DOUBLON “NOUVELLE DEMANDE”
+==================================================
+
+Problème :
+Sur le tableau de bord client, il y a deux boutons “Nouvelle demande”.
+Le second doit être retiré.
+
+Correction attendue :
+- Garder un seul bouton principal “Nouvelle demande”.
+- Supprimer le doublon.
+- Le bouton restant doit mener au bon flow de création de demande/soumission.
+- Ne pas supprimer les autres CTA utiles comme “Voir mes commandes” ou “Accéder à la boutique”.
+
+Tests :
+- dashboard client ;
+- un seul bouton “Nouvelle demande” visible ;
+- clic fonctionne ;
+- mobile OK.
+
+==================================================
+7. NON-RÉGRESSION OBLIGATOIRE
+==================================================
+
+Ne pas casser :
+
+- login client ;
+- dashboard client ;
+- boutique ;
+- Mes produits ;
+- Produits Système D ;
+- Mes commandes ;
+- Mes reps ;
+- checkout crédit Shopify ;
+- commandes Système D ;
+- commandes Shopify importées ;
+- BTP / bon de travail ;
+- soumissions historiques ;
+- notifications sidebar ;
+- admin commandes ;
+- admin paramètres ;
+- Shopify integration ;
+- Zoho Inventory ;
+- Zoho Projects ;
+- Resend.
+
+==================================================
+8. TESTS À LANCER
+==================================================
+
+Lancer :
+
+npm run check
+npm run build
+
+Si le build standard a un problème environnemental connu, documenter précisément et lancer les étapes équivalentes déjà utilisées.
+
+Faire aussi :
+- git diff --check
+- tests ciblés existants si disponibles.
+
+QA manuelle rapide :
+1. Dashboard client.
+2. Vérifier KPI + descriptions.
+3. Vérifier un seul bouton Nouvelle demande.
+4. Vérifier “Services récents” renommé.
+5. Vérifier logo visible.
+6. Ouvrir Mes commandes.
+7. Ouvrir détail commande Système D.
+8. Ouvrir détail commande Shopify.
+9. Changer statut commande admin.
+10. Vérifier aucun toast inutile en bas.
+11. Vérifier notifications sidebar.
+12. Vérifier mobile rapide.
+
+==================================================
+RAPPORT ATTENDU
+==================================================
+
+Réponds avec :
+
+A. Toasts supprimés / conservés
+B. Correction détails commandes
+C. Correction visibilité logo
+D. Nouveaux libellés KPI dashboard
+E. Nouveau libellé “Services récents”
+F. Suppression doublon “Nouvelle demande”
+G. Fichiers modifiés
+H. Tests lancés
+I. Résultat build/check
+J. Risques restants
+K. Statut final GO / NO-GO
+
+Statut final attendu si tout passe :
+GO REVIEW SYSTÈME D — MICRO-FIXES QA TERMINÉS
+
+Termine exactement par :
+SYSTÈME D — DERNIERS MICRO-FIXES QA TERMINÉS.
