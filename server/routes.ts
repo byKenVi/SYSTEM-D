@@ -212,7 +212,10 @@ export async function registerRoutes(
         if (contactByEmail.status === "revoked") {
           return null;
         }
-        if (!contactByEmail.userId) {
+        // Link the contact to the real user ID if it has no userId, or if the current
+        // userId is a placeholder (e.g. "portal-invited-X") and the real Replit sub differs.
+        const isPlaceholder = !contactByEmail.userId || contactByEmail.userId.startsWith("portal-invited-");
+        if (isPlaceholder && contactByEmail.userId !== userId) {
           await storage.updateContact(contactByEmail.id, {
             userId,
             status: "active",
