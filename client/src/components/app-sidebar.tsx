@@ -211,7 +211,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                           <item.icon className="h-4 w-4" strokeWidth={isActive ? 2.5 : 2} />
                           {showBadge && !isActive && (
                             <span
-                              className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-sidebar"
+                              className="absolute -top-1.5 -right-1.5 h-3.5 min-w-3.5 rounded-full bg-primary ring-2 ring-sidebar"
                               data-testid="badge-unread-count-dot"
                             />
                           )}

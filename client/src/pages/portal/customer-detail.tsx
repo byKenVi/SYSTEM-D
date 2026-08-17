@@ -305,7 +305,7 @@ export default function PortalCustomerDetail() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Commandes", value: isLoading ? null : c.orders_count ?? 0, icon: <ShoppingCart className="h-5 w-5 text-primary" /> },
-          { label: "Dépenses Totales", value: isLoading ? null : money(c.total_spent, c.currency ?? "CAD"), icon: <DollarSign className="h-5 w-5 text-primary" /> },
+          { label: "Dépensé en commandes", value: isLoading ? null : money(c.total_spent || "0", c.currency ?? "CAD"), icon: <DollarSign className="h-5 w-5 text-primary" /> },
           { label: "Dernier Achat", value: isLoading ? null : (c.last_order_name ?? "Aucun"), icon: <Package className="h-5 w-5 text-primary" /> },
           { label: "Devise par défaut", value: isLoading ? null : (c.currency ?? "—"), icon: <CreditCard className="h-5 w-5 text-primary" /> },
         ].map(({ label, value, icon }, i) => (
@@ -324,6 +324,10 @@ export default function PortalCustomerDetail() {
           </Card>
         ))}
       </div>
+
+      <p className="rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
+        Le montant dépensé provient des commandes Shopify. Les crédits ajoutés et les ajustements de solde ne sont pas comptés comme dépenses.
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         {/* Contact info */}

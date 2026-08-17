@@ -502,6 +502,7 @@ export async function registerRoutes(
   app.get("/api/admin/dashboard/kpis", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const allOrders = await storage.getShopifyOrders();
+      const allSystemdOrders = await storage.getSystemdOrders();
       const allContacts = await storage.getContacts();
       const allProducts = await storage.getProducts();
 
@@ -521,22 +522,55 @@ export async function registerRoutes(
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const paidSystemdOrders = allSystemdOrders.filter((order) => order.status === "paid");
+      const systemdThisMonth = paidSystemdOrders.filter((order) => order.createdAt && new Date(order.createdAt) >= startOfMonth);
+      const systemdPrevMonth = paidSystemdOrders.filter((order) => {
+        const date = order.createdAt ? new Date(order.createdAt) : null;
+        return date && date >= startOfPrevMonth && date < startOfMonth;
+      });
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const systemdLast30 = paidSystemdOrders.filter((order) => order.createdAt && new Date(order.createdAt) >= thirtyDaysAgo);
+      const systemdValue = (orders: typeof paidSystemdOrders) => orders.reduce((sum, order) => sum + order.amount / 100, 0);
+
+      kpis.ordersThisMonth += systemdThisMonth.length;
+      kpis.valueThisMonth += systemdValue(systemdThisMonth);
+      kpis.ordersPrevMonth += systemdPrevMonth.length;
+      kpis.valuePrevMonth += systemdValue(systemdPrevMonth);
+      kpis.ordersLast30Days += systemdLast30.length;
+      kpis.valueLast30Days += systemdValue(systemdLast30);
+      kpis.ordersTrend = kpis.ordersPrevMonth > 0 ? Math.round(((kpis.ordersThisMonth - kpis.ordersPrevMonth) / kpis.ordersPrevMonth) * 100) : null;
+      kpis.valueTrend = kpis.valuePrevMonth > 0 ? Math.round(((kpis.valueThisMonth - kpis.valuePrevMonth) / kpis.valuePrevMonth) * 100) : null;
+      const systemdDates = paidSystemdOrders.map((order) => order.createdAt ? new Date(order.createdAt).getTime() : 0).filter(Boolean);
+      if (systemdDates.length > 0) {
+        const latestSystemd = Math.max(...systemdDates);
+        const latestShopify = kpis.lastOrderAt ? new Date(kpis.lastOrderAt).getTime() : 0;
+        kpis.lastOrderAt = new Date(Math.max(latestSystemd, latestShopify)).toISOString();
+      }
 
       const perClient = allContacts.map((contact) => {
         const clientOrders = allOrders.filter((o) => o.contactId === contact.id && o.financialStatus !== "voided" && o.financialStatus !== "refunded");
+        const clientSystemdOrders = paidSystemdOrders.filter((order) => order.contactId === contact.id);
         const thisMonthOrders = clientOrders.filter((o) => o.shopifyCreatedAt && new Date(o.shopifyCreatedAt) >= startOfMonth);
+        const thisMonthSystemd = clientSystemdOrders.filter((order) => order.createdAt && new Date(order.createdAt) >= startOfMonth);
         const prevMonthOrders = clientOrders.filter((o) => {
           const d = o.shopifyCreatedAt ? new Date(o.shopifyCreatedAt) : null;
           return d && d >= startOfPrevMonth && d < startOfMonth;
         });
-        const valueThisMonth = thisMonthOrders.reduce((s, o) => s + parseFloat(o.totalPrice || "0"), 0);
-        const valuePrevMonth = prevMonthOrders.reduce((s, o) => s + parseFloat(o.totalPrice || "0"), 0);
-        const dates = clientOrders.map((o) => o.shopifyCreatedAt).filter(Boolean).map((d) => new Date(d!).getTime());
+        const prevMonthSystemd = clientSystemdOrders.filter((order) => {
+          const date = order.createdAt ? new Date(order.createdAt) : null;
+          return date && date >= startOfPrevMonth && date < startOfMonth;
+        });
+        const valueThisMonth = thisMonthOrders.reduce((s, o) => s + parseFloat(o.totalPrice || "0"), 0) + systemdValue(thisMonthSystemd);
+        const valuePrevMonth = prevMonthOrders.reduce((s, o) => s + parseFloat(o.totalPrice || "0"), 0) + systemdValue(prevMonthSystemd);
+        const dates = [
+          ...clientOrders.map((o) => o.shopifyCreatedAt).filter(Boolean).map((d) => new Date(d!).getTime()),
+          ...clientSystemdOrders.map((order) => order.createdAt ? new Date(order.createdAt).getTime() : 0).filter(Boolean),
+        ];
         const lastOrderAt = dates.length > 0 ? new Date(Math.max(...dates)).toISOString() : null;
         return {
           contactId: contact.id, contactName: contact.name, companyName: contact.companyName,
-          ordersThisMonth: thisMonthOrders.length, valueThisMonth, ordersPrevMonth: prevMonthOrders.length, valuePrevMonth, lastOrderAt,
-          totalOrders: clientOrders.length,
+          ordersThisMonth: thisMonthOrders.length + thisMonthSystemd.length, valueThisMonth, ordersPrevMonth: prevMonthOrders.length + prevMonthSystemd.length, valuePrevMonth, lastOrderAt,
+          totalOrders: clientOrders.length + clientSystemdOrders.length,
         };
       }).filter((c) => c.totalOrders > 0 || allProducts.some((p) => p.contactId === c.contactId));
 

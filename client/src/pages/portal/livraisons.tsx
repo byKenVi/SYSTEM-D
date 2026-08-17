@@ -94,7 +94,7 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
     ? ["/api/portal/livraisons", { contactId: viewAsContactId }]
     : ["/api/portal/livraisons"];
 
-  const { data: forms, isLoading } = useQuery<FormSubmission[]>({
+  const { data: forms, isLoading, isError, refetch } = useQuery<FormSubmission[]>({
     queryKey,
     queryFn: () =>
       fetch(
@@ -102,7 +102,11 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
           ? `/api/portal/livraisons?contactId=${viewAsContactId}`
           : "/api/portal/livraisons",
         { credentials: "include" }
-      ).then((r) => r.json()),
+      ).then(async (response) => {
+        if (!response.ok) throw new Error("Impossible de charger les livraisons.");
+        return response.json();
+      }),
+    placeholderData: (previous) => previous,
   });
 
   const filtered = useMemo(() => {
@@ -154,7 +158,7 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
   return (
     <div className="space-y-6 animate-in w-full max-w-full">
       {/* Header section with gradient */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-5 shadow-sm sm:p-8">
         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
         <div className="absolute -top-24 -right-24">
           <div className="h-96 w-96 rounded-full bg-emerald-500/5 blur-3xl" />
@@ -165,7 +169,7 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
               <Truck className="h-3.5 w-3.5" /> Centre d'expédition
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl" data-testid="text-page-title">
               Livraisons
             </h1>
             <p className="text-muted-foreground mt-3 text-lg">
@@ -173,11 +177,11 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
             </p>
           </div>
           
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
             <Card className="bg-background/50 backdrop-blur-sm border-border/50 shadow-sm border-0 min-w-[140px]">
               <CardContent className="p-4">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                  <CalendarClock className="h-3 w-3" /> En transit
+                  <CalendarClock className="h-3 w-3" /> En cours
                 </p>
                 <p className="text-3xl font-mono font-bold text-amber-500">{stats.pending}</p>
               </CardContent>
@@ -193,6 +197,19 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
           </div>
         </div>
       </div>
+
+      <Card className="border-blue-200 bg-blue-50/70 dark:border-blue-900/50 dark:bg-blue-950/20">
+        <CardContent className="flex flex-col gap-3 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <p><span className="font-semibold">Comment une livraison apparaît ici :</span> créez et soumettez une demande de type Livraison dans Soumissions. Une commande marquée expédiée peut aussi apparaître lorsqu’une donnée d’expédition est disponible; aucune intégration transporteur n’est simulée.</p>
+          <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate(`/portal/forms${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`)}>Voir les soumissions</Button>
+        </CardContent>
+      </Card>
+
+      {isError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>Les livraisons n’ont pas pu être mises à jour.</span><Button variant="outline" size="sm" onClick={() => refetch()}>Réessayer</Button>
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="shadow-sm border-border/50">
@@ -287,10 +304,10 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
             </div>
             <h3 className="text-xl font-bold tracking-tight mb-2">Aucune livraison trouvée</h3>
             <p className="text-muted-foreground max-w-sm mb-6">
-              Modifiez vos filtres ou créez une nouvelle demande de livraison pour voir apparaître des résultats.
+              {forms?.length ? "Aucune livraison ne correspond aux filtres sélectionnés." : "Les livraisons apparaîtront lorsqu’une demande de livraison sera soumise ou qu’une commande sera expédiée."}
             </p>
-            <Button variant="outline" onClick={() => navigate("/portal/dashboard")}>
-              Retour au tableau de bord
+            <Button variant="outline" onClick={() => navigate(`/portal/forms${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`)}>
+              Créer ou consulter une soumission
             </Button>
           </div>
         ) : (

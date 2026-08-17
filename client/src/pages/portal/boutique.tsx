@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Product, FormSubmission } from "@shared/schema";
+import type { Product } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,7 @@ import {
   Eye,
   LayoutGrid,
   LayoutList,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -210,7 +211,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             <div className="flex flex-col items-center justify-center h-40 text-center">
               <ShoppingCart className="h-12 w-12 text-muted-foreground/30 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">Aucun article dans le panier</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Ajoutez des produits SystemD pour commencer</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Ajoutez des produits Système D pour commencer</p>
             </div>
           ) : (
             items.map((item) => (
@@ -304,12 +305,12 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 /* ── SystemD Products Tab ── */
 function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
-  const { toast } = useToast();
   const cart = useCart();
   const [cartOpen, setCartOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const initialParams = new URLSearchParams(window.location.search);
+  const [search, setSearch] = useState(() => initialParams.get("systemdSearch") ?? "");
   const [viewModeSystemD, setViewModeSystemDRaw] = useState<"grid" | "list">(
-    () => (localStorage.getItem("boutique_systemd_viewMode") as "grid" | "list") || "grid"
+    () => (initialParams.get("systemdView") as "grid" | "list") || (localStorage.getItem("boutique_systemd_viewMode") as "grid" | "list") || "grid"
   );
   const setViewModeSystemD = (v: "grid" | "list") => {
     localStorage.setItem("boutique_systemd_viewMode", v);
@@ -348,16 +349,17 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
   }, [products, search]);
 
   const openDetail = (product: SystemdProduct) => {
-    const path = viewAsContactId
-      ? `/portal/systemd/${product.zohoItemId}?viewAs=${viewAsContactId}`
-      : `/portal/systemd/${product.zohoItemId}`;
-    navigate(path);
+    const returnParams = new URLSearchParams({ tab: "systemd", systemdSearch: search, systemdView: viewModeSystemD });
+    if (viewAsContactId) returnParams.set("viewAs", String(viewAsContactId));
+    const detailParams = new URLSearchParams({ returnTo: `/portal/boutique?${returnParams}` });
+    if (viewAsContactId) detailParams.set("viewAs", String(viewAsContactId));
+    navigate(`/portal/systemd/${product.zohoItemId}?${detailParams}`);
   };
 
   return (
     <div className="space-y-4">
       {/* Header with cart button */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Card className="border-border/50 shadow-sm flex-1">
           <CardContent className="p-2">
             <div className="relative group">
@@ -373,47 +375,19 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
           </CardContent>
         </Card>
 
-        <Button variant="ghost" size="sm" className="h-12 w-12 p-0 flex-shrink-0" onClick={() => refetchProducts()} disabled={isLoading} data-testid="button-refresh-systemd-products" title="Rafraîchir">
-          <RefreshCw className={`h-5 w-5 text-muted-foreground ${isLoading ? "animate-spin" : ""}`} />
-        </Button>
-
-        <div className="flex items-center gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
-          <Button
-            variant={viewModeSystemD === "grid" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-9 w-9 p-0"
-            onClick={() => setViewModeSystemD("grid")}
-            title="Vue grille"
-            data-testid="button-view-systemd-grid"
-          >
-            <LayoutGrid className="h-4 w-4" />
+        <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center gap-1 border border-border/50 rounded-lg p-1 bg-muted/30">
+            <Button variant={viewModeSystemD === "grid" ? "secondary" : "ghost"} size="sm" className="h-9 w-9 p-0" onClick={() => setViewModeSystemD("grid")} title="Vue grille" data-testid="button-view-systemd-grid"><LayoutGrid className="h-4 w-4" /></Button>
+            <Button variant={viewModeSystemD === "list" ? "secondary" : "ghost"} size="sm" className="h-9 w-9 p-0" onClick={() => setViewModeSystemD("list")} title="Vue liste" data-testid="button-view-systemd-list"><LayoutList className="h-4 w-4" /></Button>
+          </div>
+          <Button variant="outline" className="h-12 shrink-0" onClick={() => refetchProducts()} disabled={isLoading} data-testid="button-refresh-systemd-products" title="Actualiser les produits">
+            <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? "animate-spin" : ""}`} /><span className="hidden sm:inline">Actualiser</span>
           </Button>
-          <Button
-            variant={viewModeSystemD === "list" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-9 w-9 p-0"
-            onClick={() => setViewModeSystemD("list")}
-            title="Vue liste"
-            data-testid="button-view-systemd-list"
-          >
-            <LayoutList className="h-4 w-4" />
+          <Button variant="outline" className="h-12 px-4 relative border-primary/30 text-primary hover:bg-primary/5 hover:border-primary font-bold" onClick={() => setCartOpen(true)} data-testid="button-open-cart">
+            <ShoppingCart className="h-5 w-5 sm:mr-2" /><span className="hidden sm:inline">Panier</span>
+            {cart.totalItems > 0 && <span className="absolute -top-2 -right-2 h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{cart.totalItems}</span>}
           </Button>
         </div>
-
-        <Button
-          variant="outline"
-          className="h-12 px-4 relative border-primary/30 text-primary hover:bg-primary/5 hover:border-primary font-bold"
-          onClick={() => setCartOpen(true)}
-          data-testid="button-open-cart"
-        >
-          <ShoppingCart className="h-5 w-5 mr-2" />
-          Panier
-          {cart.totalItems > 0 && (
-            <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-              {cart.totalItems}
-            </span>
-          )}
-        </Button>
       </div>
 
       {/* Products grid */}
@@ -433,7 +407,7 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
             <p className="text-muted-foreground max-w-sm text-sm">
               {(error as Error)?.message?.includes("429") || (error as Error)?.message?.toLowerCase().includes("limite")
                 ? "La limite d'appels Zoho a été atteinte pour aujourd'hui. Les produits seront de nouveau disponibles demain."
-                : "Impossible de charger les produits SystemD pour le moment. Réessayez dans quelques instants."}
+                : "Impossible de charger les produits Système D pour le moment. Réessayez dans quelques instants."}
             </p>
             <Button variant="outline" size="sm" className="mt-4" onClick={() => refetchProducts()}>
               Réessayer
@@ -450,7 +424,7 @@ function SystemdProductsTab({ viewAsContactId }: { viewAsContactId?: number }) {
             <p className="text-muted-foreground max-w-sm">
               {search
                 ? "Aucun produit ne correspond à votre recherche."
-                : "Aucun produit SystemD disponible pour le moment."}
+                : "Aucun produit Système D disponible pour le moment."}
             </p>
           </CardContent>
         </Card>
@@ -594,6 +568,12 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const [restockQty, setRestockQty] = useState("");
   const isViewAs = !!viewAsContactId;
 
+  const { data: systemdCatalog } = useQuery<SystemdProduct[]>({
+    queryKey: ["/api/portal/systemd-products"],
+    staleTime: 90_000,
+  });
+  const systemdProductCount = systemdCatalog?.length ?? 0;
+
   /* SystemD orders */
   const { data: systemdOrdersData, isLoading: systemdOrdersLoading, isFetching: systemdOrdersFetching, isError: systemdOrdersError, refetch: refetchSystemdOrders } = useQuery<any[]>({
     queryKey: ["/api/portal/systemd-orders"],
@@ -608,12 +588,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   });
   const systemdOrdersList = systemdOrdersData ?? [];
 
-  const { data: submissionsData, isLoading: submissionsLoading } = useQuery<FormSubmission[]>({
-    queryKey: viewAsContactId
-      ? ["/api/admin/view-as", viewAsContactId, "forms"]
-      : ["/api/portal/forms"],
-  });
-  const submissions = submissionsData ?? [];
   const [expandedSystemdOrderId, setExpandedSystemdOrderId] = useState<number | null>(null);
 
   /* Orders state */
@@ -687,29 +661,32 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   }, [paymentStatus, confirmedOrderId, systemdOrdersFetching, systemdOrdersList, isViewAs]);
 
   /* Data fetching */
-  const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
+  const { data: products, isLoading: productsLoading, isError: productsError, refetch: refetchPortalProducts } = useQuery<Product[]>({
     queryKey: viewAsContactId
       ? ["/api/admin/view-as", viewAsContactId, "products"]
       : ["/api/portal/products"],
   });
 
-  const { data: ordersData, isLoading: ordersLoading } = useQuery<OrdersResponse>({
+  const { data: ordersData, isLoading: ordersLoading, isError: ordersError, refetch: refetchPortalOrders } = useQuery<OrdersResponse>({
     queryKey: viewAsContactId
       ? ["/api/admin/view-as", viewAsContactId, "orders"]
       : ["/api/portal/orders"],
-    queryFn: () => {
+    queryFn: async () => {
       const url = viewAsContactId
         ? `/api/admin/view-as/${viewAsContactId}/orders`
         : "/api/portal/orders";
-      return fetch(url, { credentials: "include" }).then((r) => r.json());
+      const response = await fetch(url, { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les commandes.");
+      return response.json();
     },
     staleTime: 60 * 1000,
+    placeholderData: (previous) => previous,
   });
 
   const customersUrl = isViewAs
     ? `/api/admin/customers?contactId=${viewAsContactId}`
     : "/api/portal/mapi/reps";
-  const { data: customersData, isLoading: customersLoading } = useQuery<CustomersResponse>({
+  const { data: customersData, isLoading: customersLoading, isError: customersError, refetch: refetchPortalCustomers } = useQuery<CustomersResponse>({
     queryKey: isViewAs ? ["/api/admin/customers", viewAsContactId] : ["/api/portal/mapi/reps", "directory"],
     queryFn: async () => {
       const response = await fetch(customersUrl, { credentials: "include" });
@@ -741,6 +718,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
       };
     },
     staleTime: 5 * 60 * 1000,
+    placeholderData: (previous) => previous,
   });
 
   const orders: ShopifyOrder[] = ordersData?.orders ?? [];
@@ -807,7 +785,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   return (
     <div className="space-y-6 animate-in w-full max-w-full">
         {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-5 shadow-sm sm:p-8">
           <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
           <div className="absolute -top-24 -right-24">
             <div className="h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
@@ -818,15 +796,22 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
                 <SiShopify className="h-3.5 w-3.5" /> Synchronisation E-commerce
               </div>
-              <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl" data-testid="text-page-title">
                 Boutique & Inventaire
               </h1>
-              <p className="text-muted-foreground mt-3 text-lg">
+              <p className="text-muted-foreground mt-3 text-base sm:text-lg">
                 Visualisation en temps réel de votre catalogue, de vos commandes Shopify et de votre base clients.
               </p>
             </div>
           </div>
         </div>
+
+        {(productsError || ordersError || customersError || systemdOrdersError) && (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+            <span>Une mise à jour a échoué. Les dernières données disponibles restent affichées.</span>
+            <Button variant="outline" size="sm" onClick={() => { if (productsError) refetchPortalProducts(); if (ordersError) refetchPortalOrders(); if (customersError) refetchPortalCustomers(); if (systemdOrdersError) refetchSystemdOrders(); }}>Réessayer</Button>
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="relative mb-6">
@@ -838,12 +823,13 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             </TabsTrigger>
             <TabsTrigger value="systemd" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-systemd">
               <Warehouse className="h-4 w-4 mr-2" />
-              Produits SystemD
+              Produits Système D
+              <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{systemdProductCount}</Badge>
             </TabsTrigger>
             <TabsTrigger value="orders" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-orders">
               <ShoppingCart className="h-4 w-4 mr-2" />
               Mes commandes
-              {(orders.length + (!isViewAs ? systemdOrdersList.length : 0) + submissions.length) > 0 && <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{orders.length + (!isViewAs ? systemdOrdersList.length : 0) + submissions.length}</Badge>}
+              <Badge variant="secondary" className="ml-2 bg-background/20 text-current border-0 text-[10px] px-1.5 py-0">{orders.length + (!isViewAs ? systemdOrdersList.length : 0)}</Badge>
             </TabsTrigger>
             <TabsTrigger value="customers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 font-bold tracking-wide" data-testid="tab-customers">
               <Users className="h-4 w-4 mr-2" />
@@ -944,7 +930,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               </Button>
                               {!isViewAs && (
                                 <Button size="sm" variant="outline" className="flex-1 font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
-                                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                                  <ClipboardList className="h-3.5 w-3.5 mr-2" />
                                   Bon de travail
                                 </Button>
                               )}
@@ -1033,7 +1019,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                   onClick={() => { setRestockProduct(product); setRestockQty(""); }}
                                   data-testid={`button-request-restock-${product.id}`}
                                 >
-                                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                                  <ClipboardList className="h-3.5 w-3.5 mr-2" />
                                   Bon de travail
                                 </Button>
                                 )}
@@ -1167,7 +1153,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               <Card className="border-border/50 shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center p-10 text-center">
                   <CreditCard className="h-10 w-10 text-muted-foreground/40 mb-4" />
-                  <p className="text-sm text-muted-foreground">Les commandes SystemD du client sont consultables depuis la vue Admin → Commandes SystemD.</p>
+                  <p className="text-sm text-muted-foreground">Les commandes Système D du client sont consultables depuis la vue Admin → Commandes Système D.</p>
                 </CardContent>
               </Card>
             ) : systemdOrdersLoading ? (
@@ -1182,9 +1168,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
                     <CreditCard className="h-10 w-10 text-muted-foreground/50" />
                   </div>
-                  <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande SystemD</h3>
+                  <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande Système D</h3>
                   <p className="text-muted-foreground max-w-sm text-sm">
-                    Vos commandes passées via la boutique SystemD apparaîtront ici une fois validées.
+                    Vos commandes passées via la boutique Système D apparaîtront ici une fois validées.
                   </p>
                 </CardContent>
               </Card>
@@ -1424,65 +1410,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             </Card>
           </TabsContent>
 
-          {(submissionsLoading || submissions.length > 0) && (
-            <TabsContent value="orders" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
-              <div className="flex items-center gap-2 pt-1">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Bons de travail / Soumissions</h2>
-                    <Badge variant="outline">Soumission</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Un bon de travail est une demande à traiter, pas une commande payée.</p>
-                </div>
-              </div>
-              <Card className="border-border shadow-sm overflow-hidden">
-                <CardContent className="p-0">
-                  {submissionsLoading ? (
-                    <div className="p-6 space-y-3">{Array.from({ length: 2 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div>
-                  ) : (
-                    <div className="overflow-x-auto scrollbar-hide">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableHead>Soumission</TableHead>
-                            <TableHead>Produit</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Statut</TableHead>
-                            <TableHead className="text-right">Montant</TableHead>
-                            <TableHead className="text-right">Détail</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {submissions.map((submission) => {
-                            const submissionData = (submission.data || {}) as Record<string, unknown>;
-                            return (
-                              <TableRow key={submission.id} data-testid={`row-order-submission-${submission.id}`}>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold">{submission.formNumber || `#${submission.id}`}</span>
-                                    <Badge variant="outline" className="text-[10px]">Soumission</Badge>
-                                  </div>
-                                  {submission.createdAt && <p className="text-[10px] text-muted-foreground mt-1">{new Date(submission.createdAt).toLocaleDateString("fr-CA")}</p>}
-                                </TableCell>
-                                <TableCell className="font-medium">{String(submissionData.sourceProductName || "—")}</TableCell>
-                                <TableCell>{submission.formType === "product_work_order" ? "Bon de travail produit" : submission.formType}</TableCell>
-                                <TableCell><Badge variant="secondary">{submission.status}</Badge></TableCell>
-                                <TableCell className="text-right font-mono text-sm">{submission.price ? money(submission.price) : "—"}</TableCell>
-                                <TableCell className="text-right">
-                                  <Button variant="ghost" size="sm" onClick={() => navigate(`/portal/forms/${submission.id}`)}>Voir</Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-
           {/* Reps Shopify */}
           <TabsContent value="customers" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
             <Card className="border-border/50 shadow-sm">
@@ -1509,6 +1436,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Rep</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Association</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Commandes</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Dépensé en commandes</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Crédit disponible</TableHead>
                         <TableHead className="w-12 py-4" />
                       </TableRow>
@@ -1516,11 +1444,11 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     <TableBody>
                       {customersLoading ? (
                         Array.from({ length: 5 }).map((_, i) => (
-                          <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j} className="py-4"><Skeleton className="h-6 w-full" /></TableCell>)}</TableRow>
+                          <TableRow key={i}>{Array.from({ length: 6 }).map((_, j) => <TableCell key={j} className="py-4"><Skeleton className="h-6 w-full" /></TableCell>)}</TableRow>
                         ))
                       ) : filteredCustomers.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="h-[400px] text-center">
+                          <TableCell colSpan={6} className="h-[400px] text-center">
                             <div className="flex flex-col items-center justify-center gap-3">
                               <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
                                 <Users className="h-10 w-10 text-muted-foreground/50" />
@@ -1575,6 +1503,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               <TableCell className="py-4 text-center">
                                 <Badge variant="outline" className="font-mono text-xs border-dashed bg-muted/30">{customer.orders_count}</Badge>
                               </TableCell>
+                              <TableCell className="py-4 text-right font-mono text-sm font-medium">{money(customer.total_spent || "0")}</TableCell>
                               <TableCell className="py-4 text-right">
                                 <span className="font-mono font-bold text-foreground">
                                   {customer.creditBalance !== undefined

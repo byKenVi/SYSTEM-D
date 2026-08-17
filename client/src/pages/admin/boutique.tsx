@@ -107,6 +107,26 @@ interface OrdersResponse {
   totalCount: number;
 }
 
+function money(amount: number | string, currency = "CAD") {
+  return Number(amount).toLocaleString("fr-CA", { style: "currency", currency });
+}
+
+interface SystemdOrder {
+  id: number;
+  contactId: number;
+  contactName: string | null;
+  companyName: string | null;
+  repName: string | null;
+  repEmail: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  fulfillmentStatus: string;
+  stockReservationStatus: string;
+  createdAt: string | null;
+  lineItems: { name?: string; sku?: string; quantity?: number; unitPrice?: number }[];
+}
+
 function FinancialBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-muted-foreground/40 text-xs">—</span>;
   const map: Record<string, { label: string; class: string }> = {
@@ -220,9 +240,34 @@ export default function AdminBoutique() {
     staleTime: 5 * 60 * 1000,
     placeholderData: (previous) => previous,
   });
+  const { data: systemdOrdersData, isLoading: systemdOrdersLoading, isError: systemdOrdersError, refetch: refetchSystemdOrders } = useQuery<SystemdOrder[]>({
+    queryKey: ["/api/admin/systemd-orders"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/systemd-orders", { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger les commandes Système D");
+      return response.json();
+    },
+    staleTime: 30_000,
+    placeholderData: (previous) => previous,
+  });
 
   const orders = ordersData?.orders ?? [];
   const customers = customersData?.customers ?? [];
+  const systemdOrders = systemdOrdersData ?? [];
+  const systemdToProcess = systemdOrders.filter((order) => order.status === "paid" && order.fulfillmentStatus !== "completed");
+
+  const systemdFulfillmentMutation = useMutation({
+    mutationFn: async ({ id, fulfillmentStatus }: { id: number; fulfillmentStatus: "processing" | "completed" }) => {
+      const response = await apiRequest("PATCH", `/api/admin/systemd-orders/${id}/fulfillment`, { fulfillmentStatus });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/dashboard/kpis"] });
+      toast({ title: "Statut mis à jour", description: "La commande Système D a été mise à jour." });
+    },
+    onError: (error: Error) => toast({ title: "Mise à jour impossible", description: error.message, variant: "destructive" }),
+  });
 
   const syncMapiRepsMutation = useMutation({
     mutationFn: async () => {
@@ -355,10 +400,10 @@ export default function AdminBoutique() {
         <p className="text-muted-foreground mt-1">Produits et commandes de vos boutiques Shopify connectées</p>
       </div>
 
-      {(ordersError || customersError) && (
+      {(ordersError || customersError || systemdOrdersError) && (
         <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
-          <span>Les dernières données chargées sont conservées. Une mise à jour Shopify a échoué.</span>
-          <Button variant="outline" size="sm" onClick={() => { if (ordersError) refetchOrders(); if (customersError) refetchCustomers(); }}>Réessayer</Button>
+          <span>Les dernières données chargées sont conservées. Une mise à jour de la boutique a échoué.</span>
+          <Button variant="outline" size="sm" onClick={() => { if (ordersError) refetchOrders(); if (customersError) refetchCustomers(); if (systemdOrdersError) refetchSystemdOrders(); }}>Réessayer</Button>
         </div>
       )}
 
@@ -368,18 +413,23 @@ export default function AdminBoutique() {
             <TabsTrigger value="products" className="whitespace-nowrap" data-testid="tab-products">
               <Package className="h-3.5 w-3.5 mr-1.5" />
               Produits Clients
+              {products && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{products.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="systemd" className="whitespace-nowrap" data-testid="tab-systemd">
               <Warehouse className="h-3.5 w-3.5 mr-1.5" />
-              Produits SystemD
+              Produits Système D
+              {systemdProducts && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{systemdProducts.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="orders" className="whitespace-nowrap" data-testid="tab-orders">
               <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
               Commandes
+              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{orders.length + systemdOrders.length}</Badge>
+              {systemdToProcess.length > 0 && <Badge className="ml-1 bg-amber-500 px-1.5 py-0 text-[10px] text-white hover:bg-amber-500">{systemdToProcess.length} à traiter</Badge>}
             </TabsTrigger>
             <TabsTrigger value="customers" className="whitespace-nowrap" data-testid="tab-customers">
               <Users className="h-3.5 w-3.5 mr-1.5" />
-              Reps
+              Clients Shopify
+              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{customers.length}</Badge>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -726,7 +776,7 @@ export default function AdminBoutique() {
 
         {/* ══ PRODUITS SYSTEMD TAB ══ */}
         <TabsContent value="systemd" className="mt-4 space-y-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -742,8 +792,8 @@ export default function AdminBoutique() {
                 {filteredSystemd.length} produit{filteredSystemd.length !== 1 ? "s" : ""}
               </span>
             )}
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => refetchSystemd()} disabled={systemdLoading} data-testid="button-refresh-systemd" title="Rafraîchir">
-              <RefreshCw className={`h-4 w-4 ${systemdLoading ? "animate-spin" : ""}`} />
+            <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => refetchSystemd()} disabled={systemdLoading} data-testid="button-refresh-systemd" title="Actualiser les produits">
+              <RefreshCw className={`mr-2 h-4 w-4 ${systemdLoading ? "animate-spin" : ""}`} /> Actualiser
             </Button>
           </div>
 
@@ -761,7 +811,7 @@ export default function AdminBoutique() {
                 <p className="text-muted-foreground max-w-sm">
                   {systemdSearch
                     ? "Aucun produit ne correspond à votre recherche."
-                    : "Aucun produit SystemD disponible. Vérifiez que Zoho Inventory est connecté et que des articles sans champ cf_client existent."}
+                    : "Aucun produit Système D disponible. Vérifiez que Zoho Inventory est connecté et que les articles destinés au catalogue sont bien synchronisés."}
                 </p>
               </CardContent>
             </Card>
@@ -774,13 +824,13 @@ export default function AdminBoutique() {
                     key={product.zohoItemId}
                     className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     data-testid={`card-systemd-product-${product.zohoItemId}`}
-                    onClick={() => window.open(`/portal/systemd/${product.zohoItemId}`, "_blank", "noopener,noreferrer")}
+                    onClick={() => navigate(`/admin/boutique/systemd/${product.zohoItemId}?returnTo=${encodeURIComponent("/admin/boutique?tab=systemd")}`)}
                   >
-                    <div className="aspect-square bg-muted/30 border-b flex items-center justify-center overflow-hidden">
+                    <div className="aspect-video bg-muted/30 border-b flex items-center justify-center overflow-hidden">
                       <img
                         src={product.imageUrl || ""}
                         alt={product.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain p-3"
                         style={{ display: product.imageUrl ? undefined : "none" }}
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
@@ -820,17 +870,52 @@ export default function AdminBoutique() {
 
         {/* ══ COMMANDES TAB ══ */}
         <TabsContent value="orders" className="mt-4 space-y-4">
-          <Card className="border-primary/25 bg-primary/5">
-            <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <p className="text-sm font-bold">Commandes boutique : Shopify et Système D</p>
-                <p className="text-xs text-muted-foreground mt-1">Cette liste suit les commandes Shopify importées. Les commandes Système D payées se traitent dans la vue dédiée.</p>
+          <Card className="border-amber-300/60 bg-amber-50/60 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2"><h2 className="font-bold">Commandes Système D à traiter</h2><Badge className="bg-amber-500 text-white hover:bg-amber-500">{systemdToProcess.length}</Badge></div>
+                  <p className="mt-1 text-xs text-muted-foreground">Commandes payées dans le portail, avec crédit rep et réservation de stock. Aucun projet Zoho n’est créé pour ces achats.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin/orders#systemd")} data-testid="button-open-systemd-orders">Vue complète</Button>
               </div>
-              <Button size="sm" onClick={() => navigate("/admin/orders#systemd")} data-testid="button-open-systemd-orders">
-                Traiter les commandes Système D
-              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {systemdOrdersLoading ? (
+                <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div>
+              ) : systemdToProcess.length === 0 ? (
+                <div className="px-5 pb-5 text-sm text-muted-foreground">Aucune commande Système D en attente. Les nouveaux achats payés apparaîtront directement ici.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[900px]">
+                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Client</TableHead><TableHead>Produits</TableHead><TableHead>Rep débité</TableHead><TableHead>Paiement / stock</TableHead><TableHead className="text-right">Montant</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {systemdToProcess.map((order) => {
+                        const items = Array.isArray(order.lineItems) ? order.lineItems : [];
+                        const nextStatus = order.fulfillmentStatus === "processing" ? "completed" : "processing";
+                        return (
+                          <TableRow key={order.id} className="cursor-pointer" onClick={() => navigate(`/admin/orders#systemd-${order.id}`)} data-testid={`row-boutique-systemd-order-${order.id}`}>
+                            <TableCell className="whitespace-nowrap text-sm">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-CA") : "—"}</TableCell>
+                            <TableCell><p className="font-semibold">{order.contactName || `Contact #${order.contactId}`}</p><p className="text-xs text-muted-foreground">{order.companyName}</p></TableCell>
+                            <TableCell><p className="max-w-[240px] truncate text-sm">{items.map((item) => `${item.name || "Produit"} ×${item.quantity || 1}`).join(", ") || "—"}</p></TableCell>
+                            <TableCell><p className="text-sm font-medium">{order.repName || order.repEmail || "—"}</p>{order.repName && order.repEmail && <p className="text-xs text-muted-foreground">{order.repEmail}</p>}</TableCell>
+                            <TableCell><div className="flex flex-wrap gap-1"><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Payé</Badge><Badge variant="outline">{order.stockReservationStatus === "reserved" ? "Stock réservé" : "Stock à vérifier"}</Badge><Badge variant="secondary">{order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter"}</Badge></div></TableCell>
+                            <TableCell className="text-right font-mono font-bold">{money(order.amount / 100, order.currency.toUpperCase())}</TableCell>
+                            <TableCell className="text-right" onClick={(event) => event.stopPropagation()}><Button size="sm" disabled={systemdFulfillmentMutation.isPending} onClick={() => systemdFulfillmentMutation.mutate({ id: order.id, fulfillmentStatus: nextStatus })}>{nextStatus === "processing" ? "Marquer en traitement" : "Marquer traitée"}</Button></TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Commandes Shopify importées</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Historique en lecture seule synchronisé depuis les boutiques connectées.</p>
+          </div>
           {!ordersLoading && orders.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Card><CardContent className="p-4"><div className="flex items-center gap-2 mb-1"><ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">Total commandes</span></div><p className="text-2xl font-bold tabular-nums">{stats.total}</p></CardContent></Card>
@@ -911,8 +996,8 @@ export default function AdminBoutique() {
                             {orders.length === 0 ? (
                               <>
                                 <SiShopify className="h-8 w-8 text-muted-foreground/20" />
-                                <p className="text-sm font-medium text-muted-foreground">Aucune boutique Shopify connectée</p>
-                                <p className="text-xs text-muted-foreground/60">Connectez une boutique Shopify dans les Paramètres pour voir les commandes</p>
+                                <p className="text-sm font-medium text-muted-foreground">Aucune commande Shopify synchronisée</p>
+                                <p className="text-xs text-muted-foreground/60">Les commandes apparaîtront ici après une synchronisation. Vérifiez les intégrations dans Paramètres si nécessaire.</p>
                               </>
                             ) : (
                               <>
@@ -1026,7 +1111,7 @@ export default function AdminBoutique() {
                       <TableHead>Boutique</TableHead>
                       <TableHead>Localisation</TableHead>
                       <TableHead className="text-right">Commandes</TableHead>
-                      <TableHead className="text-right">Dépensé</TableHead>
+                      <TableHead className="text-right">Dépensé en commandes</TableHead>
                       <TableHead>Inscrit le</TableHead>
                       <TableHead className="w-8" />
                     </TableRow>
@@ -1097,7 +1182,7 @@ export default function AdminBoutique() {
                             ) : <span className="text-muted-foreground/40 text-xs">—</span>}
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-sm font-medium">{c.orders_count}</TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">{Number(c.total_spent) > 0 ? `$${Number(c.total_spent).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-muted-foreground/40">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">{money(Number(c.total_spent || 0))}</TableCell>
                           <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{dateStr}</TableCell>
                           <TableCell>
                             <a href={shopifyCustomerUrl} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`link-customer-shopify-${c.id}`}>

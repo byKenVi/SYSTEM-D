@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Fragment, useState, useMemo } from "react";
+import { Fragment, useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import {
   ShoppingCart,
   Search,
   ExternalLink,
+  ChevronDown,
   TrendingUp,
   Clock,
   CheckCircle2,
@@ -151,6 +152,16 @@ export default function AdminOrders() {
     staleTime: 60 * 1000,
     placeholderData: (previous) => previous,
   });
+
+  useEffect(() => {
+    if (!systemdOrders?.length) return;
+    const match = window.location.hash.match(/^#systemd-(\d+)$/);
+    if (!match) return;
+    const orderId = Number(match[1]);
+    if (!systemdOrders.some((order) => order.id === orderId)) return;
+    setSdExpandedId(orderId);
+    window.requestAnimationFrame(() => document.getElementById(`systemd-${orderId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }, [systemdOrders]);
 
   const fulfillmentMutation = useMutation({
     mutationFn: async ({ id, fulfillmentStatus }: { id: number; fulfillmentStatus: "processing" | "completed" }) => {
@@ -433,7 +444,7 @@ export default function AdminOrders() {
             <Warehouse className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">Commandes SystemD</h2>
+            <h2 className="text-xl font-bold tracking-tight">Commandes Système D</h2>
             <p className="text-sm text-muted-foreground">Achats depuis la boutique Produits Système D</p>
           </div>
           {systemdOrders && systemdOrders.length > 0 && (
@@ -487,8 +498,8 @@ export default function AdminOrders() {
                       <TableCell colSpan={8} className="h-40 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <Warehouse className="h-8 w-8 text-muted-foreground/20" />
-                          <p className="text-sm font-medium text-muted-foreground">Aucune commande SystemD</p>
-                          <p className="text-xs text-muted-foreground/60">Les achats depuis la boutique Produits SystemD apparaîtront ici</p>
+                          <p className="text-sm font-medium text-muted-foreground">Aucune commande Système D</p>
+                          <p className="text-xs text-muted-foreground/60">Les achats depuis la boutique Produits Système D apparaîtront ici</p>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -551,7 +562,7 @@ export default function AdminOrders() {
                                 {(order.amount / 100).toLocaleString("fr-CA", { style: "currency", currency: order.currency.toUpperCase() })}
                               </TableCell>
                               <TableCell>
-                                <ExternalLink className={`h-3.5 w-3.5 text-muted-foreground transition-opacity ${isExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
+                                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-all ${isExpanded ? "rotate-180 opacity-100" : "opacity-50 group-hover:opacity-100"}`} />
                               </TableCell>
                             </TableRow>
                             {isExpanded && lineItems.length > 0 && (

@@ -4,12 +4,14 @@ import test from "node:test";
 
 const boutique = readFileSync(new URL("../client/src/pages/portal/boutique.tsx", import.meta.url), "utf8");
 const customerDetail = readFileSync(new URL("../client/src/pages/portal/customer-detail.tsx", import.meta.url), "utf8");
+const forms = readFileSync(new URL("../client/src/pages/portal/forms.tsx", import.meta.url), "utf8");
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 
 test("le portail expose Mes reps et un seul onglet Mes commandes", () => {
   assert.match(boutique, /Mes reps/);
   assert.match(boutique, /Mes commandes/);
-  assert.match(boutique, />Soumission</);
+  assert.match(forms, /Mes Soumissions/);
+  assert.doesNotMatch(boutique, /row-order-submission/);
   assert.doesNotMatch(boutique, /TabsTrigger value="systemd-orders"/);
 });
 

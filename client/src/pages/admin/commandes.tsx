@@ -162,7 +162,7 @@ export default function AdminCommandes() {
           Commandes
         </h1>
         <p className="text-muted-foreground mt-1">
-          Services approuvés et complétés — catalogue de référence pour les clients
+          Demandes approuvées devenues des opérations à exécuter, distinctes des commandes de la Boutique.
         </p>
       </div>
 

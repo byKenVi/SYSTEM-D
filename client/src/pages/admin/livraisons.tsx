@@ -109,7 +109,7 @@ export default function AdminLivraisons() {
   const [dateTo, setDateTo] = useState("");
   const [selected, setSelected] = useState<FormSubmission | null>(null);
 
-  const { data: forms, isLoading } = useQuery<FormSubmission[]>({
+  const { data: forms, isLoading, isError, refetch } = useQuery<FormSubmission[]>({
     queryKey: ["/api/admin/livraisons"],
   });
 
@@ -163,8 +163,16 @@ export default function AdminLivraisons() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Livraisons</h1>
-        <p className="text-sm text-muted-foreground mt-1">Historique des sorties d'inventaire du système</p>
+        <p className="text-sm text-muted-foreground mt-1">Demandes de livraison soumises par les clients et expéditions disponibles.</p>
       </div>
+
+      <Card className="border-blue-200 bg-blue-50/70 dark:border-blue-900/50 dark:bg-blue-950/20">
+        <CardContent className="p-4 text-sm">
+          <span className="font-semibold">Flux actuel :</span> une livraison est une soumission de type Livraison, créée directement par un client ou liée à un dossier de co-packing. Les statuts reflètent son traitement; aucune donnée transporteur n’est inventée.
+        </CardContent>
+      </Card>
+
+      {isError && <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"><span>Les livraisons n’ont pas pu être mises à jour.</span><Button variant="outline" size="sm" onClick={() => refetch()}>Réessayer</Button></div>}
 
       {/* Filters */}
       <Card>
@@ -266,7 +274,9 @@ export default function AdminLivraisons() {
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Truck className="h-10 w-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">Aucune livraison trouvée</p>
+              <p className="text-sm font-medium">Aucune livraison trouvée</p>
+              <p className="mx-auto mt-2 max-w-md text-xs">Les livraisons apparaîtront après la soumission d’une demande Livraison ou la création d’une livraison liée depuis un dossier de co-packing.</p>
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate("/admin/forms")}>Voir les soumissions</Button>
             </div>
           ) : (
             <div className="overflow-x-auto">

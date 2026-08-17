@@ -190,7 +190,7 @@ export default function AdminForms() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Soumissions</h1>
-          <p className="text-muted-foreground mt-1">Gérez les soumissions des clients</p>
+          <p className="text-muted-foreground mt-1">Demandes opérationnelles et bons de travail à réviser, approuver et suivre.</p>
         </div>
         <div className="flex items-center gap-2">
           {selectedCount > 0 && (

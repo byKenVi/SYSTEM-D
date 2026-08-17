@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 import { useCart, type SystemdProduct } from "@/contexts/cart-context";
 import {
   Package,
@@ -19,8 +18,6 @@ import {
   ShieldAlert,
   Clock,
   CheckCircle2,
-  XCircle,
-  Calendar,
   Tag,
   Ruler,
 } from "lucide-react";
@@ -39,12 +36,14 @@ export default function PortalSystemdProductDetail({
   const zohoItemId = params.zohoItemId;
   const [, navigate] = useLocation();
   const { addItem } = useCart();
-  const { toast } = useToast();
   const [qty, setQty] = useState(1);
+  const [added, setAdded] = useState(false);
 
-  const backUrl = viewAsContactId
+  const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo") ?? "";
+  const defaultBackUrl = viewAsContactId
     ? `/portal/boutique?tab=systemd&viewAs=${viewAsContactId}`
     : "/portal/boutique?tab=systemd";
+  const backUrl = requestedReturnTo.startsWith("/portal/boutique") ? requestedReturnTo : defaultBackUrl;
 
   const {
     data: product,
@@ -73,8 +72,7 @@ export default function PortalSystemdProductDetail({
   const handleAddToCart = () => {
     if (!product || product.stock <= 0) return;
     addItem(product, qty);
-    toast({ title: "Ajouté au panier", description: `${qty}× ${product.name}` });
-    navigate(backUrl);
+    setAdded(true);
   };
 
   /* ── Loading ── */
@@ -82,8 +80,8 @@ export default function PortalSystemdProductDetail({
     return (
       <div className="space-y-6 animate-in">
         <Skeleton className="h-9 w-36 rounded-lg" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Skeleton className="aspect-square rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,440px)_1fr] gap-8">
+          <Skeleton className="aspect-square w-full max-w-[440px] rounded-2xl" />
           <div className="space-y-4">
             <Skeleton className="h-9 w-3/4 rounded-lg" />
             <Skeleton className="h-5 w-24 rounded-lg" />
@@ -240,13 +238,13 @@ export default function PortalSystemdProductDetail({
         Retour à la boutique
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,440px)_1fr] gap-8 items-start">
         {/* Image */}
-        <div className="aspect-square rounded-2xl overflow-hidden border bg-muted/30 flex items-center justify-center">
+        <div className="mx-auto aspect-square w-full max-w-[440px] rounded-2xl overflow-hidden border bg-muted/30 flex items-center justify-center">
           <img
             src={product.imageUrl || ""}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain p-4"
             style={{ display: product.imageUrl ? undefined : "none" }}
             onError={(e) => {
               e.currentTarget.style.display = "none";
@@ -327,7 +325,7 @@ export default function PortalSystemdProductDetail({
           </div>
 
           {/* Spécifications */}
-          {(product.productType || product.unit || product.canBeSold != null || product.zohoLastModifiedTime) && (
+          {(product.productType || product.unit) && (
             <div className="p-4 rounded-xl border bg-card">
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Tag className="h-3.5 w-3.5" /> Spécifications
@@ -343,24 +341,6 @@ export default function PortalSystemdProductDetail({
                   <>
                     <dt className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Ruler className="h-3 w-3" /> Unité</dt>
                     <dd className="text-xs font-bold text-foreground text-right">{product.unit}</dd>
-                  </>
-                )}
-                {product.canBeSold != null && (
-                  <>
-                    <dt className="text-xs text-muted-foreground font-medium">Peut être vendu</dt>
-                    <dd className="flex justify-end">
-                      {product.canBeSold
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        : <XCircle className="h-4 w-4 text-red-500" />}
-                    </dd>
-                  </>
-                )}
-                {product.zohoLastModifiedTime && (
-                  <>
-                    <dt className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Calendar className="h-3 w-3" /> Dernière mise à jour</dt>
-                    <dd className="text-xs font-bold text-foreground text-right">
-                      {new Date(product.zohoLastModifiedTime).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" })}
-                    </dd>
                   </>
                 )}
               </dl>
@@ -435,13 +415,14 @@ export default function PortalSystemdProductDetail({
               </div>
 
               <Button
-                className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20"
+                className={`w-full h-12 font-bold text-base shadow-lg ${added ? "bg-emerald-600 hover:bg-emerald-600 shadow-emerald-600/20" : "shadow-primary/20"}`}
                 onClick={handleAddToCart}
                 data-testid="button-add-to-cart"
               >
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Ajouter au panier
+                {added ? <CheckCircle2 className="h-5 w-5 mr-2" /> : <ShoppingCart className="h-5 w-5 mr-2" />}
+                {added ? `${qty} ajouté${qty > 1 ? "s" : ""} au panier` : "Ajouter au panier"}
               </Button>
+              {added && <p className="text-center text-xs text-emerald-700 dark:text-emerald-400">Le panier a été mis à jour. Vous pouvez continuer vos achats ou revenir à la boutique.</p>}
             </div>
           ) : (
             <Button

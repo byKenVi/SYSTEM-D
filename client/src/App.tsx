@@ -16,6 +16,7 @@ import NotFound from "@/pages/not-found";
 import AdminContacts from "@/pages/admin/contacts";
 import AdminContactDetail from "@/pages/admin/contact-detail";
 import AdminProductDetail from "@/pages/admin/product-detail";
+import AdminSystemdProductDetail from "@/pages/admin/systemd-product-detail";
 import AdminRestockRequests from "@/pages/admin/restock-requests";
 import AdminCommandes from "@/pages/admin/commandes";
 import AdminSettingsPage from "@/pages/admin/settings";
@@ -59,12 +60,13 @@ function AdminLayout() {
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="admin" />
       <SidebarInset className="overflow-y-auto scrollbar-hide bg-background">
-        <div className="p-6 lg:p-8 min-h-full w-full">
+        <div className="p-4 sm:p-6 lg:p-8 min-h-full w-full">
           <Switch>
             <Route path="/admin/dashboard" component={AdminDashboard} />
             <Route path="/admin/contacts/:id" component={AdminContactDetail} />
             <Route path="/admin/contacts" component={AdminContacts} />
             <Route path="/admin/products/:id" component={AdminProductDetail} />
+            <Route path="/admin/boutique/systemd/:zohoItemId" component={AdminSystemdProductDetail} />
             <Route path="/admin/boutique" component={AdminBoutique} />
             <Route path="/admin/orders/:id" component={AdminOrderDetail} />
             <Route path="/admin/orders" component={AdminOrders} />
@@ -145,7 +147,7 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
           <MobileNotifBell viewAsContactId={viewAsContactId} />
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="p-6 lg:p-8 min-h-full w-full">
+          <div className="p-4 sm:p-6 lg:p-8 min-h-full w-full">
             <CartProvider storageKey={cartStorageKey}>
             <Switch>
               <Route path="/portal/dashboard">
@@ -222,7 +224,7 @@ function MobileNotifBell({ viewAsContactId }: { viewAsContactId?: number }) {
     >
       <Bell className="h-5 w-5" />
       {count > 0 && !viewAsContactId && (
-        <span className="absolute top-0.5 right-0.5 h-4 min-w-4 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground px-0.5 leading-none">
+        <span className="absolute -top-0.5 -right-0.5 h-5 min-w-5 rounded-full bg-primary ring-2 ring-background flex items-center justify-center text-[10px] font-bold text-primary-foreground px-1 leading-none">
           {count > 9 ? "9+" : count}
         </span>
       )}

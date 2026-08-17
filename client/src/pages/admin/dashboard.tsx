@@ -82,7 +82,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6 animate-in w-full max-w-full">
       {/* Header section with gradient background */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-8 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border p-5 shadow-sm sm:p-8">
         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
         <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3">
           <div className="h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
@@ -93,7 +93,7 @@ export default function AdminDashboard() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
               <Building2 className="h-3.5 w-3.5" /> Aperçu
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl" data-testid="text-page-title">
               {greeting()}, {user?.firstName || "Admin"}
             </h1>
             <p className="text-muted-foreground mt-3 text-lg flex items-center gap-2">
@@ -181,14 +181,14 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Row 2: Shopify KPIs */}
+          {/* Row 2: KPIs boutique agrégés (Shopify + Système D) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <Card className="border-border/50 shadow-sm" data-testid="stat-card-orders-month">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="space-y-2">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                      <ShoppingCart className="h-3.5 w-3.5" /> Commandes ce mois
+                      <ShoppingCart className="h-3.5 w-3.5" /> Commandes boutique ce mois
                     </p>
                     {loadingKpis ? <Skeleton className="h-8 w-24" /> : (
                       <div className="flex items-baseline gap-3">
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-2">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                      <DollarSign className="h-3.5 w-3.5" /> Valeur ce mois
+                      <DollarSign className="h-3.5 w-3.5" /> Valeur boutique ce mois
                     </p>
                     {loadingKpis ? <Skeleton className="h-8 w-32" /> : (
                       <div className="flex items-baseline gap-3">
