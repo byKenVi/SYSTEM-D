@@ -631,33 +631,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     // Attendre la fin du refetch pour inspecter des données fraîches.
     if (systemdOrdersFetching) return;
 
+    // Paiement traité — l'UI se met à jour directement via les queries.
+    // Aucun toast intrusive : l'utilisateur voit sa commande dans l'onglet "Mes commandes".
     paymentToastFired.current = true;
-    const windowMs = 15 * 60 * 1000; // fenêtre de 15 min
-    const now = Date.now();
-
-    const recentPaid = confirmedOrderId
-      ? systemdOrdersList.find((o: any) => o.id === confirmedOrderId && o.status === "paid")
-      : systemdOrdersList.find((o: any) => o.status === "paid" && now - new Date(o.createdAt).getTime() < windowMs);
-    const recentPending = systemdOrdersList.find(
-      (o: any) => o.status === "pending" && now - new Date(o.createdAt).getTime() < windowMs
-    );
-
-    if (recentPaid) {
-      toast({
-        title: "Commande confirmée",
-        description: "Le crédit du rep sélectionné a été débité. Vous pouvez suivre cette commande dans Mes commandes.",
-      });
-    } else if (recentPending) {
-      toast({
-        title: "Paiement reçu",
-        description: "Confirmation en cours — votre commande apparaîtra ici sous peu.",
-      });
-    } else {
-      toast({
-        title: "Redirection reçue",
-        description: "Si votre paiement a bien été effectué, la commande apparaîtra ici dans quelques instants.",
-      });
-    }
   }, [paymentStatus, confirmedOrderId, systemdOrdersFetching, systemdOrdersList, isViewAs]);
 
   /* Data fetching */
