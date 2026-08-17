@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Package,
-  RefreshCw,
   ClipboardList,
   ArrowRight,
   Plus,
@@ -53,7 +52,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_ICONS: Record<string, any> = {
   entreposage: Layers,
-  tri: RefreshCw,
+  tri: ClipboardList,
   inspection: ClipboardList,
   copacking: Package,
   livraison: ArrowRight,
@@ -188,7 +187,7 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
           <CardContent className="p-6 relative z-10">
             <div className="flex items-center justify-between mb-4">
               <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20">
-                <RefreshCw className="h-6 w-6 text-amber-500" />
+                <ClipboardList className="h-6 w-6 text-amber-500" />
               </div>
               <Badge variant="outline" className="bg-background border-border text-[10px] uppercase font-bold tracking-widest">Logistique</Badge>
             </div>
@@ -196,8 +195,8 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
               {loadingRestock ? <Skeleton className="h-10 w-16 mb-1" /> : (
                 <p className="text-4xl font-mono font-bold text-foreground" data-testid="stat-value-restock">{pendingRestock}</p>
               )}
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Réapprovisionnements</p>
-              <p className="text-xs text-muted-foreground/70 mt-1 normal-case tracking-normal">Demandes de réapprovisionnement en attente de traitement.</p>
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Bons de travail</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 normal-case tracking-normal">Bons de travail (réapprovisionnements) en attente de traitement.</p>
             </div>
           </CardContent>
         </Card>

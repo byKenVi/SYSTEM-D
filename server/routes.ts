@@ -4574,7 +4574,15 @@ export async function registerRoutes(
         });
       }
       if (previousOrder?.status === "pending") {
-        return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
+        // Auto-cancel if the pending order is older than 90 seconds (stuck/failed)
+        const pendingAge = previousOrder.createdAt
+          ? Date.now() - new Date(previousOrder.createdAt as unknown as string).getTime()
+          : 999999;
+        if (pendingAge < 90_000) {
+          return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
+        }
+        // Stale pending order — cancel and proceed
+        await storage.updateSystemdOrder(previousOrder.id, { status: "cancelled" }).catch(() => {});
       }
 
       const reservedQuantities = await storage.getReservedSystemdStockQuantities();

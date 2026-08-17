@@ -18,8 +18,7 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Package, RefreshCw, Tag, Layers, ExternalLink, ChevronLeft, ChevronRight, Hash, DollarSign, Box } from "lucide-react";
-import { SiShopify } from "react-icons/si";
+import { ArrowLeft, Package, Wrench, Tag, Layers, ChevronLeft, ChevronRight, Hash, DollarSign, Box } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export default function PortalProductDetail({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -274,7 +273,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                 }}
                 data-testid="button-work-order"
               >
-                <RefreshCw className="h-5 w-5 mr-3" />
+                <Wrench className="h-5 w-5 mr-3" />
                 Bon de Travail
               </Button>
               <p className="text-xs font-medium text-muted-foreground text-center w-full mt-3">Demander une intervention sur stock</p>
@@ -294,8 +293,8 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
       </div>
 
       {/* ── Details Section ── */}
-      {(specs.length > 0 || product.shopifyStoreUrl || product.tags) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12 pt-12 border-t border-border/50">
+      {(specs.length > 0 || product.tags) && (
+        <div className={`mt-12 pt-12 border-t border-border/50 grid grid-cols-1 gap-8 ${specs.length > 0 && product.tags ? "lg:grid-cols-2" : ""}`}>
           
           {/* Specs */}
           {specs.length > 0 && (
@@ -320,75 +319,23 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
             </Card>
           )}
 
-          {/* Shopify Source & Tags */}
-          <div className="space-y-8">
-            {product.shopifyStoreUrl && (
-              <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
-                <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
-                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
-                    <SiShopify className="h-4 w-4 text-[#95bf47]" /> Données Shopify
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-border/50">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-2">
-                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Boutique</span>
-                      <Button variant="ghost" asChild className="h-auto p-0 text-primary font-bold text-sm">
-                        <a href={`https://${product.shopifyStoreUrl}`} target="_blank" rel="noopener noreferrer">
-                          {product.shopifyStoreUrl.replace(/^https?:\/\//, "").replace(/\.myshopify\.com$/, "")}
-                          <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
-                        </a>
-                      </Button>
-                    </div>
-                    
-                    {product.shopifyHandle && (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 gap-2">
-                        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Lien Public</span>
-                        <Button variant="ghost" asChild className="h-auto p-0 text-primary font-bold text-sm">
-                          <a href={`https://${product.shopifyStoreUrl}/products/${product.shopifyHandle}`} target="_blank" rel="noopener noreferrer">
-                            Voir sur le site
-                            <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
-                          </a>
-                        </Button>
-                      </div>
-                    )}
-                    
-                    <div className="grid grid-cols-2 divide-x divide-border/50">
-                      {product.shopifyProductId && (
-                        <div className="px-6 py-4 flex flex-col gap-1">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">ID Produit</span>
-                          <span className="font-mono text-xs font-medium text-foreground truncate">{product.shopifyProductId}</span>
-                        </div>
-                      )}
-                      {product.shopifyVariantId && (
-                        <div className="px-6 py-4 flex flex-col gap-1">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">ID Variante</span>
-                          <span className="font-mono text-xs font-medium text-foreground truncate">{product.shopifyVariantId}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {product.tags && (
-              <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
-                <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
-                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-primary" /> Tags
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="flex flex-wrap gap-2">
-                    {product.tags.split(",").map((tag, i) => (
-                      <Badge key={i} variant="secondary" className="bg-muted text-foreground hover:bg-muted/80 px-3 py-1 font-bold text-xs">{tag.trim()}</Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {/* Tags */}
+          {product.tags && (
+            <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+              <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-primary" /> Tags
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.split(",").map((tag, i) => (
+                    <Badge key={i} variant="secondary" className="bg-muted text-foreground hover:bg-muted/80 px-3 py-1 font-bold text-xs">{tag.trim()}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
         </div>
       )}
@@ -398,7 +345,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
         <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 shadow-2xl">
           <div className="bg-primary/5 p-6 border-b border-border/50 flex gap-4 items-start">
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
-              <RefreshCw className="h-6 w-6 text-primary" />
+              <Wrench className="h-6 w-6 text-primary" />
             </div>
             <div>
               <DialogTitle className="text-xl font-bold tracking-tight mb-2">Créer un Bon de Travail</DialogTitle>

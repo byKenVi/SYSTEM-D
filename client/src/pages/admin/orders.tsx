@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Fragment, useState, useMemo, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -123,6 +123,7 @@ function FulfillmentBadge({ status }: { status: string | null }) {
 }
 
 export default function AdminOrders() {
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
@@ -382,7 +383,7 @@ export default function AdminOrders() {
                       : order.email ?? null;
                     const shopifyOrderUrl = `https://${order.storeUrl}/admin/orders/${order.id}`;
                     return (
-                      <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group">
+                      <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate(`/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}${order.contactId ? `&contactId=${order.contactId}` : ""}`)}>
                         <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
                         <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                           {new Date(order.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}

@@ -750,7 +750,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
       queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
       setRestockProduct(null);
       setRestockQty("");
-      toast({ title: "Bon de travail soumis", description: "Vous pouvez le suivre dans Soumissions." });
       if (submission?.id) navigate(`/portal/forms/${submission.id}`);
     },
     onError: () => {
@@ -899,18 +898,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </div>
-                            <div className="flex gap-2 pt-1">
-                              <Button size="sm" variant="secondary" className="flex-1 font-bold" onClick={(e) => { e.stopPropagation(); const path = viewAsContactId ? `/portal/products/${product.id}?viewAs=${viewAsContactId}` : `/portal/products/${product.id}`; navigate(path); }} data-testid={`button-product-detail-${product.id}`}>
-                                <Eye className="h-3.5 w-3.5 mr-2" />
-                                Détail
-                              </Button>
-                              {!isViewAs && (
+                            {!isViewAs && (
+                              <div className="flex gap-2 pt-1">
                                 <Button size="sm" variant="outline" className="flex-1 font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
                                   <ClipboardList className="h-3.5 w-3.5 mr-2" />
                                   Bon de travail
                                 </Button>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -972,21 +967,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             </TableCell>
                             <TableCell className="text-right py-4" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  className="font-bold"
-                                  onClick={() => {
-                                    const path = viewAsContactId
-                                      ? `/portal/products/${product.id}?viewAs=${viewAsContactId}`
-                                      : `/portal/products/${product.id}`;
-                                    navigate(path);
-                                  }}
-                                  data-testid={`button-product-detail-${product.id}`}
-                                >
-                                  <Eye className="h-3.5 w-3.5 mr-2" />
-                                  Détail
-                                </Button>
                                 {!isViewAs && (
                                 <Button
                                   size="sm"
@@ -1155,14 +1135,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <Table className="min-w-[920px]">
-                      <TableHeader><TableRow><TableHead>Commande</TableHead><TableHead>Date</TableHead><TableHead>Rep</TableHead><TableHead>Source</TableHead><TableHead>Articles</TableHead><TableHead>Paiement</TableHead><TableHead>Traitement</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Commande</TableHead><TableHead>Date</TableHead><TableHead>Rep</TableHead><TableHead>Source</TableHead><TableHead>Articles</TableHead><TableHead>Paiement</TableHead><TableHead>Traitement</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {systemdOrdersList.map((order: any) => {
                           const items = Array.isArray(order.lineItems) ? order.lineItems : [];
                           const itemCount = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
                           return (
                             <Fragment key={order.id}>
-                              <TableRow id={`systemd-order-${order.id}`} className="scroll-mt-24">
+                              <TableRow id={`systemd-order-${order.id}`} className="scroll-mt-24 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setExpandedSystemdOrderId(expandedSystemdOrderId === order.id ? null : order.id)}>
                                 <TableCell className="font-mono font-bold">#{order.id}</TableCell>
                                 <TableCell className="whitespace-nowrap text-xs">{new Date(order.createdAt).toLocaleDateString("fr-CA")}</TableCell>
                                 <TableCell><p className="text-sm font-medium">{order.repName || order.repEmail || "—"}</p>{order.repName && order.repEmail && <p className="text-[10px] text-muted-foreground">{order.repEmail}</p>}</TableCell>
@@ -1171,10 +1151,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 <TableCell><Badge className={order.status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{order.status === "paid" ? "Payé" : "En attente"}</Badge></TableCell>
                                 <TableCell><Badge variant="secondary">{order.fulfillmentStatus === "completed" ? "Terminé" : order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter"}</Badge></TableCell>
                                 <TableCell className="text-right font-mono font-bold">{money(order.amount / 100, (order.currency || "CAD").toUpperCase())}</TableCell>
-                                <TableCell><Button size="sm" variant="outline" onClick={() => setExpandedSystemdOrderId(expandedSystemdOrderId === order.id ? null : order.id)}>{expandedSystemdOrderId === order.id ? "Masquer" : "Voir détail"}</Button></TableCell>
                               </TableRow>
                               {expandedSystemdOrderId === order.id && (
-                                <TableRow><TableCell colSpan={9} className="bg-muted/30"><div className="grid gap-2 sm:grid-cols-2">{items.map((item: any, index: number) => <div key={index} className="flex justify-between text-xs"><span>{item.name} × {item.quantity}</span><span className="font-mono">{money(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</span></div>)}</div><p className="mt-3 text-xs text-muted-foreground">{order.stockReservationStatus === "reserved" ? "Stock réservé localement." : "Stock à vérifier par l’équipe Système D."}</p></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={8} className="bg-muted/30"><div className="grid gap-2 sm:grid-cols-2">{items.map((item: any, index: number) => <div key={index} className="flex justify-between text-xs"><span>{item.name} × {item.quantity}</span><span className="font-mono">{money(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</span></div>)}</div><p className="mt-3 text-xs text-muted-foreground">{order.stockReservationStatus === "reserved" ? "Stock réservé localement." : "Stock à vérifier par l’équipe Système D."}</p></TableCell></TableRow>
                               )}
                             </Fragment>
                           );
@@ -1355,7 +1334,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Rep</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Association</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Commandes</TableHead>
-                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Dépensé en commandes</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Dépensé</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Crédit disponible</TableHead>
                         <TableHead className="w-12 py-4" />
                       </TableRow>
@@ -1422,7 +1401,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               <TableCell className="py-4 text-center">
                                 <Badge variant="outline" className="font-mono text-xs border-dashed bg-muted/30">{customer.orders_count}</Badge>
                               </TableCell>
-                              <TableCell className="py-4"><Badge variant="outline">Shopify</Badge></TableCell>
                               <TableCell className="py-4 text-right font-mono text-sm font-medium">{money(customer.total_spent || "0")}</TableCell>
                               <TableCell className="py-4 text-right">
                                 <span className="font-mono font-bold text-foreground">

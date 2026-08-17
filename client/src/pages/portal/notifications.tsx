@@ -357,11 +357,6 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
                           {n.message}
                         </p>
 
-                        {isClickable && (
-                          <p className="text-xs text-primary font-medium mt-2 group-hover/notif:underline">
-                            Voir le détail →
-                          </p>
-                        )}
 
                         {!n.isRead && (
                           <div className="mt-4 sm:hidden">

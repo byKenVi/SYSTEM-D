@@ -43,7 +43,7 @@ function StateBadge({ state }: { state?: string }) {
   if (state === "enabled")
     return <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Actif</Badge>;
   if (state === "disabled")
-    return <Badge className="bg-muted text-muted-foreground border-border text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Inactif</Badge>;
+    return null;
   if (state === "invited")
     return <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md">Invité</Badge>;
   if (state === "declined")
@@ -424,32 +424,6 @@ export default function PortalCustomerDetail() {
             </CardContent>
           </Card>
 
-          {/* Metadata */}
-          {!isLoading && (
-            <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
-              <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-primary" /> Métadonnées
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border/50">
-                  {[
-                    ["ID Shopify", c.id],
-                    ["Créé le", fmt(c.created_at)],
-                    ["Mis à jour le", fmt(c.updated_at)],
-                    ["Boutique Source", data?.shopName ?? store],
-                  ].map(([label, value], i) => (
-                    <div key={i} className="flex justify-between items-center px-6 py-3">
-                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-                      <span className="font-mono text-sm font-medium text-right text-foreground max-w-[200px] truncate">{String(value ?? "—")}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Tax exemptions */}
           {!isLoading && c.tax_exempt && (
             <Card className="border-amber-500/20 shadow-sm bg-amber-500/5 overflow-hidden">
@@ -473,6 +447,32 @@ export default function PortalCustomerDetail() {
           )}
         </div>
       </div>
+
+      {/* Metadata - full width */}
+      {!isLoading && (
+        <Card className="border-border/50 shadow-sm bg-card overflow-hidden">
+          <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" /> Métadonnées
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/50">
+              {[
+                ["ID Shopify", c.id],
+                ["Boutique Source", data?.shopName ?? store],
+                ["Créé le", fmt(c.created_at)],
+                ["Mis à jour le", fmt(c.updated_at)],
+              ].map(([label, value], i) => (
+                <div key={i} className="flex flex-col gap-1 px-6 py-4">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+                  <span className="font-mono text-sm font-medium text-foreground truncate">{String(value ?? "—")}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* All Addresses */}
       {!isLoading && Array.isArray(c.addresses) && c.addresses.length > 0 && (

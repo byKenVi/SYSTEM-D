@@ -43,7 +43,7 @@ function StateBadge({ state }: { state?: string }) {
   if (state === "enabled")
     return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-0 text-xs">Actif</Badge>;
   if (state === "disabled")
-    return <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-0 text-xs">Inactif</Badge>;
+    return null;
   if (state === "invited")
     return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">Invité</Badge>;
   if (state === "declined")
