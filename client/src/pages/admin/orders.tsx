@@ -383,7 +383,7 @@ export default function AdminOrders() {
                       : order.email ?? null;
                     const shopifyOrderUrl = `https://${order.storeUrl}/admin/orders/${order.id}`;
                     return (
-                      <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate(`/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}${order.contactId ? `&contactId=${order.contactId}` : ""}`)}>
+                      <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate(`/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}${order.contactId ? `&contactId=${order.contactId}` : ""}&returnTo=/admin/orders`)}>
                         <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>
                         <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                           {new Date(order.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
