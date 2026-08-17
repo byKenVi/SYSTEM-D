@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contact, AdminSettings, ShopifyIntegration, ActivityLog } from "@shared/schema";
-type IntegrationWithCount = ShopifyIntegration & { productCount: number };
+type IntegrationWithCount = ShopifyIntegration & { productCount: number; repCount: number; orderCount: number };
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,6 @@ import {
   CheckCircle2,
   ExternalLink,
   Globe,
-  Trash2,
   RefreshCw,
   Clock,
   Search,
@@ -116,7 +115,8 @@ export default function AdminSettingsPage() {
   const [location] = useLocation();
   const [shopifyOpen, setShopifyOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
-  const [storePlatform, setStorePlatform] = useState<"shopify" | "woocommerce">("shopify");
+  const [storePlatform, setStorePlatform] = useState<"shopify" | "woocommerce" | "other">("shopify");
+  const [storeName, setStoreName] = useState("");
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
   const [shopifyAccessToken, setShopifyAccessToken] = useState("");
   const [wooConsumerKey, setWooConsumerKey] = useState("");
@@ -203,8 +203,7 @@ export default function AdminSettingsPage() {
   // "Token invalide" warning — the token is fine in those cases.
   const zohoTokenValid = !isZohoConnected || zohoTestResult === undefined || zohoTestResult.ok !== false;
   const zohoRateLimited = isZohoConnected && zohoTestResult?.ok === true && zohoTestResult?.rateLimited === true;
-  const connectedClientIds = new Set(integrations?.map((i) => i.contactId) || []);
-  const availableClients = contacts?.filter((c) => !connectedClientIds.has(c.id)) || [];
+  const availableClients = contacts ?? [];
 
   const filteredLogs = logs?.filter((l) => {
     const matchesSearch = l.message.toLowerCase().includes(logSearch.toLowerCase());
@@ -220,6 +219,7 @@ export default function AdminSettingsPage() {
         contactId: Number(selectedClient),
         storeUrl: shopifyStoreUrl,
         platform: storePlatform,
+        shopName: storeName.trim() || undefined,
       };
       if (storePlatform === "woocommerce") {
         body.consumerKey = wooConsumerKey;
@@ -236,6 +236,7 @@ export default function AdminSettingsPage() {
       setShopifyOpen(false);
       setSelectedClient("");
       setStorePlatform("shopify");
+      setStoreName("");
       setShopifyStoreUrl("");
       setShopifyAccessToken("");
       setWooConsumerKey("");
@@ -314,8 +315,8 @@ export default function AdminSettingsPage() {
   });
 
   const syncOrdersNowMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/admin/orders/sync");
+    mutationFn: async (integrationId: number) => {
+      const res = await apiRequest("POST", "/api/admin/orders/sync", { integrationId });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -472,6 +473,26 @@ export default function AdminSettingsPage() {
     onError: () => {
       toast({ title: "Erreur", description: "Impossible d'enregistrer le portail.", variant: "destructive" });
     },
+  });
+
+  const syncRepsMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", "/api/admin/mapi/reps/sync").then((res) => res.json()),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
+      toast({ title: "Reps synchronisés", description: `${data.synced ?? 0} rep(s) mis à jour.` });
+    },
+    onError: (error: any) => toast({ title: "Synchronisation impossible", description: error.message, variant: "destructive" }),
+  });
+
+  const disconnectZohoProjectsMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", "/api/admin-settings/zoho-projects/disconnect"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin-settings"] });
+      setZohoProjectsPortalInput("");
+      setZohoProjectsTestStatus("idle");
+      toast({ title: "Zoho Projects déconnecté", description: "Zoho Inventory et les anciens projets sont conservés." });
+    },
+    onError: () => toast({ title: "Erreur", description: "Impossible de déconnecter Zoho Projects.", variant: "destructive" }),
   });
 
   const selectOrgMutation = useMutation({
@@ -943,6 +964,18 @@ export default function AdminSettingsPage() {
                       )}
                     </div>
 
+                    {adminSettings?.zohoProjectsPortalId && (
+                      <Button
+                        variant="outline"
+                        className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => disconnectZohoProjectsMutation.mutate()}
+                        disabled={disconnectZohoProjectsMutation.isPending}
+                        data-testid="button-disconnect-zoho-projects"
+                      >
+                        {disconnectZohoProjectsMutation.isPending ? "Déconnexion…" : "Déconnecter Zoho Projects"}
+                      </Button>
+                    )}
+
                     <div className="border-t pt-3 text-xs text-muted-foreground space-y-1">
                       <p className="font-medium text-foreground text-sm">Comment ça fonctionne</p>
                       <p>Un projet Zoho est créé automatiquement chaque fois qu'une soumission passe de <strong>En révision</strong> à <strong>Approuvée</strong>.</p>
@@ -962,7 +995,7 @@ export default function AdminSettingsPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold">Intégrations boutiques</h3>
-                    <p className="text-sm text-muted-foreground">Connectez des boutiques Shopify ou WooCommerce</p>
+                    <p className="text-sm text-muted-foreground">Une ou plusieurs boutiques par client, quelle que soit la plateforme</p>
                   </div>
                 </div>
                 <Dialog open={shopifyOpen} onOpenChange={(open) => {
@@ -970,6 +1003,7 @@ export default function AdminSettingsPage() {
                   if (!open) {
                     setSelectedClient("");
                     setStorePlatform("shopify");
+                    setStoreName("");
                     setShopifyStoreUrl("");
                     setShopifyAccessToken("");
                     setWooConsumerKey("");
@@ -979,7 +1013,7 @@ export default function AdminSettingsPage() {
                   <DialogTrigger asChild>
                     <Button size="sm" data-testid="button-connect-shopify">
                       <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
-                      Connecter boutique
+                      Ajouter une boutique
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
@@ -990,7 +1024,7 @@ export default function AdminSettingsPage() {
                       {/* Platform selector */}
                       <div className="space-y-2">
                         <Label>Plateforme</Label>
-                        <Select value={storePlatform} onValueChange={(v) => setStorePlatform(v as "shopify" | "woocommerce")}>
+                        <Select value={storePlatform} onValueChange={(v) => setStorePlatform(v as "shopify" | "woocommerce" | "other")}>
                           <SelectTrigger data-testid="select-store-platform">
                             <SelectValue />
                           </SelectTrigger>
@@ -1001,8 +1035,14 @@ export default function AdminSettingsPage() {
                             <SelectItem value="woocommerce">
                               <span className="flex items-center gap-2"><SiWoocommerce className="h-4 w-4 text-purple-600" /> WooCommerce</span>
                             </SelectItem>
+                            <SelectItem value="other">Autre / à configurer</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Nom de la boutique</Label>
+                        <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Ex. Boutique Mapei Canada" />
                       </div>
 
                       {/* Client */}
@@ -1047,7 +1087,7 @@ export default function AdminSettingsPage() {
                             Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code>, <code>write_inventory</code>, <code>read_customers</code>, <code>read_store_credit_accounts</code> et <code>write_store_credit_account_transactions</code>.
                           </p>
                         </div>
-                      ) : (
+                      ) : storePlatform === "woocommerce" ? (
                         <>
                           <div className="space-y-2">
                             <Label>Consumer Key</Label>
@@ -1070,19 +1110,23 @@ export default function AdminSettingsPage() {
                             <p className="text-xs text-muted-foreground">Générez une clé API dans <strong>WooCommerce → Réglages → Avancé → API REST</strong> avec l'autorisation Lecture/Écriture.</p>
                           </div>
                         </>
+                      ) : (
+                        <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                          Cette plateforme est préparée dans l’interface mais n’est pas encore configurable. Aucun secret n’est demandé ni enregistré.
+                        </div>
                       )}
 
                       <Button
                         className="w-full"
                         onClick={() => connectShopifyMutation.mutate()}
                         disabled={
-                          !selectedClient || !shopifyStoreUrl ||
+                          !selectedClient || !shopifyStoreUrl || storePlatform === "other" ||
                           (storePlatform === "shopify" ? !shopifyAccessToken : !wooConsumerKey || !wooConsumerSecret) ||
                           connectShopifyMutation.isPending
                         }
                         data-testid="button-submit-shopify"
                       >
-                        {connectShopifyMutation.isPending ? "Connexion..." : "Connecter la boutique"}
+                        {storePlatform === "other" ? "Non configuré — à venir" : connectShopifyMutation.isPending ? "Test et connexion…" : "Tester et connecter la boutique"}
                       </Button>
                     </div>
                   </DialogContent>
@@ -1134,6 +1178,11 @@ export default function AdminSettingsPage() {
                                         ⚠ Erreur de connexion
                                       </Badge>
                                     );
+                                    if (cs === "disconnected" || !integration.isActive) return (
+                                      <Badge className="text-[10px] px-1.5 py-0 flex-shrink-0" variant="secondary">
+                                        Déconnectée
+                                      </Badge>
+                                    );
                                     return (
                                       <Badge className="text-[10px] px-1.5 py-0 flex-shrink-0" variant="outline">
                                         Jamais testé
@@ -1149,6 +1198,7 @@ export default function AdminSettingsPage() {
                                     )}
                                   </p>
                                 )}
+                                <p className="text-[10px] text-muted-foreground/70 truncate">{integration.storeUrl}</p>
                                 {integration.lastConnectionTestedAt && (
                                   <p className="text-[10px] text-muted-foreground/60">
                                     Testé le {new Date(integration.lastConnectionTestedAt).toLocaleString("fr-CA")}
@@ -1167,7 +1217,7 @@ export default function AdminSettingsPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              {!isWoo && (
+                              {!isWoo && integration.isActive && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1182,6 +1232,22 @@ export default function AdminSettingsPage() {
                                     : "Tester la connexion"}
                                 </Button>
                               )}
+                              {!integration.isActive && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => {
+                                    setSelectedClient(String(integration.contactId));
+                                    setStorePlatform(isWoo ? "woocommerce" : "shopify");
+                                    setStoreName(integration.shopName || "");
+                                    setShopifyStoreUrl(integration.storeUrl);
+                                    setShopifyOpen(true);
+                                  }}
+                                >
+                                  Reconnecter
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -1190,9 +1256,15 @@ export default function AdminSettingsPage() {
                                 disabled={disconnectShopifyMutation.isPending}
                                 data-testid={`button-disconnect-shopify-${integration.id}`}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 rounded-md border bg-background/70 p-2 text-center">
+                            <div><p className="text-sm font-bold tabular-nums">{integration.productCount ?? 0}</p><p className="text-[10px] text-muted-foreground">Produits</p></div>
+                            <div><p className="text-sm font-bold tabular-nums">{integration.repCount ?? 0}</p><p className="text-[10px] text-muted-foreground">Reps</p></div>
+                            <div><p className="text-sm font-bold tabular-nums">{integration.orderCount ?? 0}</p><p className="text-[10px] text-muted-foreground">Commandes</p></div>
                           </div>
 
                           {/* Product sync row */}
@@ -1204,7 +1276,7 @@ export default function AdminSettingsPage() {
                                 onValueChange={(v) =>
                                   updateSyncFrequencyMutation.mutate({ id: integration.id, syncFrequencyMinutes: Number(v) })
                                 }
-                                disabled={updateSyncFrequencyMutation.isPending}
+                                disabled={!integration.isActive || updateSyncFrequencyMutation.isPending}
                               >
                                 <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-sync-frequency-${integration.id}`}>
                                   <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -1220,7 +1292,7 @@ export default function AdminSettingsPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => importProductsMutation.mutate(integration.id)}
-                                disabled={importProductsMutation.isPending}
+                                disabled={!integration.isActive || importProductsMutation.isPending}
                                 data-testid={`button-import-products-${integration.id}`}
                                 title="Importe ou réimporte tous les produits actifs depuis cette boutique Shopify"
                               >
@@ -1247,7 +1319,7 @@ export default function AdminSettingsPage() {
                                 onValueChange={(v) =>
                                   updateOrderSyncFrequencyMutation.mutate({ id: integration.id, orderSyncFrequencyMinutes: Number(v) })
                                 }
-                                disabled={updateOrderSyncFrequencyMutation.isPending}
+                                disabled={!integration.isActive || updateOrderSyncFrequencyMutation.isPending}
                               >
                                 <SelectTrigger className="h-7 text-xs w-auto gap-1" data-testid={`select-order-sync-frequency-${integration.id}`}>
                                   <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -1262,8 +1334,8 @@ export default function AdminSettingsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => syncOrdersNowMutation.mutate()}
-                                disabled={syncOrdersNowMutation.isPending}
+                                onClick={() => syncOrdersNowMutation.mutate(integration.id)}
+                                disabled={!integration.isActive || syncOrdersNowMutation.isPending}
                                 data-testid={`button-sync-orders-${integration.id}`}
                                 title="Met à jour les commandes Shopify immédiatement"
                               >
@@ -1280,6 +1352,14 @@ export default function AdminSettingsPage() {
                               Met à jour les commandes Shopify uniquement. N'importe pas de nouveaux produits.
                             </p>
                           </div>
+                          {!isWoo && integration.storeUrl.replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase() === "tnt5ar-ki.myshopify.com" && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Reps</span>
+                              <Button size="sm" variant="outline" disabled={!integration.isActive || syncRepsMutation.isPending} onClick={() => syncRepsMutation.mutate()}>
+                                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncRepsMutation.isPending ? "animate-spin" : ""}`} /> Synchroniser les reps
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

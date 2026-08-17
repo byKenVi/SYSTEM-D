@@ -127,15 +127,11 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   });
   const unreadCount = unreadData?.count ?? 0;
 
-  // ── Badge admin : nouvelles notifs depuis la dernière visite ───────────────
-  const adminNotifViewedAt = (() => {
-    try { return localStorage.getItem("adminNotifViewedAt") || new Date(0).toISOString(); }
-    catch { return new Date(0).toISOString(); }
-  })();
+  // ── Badge admin : notifications opérationnelles non lues ──────────────────
   const { data: adminNewData } = useQuery<{ count: number }>({
-    queryKey: ["/api/admin/notifications/new-count", adminNotifViewedAt],
+    queryKey: ["/api/admin/notifications/new-count"],
     queryFn: () =>
-      fetch(`/api/admin/notifications/new-count?since=${encodeURIComponent(adminNotifViewedAt)}`, {
+      fetch("/api/admin/notifications/new-count", {
         credentials: "include",
       }).then((r) => r.json()),
     enabled: role === "admin" && !viewAsContactId,

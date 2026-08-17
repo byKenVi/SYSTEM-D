@@ -428,7 +428,7 @@ export default function AdminBoutique() {
             </TabsTrigger>
             <TabsTrigger value="customers" className="whitespace-nowrap" data-testid="tab-customers">
               <Users className="h-3.5 w-3.5 mr-1.5" />
-              Clients Shopify
+              Reps
               <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{customers.length}</Badge>
             </TabsTrigger>
           </TabsList>

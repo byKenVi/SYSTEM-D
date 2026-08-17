@@ -36,7 +36,7 @@ import {
   LayoutList,
   ClipboardList,
 } from "lucide-react";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { CartProvider, useCart, type SystemdProduct, type CartItem } from "@/contexts/cart-context";
 import {
@@ -1175,94 +1175,39 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-3">
-                {systemdOrdersList.map((order: any) => (
-                  <Card key={order.id} id={`systemd-order-${order.id}`} className="border-border/50 shadow-sm scroll-mt-24">
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between gap-4 flex-wrap">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-sm text-foreground">Commande #{order.id}</p>
-                            <Badge variant="outline" className="text-[10px]">Système D</Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(order.createdAt).toLocaleDateString("fr-CA", {
-                              year: "numeric", month: "long", day: "numeric",
-                              hour: "2-digit", minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <span className="font-mono font-bold text-lg">
-                            {(order.amount / 100).toLocaleString("fr-CA", {
-                              style: "currency",
-                              currency: (order.currency || "cad").toUpperCase(),
-                            })}
-                          </span>
-                          {order.status === "paid" && (
-                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20">
-                              Payée
-                            </span>
-                          )}
-                          {order.status === "pending" && (
-                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20">
-                              En attente de paiement
-                            </span>
-                          )}
-                          {(order.status === "cancelled" || order.status === "expired") && (
-                            <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted border-border">
-                              {order.status === "expired" ? "Expiré" : "Annulé"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2 flex-wrap text-xs">
-                        {order.repName || order.repEmail ? (
-                          <span className="text-muted-foreground">
-                            Rep débité : <span className="font-semibold text-foreground">{order.repName || order.repEmail}</span>
-                            {order.repName && order.repEmail ? ` (${order.repEmail})` : ""}
-                          </span>
-                        ) : null}
-                        {order.stockReservationStatus === "reserved" && (
-                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300">Stock réservé</Badge>
-                        )}
-                        {order.stockReservationStatus === "stock_to_reserve" && (
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300">Stock à réserver</Badge>
-                        )}
-                        {order.fulfillmentStatus === "to_process" && <Badge variant="secondary">À traiter</Badge>}
-                        {order.fulfillmentStatus === "stock_to_reserve" && <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300">Stock à réserver</Badge>}
-                        {order.fulfillmentStatus === "processing" && <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-300">En traitement</Badge>}
-                        {order.fulfillmentStatus === "completed" && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300">Traitée</Badge>}
-                      </div>
-                      <div className="mt-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setExpandedSystemdOrderId(expandedSystemdOrderId === order.id ? null : order.id)}
-                        >
-                          {expandedSystemdOrderId === order.id ? "Masquer le détail" : "Voir le détail"}
-                        </Button>
-                      </div>
-                      {expandedSystemdOrderId === order.id && Array.isArray(order.lineItems) && order.lineItems.length > 0 && (
-                        <div className="mt-3 pt-3 border-t space-y-1">
-                          {order.lineItems.map((li: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>
-                                {li.name}
-                                {li.sku ? <span className="ml-1 font-mono text-muted-foreground/60">({li.sku})</span> : null}
-                                {" × "}{li.quantity}
-                              </span>
-                              <span className="font-mono">
-                                {(li.unitPrice * li.quantity).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <Card className="border-border shadow-sm overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[920px]">
+                      <TableHeader><TableRow><TableHead>Commande</TableHead><TableHead>Date</TableHead><TableHead>Rep</TableHead><TableHead>Source</TableHead><TableHead>Articles</TableHead><TableHead>Paiement</TableHead><TableHead>Traitement</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {systemdOrdersList.map((order: any) => {
+                          const items = Array.isArray(order.lineItems) ? order.lineItems : [];
+                          const itemCount = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+                          return (
+                            <Fragment key={order.id}>
+                              <TableRow id={`systemd-order-${order.id}`} className="scroll-mt-24">
+                                <TableCell className="font-mono font-bold">#{order.id}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs">{new Date(order.createdAt).toLocaleDateString("fr-CA")}</TableCell>
+                                <TableCell><p className="text-sm font-medium">{order.repName || order.repEmail || "—"}</p>{order.repName && order.repEmail && <p className="text-[10px] text-muted-foreground">{order.repEmail}</p>}</TableCell>
+                                <TableCell><Badge variant="outline">Système D</Badge></TableCell>
+                                <TableCell>{itemCount}</TableCell>
+                                <TableCell><Badge className={order.status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{order.status === "paid" ? "Payé" : "En attente"}</Badge></TableCell>
+                                <TableCell><Badge variant="secondary">{order.fulfillmentStatus === "completed" ? "Terminé" : order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter"}</Badge></TableCell>
+                                <TableCell className="text-right font-mono font-bold">{money(order.amount / 100, (order.currency || "CAD").toUpperCase())}</TableCell>
+                                <TableCell><Button size="sm" variant="outline" onClick={() => setExpandedSystemdOrderId(expandedSystemdOrderId === order.id ? null : order.id)}>{expandedSystemdOrderId === order.id ? "Masquer" : "Voir détail"}</Button></TableCell>
+                              </TableRow>
+                              {expandedSystemdOrderId === order.id && (
+                                <TableRow><TableCell colSpan={9} className="bg-muted/30"><div className="grid gap-2 sm:grid-cols-2">{items.map((item: any, index: number) => <div key={index} className="flex justify-between text-xs"><span>{item.name} × {item.quantity}</span><span className="font-mono">{money(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</span></div>)}</div><p className="mt-3 text-xs text-muted-foreground">{order.stockReservationStatus === "reserved" ? "Stock réservé localement." : "Stock à vérifier par l’équipe Système D."}</p></TableCell></TableRow>
+                              )}
+                            </Fragment>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
@@ -1319,7 +1264,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     <TableHeader>
                       <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Commande</TableHead>
-                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Acheteur</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Date</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Rep</TableHead>
+                        <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Source</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Articles</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Paiement</TableHead>
                         <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Traitement</TableHead>
@@ -1330,11 +1277,11 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     <TableBody>
                       {ordersLoading ? (
                         Array.from({ length: 5 }).map((_, i) => (
-                          <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j} className="py-4"><Skeleton className="h-6 w-full" /></TableCell>)}</TableRow>
+                          <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j} className="py-4"><Skeleton className="h-6 w-full" /></TableCell>)}</TableRow>
                         ))
                       ) : filteredOrders.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-[400px] text-center">
+                          <TableCell colSpan={9} className="h-[400px] text-center">
                             <div className="flex flex-col items-center justify-center gap-3">
                               <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
                                 <ShoppingCart className="h-10 w-10 text-muted-foreground/50" />
@@ -1373,13 +1320,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                     <span className="font-mono font-bold text-base text-foreground">{order.name}</span>
                                     <Badge variant="outline" className="text-[10px]">Shopify</Badge>
                                   </div>
-                                  {order.shopifyCreatedAt && (
-                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
-                                      {new Date(order.shopifyCreatedAt).toLocaleDateString("fr-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                    </span>
-                                  )}
                                 </div>
                               </TableCell>
+                              <TableCell className="py-4 whitespace-nowrap text-xs text-muted-foreground">{order.shopifyCreatedAt ? new Date(order.shopifyCreatedAt).toLocaleDateString("fr-CA") : "—"}</TableCell>
                               <TableCell className="py-4">
                                 <div className="flex flex-col">
                                   <span className="font-bold text-sm text-foreground truncate max-w-[150px]">{customerName || "—"}</span>
@@ -1503,6 +1446,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                               <TableCell className="py-4 text-center">
                                 <Badge variant="outline" className="font-mono text-xs border-dashed bg-muted/30">{customer.orders_count}</Badge>
                               </TableCell>
+                              <TableCell className="py-4"><Badge variant="outline">Shopify</Badge></TableCell>
                               <TableCell className="py-4 text-right font-mono text-sm font-medium">{money(customer.total_spent || "0")}</TableCell>
                               <TableCell className="py-4 text-right">
                                 <span className="font-mono font-bold text-foreground">

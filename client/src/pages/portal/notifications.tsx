@@ -137,7 +137,6 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
 
   const seenIds = useRef<Set<number>>(new Set());
   const initialLoad = useRef(true);
-  const hasAutoMarked = useRef(false);
 
   useEffect(() => {
     if (!notifications) return;
@@ -178,16 +177,6 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
     },
   });
 
-  // Marquage silencieux à l'ouverture de la page (sans toast)
-  const markAllReadSilent = useMutation({
-    mutationFn: () =>
-      apiRequest("PATCH", "/api/portal/notifications/read-all").then((r) => r.json()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [notifKey] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/notifications/unread-count"] });
-    },
-  });
-
   const togglePref = useMutation({
     mutationFn: ({ category, enabled }: { category: string; enabled: boolean }) =>
       apiRequest("PUT", "/api/portal/notifications/preferences", { category, enabled }).then((r) => r.json()),
@@ -205,15 +194,6 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
       toast({ title: "Erreur lors de la mise à jour", variant: "destructive" });
     },
   });
-
-  // Auto-marquer comme lu à l'ouverture de la page (client uniquement, une seule fois)
-  useEffect(() => {
-    if (!notifications || isAdmin || hasAutoMarked.current) return;
-    if (notifications.some((n) => !n.isRead)) {
-      hasAutoMarked.current = true;
-      markAllReadSilent.mutate();
-    }
-  }, [notifications, isAdmin]);
 
   const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
   const cat = (c: string) => CATEGORY_CONFIG[c] ?? { label: c, description: "", colors: "bg-muted text-muted-foreground border-border", iconBg: "bg-muted-foreground" };
@@ -316,7 +296,11 @@ export default function PortalNotifications({ viewAsContactId }: { viewAsContact
                       ${!n.isRead ? "bg-card shadow-md shadow-primary/5" : "bg-muted/30 opacity-75"}
                       ${isClickable ? "cursor-pointer hover:shadow-lg hover:border-primary/20 group/notif" : ""}
                     `}
-                    onClick={() => { if (isClickable) navigate(destUrl!); }}
+                    onClick={() => {
+                      if (!isClickable) return;
+                      if (!n.isRead) markRead.mutate(n.id);
+                      navigate(destUrl!);
+                    }}
                     data-testid={`row-notification-${n.id}`}
                   >
                     {!n.isRead && (

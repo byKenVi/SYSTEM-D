@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ClipboardList, Package, Truck } from "lucide-react";
-import { SiShopify, SiZoho } from "react-icons/si";
 import logoSrc from "@assets/logo_no_bg.png";
 
 const portalActions = [
@@ -12,7 +11,7 @@ const portalActions = [
   {
     icon: Package,
     title: "Commander des produits",
-    description: "Consultez vos produits et le catalogue Système D, puis commandez avec votre crédit Shopify.",
+    description: "Consultez vos produits et le catalogue Système D, puis commandez avec le crédit associé à votre compte.",
   },
   {
     icon: Truck,
@@ -71,19 +70,14 @@ export default function Landing() {
         <section className="border-y border-border/60 bg-muted/25 px-4 py-12 sm:px-6">
           <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-7 text-center md:flex-row md:text-left">
             <div>
-              <h2 className="text-xl font-bold">Des données toujours à jour</h2>
+              <h2 className="text-xl font-bold">Tout est prêt dans votre portail</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Connecté à Shopify et Zoho pour garder vos produits, commandes et inventaires synchronisés.
+                Créez une demande, consultez vos commandes et suivez vos livraisons depuis un seul espace.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-3 text-sm font-semibold">
-                <SiShopify className="h-5 w-5 text-[#7aab36]" /> Shopify
-              </div>
-              <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-3 text-sm font-semibold">
-                <SiZoho className="h-5 w-5 text-rose-500" /> Zoho
-              </div>
-            </div>
+            <a href="/api/login">
+              <Button variant="outline" className="font-semibold">Accéder au portail <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            </a>
           </div>
         </section>
       </main>

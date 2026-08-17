@@ -89,11 +89,14 @@ function mapiMoney(amount: string | number | null | undefined, currency = "CAD")
 
 function TxnTypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string; Icon: any }> = {
-    credit:          { label: "Crédit",         cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", Icon: TrendingUp },
-    debit:           { label: "Débit",          cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",                Icon: TrendingDown },
+    credit:          { label: "Crédit ajouté dans Shopify", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", Icon: TrendingUp },
+    debit:           { label: "Débit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", Icon: TrendingDown },
+    checkout_debit:  { label: "Paiement commande Système D", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", Icon: ShoppingBag },
+    compensation:    { label: "Remboursement / compensation", cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", Icon: RotateCcw },
+    refund:          { label: "Remboursement / compensation", cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", Icon: RotateCcw },
     monthly_renewal: { label: "Renouvellement", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",            Icon: RotateCcw },
-    Credit:          { label: "Crédit",         cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", Icon: TrendingUp },
-    Debit:           { label: "Débit",          cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",                Icon: TrendingDown },
+    Credit:          { label: "Crédit ajouté dans Shopify", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", Icon: TrendingUp },
+    Debit:           { label: "Débit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", Icon: TrendingDown },
     Expiration:      { label: "Expiré",         cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",        Icon: Clock },
     DebitRevert:     { label: "Réversion",      cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",    Icon: RotateCcw },
   };
@@ -136,12 +139,6 @@ export default function AdminCustomerDetail() {
 
   const shopifyCustomerId = params.id;
 
-  const [showCreditDialog, setShowCreditDialog] = useState(false);
-  const [showDebitDialog, setShowDebitDialog] = useState(false);
-  const [creditAmount, setCreditAmount] = useState("");
-  const [creditReason, setCreditReason] = useState("");
-  const [debitAmount, setDebitAmount] = useState("");
-  const [debitReason, setDebitReason] = useState("");
 
   const { data, isLoading, error } = useQuery<any>({
     queryKey: ["/api/admin/customers", shopifyCustomerId, store, integrationId],
@@ -165,34 +162,6 @@ export default function AdminCustomerDetail() {
       return res.json();
     },
     enabled: !!shopifyCustomerId,
-  });
-
-  const creditMutation = useMutation({
-    mutationFn: async () => {
-      if (!mapiData?.rep) throw new Error("Rep introuvable");
-      const res = await apiRequest("POST", `/api/mapi/reps/${mapiData.rep.id}/credit`, { amount: creditAmount, currency: "CAD", reason: creditReason });
-      return res.json();
-    },
-    onSuccess: (d) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId] });
-      toast({ title: "Crédit ajouté", description: `Nouveau solde : ${mapiMoney(d.rep?.currentBalance)}` });
-      setCreditAmount(""); setCreditReason(""); setShowCreditDialog(false);
-    },
-    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
-  });
-
-  const debitMutation = useMutation({
-    mutationFn: async () => {
-      if (!mapiData?.rep) throw new Error("Rep introuvable");
-      const res = await apiRequest("POST", `/api/mapi/reps/${mapiData.rep.id}/debit`, { amount: debitAmount, currency: "CAD", reason: debitReason });
-      return res.json();
-    },
-    onSuccess: (d) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps/by-shopify-customer", shopifyCustomerId] });
-      toast({ title: "Débit effectué", description: `Nouveau solde : ${mapiMoney(d.rep?.currentBalance)}` });
-      setDebitAmount(""); setDebitReason(""); setShowDebitDialog(false);
-    },
-    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
   const c: any = data?.customer ?? {};
@@ -597,16 +566,7 @@ export default function AdminCustomerDetail() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Wallet className="h-4 w-4" /> Compte représentant MAPI
             </CardTitle>
-            {mapiData?.rep && mapiData.rep.status === "active" && (
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="font-bold text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => setShowCreditDialog(true)} data-testid="button-credit-rep">
-                  <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Créditer
-                </Button>
-                <Button size="sm" variant="outline" className="font-bold text-red-500 border-red-500/30 hover:bg-red-500/10" onClick={() => setShowDebitDialog(true)} disabled={parseFloat(mapiData.rep.currentBalance ?? "0") <= 0} data-testid="button-debit-rep">
-                  <TrendingDown className="h-3.5 w-3.5 mr-1.5" />Débiter
-                </Button>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">Les crédits reps se gèrent dans Shopify. Système D affiche le solde et l’historique synchronisés.</p>
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -691,52 +651,6 @@ export default function AdminCustomerDetail() {
         </CardContent>
       </Card>
 
-      {/* Credit Dialog */}
-      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Créditer le rep</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Montant (CAD)</Label>
-              <Input type="number" min="0.01" step="0.01" placeholder="50.00" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} data-testid="input-credit-amount" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Raison (optionnel)</Label>
-              <Input placeholder="Bonus, ajustement..." value={creditReason} onChange={(e) => setCreditReason(e.target.value)} data-testid="input-credit-reason" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreditDialog(false)}>Annuler</Button>
-            <Button onClick={() => creditMutation.mutate()} disabled={!creditAmount || creditMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-confirm-credit">
-              {creditMutation.isPending ? "En cours..." : "Créditer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Debit Dialog */}
-      <Dialog open={showDebitDialog} onOpenChange={setShowDebitDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Débiter le rep</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            {mapiData?.rep && <p className="text-sm text-muted-foreground">Solde actuel : <span className="font-semibold text-foreground">{mapiMoney(mapiData.rep.currentBalance)}</span></p>}
-            <div className="space-y-1.5">
-              <Label>Montant (CAD)</Label>
-              <Input type="number" min="0.01" step="0.01" max={parseFloat(mapiData?.rep?.currentBalance ?? "0")} placeholder="50.00" value={debitAmount} onChange={(e) => setDebitAmount(e.target.value)} data-testid="input-debit-amount" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Raison *</Label>
-              <Input placeholder="Remboursement client..." value={debitReason} onChange={(e) => setDebitReason(e.target.value)} data-testid="input-debit-reason" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDebitDialog(false)}>Annuler</Button>
-            <Button onClick={() => debitMutation.mutate()} disabled={!debitAmount || !debitReason || debitMutation.isPending} variant="destructive" data-testid="button-confirm-debit">
-              {debitMutation.isPending ? "En cours..." : "Débiter"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

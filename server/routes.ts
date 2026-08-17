@@ -642,7 +642,8 @@ export async function registerRoutes(
     try {
       const { syncOrdersForIntegration } = await import("./shopify-orders-sync");
       const integrations = await storage.getShopifyIntegrations();
-      const active = integrations.filter((i) => i.isActive);
+      const requestedIntegrationId = Number(req.body?.integrationId) || null;
+      const active = integrations.filter((i) => i.isActive && (!requestedIntegrationId || i.id === requestedIntegrationId));
       if (active.length === 0) return res.json({ message: "No active integrations", synced: 0 });
 
       let total = 0;
@@ -716,6 +717,7 @@ export async function registerRoutes(
       const active = integrations.filter((i) => i.isActive);
       const allContacts = await storage.getContacts();
       const contactMap = new Map(allContacts.map((c) => [c.id, c]));
+      const systemdOrders = (await storage.getSystemdOrders()).filter((order) => order.status === "paid");
 
       const results: any[] = [];
       for (const integration of active) {
@@ -723,8 +725,14 @@ export async function registerRoutes(
         try {
           const customers = await fetchShopifyCustomers(integration.storeUrl, integration.accessToken);
           for (const c of customers) {
+            const customerGid = `gid://shopify/Customer/${c.id}`;
+            const localOrders = systemdOrders.filter((order) =>
+              order.contactId === integration.contactId && order.shopifyCustomerGid === customerGid,
+            );
             results.push({
               ...c,
+              orders_count: Number(c.orders_count ?? 0) + localOrders.length,
+              total_spent: (Number(c.total_spent ?? 0) + localOrders.reduce((sum, order) => sum + order.amount / 100, 0)).toFixed(2),
               contactId: integration.contactId,
               contactName: contact?.name ?? null,
               companyName: contact?.companyName ?? null,
@@ -1041,8 +1049,19 @@ export async function registerRoutes(
       // Enrich each integration with product count for the contact
       const enriched = await Promise.all(
         integrations.map(async (integration) => {
-          const contactProducts = await storage.getProductsByContactId(integration.contactId);
-          return { ...integration, productCount: contactProducts.length };
+          const [contactProducts, contactOrders, reps] = await Promise.all([
+            storage.getProductsByContactId(integration.contactId),
+            storage.getShopifyOrders({ contactId: integration.contactId }),
+            normalizeShopifyStoreUrl(integration.storeUrl) === "tnt5ar-ki.myshopify.com"
+              ? storage.getMapiReps()
+              : Promise.resolve([]),
+          ]);
+          return {
+            ...integration,
+            productCount: contactProducts.length,
+            orderCount: contactOrders.filter((order) => order.integrationId === integration.id).length,
+            repCount: reps.length,
+          };
         })
       );
       res.json(enriched);
@@ -1054,7 +1073,7 @@ export async function registerRoutes(
 
   app.post("/api/shopify-integrations/connect", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const { contactId, storeUrl, platform = "shopify", accessToken, consumerKey, consumerSecret } = req.body;
+      const { contactId, storeUrl, platform = "shopify", shopName, accessToken, consumerKey, consumerSecret } = req.body;
       if (!contactId || !storeUrl) {
         return res.status(400).json({ message: "contactId and storeUrl are required" });
       }
@@ -1068,18 +1087,37 @@ export async function registerRoutes(
         if (!test.success) {
           return res.status(400).json({ message: `Could not connect to WooCommerce store: ${test.error || "invalid credentials or store URL"}` });
         }
-        await storage.createShopifyIntegration({
-          contactId: Number(contactId),
-          platform: "woocommerce",
-          accessToken: consumerKey,
-          platformConfig: { consumerSecret },
-          storeUrl: storeUrl.trim().replace(/\/$/, ""),
-          shopName: test.shopName || storeUrl,
-          scope: null,
-          isActive: true,
-        } as any);
+        const normalizedStore = storeUrl.trim().replace(/\/$/, "");
+        const integrations = await storage.getShopifyIntegrations();
+        const existing = integrations.find((integration) =>
+          integration.contactId === Number(contactId) &&
+          integration.platform === "woocommerce" &&
+          integration.storeUrl.trim().replace(/\/$/, "").toLowerCase() === normalizedStore.toLowerCase()
+        );
+        const integration = existing
+          ? await storage.updateShopifyIntegration(existing.id, {
+              accessToken: consumerKey,
+              platformConfig: { consumerSecret },
+              shopName: shopName?.trim() || test.shopName || normalizedStore,
+              isActive: true,
+              connectionStatus: "ok",
+              lastConnectionTestedAt: new Date(),
+              lastConnectionError: null,
+            } as any)
+          : await storage.createShopifyIntegration({
+              contactId: Number(contactId),
+              platform: "woocommerce",
+              accessToken: consumerKey,
+              platformConfig: { consumerSecret },
+              storeUrl: normalizedStore,
+              shopName: shopName?.trim() || test.shopName || normalizedStore,
+              scope: null,
+              isActive: true,
+              connectionStatus: "ok",
+              lastConnectionTestedAt: new Date(),
+            } as any);
         await storage.updateContact(Number(contactId), { shopifyConnected: true });
-        return res.json({ success: true, shopName: test.shopName });
+        return res.json({ success: true, shopName: test.shopName, integrationId: integration?.id, reconnected: Boolean(existing) });
       }
 
       // Shopify
@@ -1104,7 +1142,7 @@ export async function registerRoutes(
         ? await storage.updateShopifyIntegration(existing.id, {
             accessToken,
             storeUrl: normalizedStore,
-            shopName: test.shopName || normalizedStore,
+            shopName: shopName?.trim() || test.shopName || normalizedStore,
             isActive: true,
             connectionStatus: "ok",
             lastConnectionTestedAt: new Date(),
@@ -1117,7 +1155,7 @@ export async function registerRoutes(
             platform: "shopify",
             accessToken,
             storeUrl: normalizedStore,
-            shopName: test.shopName || normalizedStore,
+            shopName: shopName?.trim() || test.shopName || normalizedStore,
             scope: null,
             isActive: true,
           } as any);
@@ -1132,11 +1170,18 @@ export async function registerRoutes(
   app.delete("/api/shopify-integrations/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const integration = await storage.getShopifyIntegration(Number(req.params.id));
-      await storage.deleteShopifyIntegration(Number(req.params.id));
+      if (!integration) return res.status(404).json({ message: "Intégration introuvable" });
+      await storage.updateShopifyIntegration(integration.id, {
+        isActive: false,
+        connectionStatus: "disconnected",
+        syncFrequencyMinutes: 0,
+        orderSyncFrequencyMinutes: 0,
+        lastConnectionError: null,
+      } as any);
       await storage.createActivityLog({
         type: "shopify_disconnect",
         status: "success",
-        message: `Intégration Shopify déconnectée${integration ? `: ${integration.storeUrl}` : ""}. Les produits importés sont conservés.`,
+        message: `Intégration ${(integration.platform ?? "shopify")} déconnectée : ${integration.storeUrl}. Produits, reps, commandes et historique conservés.`,
       });
       res.json({ success: true });
     } catch (error) {
@@ -3533,15 +3578,14 @@ export async function registerRoutes(
     }
   });
 
-  // ── Admin : count des nouvelles notifs depuis un timestamp ─────────────────
+  // ── Admin : notifications opérationnelles réellement non lues ─────────────
   app.get("/api/admin/notifications/new-count", isAuthenticated, async (req, res) => {
     try {
       const role = await getUserRole(req);
       if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
-      const since = req.query.since ? new Date(req.query.since as string) : new Date(0);
       const notifs = await storage.getAllNotifications();
       const count = notifs.filter((n) =>
-        n.type !== "systemd_order_paid" && new Date(n.createdAt as unknown as string) > since
+        (n.metadata as any)?.adminOnly && !n.isRead
       ).length;
       res.json({ count });
     } catch (err: any) {
@@ -3562,6 +3606,35 @@ export async function registerRoutes(
       res.json(enriched);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/notifications/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (role?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const id = Number(req.params.id);
+      const notification = (await storage.getAllNotifications()).find((item) => item.id === id);
+      if (!notification || !(notification.metadata as any)?.adminOnly) return res.status(404).json({ message: "Notification opérationnelle introuvable" });
+      await storage.markNotificationRead(id);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin-settings/zoho-projects/disconnect", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getAdminSettings();
+      await storage.updateZohoProjectsSettings({ portalId: null, portalName: null, lastTestedAt: null });
+      await storage.createActivityLog({
+        type: "zoho_projects_disconnect",
+        status: "success",
+        message: `Zoho Projects déconnecté${settings?.zohoProjectsPortalName ? ` (${settings.zohoProjectsPortalName})` : ""}. Zoho Inventory et les identifiants de projets historiques sont conservés.`,
+      });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Erreur lors de la déconnexion Zoho Projects" });
     }
   });
 
@@ -3788,6 +3861,10 @@ export async function registerRoutes(
           return res.status(403).json({ message: "Accès refusé." });
         }
         const authenticatedEmail = await getAuthenticatedEmail(req);
+        const allowedContactIds = await getProductContactIds(role.contactId);
+        const localOrders = (await storage.getSystemdOrders()).filter((order) =>
+          order.status === "paid" && allowedContactIds.includes(order.contactId),
+        );
         const reps: any[] = [];
         let cursor: string | undefined;
         let pages = 0;
@@ -3795,6 +3872,7 @@ export async function registerRoutes(
           const page = await listRepsFromShopify(cursor);
           for (const rep of page.reps) {
             const cad = rep.balances.find((balance) => balance.currencyCode === "CAD") ?? rep.balances[0];
+            const repSystemdOrders = localOrders.filter((order) => order.shopifyCustomerGid === rep.shopifyCustomerId);
             reps.push({
               id: rep.shopifyCustomerId.split("/").pop(),
               gid: rep.shopifyCustomerId,
@@ -3803,8 +3881,8 @@ export async function registerRoutes(
               email: rep.email || null,
               balance: cad?.amount ?? "0.00",
               currency: cad?.currencyCode ?? "CAD",
-              numberOfOrders: Number(rep.numberOfOrders ?? 0),
-              amountSpent: rep.amountSpent ?? "0",
+              numberOfOrders: Number(rep.numberOfOrders ?? 0) + repSystemdOrders.length,
+              amountSpent: (Number(rep.amountSpent ?? 0) + repSystemdOrders.reduce((sum, order) => sum + order.amount / 100, 0)).toFixed(2),
               createdAt: rep.createdAt,
               status: "active",
               isCurrentContact: !!authenticatedEmail && rep.email?.trim().toLowerCase() === authenticatedEmail,
@@ -3872,6 +3950,8 @@ export async function registerRoutes(
     });
 
     app.post("/api/portal/mapi/reps/:id/credit", isAuthenticated, async (req: any, res) => {
+      return res.status(410).json({ message: "Les crédits reps se gèrent dans Shopify. Système D est en lecture et synchronisation uniquement." });
+      /* Couche historique conservée temporairement pour audit; aucun appel UI ne peut l'atteindre.
       try {
         const role = await getUserRole(req);
         const integration = await getMapiIntegration();
@@ -3921,6 +4001,7 @@ export async function registerRoutes(
         }).catch(() => {});
         res.status(creditErrorStatus(err.message)).json({ message: err.message || "Crédit Shopify indisponible." });
       }
+      */
     });
 
     // List all reps
@@ -3959,6 +4040,8 @@ export async function registerRoutes(
 
     // Bulk monthly renewal for all active reps with a budget set
     app.post("/api/mapi/reps/bulk-monthly-renewal", isAuthenticated, isAdmin, async (req: any, res) => {
+      return res.status(410).json({ message: "Les crédits reps se gèrent dans Shopify." });
+      /* Flux historique désactivé.
       try {
         const userId = req.user?.id ?? null;
         const reps = await storage.getMapiReps("active");
@@ -3997,6 +4080,7 @@ export async function registerRoutes(
       } catch (err: any) {
         res.status(500).json({ message: err.message });
       }
+      */
     });
 
     // Lookup rep by Shopify numeric customer ID (returns full detail with logs + transactions)
@@ -4074,6 +4158,8 @@ export async function registerRoutes(
 
     // Credit a rep
     app.post("/api/mapi/reps/:id/credit", isAuthenticated, isAdmin, async (req: any, res) => {
+      return res.status(410).json({ message: "Les crédits reps se gèrent dans Shopify. Système D est en lecture et synchronisation uniquement." });
+      /* Flux historique désactivé.
       try {
         const { amount, currency = "CAD", reason } = req.body;
         if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ message: "Montant invalide" });
@@ -4113,10 +4199,13 @@ export async function registerRoutes(
       } catch (err: any) {
         res.status(400).json({ message: err.message });
       }
+      */
     });
 
     // Debit a rep
     app.post("/api/mapi/reps/:id/debit", isAuthenticated, isAdmin, async (req: any, res) => {
+      return res.status(410).json({ message: "Les ajustements de crédit reps se gèrent dans Shopify." });
+      /* Flux historique désactivé.
       try {
         const { amount, currency = "CAD", reason } = req.body;
         if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ message: "Montant invalide" });
@@ -4156,10 +4245,13 @@ export async function registerRoutes(
       } catch (err: any) {
         res.status(400).json({ message: err.message });
       }
+      */
     });
 
     // Monthly renewal for a single rep (RESET: debit to zero, then credit budget)
     app.post("/api/mapi/reps/:id/monthly-renewal", isAuthenticated, isAdmin, async (req: any, res) => {
+      return res.status(410).json({ message: "Les renouvellements de crédit reps se gèrent dans Shopify." });
+      /* Flux historique désactivé.
       try {
         const rep = await storage.getMapiRep(req.params.id);
         if (!rep) return res.status(404).json({ message: "Rep introuvable" });
@@ -4192,10 +4284,13 @@ export async function registerRoutes(
       } catch (err: any) {
         res.status(400).json({ message: err.message });
       }
+      */
     });
 
     // Update monthly budget
     app.post("/api/mapi/reps/:id/budget", isAuthenticated, isAdmin, async (req, res) => {
+      return res.status(410).json({ message: "Les budgets de crédit reps se gèrent dans Shopify." });
+      /* Flux historique désactivé.
       try {
         const { monthlyBudgetAmount } = req.body;
         const rep = await storage.getMapiRep(String(req.params.id));
@@ -4208,6 +4303,7 @@ export async function registerRoutes(
       } catch (err: any) {
         res.status(500).json({ message: err.message });
       }
+      */
     });
 
     // ─── SystemD Products & Checkout ────────────────────────────────────────
@@ -4657,6 +4753,9 @@ export async function registerRoutes(
             clientName: contact?.name ?? contact?.companyName ?? `Contact #${contactId}`,
             amount: `${totalAmount} CAD`,
             repName,
+            repEmail: shopifyCustomer.email || "Email indisponible",
+            items: resolvedItems.map((item) => ({ name: item.name, quantity: item.quantity })),
+            stockStatus: reservation.status === "stock_to_reserve" ? "À vérifier / réserver manuellement" : "Réservé localement",
           }).catch((error) => console.error("SystemD admin order email error:", error));
         }
       }

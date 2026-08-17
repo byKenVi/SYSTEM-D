@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -86,11 +86,6 @@ export default function AdminNotifications() {
   const [, navigate] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
 
-  // Reset du badge "nouvelles notifs" à chaque visite de la page
-  useEffect(() => {
-    try { localStorage.setItem("adminNotifViewedAt", new Date().toISOString()); } catch {}
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/notifications/new-count"] });
-  }, []);
   const [filterCategory, setFilterCategory] = useState("all");
   const [form, setForm] = useState({
     contactId: "",
@@ -127,6 +122,14 @@ export default function AdminNotifications() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/notifications"] });
       toast({ title: "Notification supprimée" });
+    },
+  });
+
+  const markRead = useMutation({
+    mutationFn: (id: number) => apiRequest("PATCH", `/api/admin/notifications/${id}/read`).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notifications/new-count"] });
     },
   });
 
@@ -207,7 +210,11 @@ export default function AdminNotifications() {
                     key={n.id}
                     className={`border-b border-border last:border-0 transition-colors group/row
                       ${destUrl ? "cursor-pointer hover:bg-primary/5" : "hover:bg-muted/30"}`}
-                    onClick={() => { if (destUrl) navigate(destUrl); }}
+                    onClick={() => {
+                      if (!destUrl) return;
+                      if (!n.isRead && (n.metadata as any)?.adminOnly) markRead.mutate(n.id);
+                      navigate(destUrl);
+                    }}
                     data-testid={`row-admin-notification-${n.id}`}
                   >
                     <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">

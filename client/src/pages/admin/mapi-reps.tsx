@@ -174,74 +174,6 @@ function AddRepDialog({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-// ─── Credit Dialog ────────────────────────────────────────────────────────────
-
-function CreditDialog({ rep, open, onClose }: { rep: MapiRep; open: boolean; onClose: () => void }) {
-  const { toast } = useToast();
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/mapi/reps/${rep.id}/credit`, { amount, currency: "CAD", reason });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/mapi/reps", rep.id] });
-      toast({ title: "Crédit ajouté", description: `Nouveau solde : ${money(data.rep?.currentBalance)}` });
-      setAmount(""); setReason("");
-      onClose();
-    },
-    onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Ajouter un crédit — {fullName(rep)}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Montant (CAD)</Label>
-            <Input
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="500.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              data-testid="input-credit-amount"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Raison (optionnel)</Label>
-            <Input
-              placeholder="Renouvellement mensuel, bonus..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              data-testid="input-credit-reason"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annuler</Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={!amount || parseFloat(amount) <= 0 || mutation.isPending}
-            data-testid="button-submit-credit"
-          >
-            {mutation.isPending ? "En cours..." : "Créditer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Debit Dialog ─────────────────────────────────────────────────────────────
 
 function DebitDialog({ rep, open, onClose }: { rep: MapiRep; open: boolean; onClose: () => void }) {
@@ -320,7 +252,6 @@ function DebitDialog({ rep, open, onClose }: { rep: MapiRep; open: boolean; onCl
 
 function RepDetail({ repId, onBack }: { repId: string; onBack: () => void }) {
   const { toast } = useToast();
-  const [showCredit, setShowCredit] = useState(false);
   const [showDebit, setShowDebit] = useState(false);
   const [showDeactivate, setShowDeactivate] = useState(false);
   const [budgetEdit, setBudgetEdit] = useState("");
@@ -419,9 +350,6 @@ function RepDetail({ repId, onBack }: { repId: string; onBack: () => void }) {
           <div className="flex items-center gap-2 flex-wrap">
             {rep.status === "active" && (
               <>
-                <Button size="sm" variant="outline" onClick={() => setShowCredit(true)} data-testid="button-credit-rep">
-                  <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Créditer
-                </Button>
                 <Button size="sm" variant="outline" onClick={() => setShowDebit(true)} disabled={balance <= 0} data-testid="button-debit-rep">
                   <TrendingDown className="h-3.5 w-3.5 mr-1.5" />Débiter
                 </Button>
@@ -583,7 +511,6 @@ function RepDetail({ repId, onBack }: { repId: string; onBack: () => void }) {
       )}
 
       {/* Dialogs */}
-      {showCredit && <CreditDialog rep={rep} open={showCredit} onClose={() => setShowCredit(false)} />}
       {showDebit && <DebitDialog rep={rep} open={showDebit} onClose={() => setShowDebit(false)} />}
       <AlertDialog open={showDeactivate} onOpenChange={setShowDeactivate}>
         <AlertDialogContent>

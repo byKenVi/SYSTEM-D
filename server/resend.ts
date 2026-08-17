@@ -220,6 +220,9 @@ export async function sendSystemdOrderAdminEmail(data: {
   clientName: string;
   amount: string;
   repName: string;
+  repEmail: string;
+  items: Array<{ name: string; quantity: number }>;
+  stockStatus: string;
 }) {
   try {
     const { client, fromEmail, replyTo } = await getUncachableResendClient();
@@ -235,6 +238,12 @@ export async function sendSystemdOrderAdminEmail(data: {
             La commande <strong>#${data.orderId}</strong> de <strong>${data.clientName}</strong>, d'un montant de
             <strong>${data.amount}</strong>, a été payée avec le crédit de <strong>${data.repName}</strong>.
           </p>
+          <div style="background:#f7f7f7;border-radius:8px;padding:16px;margin:0 0 24px;">
+            <p style="margin:0 0 8px;"><strong>Rep débité :</strong> ${data.repName} (${data.repEmail})</p>
+            <p style="margin:0 0 8px;"><strong>Stock :</strong> ${data.stockStatus}</p>
+            <p style="margin:0 0 6px;"><strong>Articles :</strong></p>
+            <ul style="margin:0;padding-left:20px;">${data.items.map((item) => `<li>${item.name} × ${item.quantity}</li>`).join("")}</ul>
+          </div>
           <a href="${getAppUrl()}/admin/orders#systemd-${data.orderId}" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
             Traiter la commande
           </a>

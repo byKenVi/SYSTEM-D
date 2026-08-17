@@ -30,16 +30,18 @@ test("Mes reps lit les soldes Mapei et identifie le compte de l'utilisateur", ()
   assert.match(routes, /isCurrentContact: !!authenticatedEmail/);
 });
 
-test("la fiche rep utilise les routes crédit sécurisées du portail", () => {
+test("la fiche rep lit le crédit Shopify sans proposer d'ajustement manuel", () => {
   assert.match(customerDetail, /\/api\/portal\/mapi\/reps\/by-shopify-customer/);
   assert.match(customerDetail, /Crédit Shopify du rep/);
+  assert.match(customerDetail, /Les crédits reps se gèrent dans Shopify/);
+  assert.doesNotMatch(customerDetail, /button-credit-rep|button-submit-credit/);
+  assert.match(routes, /Système D est en lecture et synchronisation uniquement/);
 });
 
 test("les opérations Shopify sensibles sont journalisées", () => {
   for (const eventType of [
     "shopify_reps_sync",
     "shopify_credit_read",
-    "shopify_credit_add",
     "shopify_credit_checkout",
     "shopify_token_invalid",
     "shopify_permission_insufficient",
