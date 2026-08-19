@@ -2,3 +2,5 @@
 - [Zoho token stability fixes](zoho-token-stability.md) — 429 rate limit is the real "invalid token" culprit; refresh lock + targeted writes + lite sync fetcher prevent both.
 - [Zoho catalog cache architecture](zoho-catalog-arch.md) — zoho_catalog table + syncFullZohoCatalog() in zoho-catalog.ts; routes NOT yet switched; Étape 5 awaits user data validation.
 - [UX pre-QA P0/P1 patterns](ux-preqa-patterns.md) — scroll-to-error, auto-mark-read, mobile Shadcn header, conditional KPI sections — implementation notes.
+- [Store-credit checkout idempotency](store-credit-idempotency.md) — only pending debits block duplicate submissions; paid orders must never prevent a fresh identical purchase.
+- [Shopify connection resilience](shopify-connection-resilience.md) — treat only explicit 401 responses as invalid tokens; rate limits and scope/network faults remain recoverable.

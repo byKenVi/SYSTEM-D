@@ -4,8 +4,8 @@ import { fetchWooProducts } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
-const MAX_CONSECUTIVE_ERRORS = 3;
-const PAUSE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+const MAX_CONSECUTIVE_ERRORS = 5;
+const PAUSE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 let isSyncing = false;
 
 export function startShopifySyncScheduler() {
@@ -163,8 +163,10 @@ export function startShopifySyncScheduler() {
           }
         } catch (err: any) {
           const is401 = err.message?.includes("401");
+          const is429 = err.message?.includes("429") || err.message?.toLowerCase().includes("rate limit");
           const prevErrors = (integration as any).consecutiveErrors ?? 0;
-          const newConsecutiveErrors = prevErrors + 1;
+          // Rate-limit (429) is transient — don't increment the consecutive error counter
+          const newConsecutiveErrors = is429 ? prevErrors : prevErrors + 1;
           const shouldPause = newConsecutiveErrors >= MAX_CONSECUTIVE_ERRORS;
 
           const updateData: Record<string, any> = {

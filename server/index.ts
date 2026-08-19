@@ -138,9 +138,10 @@ app.use((req, res, next) => {
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reservation_status TEXT NOT NULL DEFAULT 'pending'`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reserved_at TIMESTAMP`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent ON systemd_orders (checkout_intent_key) WHERE status = 'pending'`);
-  // Contrainte d'unicité partielle pour garantir l'atomicité de l'idempotence :
-  // une seule commande active (non expirée / non annulée) par clé d'intention.
-  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status NOT IN ('expired', 'cancelled')`);
+  // L'idempotence protège uniquement un débit en cours. Une commande déjà payée
+  // ne doit jamais empêcher le rep de refaire plus tard le même panier.
+  await pool.query(`DROP INDEX IF EXISTS uq_systemd_orders_intent_active`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_systemd_orders_intent_pending ON systemd_orders (checkout_intent_key) WHERE status = 'pending'`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_assignment ON zoho_catalog (assignment_state) WHERE is_deleted = FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_contact ON zoho_catalog (contact_id) WHERE is_deleted = FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_status ON zoho_catalog (status) WHERE is_deleted = FALSE`);

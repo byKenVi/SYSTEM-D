@@ -33,6 +33,7 @@ import {
   Package2,
   Truck,
   ClipboardCheck,
+  Wrench,
   CheckCircle2,
   DollarSign,
   Filter,
@@ -47,6 +48,7 @@ const TYPE_LABELS: Record<string, string> = {
   inspection: "Inspection",
   copacking: "Co-packing",
   livraison: "Livraison",
+  product_work_order: "Bon de travail",
 };
 
 const TYPE_ICONS: Record<string, any> = {
@@ -55,6 +57,7 @@ const TYPE_ICONS: Record<string, any> = {
   inspection: ClipboardCheck,
   copacking: Package2,
   livraison: Truck,
+  product_work_order: Wrench,
 };
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; light: string; border: string }> = {
@@ -87,6 +90,12 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; light: string; bor
     text: "text-emerald-600 dark:text-emerald-400",
     light: "bg-emerald-50 dark:bg-emerald-500/10",
     border: "border-emerald-200 dark:border-emerald-500/20"
+  },
+  product_work_order: {
+    bg: "bg-orange-500",
+    text: "text-orange-600 dark:text-orange-400",
+    light: "bg-orange-50 dark:bg-orange-500/10",
+    border: "border-orange-200 dark:border-orange-500/20"
   },
 };
 

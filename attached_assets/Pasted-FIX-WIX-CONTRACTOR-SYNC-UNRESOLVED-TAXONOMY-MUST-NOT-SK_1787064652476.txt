@@ -1,0 +1,261 @@
+FIX WIX CONTRACTOR SYNC — UNRESOLVED TAXONOMY MUST NOT SKIP CONTRACTORS
+
+The Wix connection is now working.
+
+Current production sync result:
+
+Created: 0
+Updated: 0
+Unchanged: 0
+Unresolved: 55
+
+This means contractor records are being fetched successfully but the current
+sync implementation is incorrectly treating unresolved taxonomy values as a
+record-level blocker.
+
+This behavior must be corrected.
+
+DO NOT change the Wix API client or authentication.
+
+DO NOT change the canonical Wix identity.
+
+Canonical identity remains:
+
+Wix Data Item `_id`
+
+============================================================
+REQUIRED BEHAVIOR
+============================================================
+
+A Wix contractor MUST be created/updated in Landy's Pro even when some or all
+taxonomy values are unresolved.
+
+Taxonomy resolution is FIELD-LEVEL validation, not RECORD-LEVEL validation.
+
+For every Wix AllContractors item with a valid `_id`:
+
+1. Upsert ExternalContractorIdentity using Wix `_id`.
+
+2. Create/update the Contractor.
+
+3. Synchronize allowed Wix-owned profile fields.
+
+4. Preserve raw Wix taxonomy values for diagnostics.
+
+5. Resolve official taxonomy memberships independently:
+
+   contractorsCategory[]
+   projectType[]
+   landTypes[]
+
+6. For recognized official values:
+   create/update the appropriate normalized relationships.
+
+7. For unrecognized values:
+   record them as unresolved diagnostics.
+
+8. DO NOT:
+   - skip the contractor
+   - auto-create taxonomy rows
+   - fuzzy-map values
+   - deactivate the contractor merely because taxonomy is unresolved
+
+============================================================
+MATCHING RULE
+============================================================
+
+A contractor may exist and be Active in Landy's Pro while having unresolved
+taxonomy values.
+
+For GENERAL lead matching:
+
+the contractor is eligible only through officially resolved memberships.
+
+Example:
+
+Wix contractor:
+
+contractorsCategory:
+["Landscaping", "Builders"]
+
+projectType:
+["Patio Installation", "CULVERT INSTALL"]
+
+Expected:
+
+Contractor synced: YES
+
+Official category memberships:
+Builders
+
+Official project memberships:
+CULVERT INSTALL
+
+Diagnostics:
+Unresolved category: Landscaping
+Unresolved project: Patio Installation
+
+General matching may use:
+Builders
+CULVERT INSTALL
+
+It MUST NOT use:
+Landscaping
+Patio Installation
+
+============================================================
+DIRECT PROFILE ESTIMATE
+============================================================
+
+Direct contractor requests do NOT require successful taxonomy resolution.
+
+If:
+
+externalContractorId = Wix `_id`
+
+and the contractor exists and is active:
+
+the direct request may target that contractor even if their Wix taxonomy
+values are unresolved.
+
+Direct flow remains:
+
+maxPurchases = 1
+no general fallback
+
+============================================================
+STATUS
+============================================================
+
+Taxonomy validity and contractor status are separate concerns.
+
+If Wix status = Active:
+sync contractor as active, subject to existing local operational controls.
+
+If Wix explicitly reports an inactive status:
+soft-deactivate.
+
+Unknown taxonomy must NOT cause deactivation.
+
+============================================================
+SYNC STATISTICS
+============================================================
+
+Correct the reporting so these concepts are separate.
+
+Report:
+
+Fetched contractors
+Created contractors
+Updated contractors
+Unchanged contractors
+Deactivated contractors
+
+AND independently:
+
+Unresolved category values
+Unresolved project values
+Unresolved land-type values
+
+Do not use one generic "Unresolved" contractor count if possible.
+
+============================================================
+VALIDATION
+============================================================
+
+After the fix, run the live sync again.
+
+Given the current 55 Wix items, we expect approximately:
+
+Fetched: 55
+
+Created:
+the number not already synchronized
+
+Updated:
+existing contractors whose Wix profile changed
+
+Unchanged:
+already synchronized identical contractors
+
+Unresolved taxonomy:
+may still be non-zero
+
+But:
+
+Created + Updated + Unchanged (+ explicitly skipped invalid identity records)
+must account for the fetched contractors.
+
+It is NOT acceptable to have:
+
+Fetched: 55
+Created: 0
+Updated: 0
+Unchanged: 0
+
+solely because taxonomy values are unresolved.
+
+Then immediately run a SECOND sync.
+
+Expected:
+
+Created: 0
+Updated: 0 unless source data changed
+Unchanged: approximately all successfully synced contractors
+Duplicates: 0
+
+============================================================
+SAFETY
+============================================================
+
+Do not touch:
+
+wallet balances
+Stripe data
+Clerk identities
+wallet transactions
+accepted leads
+lead prices
+financial history
+
+Do not mutate Wix CMS.
+
+Run:
+
+tests
+typecheck
+lint
+build
+
+Then report:
+
+FIRST SYNC
+- fetched
+- created
+- updated
+- unchanged
+- deactivated
+- invalid identity skipped
+- unresolved categories
+- unresolved projects
+- unresolved land types
+- errors
+
+SECOND SYNC
+- created
+- updated
+- unchanged
+- duplicates
+
+DIRECT ID VALIDATION
+- Wix `_id` stored as canonical external ID: YES/NO
+
+READY FOR PROFILE ESTIMATE TEST:
+YES/NO
+
+READY FOR GENERAL ESTIMATE TEST:
+YES/NO
+
+For general estimate readiness, distinguish between:
+- synchronization working
+- enough contractors having official resolved project/category memberships

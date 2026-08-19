@@ -99,7 +99,7 @@ function AddressBlock({ address }: { address: any }) {
 }
 
 function mapiMoney(amount: string | number | null | undefined, currency = "CAD") {
-  const n = parseFloat(String(amount ?? "0"));
+  const n = Math.abs(parseFloat(String(amount ?? "0")));
   return n.toLocaleString("fr-CA", { style: "currency", currency, minimumFractionDigits: 2 });
 }
 

@@ -8,6 +8,7 @@ const SHOPIFY_SCOPES = [
   "read_inventory",
   "write_inventory",
   "read_customers",
+  "read_orders",
 ].join(",");
 
 function normalizeDomain(storeUrl: string): string {

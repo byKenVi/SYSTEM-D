@@ -1200,9 +1200,12 @@ export async function registerRoutes(
       if (!integration) return res.status(404).json({ message: "Intégration non trouvée" });
 
       const result = await testShopifyConnection(integration.storeUrl, integration.accessToken);
+      // A 401 is an actual revoked/invalid token. A 403 commonly signals a
+      // missing Shopify scope, while 429/5xx/network errors are transient and
+      // must never make a healthy integration appear disconnected.
       const status = result.success
         ? "ok"
-        : result.error?.includes("401") || result.error?.includes("403")
+        : result.error?.includes("401")
         ? "invalid_token"
         : "error";
 
@@ -4560,7 +4563,7 @@ export async function registerRoutes(
 
       // Protection atomique : une intention identique ne peut créer qu'une seule
       // commande active (pending ou paid) pendant la fenêtre d'idempotence.
-      const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 10);
+      const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 2);
       const host = `${req.protocol}://${req.get("host")}`;
       if (previousOrder?.status === "paid") {
         await storage.reserveSystemdOrderStock(previousOrder.id).catch(async () => {
@@ -4577,11 +4580,11 @@ export async function registerRoutes(
         });
       }
       if (previousOrder?.status === "pending") {
-        // Auto-cancel if the pending order is older than 90 seconds (stuck/failed)
+        // Auto-cancel if the pending order is older than 30 seconds (stuck/failed)
         const pendingAge = previousOrder.createdAt
           ? Date.now() - new Date(previousOrder.createdAt as unknown as string).getTime()
           : 999999;
-        if (pendingAge < 90_000) {
+        if (pendingAge < 30_000) {
           return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
         }
         // Stale pending order — cancel and proceed

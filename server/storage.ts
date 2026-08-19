@@ -672,13 +672,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined> {
-    // Vérifie aussi les commandes 'paid' pour couvrir le bypass DEV et les paiements
-    // confirmés rapidement par webhook avant que l'utilisateur re-soumette le panier.
+    // Seul un débit en cours doit être idempotent. Les commandes payées doivent
+    // permettre un nouvel achat du même panier sans délai artificiel.
     const [order] = await db.select().from(systemdOrders)
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, intentKey),
-          inArray(systemdOrders.status, ["pending", "paid"]),
+          eq(systemdOrders.status, "pending"),
           sql`${systemdOrders.createdAt} > NOW() - INTERVAL '${sql.raw(String(windowMinutes))} minutes'`
         )
       )
@@ -699,7 +699,7 @@ export class DatabaseStorage implements IStorage {
       return { order: inserted, created: true };
     }
 
-    // Conflit : une commande active avec cette clé existe déjà — on la récupère.
+    // Conflit : un débit en cours avec cette clé existe déjà — on le récupère.
     if (!data.checkoutIntentKey) {
       throw new Error("tryInsertSystemdOrder : checkoutIntentKey manquant");
     }
@@ -707,7 +707,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, data.checkoutIntentKey),
-          inArray(systemdOrders.status, ["pending", "paid"])
+          eq(systemdOrders.status, "pending")
         )
       )
       .orderBy(desc(systemdOrders.createdAt))
@@ -716,6 +716,18 @@ export class DatabaseStorage implements IStorage {
     if (!existing) {
       // Ne devrait pas arriver : conflit mais aucun enregistrement trouvé.
       throw new Error("tryInsertSystemdOrder : conflit détecté mais aucune commande existante trouvée");
+    }
+
+    // Un processus interrompu peut laisser une commande en attente. Au-delà de
+    // 30 secondes, il est sûr de libérer cette intention et de relancer le débit.
+    const pendingAge = existing.createdAt
+      ? Date.now() - new Date(existing.createdAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    if (pendingAge >= 30_000) {
+      await db.update(systemdOrders)
+        .set({ status: "cancelled" })
+        .where(and(eq(systemdOrders.id, existing.id), eq(systemdOrders.status, "pending")));
+      return this.tryInsertSystemdOrder(data);
     }
 
     return { order: existing, created: false };

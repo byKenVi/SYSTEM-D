@@ -23,6 +23,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   inspection: "Instructions d'inspection / Tri / Rework",
   copacking: "Bon de travail / Co-packing",
   livraison: "Formulaire de livraison",
+  product_work_order: "Bon de travail produit",
 };
 
 function addHeader(doc: PDFKit.PDFDocument, form: FormSubmission, contact?: Contact) {
@@ -475,6 +476,17 @@ function renderLivraisonForm(doc: PDFKit.PDFDocument, data: Record<string, any>)
   }
 }
 
+
+function renderProductWorkOrderForm(doc: PDFKit.PDFDocument, data: Record<string, any>) {
+  sectionTitle(doc, "Informations produit");
+  fieldRow(doc, "Produit", data.sourceProductName || data.nomProduit);
+  fieldRow(doc, "SKU", data.sourceProductSku || data.sku);
+  fieldRow(doc, "Quantité demandée", data.requestedQuantity || data.quantite);
+  if (data.description) fieldRow(doc, "Description", data.description);
+  if (data.notes) fieldRow(doc, "Notes", data.notes);
+  if (data.instructions) fieldRow(doc, "Instructions", data.instructions);
+}
+
 function renderRevisionHistory(doc: PDFKit.PDFDocument, history: any[]) {
   if (!history?.length) return;
 
@@ -553,6 +565,9 @@ export function generateFormPdf(
       case "livraison":
         renderLivraisonForm(doc, data);
         break;
+      case "product_work_order":
+        renderProductWorkOrderForm(doc, data);
+        break;
     }
 
     const history = Array.isArray(form.revisionHistory) ? form.revisionHistory : [];
@@ -561,10 +576,9 @@ export function generateFormPdf(
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
-      // Placer le pied de page dans la zone des marges (bottom margin = 50pt)
-      // On utilise height - 40 pour rester dans les marges et éviter qu'une
-      // page blanche soit générée par PDFKit quand doc.y dépasse la marge basse.
-      const bottom = doc.page.height - 40;
+      // Rester strictement au-dessus de la marge basse : écrire dans cette
+      // marge fait croire à PDFKit qu'il faut ajouter une nouvelle page.
+      const bottom = doc.page.height - doc.page.margins.bottom - 18;
       doc.fontSize(7).fillColor(MEDIUM_GRAY).font("Helvetica");
       doc.text(`${form.formNumber}  •  Rév. ${form.revision}`, 50, bottom, { width: 200, align: "left", lineBreak: false });
       doc.text(`Page ${i + 1} / ${range.count}`, doc.page.width - 150, bottom, { width: 100, align: "right", lineBreak: false });

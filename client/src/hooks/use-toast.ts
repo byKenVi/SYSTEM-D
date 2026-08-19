@@ -5,7 +5,7 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 3
+const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000
 
 type ToasterToast = ToastProps & {
@@ -141,7 +141,9 @@ type Toast = Omit<ToasterToast, "id">
 
 const TOAST_DEFAULT_DURATION = 6000
 
-function toast({ duration = TOAST_DEFAULT_DURATION, ...props }: Toast) {
+function toast({ duration, ...props }: Toast) {
+  // Non-destructive toasts auto-dismiss faster; errors stay longer
+  const resolvedDuration = duration ?? (props.variant === "destructive" ? 6000 : 1500);
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -155,7 +157,7 @@ function toast({ duration = TOAST_DEFAULT_DURATION, ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
-      duration,
+      duration: resolvedDuration,
       id,
       open: true,
       onOpenChange: (open) => {

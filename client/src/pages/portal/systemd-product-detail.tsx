@@ -17,7 +17,6 @@ import {
   AlertCircle,
   ShieldAlert,
   Clock,
-  CheckCircle2,
   Tag,
   Ruler,
 } from "lucide-react";
@@ -37,7 +36,6 @@ export default function PortalSystemdProductDetail({
   const [, navigate] = useLocation();
   const { addItem } = useCart();
   const [qty, setQty] = useState(1);
-  const [added, setAdded] = useState(false);
 
   const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo") ?? "";
   const defaultBackUrl = viewAsContactId
@@ -72,7 +70,7 @@ export default function PortalSystemdProductDetail({
   const handleAddToCart = () => {
     if (!product || product.stock <= 0) return;
     addItem(product, qty);
-    setAdded(true);
+    navigate(backUrl);
   };
 
   /* ── Loading ── */
@@ -415,14 +413,14 @@ export default function PortalSystemdProductDetail({
               </div>
 
               <Button
-                className={`w-full h-12 font-bold text-base shadow-lg ${added ? "bg-emerald-600 hover:bg-emerald-600 shadow-emerald-600/20" : "shadow-primary/20"}`}
+                className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20"
                 onClick={handleAddToCart}
                 data-testid="button-add-to-cart"
               >
-                {added ? <CheckCircle2 className="h-5 w-5 mr-2" /> : <ShoppingCart className="h-5 w-5 mr-2" />}
-                {added ? `${qty} ajouté${qty > 1 ? "s" : ""} au panier` : "Ajouter au panier"}
+                <ShoppingCart className="h-5 w-5 mr-2" />
+                Ajouter au panier
               </Button>
-              {added && <p className="text-center text-xs text-emerald-700 dark:text-emerald-400">Le panier a été mis à jour. Vous pouvez continuer vos achats ou revenir à la boutique.</p>}
+
             </div>
           ) : (
             <Button
