@@ -57,6 +57,7 @@ export interface IStorage {
   upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
+  claimAdminUserId(userId: string): Promise<string>;
   upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings>;
   updateZohoTokens(accessToken: string, expiresAt: Date): Promise<void>;
   disconnectZohoInventory(): Promise<void>;
@@ -68,17 +69,35 @@ export interface IStorage {
   getActivityLogs(limit?: number): Promise<ActivityLog[]>;
 
   createFormSubmission(data: InsertFormSubmission): Promise<FormSubmission>;
+  createFormSubmissionWithNextNumber(data: Omit<InsertFormSubmission, "formNumber">): Promise<FormSubmission>;
   getFormSubmission(id: number): Promise<FormSubmission | undefined>;
   getFormSubmissions(filters?: { formType?: string; status?: string; contactId?: number }): Promise<FormSubmission[]>;
   getFormSubmissionsByContact(contactId: number): Promise<FormSubmission[]>;
   getCommandeForms(contactId?: number): Promise<FormSubmission[]>;
   getLivraisonForms(contactId?: number): Promise<FormSubmission[]>;
   updateFormSubmission(id: number, data: Partial<InsertFormSubmission>): Promise<FormSubmission | undefined>;
+  /**
+   * Exécute une section critique de transition de statut sous verrou consultatif
+   * PostgreSQL (pg_advisory_xact_lock) transaction-scopé, clé sur l'id du
+   * formulaire. Cela empêche deux transitions concurrentes (approbation
+   * simultanée, ou approbation + création manuelle de Sales Order) de créer
+   * deux Sales Orders / projets externes pour le même formulaire.
+   *
+   * Le verrou est libéré automatiquement à la fin de la transaction (jamais
+   * détenu indéfiniment). Le callback reçoit une relecture fraîche du
+   * formulaire (effectuée APRÈS l'acquisition du verrou) et l'appelant DOIT
+   * re-vérifier zohoSalesOrderId / status avant tout appel externe.
+   */
+  withFormTransitionLock<T>(
+    formId: number,
+    fn: (form: FormSubmission | undefined) => Promise<T>,
+  ): Promise<T>;
   deleteFormSubmission(id: number): Promise<void>;
   bulkDeleteFormSubmissions(ids: number[]): Promise<void>;
   getNextFormNumber(formType: string): Promise<string>;
 
   createFormUpload(data: InsertFormUpload): Promise<FormUpload>;
+  getFormUpload(id: number): Promise<FormUpload | undefined>;
   getFormUploadsBySubmission(formSubmissionId: number): Promise<FormUpload[]>;
   getUploadByFilename(filename: string): Promise<FormUpload | undefined>;
   deleteFormUpload(id: number): Promise<void>;
@@ -372,6 +391,25 @@ export class DatabaseStorage implements IStorage {
     return settings;
   }
 
+  async claimAdminUserId(userId: string): Promise<string> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(731946215)`);
+      const [settings] = await tx.select().from(adminSettings).limit(1).for("update");
+      if (settings?.adminUserId) return settings.adminUserId;
+      if (settings) {
+        const [updated] = await tx.update(adminSettings)
+          .set({ adminUserId: userId })
+          .where(and(eq(adminSettings.id, settings.id), isNull(adminSettings.adminUserId)))
+          .returning({ adminUserId: adminSettings.adminUserId });
+        return updated?.adminUserId ?? userId;
+      }
+      const [created] = await tx.insert(adminSettings)
+        .values({ adminUserId: userId })
+        .returning({ adminUserId: adminSettings.adminUserId });
+      return created.adminUserId ?? userId;
+    });
+  }
+
   async upsertAdminSettings(data: InsertAdminSettings): Promise<AdminSettings> {
     const existing = await this.getAdminSettings();
     if (existing) {
@@ -433,6 +471,33 @@ export class DatabaseStorage implements IStorage {
     return submission;
   }
 
+  async createFormSubmissionWithNextNumber(
+    data: Omit<InsertFormSubmission, "formNumber">,
+  ): Promise<FormSubmission> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`form-number:${data.formType}`}))`);
+      const prefixMap: Record<string, string> = {
+        entreposage: "ENT",
+        tri: "TRI",
+        inspection: "INS",
+        copacking: "F015",
+        livraison: "LIV",
+        product_work_order: "BTP",
+      };
+      const prefix = prefixMap[data.formType] || data.formType.toUpperCase();
+      const [result] = await tx
+        .select({ maxNum: sql<string>`MAX(CAST(NULLIF(SPLIT_PART(form_number, '-', 2), '') AS INTEGER))` })
+        .from(formSubmissions)
+        .where(eq(formSubmissions.formType, data.formType));
+      const maxNum = result?.maxNum ? parseInt(result.maxNum, 10) : 0;
+      const formNumber = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+      const [submission] = await tx.insert(formSubmissions)
+        .values({ ...data, formNumber })
+        .returning();
+      return submission;
+    });
+  }
+
   async getFormSubmission(id: number): Promise<FormSubmission | undefined> {
     const [submission] = await db.select().from(formSubmissions).where(eq(formSubmissions.id, id));
     return submission;
@@ -471,6 +536,22 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async withFormTransitionLock<T>(
+    formId: number,
+    fn: (form: FormSubmission | undefined) => Promise<T>,
+  ): Promise<T> {
+    return db.transaction(async (tx) => {
+      // Verrou consultatif transaction-scopé, clé stable sur l'id du formulaire
+      // (namespace dédié pour éviter les collisions avec d'autres verrous).
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`form-transition:${formId}`}))`);
+      // Relecture fraîche APRÈS acquisition du verrou : la seconde transaction
+      // concurrente verra les mutations (zohoSalesOrderId/status) commitées par
+      // la première.
+      const [form] = await tx.select().from(formSubmissions).where(eq(formSubmissions.id, formId));
+      return fn(form);
+    });
+  }
+
   async deleteFormSubmission(id: number): Promise<void> {
     await db.delete(formUploads).where(eq(formUploads.formSubmissionId, id));
     await db.delete(formSubmissions).where(eq(formSubmissions.id, id));
@@ -502,6 +583,11 @@ export class DatabaseStorage implements IStorage {
 
   async createFormUpload(data: InsertFormUpload): Promise<FormUpload> {
     const [upload] = await db.insert(formUploads).values(data).returning();
+    return upload;
+  }
+
+  async getFormUpload(id: number): Promise<FormUpload | undefined> {
+    const [upload] = await db.select().from(formUploads).where(eq(formUploads.id, id));
     return upload;
   }
 
@@ -737,7 +823,7 @@ export class DatabaseStorage implements IStorage {
     const orders = await db.select({ lineItems: systemdOrders.lineItems })
       .from(systemdOrders)
       .where(and(
-        eq(systemdOrders.status, "paid"),
+        notInArray(systemdOrders.status, ["cancelled", "expired"]),
         eq(systemdOrders.stockReservationStatus, "reserved"),
       ));
     const totals: Record<string, number> = {};
@@ -756,12 +842,26 @@ export class DatabaseStorage implements IStorage {
       const [order] = await tx.select().from(systemdOrders)
         .where(eq(systemdOrders.id, orderId))
         .for("update");
-      if (!order || order.status !== "paid") {
-        return { status: "stock_to_reserve", message: "La commande n'est pas payée." };
+      if (!order || !["pending", "paid", "payment_reconciliation_required"].includes(order.status)) {
+        return { status: "stock_to_reserve", message: "La commande ne peut pas réserver de stock." };
       }
       if (order.stockReservationStatus === "reserved") return { status: "already_reserved" };
 
-      const items = Array.isArray(order.lineItems) ? order.lineItems as any[] : [];
+      // Aggregate line items defensively to handle any duplicate zohoItemId entries
+      const rawItems = Array.isArray(order.lineItems) ? order.lineItems as any[] : [];
+      const aggregatedQty = new Map<string, number>();
+      const aggregatedMeta = new Map<string, any>();
+      for (const item of rawItems) {
+        const key = String(item.zohoItemId ?? "");
+        if (!key) continue;
+        aggregatedQty.set(key, (aggregatedQty.get(key) ?? 0) + Number(item.quantity ?? 0));
+        if (!aggregatedMeta.has(key)) aggregatedMeta.set(key, item);
+      }
+      const items = [...aggregatedQty.entries()].map(([zohoItemId, quantity]) => ({
+        ...aggregatedMeta.get(zohoItemId),
+        zohoItemId,
+        quantity,
+      }));
       const zohoItemIds = Array.from(new Set(items.map((item) => String(item.zohoItemId ?? "")).filter(Boolean))).sort();
       if (zohoItemIds.length === 0) {
         await tx.update(systemdOrders).set({
@@ -779,7 +879,7 @@ export class DatabaseStorage implements IStorage {
       const reservedOrders = await tx.select({ lineItems: systemdOrders.lineItems })
         .from(systemdOrders)
         .where(and(
-          eq(systemdOrders.status, "paid"),
+          notInArray(systemdOrders.status, ["cancelled", "expired"]),
           eq(systemdOrders.stockReservationStatus, "reserved"),
         ));
       const alreadyReserved: Record<string, number> = {};

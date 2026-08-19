@@ -26,6 +26,116 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   product_work_order: "Bon de travail produit",
 };
 
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
+
+/**
+ * Résout de façon sûre le chemin local d'un upload persisté.
+ * Ne lit JAMAIS d'URL distante : seuls les fichiers contenus dans le
+ * répertoire `uploads/` local sont acceptés (protection contre le path
+ * traversal). Retourne null si le fichier n'est pas un fichier local valide.
+ */
+function resolveLocalUploadPath(upload: FormUpload): string | null {
+  const fileUrl = upload.fileUrl || "";
+  // Rejeter explicitement toute URL distante (http/https/protocole).
+  if (/^[a-z]+:\/\//i.test(fileUrl)) return null;
+  const filename = fileUrl.split("/").pop();
+  if (!filename) return null;
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const resolved = path.resolve(uploadsDir, filename);
+  // Confinement strict : le chemin résolu doit rester dans uploads/.
+  if (resolved !== uploadsDir && !resolved.startsWith(uploadsDir + path.sep)) {
+    return null;
+  }
+  try {
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return resolved;
+}
+
+function isEmbeddableImage(upload: FormUpload): boolean {
+  return IMAGE_EXTENSIONS.has(path.extname(upload.fileName || "").toLowerCase());
+}
+
+function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes == null || isNaN(Number(bytes))) return "—";
+  const size = Number(bytes);
+  if (size < 1024) return `${size} o`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} Ko`;
+  return `${(size / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+/**
+ * Tente d'embarquer une image locale dans le PDF. Retourne true si l'image a
+ * bien été rendue, false sinon (fichier absent, illisible ou non-image).
+ */
+function tryEmbedImageUpload(doc: PDFKit.PDFDocument, upload: FormUpload): boolean {
+  if (!isEmbeddableImage(upload)) return false;
+  const filePath = resolveLocalUploadPath(upload);
+  if (!filePath) return false;
+  try {
+    checkPageBreak(doc, 120);
+    doc.image(filePath, 60, doc.y, { width: 150, height: 100 });
+    doc.y += 105;
+    doc.fontSize(7).fillColor(MEDIUM_GRAY).text(upload.fileName, 60);
+    doc.moveDown(0.3);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rend l'annexe des pièces jointes pour un formulaire.
+ * - Les images embarquables sont rendues visuellement.
+ * - Toutes les autres pièces jointes (vidéo, PDF, autres) sont listées dans un
+ *   tableau récapitulatif avec nom d'origine, type, taille et référence.
+ * `excludeFieldPrefixes` évite de dupliquer les sections déjà rendues ailleurs
+ *   (ex. images de critères dans le formulaire d'inspection).
+ */
+function renderAttachmentsAppendix(
+  doc: PDFKit.PDFDocument,
+  uploads: FormUpload[],
+  options?: { excludeFieldPrefixes?: string[] },
+) {
+  if (!uploads?.length) return;
+  const excluded = options?.excludeFieldPrefixes ?? [];
+  const remaining = uploads.filter(
+    (u) => !excluded.some((prefix) => (u.fieldKey || "").startsWith(prefix)),
+  );
+  if (remaining.length === 0) return;
+
+  sectionTitle(doc, "Pièces jointes");
+
+  const embeddedImages = remaining.filter(isEmbeddableImage);
+  const nonEmbeddable = remaining.filter((u) => !isEmbeddableImage(u));
+
+  // 1) Images embarquables — rendues visuellement.
+  const stillListed: FormUpload[] = [];
+  for (const upload of embeddedImages) {
+    const ok = tryEmbedImageUpload(doc, upload);
+    if (!ok) stillListed.push(upload);
+  }
+
+  // 2) Annexe listée : non-embarquables + images qui n'ont pas pu être lues.
+  const listed = [...nonEmbeddable, ...stillListed];
+  if (listed.length > 0) {
+    doc.moveDown(0.2);
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#333333")
+      .text("Références des documents", 50);
+    doc.moveDown(0.2);
+    const headers = ["Fichier", "Type", "Taille", "Référence"];
+    const rows = listed.map((u) => [
+      u.fileName || "—",
+      u.fileType || "—",
+      formatFileSize(u.fileSize),
+      u.fileUrl || "—",
+    ]);
+    drawTable(doc, headers, rows, [180, 90, 60, 90]);
+  }
+}
+
 function addHeader(doc: PDFKit.PDFDocument, form: FormSubmission, contact?: Contact) {
   doc.rect(0, 0, doc.page.width, 80).fill(BRAND_COLOR);
 
@@ -221,20 +331,7 @@ function renderInspectionForm(doc: PDFKit.PDFDocument, data: Record<string, any>
       const criteriaUploads = uploads.filter(u => u.fieldKey.startsWith(`criteria_${i}_`));
       if (criteriaUploads.length > 0) {
         criteriaUploads.forEach(upload => {
-          const ext = path.extname(upload.fileName).toLowerCase();
-          if (['.jpg', '.jpeg', '.png'].includes(ext)) {
-            try {
-              const filename = upload.fileUrl.split('/').pop();
-              const filePath = path.join(process.cwd(), 'uploads', filename || '');
-              if (fs.existsSync(filePath)) {
-                checkPageBreak(doc, 120);
-                doc.image(filePath, 60, doc.y, { width: 150, height: 100 });
-                doc.y += 105;
-                doc.fontSize(7).fillColor(MEDIUM_GRAY).text(upload.fileName, 60);
-              }
-            } catch {
-            }
-          }
+          tryEmbedImageUpload(doc, upload);
         });
       }
     });
@@ -552,21 +649,30 @@ export function generateFormPdf(
     switch (form.formType) {
       case "tri":
         renderTriForm(doc, data);
+        renderAttachmentsAppendix(doc, uploads);
         break;
       case "inspection":
         renderInspectionForm(doc, data, uploads);
+        // Les images de critères (criteria_N_*) sont déjà rendues en ligne :
+        // on les exclut de l'annexe pour éviter les doublons, mais toutes les
+        // autres pièces jointes de l'inspection y figurent quand même.
+        renderAttachmentsAppendix(doc, uploads, { excludeFieldPrefixes: ["criteria_"] });
         break;
       case "entreposage":
         renderEntreposageForm(doc, data);
+        renderAttachmentsAppendix(doc, uploads);
         break;
       case "copacking":
         renderCopackingForm(doc, data);
+        renderAttachmentsAppendix(doc, uploads);
         break;
       case "livraison":
         renderLivraisonForm(doc, data);
+        renderAttachmentsAppendix(doc, uploads);
         break;
       case "product_work_order":
         renderProductWorkOrderForm(doc, data);
+        renderAttachmentsAppendix(doc, uploads);
         break;
     }
 

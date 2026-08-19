@@ -332,7 +332,7 @@ export default function AdminOrders() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+           <div className="responsive-table">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -471,7 +471,7 @@ export default function AdminOrders() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+             <div className="responsive-table">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">

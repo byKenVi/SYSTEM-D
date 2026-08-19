@@ -353,7 +353,7 @@ export default function AdminContacts() {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="h-8 w-8" data-testid={`button-actions-${contact.id}`}>
+          <Button size="icon" variant="ghost" className="h-11 w-11" data-testid={`button-actions-${contact.id}`}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -400,26 +400,26 @@ export default function AdminContacts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Clients</h1>
           <p className="text-muted-foreground mt-1">Gérez les contacts clients et les invitations</p>
         </div>
 
-        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
-          <div className="relative">
+        <div className="flex w-full lg:w-auto items-stretch sm:items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="relative w-full sm:flex-1 lg:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Rechercher des contacts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-56"
+              className="pl-9 w-full sm:w-56 h-11"
               data-testid="input-search-contacts"
             />
           </div>
 
           <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-            <SelectTrigger className="w-[150px]" data-testid="select-group-by">
+            <SelectTrigger className="w-full sm:w-[150px] h-11" data-testid="select-group-by">
               <SelectValue placeholder="Group by…" />
             </SelectTrigger>
             <SelectContent>
@@ -429,11 +429,11 @@ export default function AdminContacts() {
             </SelectContent>
           </Select>
 
-          <div className="flex items-center border rounded-md overflow-hidden">
+          <div className="flex items-center border rounded-md overflow-hidden h-11">
             <Button
               variant="ghost"
               size="sm"
-              className={`rounded-none h-9 px-3 ${viewMode === "table" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              className={`rounded-none h-11 min-w-[44px] px-3 ${viewMode === "table" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
               onClick={() => setViewMode("table")}
               data-testid="button-view-table"
             >
@@ -443,7 +443,7 @@ export default function AdminContacts() {
             <Button
               variant="ghost"
               size="sm"
-              className={`rounded-none h-9 px-3 ${viewMode === "card" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              className={`rounded-none h-11 min-w-[44px] px-3 ${viewMode === "card" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
               onClick={() => setViewMode("card")}
               data-testid="button-view-card"
             >
@@ -455,7 +455,7 @@ export default function AdminContacts() {
 
       {/* ── Selection toolbar ── */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
           <span className="text-sm font-medium text-primary">{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
           <div className="flex-1" />
           <Button
@@ -485,7 +485,7 @@ export default function AdminContacts() {
       {viewMode === "table" && (
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto scrollbar-hide">
+            <div className="responsive-table">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -500,7 +500,7 @@ export default function AdminContacts() {
                       <TableHead key={col}>
                         <button
                           type="button"
-                          className="flex items-center font-medium hover:text-foreground transition-colors"
+                          className="flex min-h-11 items-center font-medium hover:text-foreground transition-colors"
                           onClick={() => handleSort(col)}
                           data-testid={`sort-${col}`}
                         >

@@ -911,7 +911,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                       ))}
                     </div>
                   ) : (
-                  <div className="overflow-x-auto scrollbar-hide">
+                  <div className="responsive-table">
                     <Table className="min-w-[800px]">
                       <TableHeader>
                         <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
@@ -1133,7 +1133,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             ) : (
               <Card className="border-border shadow-sm overflow-hidden">
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
+                  <div className="responsive-table">
                     <Table className="min-w-[920px]">
                       <TableHeader><TableRow><TableHead>Commande</TableHead><TableHead>Date</TableHead><TableHead>Rep</TableHead><TableHead>Source</TableHead><TableHead>Articles</TableHead><TableHead>Paiement</TableHead><TableHead>Traitement</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
                       <TableBody>
@@ -1175,7 +1175,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
             <Card className="border-border/50 shadow-sm">
               <CardContent className="p-2">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
-                  <div className="relative flex-1 group min-w-[200px]">
+                  <div className="relative flex-1 group min-w-0 w-full sm:min-w-[200px]">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                     <Input
                       placeholder="Rechercher commande, client..."
@@ -1186,9 +1186,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     />
                   </div>
                   <div className="h-px sm:h-8 w-full sm:w-px bg-border my-1 sm:my-0" />
-                  <div className="flex gap-2 px-2 pb-2 sm:pb-0 flex-wrap">
+                  <div className="flex w-full sm:w-auto gap-2 px-2 pb-2 sm:pb-0 flex-wrap">
                     <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-                      <SelectTrigger className="h-10 w-[150px] shrink-0 bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-payment-filter"><SelectValue placeholder="Paiement" /></SelectTrigger>
+                      <SelectTrigger className="h-11 w-full sm:w-[150px] shrink-0 bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-payment-filter"><SelectValue placeholder="Paiement" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Tous paiements</SelectItem>
                         <SelectItem value="paid">Payé</SelectItem>
@@ -1199,7 +1199,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                       </SelectContent>
                     </Select>
                     <Select value={fulfillmentFilter} onValueChange={setFulfillmentFilter}>
-                      <SelectTrigger className="h-10 w-[150px] shrink-0 bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-fulfillment-filter"><SelectValue placeholder="Traitement" /></SelectTrigger>
+                      <SelectTrigger className="h-11 w-full sm:w-[150px] shrink-0 bg-muted/50 border-transparent hover:bg-muted font-medium text-sm" data-testid="select-fulfillment-filter"><SelectValue placeholder="Traitement" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Tous statuts</SelectItem>
                         <SelectItem value="unfulfilled">Non traité</SelectItem>
@@ -1214,7 +1214,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
             <Card className="border-border shadow-sm overflow-hidden">
               <CardContent className="p-0">
-                <div className="overflow-x-auto scrollbar-hide">
+                <div className="responsive-table">
                   <Table className="min-w-[800px]">
                     <TableHeader>
                       <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
@@ -1327,7 +1327,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
             <Card className="border-border shadow-sm overflow-hidden">
               <CardContent className="p-0">
-                <div className="overflow-x-auto scrollbar-hide">
+                <div className="responsive-table">
                   <Table className="min-w-[800px]">
                     <TableHeader>
                       <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">

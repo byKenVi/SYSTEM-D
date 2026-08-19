@@ -20,6 +20,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -137,7 +138,7 @@ export default function AdminSettingsPage() {
     queryKey: ["/api/shopify-integrations"],
   });
 
-  const { data: adminSettings, isLoading: settingsLoading } = useQuery<AdminSettings>({
+  const { data: adminSettings, isLoading: settingsLoading } = useQuery<AdminSettings & { zohoInventoryConnected?: boolean }>({
     queryKey: ["/api/admin-settings"],
   });
 
@@ -161,7 +162,7 @@ export default function AdminSettingsPage() {
     lastRuns: Array<{ id: number; status: string; triggeredBy: string; itemsReceived: number; itemsUpserted: number; itemsSoftDeleted: number; startedAt: string; completedAt: string | null; errorMessage: string | null }>;
   }>({
     queryKey: ["/api/zoho/catalog-stats"],
-    enabled: !!adminSettings?.zohoInventoryRefreshToken,
+    enabled: !!adminSettings?.zohoInventoryConnected,
     refetchInterval: 60_000,
   });
 
@@ -185,7 +186,7 @@ export default function AdminSettingsPage() {
 
   }, []);
 
-  const isZohoConnected = !!adminSettings?.zohoInventoryRefreshToken;
+  const isZohoConnected = !!adminSettings?.zohoInventoryConnected;
 
   // Live connection test — only fires when the Integrations tab is visible and Zoho appears connected
   const { data: zohoTestResult } = useQuery<{ ok: boolean; rateLimited?: boolean; reason?: string; message?: string }>({
@@ -1019,6 +1020,9 @@ export default function AdminSettingsPage() {
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Connecter une boutique</DialogTitle>
+                      <DialogDescription>
+                        Associez une boutique Shopify ou WooCommerce à un client existant.
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 mt-2">
                       {/* Platform selector */}
@@ -1406,6 +1410,7 @@ export default function AdminSettingsPage() {
                 <Button
                   variant="outline"
                   size="icon"
+                  className="h-11 w-11 shrink-0"
                   onClick={addAdminEmail}
                   disabled={!adminEmailInput.trim() || updateAdminEmailsMutation.isPending}
                   data-testid="button-add-admin-email"
@@ -1507,8 +1512,9 @@ export default function AdminSettingsPage() {
           </div>
 
           <Card>
-            <CardContent className="p-0">
-              <Table>
+             <CardContent className="p-0">
+               <div className="responsive-table">
+               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-8"></TableHead>
@@ -1560,7 +1566,8 @@ export default function AdminSettingsPage() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+               </Table>
+               </div>
             </CardContent>
           </Card>
         </TabsContent>

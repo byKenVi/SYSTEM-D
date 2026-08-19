@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, X, FileText, Film } from "lucide-react";
 
 interface UploadedFile {
+  id?: number; // persisted DB id returned by the server after upload
   fileName: string;
   fileUrl: string;
   fileType: string;
@@ -12,14 +13,15 @@ interface UploadedFile {
 interface FileUploadProps {
   value: UploadedFile[];
   onChange: (files: UploadedFile[]) => void;
-  onFileAdded?: (file: UploadedFile) => void;
+  formSubmissionId: number;
+  fieldKey: string;
   accept?: string;
   multiple?: boolean;
   disabled?: boolean;
   label?: string;
 }
 
-export function FileUpload({ value = [], onChange, onFileAdded, accept, multiple = true, disabled, label }: FileUploadProps) {
+export function FileUpload({ value = [], onChange, formSubmissionId, fieldKey, accept, multiple = true, disabled, label }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -31,6 +33,8 @@ export function FileUpload({ value = [], onChange, onFileAdded, accept, multiple
     for (const file of Array.from(fileList)) {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("formSubmissionId", String(formSubmissionId));
+      formData.append("fieldKey", fieldKey);
       try {
         const res = await fetch("/api/forms/upload", {
           method: "POST",
@@ -39,21 +43,42 @@ export function FileUpload({ value = [], onChange, onFileAdded, accept, multiple
         });
         if (res.ok) {
           const data = await res.json();
-          newFiles.push(data);
+          // Retain the server-assigned id for later deletion
+          newFiles.push({
+            id: typeof data.id === "number" ? data.id : undefined,
+            fileName: data.fileName ?? data.file_name ?? file.name,
+            fileUrl: data.fileUrl ?? data.file_url ?? "",
+            fileType: data.fileType ?? data.file_type ?? file.type,
+            fileSize: data.fileSize ?? data.file_size ?? file.size,
+          });
         }
       } catch (err) {
         console.error("Upload failed:", err);
       }
-    }
-    if (onFileAdded) {
-      for (const f of newFiles) onFileAdded(f);
     }
     onChange([...value, ...newFiles]);
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  function removeFile(index: number) {
+  async function removeFile(index: number) {
+    const file = value[index];
+    // If the file has a server-assigned id, call the server delete route
+    if (file?.id) {
+      try {
+        const response = await fetch(`/api/form-uploads/${file.id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        if (!response.ok) {
+          console.error("Remote delete failed:", response.status);
+          return;
+        }
+      } catch (err) {
+        console.error("Remote delete failed:", err);
+        return;
+      }
+    }
     onChange(value.filter((_, i) => i !== index));
   }
 
@@ -104,8 +129,10 @@ export function FileUpload({ value = [], onChange, onFileAdded, accept, multiple
               <p className="text-xs truncate px-2 py-1">{file.fileName}</p>
               {!disabled && (
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                  className="absolute top-1 right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 h-9 w-9 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  aria-label={`Supprimer ${file.fileName}`}
                   data-testid={`button-remove-file-${i}`}
                 >
                   <X className="h-3 w-3" />

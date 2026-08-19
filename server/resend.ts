@@ -6,6 +6,19 @@ interface ResendCredentials {
   replyTo?: string;
 }
 
+export function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function sanitizeEmailSubject(value: unknown): string {
+  return String(value ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, 200);
+}
+
 async function getCredentials(): Promise<ResendCredentials> {
   let apiKey: string | undefined;
   let fromEmail: string | undefined;
@@ -91,18 +104,20 @@ export async function sendFormSubmissionEmail(data: {
 }) {
   try {
     const { client, fromEmail, replyTo } = await getUncachableResendClient();
-    const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
+    const typeLabel = escapeHtml(FORM_TYPE_LABELS[data.formType] || data.formType);
+    const name = escapeHtml(data.name);
+    const formNumber = escapeHtml(data.formNumber);
 
     await client.emails.send({
       from: `Services Système-D <${fromEmail}>`,
       to: data.email,
       ...(replyTo ? { replyTo } : {}),
-      subject: `Formulaire ${data.formNumber} reçu — Système-D`,
+      subject: sanitizeEmailSubject(`Formulaire ${data.formNumber} reçu — Système-D`),
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
           <h2 style="margin: 0 0 8px;">Formulaire reçu</h2>
           <p style="margin: 0 0 24px; color: #555;">
-            Bonjour ${data.name}, votre formulaire <strong>${typeLabel}</strong> (${data.formNumber}) a bien été soumis.
+            Bonjour ${name}, votre formulaire <strong>${typeLabel}</strong> (${formNumber}) a bien été soumis.
             Notre équipe va l'examiner sous peu.
           </p>
           <a href="${getAppUrl()}/portal/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
@@ -129,18 +144,20 @@ export async function sendFormStatusEmail(data: {
       approved: "Approuvé",
       completed: "Complété",
     };
-    const statusLabel = statusLabels[data.newStatus] || data.newStatus;
+    const statusLabel = escapeHtml(statusLabels[data.newStatus] || data.newStatus);
+    const name = escapeHtml(data.name);
+    const formNumber = escapeHtml(data.formNumber);
 
     await client.emails.send({
       from: `Services Système-D <${fromEmail}>`,
       to: data.email,
       ...(replyTo ? { replyTo } : {}),
-      subject: `Formulaire ${data.formNumber} — ${statusLabel}`,
+      subject: sanitizeEmailSubject(`Formulaire ${data.formNumber} — ${statusLabels[data.newStatus] || data.newStatus}`),
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
           <h2 style="margin: 0 0 8px;">Mise à jour de votre formulaire</h2>
           <p style="margin: 0 0 24px; color: #555;">
-            Bonjour ${data.name}, le statut de votre formulaire <strong>${data.formNumber}</strong> a été mis à jour : <strong>${statusLabel}</strong>.
+            Bonjour ${name}, le statut de votre formulaire <strong>${formNumber}</strong> a été mis à jour : <strong>${statusLabel}</strong>.
           </p>
         </div>
       `,
@@ -158,18 +175,20 @@ export async function sendFormAdminNotificationEmail(data: {
 }) {
   try {
     const { client, fromEmail, replyTo } = await getUncachableResendClient();
-    const typeLabel = FORM_TYPE_LABELS[data.formType] || data.formType;
+    const typeLabel = escapeHtml(FORM_TYPE_LABELS[data.formType] || data.formType);
+    const clientName = escapeHtml(data.clientName);
+    const formNumber = escapeHtml(data.formNumber);
 
     await client.emails.send({
       from: `Services Système-D <${fromEmail}>`,
       to: data.adminEmail,
       ...(replyTo ? { replyTo } : {}),
-      subject: `Nouveau formulaire ${data.formNumber} soumis — ${data.clientName}`,
+      subject: sanitizeEmailSubject(`Nouveau formulaire ${data.formNumber} soumis — ${data.clientName}`),
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
           <h2 style="margin: 0 0 8px;">Nouveau formulaire soumis</h2>
           <p style="margin: 0 0 24px; color: #555;">
-            <strong>${data.clientName}</strong> a soumis un formulaire <strong>${typeLabel}</strong> (${data.formNumber}).
+            <strong>${clientName}</strong> a soumis un formulaire <strong>${typeLabel}</strong> (${formNumber}).
           </p>
           <a href="${getAppUrl()}/admin/forms" style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
             Voir les formulaires
@@ -191,11 +210,14 @@ export async function sendSystemdOrderConfirmationEmail(data: {
 }) {
   try {
     const { client, fromEmail, replyTo } = await getUncachableResendClient();
+    const name = escapeHtml(data.name);
+    const amount = escapeHtml(data.amount);
+    const repName = escapeHtml(data.repName);
     await client.emails.send({
       from: `Services Système-D <${fromEmail}>`,
       to: data.email,
       ...(replyTo ? { replyTo } : {}),
-      subject: `Commande Système D #${data.orderId} confirmée`,
+      subject: sanitizeEmailSubject(`Commande Système D #${data.orderId} confirmée`),
       html: `<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -216,10 +238,10 @@ export async function sendSystemdOrderConfirmationEmail(data: {
         <tr>
           <td style="padding:32px;">
             <p style="margin:0 0 20px;font-size:15px;color:#374151;">
-              Bonjour <strong>${data.name}</strong>,
+              Bonjour <strong>${name}</strong>,
             </p>
             <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6;">
-              Votre commande <strong>#${data.orderId}</strong> a bien été enregistrée. Le crédit du représentant <strong>${data.repName}</strong> a été débité et notre équipe va maintenant préparer votre commande.
+              Votre commande <strong>#${data.orderId}</strong> a bien été enregistrée. Le crédit du représentant <strong>${repName}</strong> a été débité et notre équipe va maintenant préparer votre commande.
             </p>
 
             <!-- Order summary box -->
@@ -238,11 +260,11 @@ export async function sendSystemdOrderConfirmationEmail(data: {
                     </tr>
                     <tr>
                       <td style="padding:4px 0;font-size:14px;color:#6b7280;">Montant total</td>
-                      <td align="right" style="padding:4px 0;font-size:14px;font-weight:700;color:#111827;">${data.amount}</td>
+                      <td align="right" style="padding:4px 0;font-size:14px;font-weight:700;color:#111827;">${amount}</td>
                     </tr>
                     <tr>
                       <td style="padding:4px 0;font-size:14px;color:#6b7280;">Rep débité</td>
-                      <td align="right" style="padding:4px 0;font-size:14px;color:#111827;">${data.repName}</td>
+                      <td align="right" style="padding:4px 0;font-size:14px;color:#111827;">${repName}</td>
                     </tr>
                     <tr>
                       <td style="padding:4px 0;font-size:14px;color:#6b7280;">Statut</td>
@@ -298,16 +320,21 @@ export async function sendSystemdOrderAdminEmail(data: {
 }) {
   try {
     const { client, fromEmail, replyTo } = await getUncachableResendClient();
+    const clientName = escapeHtml(data.clientName);
+    const amount = escapeHtml(data.amount);
+    const repName = escapeHtml(data.repName);
+    const repEmail = escapeHtml(data.repEmail);
+    const stockStatus = escapeHtml(data.stockStatus);
     const itemsRows = data.items.map((item) => `
       <tr>
-        <td style="padding:10px 16px;font-size:14px;color:#374151;border-bottom:1px solid #f3f4f6;">${item.name}</td>
+        <td style="padding:10px 16px;font-size:14px;color:#374151;border-bottom:1px solid #f3f4f6;">${escapeHtml(item.name)}</td>
         <td align="center" style="padding:10px 16px;font-size:14px;font-weight:700;color:#111827;border-bottom:1px solid #f3f4f6;">${item.quantity}</td>
       </tr>`).join("");
     await client.emails.send({
       from: `Services Système-D <${fromEmail}>`,
       to: data.email,
       ...(replyTo ? { replyTo } : {}),
-      subject: `Nouvelle commande Système D #${data.orderId} à traiter`,
+      subject: sanitizeEmailSubject(`Nouvelle commande Système D #${data.orderId} à traiter`),
       html: `<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -349,19 +376,19 @@ export async function sendSystemdOrderAdminEmail(data: {
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="padding:5px 0;font-size:14px;color:#6b7280;width:40%;">Client</td>
-                      <td style="padding:5px 0;font-size:14px;font-weight:700;color:#111827;">${data.clientName}</td>
+                      <td style="padding:5px 0;font-size:14px;font-weight:700;color:#111827;">${clientName}</td>
                     </tr>
                     <tr>
                       <td style="padding:5px 0;font-size:14px;color:#6b7280;">Rep débité</td>
-                      <td style="padding:5px 0;font-size:14px;color:#111827;">${data.repName} <span style="color:#9ca3af;">(${data.repEmail})</span></td>
+                      <td style="padding:5px 0;font-size:14px;color:#111827;">${repName} <span style="color:#9ca3af;">(${repEmail})</span></td>
                     </tr>
                     <tr>
                       <td style="padding:5px 0;font-size:14px;color:#6b7280;">Montant total</td>
-                      <td style="padding:5px 0;font-size:18px;font-weight:800;color:#ef5f18;">${data.amount}</td>
+                      <td style="padding:5px 0;font-size:18px;font-weight:800;color:#ef5f18;">${amount}</td>
                     </tr>
                     <tr>
                       <td style="padding:5px 0;font-size:14px;color:#6b7280;">Stock</td>
-                      <td style="padding:5px 0;font-size:14px;color:#111827;">${data.stockStatus}</td>
+                      <td style="padding:5px 0;font-size:14px;color:#111827;">${stockStatus}</td>
                     </tr>
                   </table>
                 </td>
@@ -419,17 +446,19 @@ export async function sendInviteEmail(contact: {
 }) {
   // Ce flux est bloquant — les erreurs remontent à l'appelant
   const { client, fromEmail, replyTo } = await getUncachableResendClient();
+  const name = escapeHtml(contact.name);
+  const companyName = contact.companyName ? escapeHtml(contact.companyName) : null;
 
   await client.emails.send({
     from: `Services Système-D <${fromEmail}>`,
     to: contact.email,
     ...(replyTo ? { replyTo } : {}),
-    subject: `Votre invitation au portail client – Services Système-D`,
+    subject: sanitizeEmailSubject("Votre invitation au portail client – Services Système-D"),
     html: `
       <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #111;">
         <h2 style="margin: 0 0 8px; color: #111;">Bienvenue sur le portail client de Services Système-D</h2>
         <p style="margin: 0 0 24px; color: #555;">
-          Bonjour ${contact.name},${contact.companyName ? ` votre compte pour <strong>${contact.companyName}</strong> est prêt.` : ''}<br/>
+          Bonjour ${name},${companyName ? ` votre compte pour <strong>${companyName}</strong> est prêt.` : ''}<br/>
           Cliquez sur le bouton ci-dessous pour vous connecter et accéder à votre portail client.
         </p>
         <a href="${getAppUrl()}/api/login" style="display: inline-block; background: #ef5f18; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px;">

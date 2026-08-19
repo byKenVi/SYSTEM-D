@@ -527,7 +527,7 @@ export default function PortalCustomerDetail() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto scrollbar-hide">
+            <div className="responsive-table">
               <Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">

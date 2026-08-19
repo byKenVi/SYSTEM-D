@@ -97,21 +97,6 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
     setData(data);
   }, [setData]);
 
-  const persistUploadRecord = useCallback(async (fieldKey: string, file: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) => {
-    if (!formId) return;
-    try {
-      await apiRequest("POST", `/api/forms/${formId}/uploads`, {
-        fieldKey,
-        fileName: file.fileName,
-        fileUrl: file.fileUrl,
-        fileType: file.fileType,
-        fileSize: file.fileSize,
-      });
-    } catch (err) {
-      console.error("Failed to persist upload record:", err);
-    }
-  }, [formId]);
-
   function validateBeforeSubmit(): string | null {
     if (!formData) return "Aucune donnée à soumettre.";
 
@@ -419,7 +404,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
               <TriForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />
             )}
             {form.formType === "inspection" && (
-              <InspectionForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} revisionHistory={revisionHistory} onFileAdded={(fieldKey, file) => persistUploadRecord(fieldKey, file)} />
+              <InspectionForm data={formData} onChange={handleChange} formSubmissionId={formId} disabled={formFieldsDisabled} revisionHistory={revisionHistory} />
             )}
             {form.formType === "entreposage" && (
               <EntreposageForm data={formData} onChange={handleChange} disabled={formFieldsDisabled} />

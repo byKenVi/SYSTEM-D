@@ -36,6 +36,7 @@ export default function PortalSystemdProductDetail({
   const [, navigate] = useLocation();
   const { addItem } = useCart();
   const [qty, setQty] = useState(1);
+  const [cartFeedback, setCartFeedback] = useState("");
 
   const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo") ?? "";
   const defaultBackUrl = viewAsContactId
@@ -68,9 +69,10 @@ export default function PortalSystemdProductDetail({
   });
 
   const handleAddToCart = () => {
-    if (!product || product.stock <= 0) return;
+    if (!product || product.stock <= 0 || cartFeedback) return;
     addItem(product, qty);
-    navigate(backUrl);
+    setCartFeedback("Le panier a été mis à jour.");
+    window.setTimeout(() => navigate(backUrl), 650);
   };
 
   /* ── Loading ── */
@@ -415,11 +417,19 @@ export default function PortalSystemdProductDetail({
               <Button
                 className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20"
                 onClick={handleAddToCart}
+                disabled={Boolean(cartFeedback)}
                 data-testid="button-add-to-cart"
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
-                Ajouter au panier
+                {cartFeedback ? "Ajouté au panier" : "Ajouter au panier"}
               </Button>
+              <p
+                className={`min-h-5 text-center text-sm font-medium text-emerald-700 dark:text-emerald-400 transition-opacity ${cartFeedback ? "opacity-100" : "opacity-0"}`}
+                role="status"
+                aria-live="polite"
+              >
+                {cartFeedback}
+              </p>
 
             </div>
           ) : (

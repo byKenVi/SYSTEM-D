@@ -232,7 +232,7 @@ export default function AdminCommandes() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="responsive-table">
               <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>

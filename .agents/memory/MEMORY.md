@@ -4,3 +4,4 @@
 - [UX pre-QA P0/P1 patterns](ux-preqa-patterns.md) — scroll-to-error, auto-mark-read, mobile Shadcn header, conditional KPI sections — implementation notes.
 - [Store-credit checkout idempotency](store-credit-idempotency.md) — only pending debits block duplicate submissions; paid orders must never prevent a fresh identical purchase.
 - [Shopify connection resilience](shopify-connection-resilience.md) — treat only explicit 401 responses as invalid tokens; rate limits and scope/network faults remain recoverable.
+- [External side-effect serialization](external-side-effect-locking.md) — every path creating the same Zoho entity must share a DB lock and re-check state after acquisition.

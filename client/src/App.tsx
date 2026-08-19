@@ -59,8 +59,26 @@ function AdminLayout() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="admin" />
-      <SidebarInset className="overflow-y-auto scrollbar-hide bg-background">
-        <div className="p-4 sm:p-6 lg:p-8 min-h-full w-full">
+      <SidebarInset className="overflow-y-auto overflow-x-hidden scrollbar-hide bg-background min-w-0">
+        <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-3 py-2 bg-background/95 backdrop-blur-sm border-b border-border/50 shrink-0">
+          <SidebarTrigger
+            className="h-11 w-11 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
+            data-testid="button-sidebar-toggle"
+          />
+          <span className="text-sm font-bold tracking-tight text-foreground">Administration Système D</span>
+          <Link href="/admin/notifications">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 rounded-lg"
+              aria-label="Ouvrir les notifications"
+              data-testid="button-admin-mobile-notifications"
+            >
+              <Bell className="h-5 w-5" />
+            </Button>
+          </Link>
+        </div>
+        <div className="app-shell app-page-padding p-3 sm:p-6 lg:p-8 min-h-full w-full">
           <Switch>
             <Route path="/admin/dashboard" component={AdminDashboard} />
             <Route path="/admin/contacts/:id" component={AdminContactDetail} />
@@ -137,7 +155,7 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
-      <SidebarInset className="overflow-hidden bg-background">
+      <SidebarInset className="overflow-hidden bg-background min-w-0">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         {showAdminReturn && <AdminPortalBanner />}
         {/* En-tête mobile : visible uniquement en dessous de md */}
@@ -146,8 +164,8 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
           <span className="text-sm font-bold tracking-tight text-foreground">Système D</span>
           <MobileNotifBell viewAsContactId={viewAsContactId} />
         </div>
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="p-4 sm:p-6 lg:p-8 min-h-full w-full">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+          <div className="app-shell app-page-padding p-3 sm:p-6 lg:p-8 min-h-full w-full">
             <CartProvider storageKey={cartStorageKey}>
             <Switch>
               <Route path="/portal/dashboard">

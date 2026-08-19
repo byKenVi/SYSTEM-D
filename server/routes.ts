@@ -100,6 +100,42 @@ function buildStatusNotification(
   return null;
 }
 
+const ALLOWED_FORM_TYPES = new Set([
+  "entreposage",
+  "tri",
+  "inspection",
+  "copacking",
+  "livraison",
+  "product_work_order",
+]);
+
+function sanitizeAdminSettingsForResponse(settings: any) {
+  if (!settings) return {};
+  const {
+    shopifyAppClientSecret: _shopifyAppClientSecret,
+    zohoInventoryClientSecret: _zohoInventoryClientSecret,
+    zohoInventoryRefreshToken,
+    zohoAccessToken: _zohoAccessToken,
+    ...safeSettings
+  } = settings;
+  return {
+    ...safeSettings,
+    zohoInventoryConnected: Boolean(zohoInventoryRefreshToken),
+  };
+}
+
+function sanitizeIntegrationForResponse(integration: any) {
+  const { accessToken, platformConfig, ...safeIntegration } = integration;
+  const safePlatformConfig = platformConfig && typeof platformConfig === "object"
+    ? Object.fromEntries(Object.entries(platformConfig).filter(([key]) => key !== "consumerSecret"))
+    : null;
+  return {
+    ...safeIntegration,
+    platformConfig: safePlatformConfig,
+    hasCredentials: Boolean(accessToken),
+  };
+}
+
 // systemdProductsCache supprimé — la boutique lit maintenant depuis zoho_catalog (pas de quota Zoho)
 
 /**
@@ -144,15 +180,6 @@ export async function registerRoutes(
     return settings?.adminUserId || null;
   }
 
-  async function setAdminUserId(userId: string): Promise<void> {
-    const settings = await storage.getAdminSettings();
-    if (settings) {
-      await storage.upsertAdminSettings({ ...settings, adminUserId: userId });
-    } else {
-      await storage.upsertAdminSettings({ adminUserId: userId });
-    }
-  }
-
   async function getUserRole(req: any) {
     const userId = req.user?.claims?.sub;
     let email = req.user?.claims?.email as string | undefined;
@@ -166,8 +193,20 @@ export async function registerRoutes(
 
     const adminId = await getAdminUserId();
     if (!adminId) {
-      await setAdminUserId(userId);
-      return { role: "admin" as const };
+      const bootstrapAdminIds = [
+        process.env.ADMIN_BOOTSTRAP_USER_ID,
+        ...(process.env.ADDITIONAL_ADMIN_IDS || "").split(","),
+      ].map((value) => value?.trim()).filter(Boolean);
+      const bootstrapAdminEmails = [
+        process.env.ADMIN_BOOTSTRAP_EMAIL,
+        ...(process.env.ADDITIONAL_ADMIN_EMAILS || "").split(","),
+      ].map((value) => value?.trim().toLowerCase()).filter(Boolean);
+      const canBootstrap = bootstrapAdminIds.includes(userId)
+        || Boolean(email && bootstrapAdminEmails.includes(email.toLowerCase()));
+      if (canBootstrap) {
+        const claimedAdminId = await storage.claimAdminUserId(userId);
+        if (claimedAdminId === userId) return { role: "admin" as const };
+      }
     }
 
     if (userId === adminId) {
@@ -384,6 +423,15 @@ export async function registerRoutes(
       if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ message: "No contact IDs provided" });
       }
+      // Pre-check: reject the entire bulk operation if any contact has systemd orders
+      for (const id of ids) {
+        const orders = await storage.getSystemdOrders({ contactId: id });
+        if (orders.length > 0) {
+          return res.status(409).json({
+            message: `Impossible de supprimer le contact #${id} : il possède des commandes Système D associées. Désactivez son accès afin de préserver l’historique financier.`,
+          });
+        }
+      }
       let deleted = 0;
       for (const id of ids) {
         const contact = await storage.getContact(id);
@@ -404,6 +452,13 @@ export async function registerRoutes(
     try {
       const contact = await storage.getContact(Number(req.params.id));
       if (!contact) return res.status(404).json({ message: "Contact not found" });
+      // Protect financial history: refuse deletion if systemd orders exist
+      const systemdOrdersForContact = await storage.getSystemdOrders({ contactId: contact.id });
+      if (systemdOrdersForContact.length > 0) {
+        return res.status(409).json({
+          message: `Impossible de supprimer ce contact : il possède ${systemdOrdersForContact.length} commande(s) Système D associée(s). Désactivez son accès afin de préserver l’historique financier.`,
+        });
+      }
       await storage.deleteContact(contact.id);
       await storage.createActivityLog({ type: "contact_delete", status: "success", message: `Contact "${contact.name}" (${contact.email}) deleted` });
       res.json({ message: "Contact deleted" });
@@ -443,7 +498,7 @@ export async function registerRoutes(
     try {
       const all = await storage.getShopifyIntegrations();
       const contactIntegrations = all.filter((i) => i.contactId === Number(req.params.id));
-      res.json(contactIntegrations);
+      res.json(contactIntegrations.map(sanitizeIntegrationForResponse));
     } catch (error) {
       console.error("Error fetching contact shopify integrations:", error);
       res.status(500).json({ message: "Failed to fetch integrations" });
@@ -1060,7 +1115,7 @@ export async function registerRoutes(
               : Promise.resolve([]),
           ]);
           return {
-            ...integration,
+            ...sanitizeIntegrationForResponse(integration),
             productCount: contactProducts.length,
             orderCount: contactOrders.filter((order) => order.integrationId === integration.id).length,
             repCount: reps.length,
@@ -1312,7 +1367,7 @@ export async function registerRoutes(
         syncFrequencyMinutes,
       });
       if (!updated) return res.status(404).json({ message: "Integration not found" });
-      res.json(updated);
+      res.json(sanitizeIntegrationForResponse(updated));
     } catch (error: any) {
       console.error("Error updating sync frequency:", error);
       res.status(500).json({ message: "Failed to update sync frequency" });
@@ -1329,7 +1384,7 @@ export async function registerRoutes(
         orderSyncFrequencyMinutes,
       });
       if (!updated) return res.status(404).json({ message: "Integration not found" });
-      res.json(updated);
+      res.json(sanitizeIntegrationForResponse(updated));
     } catch (error: any) {
       console.error("Error updating order sync frequency:", error);
       res.status(500).json({ message: "Failed to update order sync frequency" });
@@ -1413,7 +1468,7 @@ export async function registerRoutes(
   app.get("/api/admin-settings", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const settings = await storage.getAdminSettings();
-      res.json(settings || {});
+      res.json(sanitizeAdminSettingsForResponse(settings));
     } catch (error) {
       console.error("Error fetching settings:", error);
       res.status(500).json({ message: "Failed to fetch settings" });
@@ -1424,7 +1479,7 @@ export async function registerRoutes(
     try {
       const parsed = insertAdminSettingsSchema.parse(req.body);
       const settings = await storage.upsertAdminSettings(parsed);
-      res.json(settings);
+      res.json(sanitizeAdminSettingsForResponse(settings));
     } catch (error) {
       console.error("Error saving settings:", error);
       res.status(500).json({ message: "Failed to save settings" });
@@ -1438,7 +1493,7 @@ export async function registerRoutes(
         ...(existing || {}),
         ...req.body,
       });
-      res.json(settings);
+      res.json(sanitizeAdminSettingsForResponse(settings));
     } catch (error) {
       console.error("Error updating settings:", error);
       res.status(500).json({ message: "Failed to update settings" });
@@ -2384,15 +2439,11 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Ce produit n'appartient pas à votre entreprise." });
       }
 
-      const [contact, formNumber] = await Promise.all([
-        storage.getContact(role.contactId),
-        storage.getNextFormNumber("product_work_order"),
-      ]);
+      const contact = await storage.getContact(role.contactId);
       const userId = req.user?.claims?.sub;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || contact?.name || "Utilisateur portail";
-      const submission = await storage.createFormSubmission({
+      const submission = await storage.createFormSubmissionWithNextNumber({
         formType: "product_work_order",
-        formNumber,
         contactId: role.contactId,
         submittedBy: userId,
         submittedByName: userName,
@@ -2412,6 +2463,7 @@ export async function registerRoutes(
           modifiedBy: userName,
         }],
       });
+      const formNumber = submission.formNumber;
 
       if (await storage.isNotificationEnabled(role.contactId, "compte")) {
         await storage.createNotification({
@@ -2516,6 +2568,30 @@ export async function registerRoutes(
   const uploadsDir = path.join(process.cwd(), "uploads");
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+  function uploadSignatureMatches(filePath: string, extension: string): boolean {
+    const descriptor = fs.openSync(filePath, "r");
+    try {
+      const header = Buffer.alloc(16);
+      const bytesRead = fs.readSync(descriptor, header, 0, header.length, 0);
+      const bytes = header.subarray(0, bytesRead);
+      if (extension === ".jpg" || extension === ".jpeg") {
+        return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      }
+      if (extension === ".png") {
+        return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      }
+      if (extension === ".pdf") {
+        return bytes.length >= 5 && bytes.subarray(0, 5).toString("ascii") === "%PDF-";
+      }
+      if ([".mp4", ".mov", ".heic"].includes(extension)) {
+        return bytes.length >= 12 && bytes.subarray(4, 8).toString("ascii") === "ftyp";
+      }
+      return false;
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  }
+
   const upload = multer({
     storage: multer.diskStorage({
       destination: uploadsDir,
@@ -2526,23 +2602,63 @@ export async function registerRoutes(
     }),
     limits: { fileSize: 25 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = [".jpg", ".jpeg", ".png", ".heic", ".pdf", ".mp4", ".mov"];
       const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, allowed.includes(ext));
+      const allowedMimeTypes: Record<string, string[]> = {
+        ".jpg": ["image/jpeg"],
+        ".jpeg": ["image/jpeg"],
+        ".png": ["image/png"],
+        ".heic": ["image/heic", "image/heif", "application/octet-stream"],
+        ".pdf": ["application/pdf"],
+        ".mp4": ["video/mp4"],
+        ".mov": ["video/quicktime"],
+      };
+      cb(null, Boolean(allowedMimeTypes[ext]?.includes(file.mimetype)));
     },
   });
 
   app.post("/api/forms/upload", isAuthenticated, upload.single("file"), async (req: any, res) => {
+    const cleanup = () => {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+    };
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const role = await getUserRole(req);
+      if (!role) {
+        cleanup();
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const formSubmissionId = Number(req.body.formSubmissionId);
+      const fieldKey = typeof req.body.fieldKey === "string" ? req.body.fieldKey.trim() : "";
+      if (!Number.isInteger(formSubmissionId) || !/^[a-zA-Z0-9_-]{1,120}$/.test(fieldKey)) {
+        cleanup();
+        return res.status(400).json({ message: "formSubmissionId and fieldKey are required" });
+      }
+      const form = await storage.getFormSubmission(formSubmissionId);
+      if (!form) {
+        cleanup();
+        return res.status(404).json({ message: "Form not found" });
+      }
+      if (role.role === "client" && (form.contactId !== role.contactId || form.status !== "draft")) {
+        cleanup();
+        return res.status(403).json({ message: "Not authorized to upload to this form" });
+      }
+      const extension = path.extname(req.file.originalname).toLowerCase();
+      if (!uploadSignatureMatches(req.file.path, extension)) {
+        cleanup();
+        return res.status(400).json({ message: "File content does not match its declared type" });
+      }
       const fileUrl = `/api/uploads/${req.file.filename}`;
-      res.json({
+      const uploadRecord = await storage.createFormUpload({
+        formSubmissionId: form.id,
+        fieldKey,
         fileName: req.file.originalname,
         fileUrl,
         fileType: req.file.mimetype,
         fileSize: req.file.size,
       });
+      res.status(201).json(uploadRecord);
     } catch (error: any) {
+      cleanup();
       console.error("Upload error:", error);
       res.status(500).json({ message: "Upload failed" });
     }
@@ -2563,8 +2679,7 @@ export async function registerRoutes(
       const form = await storage.getFormSubmission(upload.formSubmissionId);
       if (!form) return res.status(404).json({ message: "File not found" });
 
-      const contact = await storage.getContactByEmail(req.user.claims.email);
-      if (!contact || form.contactId !== contact.id) {
+      if (!role?.contactId || form.contactId !== role.contactId) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -2606,18 +2721,21 @@ export async function registerRoutes(
 
       const { formType, contactId, data } = req.body;
       if (!formType) return res.status(400).json({ message: "formType is required" });
+      if (!ALLOWED_FORM_TYPES.has(formType) || formType === "product_work_order") {
+        return res.status(400).json({ message: "formType is invalid" });
+      }
 
       const resolvedContactId = role.role === "admin" ? (contactId || 0) : role.contactId;
       if (!resolvedContactId) return res.status(400).json({ message: "contactId is required" });
+      const resolvedContact = await storage.getContact(Number(resolvedContactId));
+      if (!resolvedContact) return res.status(400).json({ message: "contactId is invalid" });
 
-      const formNumber = await storage.getNextFormNumber(formType);
       const userId = req.user?.claims?.sub;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
 
-      const submission = await storage.createFormSubmission({
+      const submission = await storage.createFormSubmissionWithNextNumber({
         formType,
-        formNumber,
-        contactId: resolvedContactId,
+        contactId: Number(resolvedContactId),
         submittedBy: userId,
         submittedByName: userName,
         status: "draft",
@@ -2827,7 +2945,6 @@ export async function registerRoutes(
           updateData.revisionHistory = history;
 
           if (form.formType === "tri") {
-            const insFormNumber = await storage.getNextFormNumber("inspection");
             const effectiveData = data !== undefined ? data : form.data;
             const formData = (effectiveData || {}) as Record<string, string>;
             const insData = {
@@ -2836,9 +2953,8 @@ export async function registerRoutes(
               partName: formData.description || "",
               workInstruction: `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${formData.codePiece || ""}`,
             };
-            const insForm = await storage.createFormSubmission({
+            const insForm = await storage.createFormSubmissionWithNextNumber({
               formType: "inspection",
-              formNumber: insFormNumber,
               contactId: form.contactId,
               submittedBy: form.submittedBy,
               submittedByName: form.submittedByName,
@@ -2902,37 +3018,57 @@ export async function registerRoutes(
         }
 
         if (status === "approved" && form.status === "in_review") {
-          try {
-            const contact = await storage.getContact(form.contactId);
-            if (contact) {
-              const qty = updateData.approvedQuantity != null ? Number(updateData.approvedQuantity) : 1;
-              const rate = updateData.price != null ? Number(updateData.price) : 0;
-              const { salesOrderId, salesOrderNumber } = await createFormSalesOrder({
-                formNumber: form.formNumber,
-                formType: form.formType,
-                formData: form.data,
-                quantity: qty,
-                rate,
-                contact: { name: contact.name, email: contact.email, companyName: contact.companyName },
-              });
-              const region = await getZohoRegion();
-              updateData.zohoSalesOrderId = salesOrderId;
-              updateData.zohoSalesOrderNumber = salesOrderNumber;
-              updateData.zohoSalesOrderUrl = getZohoSOUrl(region, salesOrderId);
-              console.log(`[zoho] Created SO ${salesOrderNumber} for form ${form.formNumber}`);
+          // ── Section critique sous verrou consultatif (cross-instance) ─────────
+          // Empêche deux transitions concurrentes (approbation simultanée, ou
+          // approbation + POST /create-zoho-so) de créer deux Sales Orders /
+          // projets Zoho pour le même formulaire. Le verrou est transaction-
+          // scopé (jamais détenu indéfiniment) et le formulaire est relu à
+          // frais après acquisition. On re-vérifie zohoSalesOrderId avant tout
+          // appel externe.
+          await storage.withFormTransitionLock(form.id, async (freshForm) => {
+            if (!freshForm) return;
+            // Un autre processus a déjà créé le SO entre-temps : ne pas dupliquer.
+            if (freshForm.zohoSalesOrderId) {
+              console.log(`[zoho] SO déjà présent pour ${form.formNumber} (${freshForm.zohoSalesOrderId}), skip.`);
+            } else {
+              try {
+                const contact = await storage.getContact(form.contactId);
+                if (contact) {
+                  const qty = updateData.approvedQuantity != null ? Number(updateData.approvedQuantity) : 1;
+                  const rate = updateData.price != null ? Number(updateData.price) : 0;
+                  const { salesOrderId, salesOrderNumber } = await createFormSalesOrder({
+                    formNumber: form.formNumber,
+                    formType: form.formType,
+                    formData: form.data,
+                    quantity: qty,
+                    rate,
+                    contact: { name: contact.name, email: contact.email, companyName: contact.companyName },
+                  });
+                  const region = await getZohoRegion();
+                  updateData.zohoSalesOrderId = salesOrderId;
+                  updateData.zohoSalesOrderNumber = salesOrderNumber;
+                  updateData.zohoSalesOrderUrl = getZohoSOUrl(region, salesOrderId);
+                  // Persister immédiatement le SO sous le verrou pour que toute
+                  // transition concurrente le voie lors de sa relecture fraîche.
+                  await storage.updateFormSubmission(form.id, {
+                    zohoSalesOrderId: salesOrderId,
+                    zohoSalesOrderNumber: salesOrderNumber,
+                    zohoSalesOrderUrl: updateData.zohoSalesOrderUrl as string,
+                  });
+                  console.log(`[zoho] Created SO ${salesOrderNumber} for form ${form.formNumber}`);
+                }
+              } catch (err: any) {
+                console.error(`[zoho] Failed to create SO for ${form.formNumber}: ${err.message}`);
+              }
             }
-          } catch (err: any) {
-            console.error(`[zoho] Failed to create SO for ${form.formNumber}: ${err.message}`);
-          }
 
-          // ── Zoho Projects : créer un projet pour cette soumission approuvée ──
-          // Ne s'exécute que si Zoho Projects est configuré (portalId présent).
-          // Anti-doublon : si zoho_project_id est déjà présent, on skip.
-          // L'approbation continue même si la création du projet échoue.
-          ;(async () => {
+            // ── Zoho Projects : créer un projet pour cette soumission approuvée ──
+            // Anti-doublon : si zoho_project_id est déjà présent (relecture
+            // fraîche sous verrou), on skip. L'approbation continue même si la
+            // création du projet échoue.
             try {
-              if (form.zohoProjectId) {
-                console.log(`[zoho-projects] Projet déjà associé à ${form.formNumber} (${form.zohoProjectId}), skip.`);
+              if (freshForm.zohoProjectId) {
+                console.log(`[zoho-projects] Projet déjà associé à ${form.formNumber} (${freshForm.zohoProjectId}), skip.`);
                 return;
               }
               const settings = await storage.getAdminSettings();
@@ -2971,7 +3107,7 @@ export async function registerRoutes(
             } catch (err: any) {
               console.error(`[zoho-projects] Échec création projet pour ${form.formNumber}: ${err.message}`);
             }
-          })();
+          });
         }
 
         if (status !== form.status && status !== "draft" && form.status !== "draft") {
@@ -3027,47 +3163,73 @@ export async function registerRoutes(
 
   app.post("/api/forms/:id/create-zoho-so", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const form = await storage.getFormSubmission(Number(req.params.id));
-      if (!form) return res.status(404).json({ message: "Form not found" });
-      if (form.status !== "approved") return res.status(400).json({ message: "Form must be approved" });
+      const initialForm = await storage.getFormSubmission(Number(req.params.id));
+      if (!initialForm) return res.status(404).json({ message: "Form not found" });
+      if (initialForm.status !== "approved") return res.status(400).json({ message: "Form must be approved" });
 
-      // LOT 3 — Deduplication: if a SO already exists, return it without creating a duplicate
-      if (form.zohoSalesOrderId) {
+      // Même verrou consultatif que la transition d'approbation : empêche la
+      // création concurrente de deux Sales Orders pour un même formulaire.
+      // La relecture fraîche sous verrou + re-vérification de zohoSalesOrderId
+      // garantit l'idempotence (transaction-scopé, jamais détenu indéfiniment).
+      const result = await storage.withFormTransitionLock(initialForm.id, async (form) => {
+        if (!form) return { kind: "not_found" as const };
+        if (form.status !== "approved") return { kind: "not_approved" as const };
+
+        // Deduplication: if a SO already exists, return it without duplicating.
+        if (form.zohoSalesOrderId) {
+          const region = await getZohoRegion();
+          return {
+            kind: "exists" as const,
+            salesOrderId: form.zohoSalesOrderId,
+            salesOrderNumber: form.zohoSalesOrderNumber,
+            zohoSalesOrderUrl: form.zohoSalesOrderUrl ?? getZohoSOUrl(region, form.zohoSalesOrderId),
+          };
+        }
+
+        const contact = await storage.getContact(form.contactId);
+        if (!contact) return { kind: "no_contact" as const };
+
+        const qty = form.approvedQuantity != null ? Number(form.approvedQuantity) : 1;
+        const rate = form.price != null ? Number(form.price) : 0;
+
+        const { salesOrderId, salesOrderNumber } = await createFormSalesOrder({
+          formNumber: form.formNumber,
+          formType: form.formType,
+          formData: form.data,
+          quantity: qty,
+          rate,
+          contact: { name: contact.name, email: contact.email, companyName: contact.companyName },
+        });
         const region = await getZohoRegion();
+        const zohoSalesOrderUrl = getZohoSOUrl(region, salesOrderId);
+
+        await storage.updateFormSubmission(form.id, {
+          zohoSalesOrderId: salesOrderId,
+          zohoSalesOrderNumber: salesOrderNumber,
+          zohoSalesOrderUrl,
+        });
+
+        console.log(`[zoho] Manually created SO ${salesOrderNumber} for form ${form.formNumber}`);
+        return { kind: "created" as const, salesOrderId, salesOrderNumber, zohoSalesOrderUrl };
+      });
+
+      if (result.kind === "not_found") return res.status(404).json({ message: "Form not found" });
+      if (result.kind === "not_approved") return res.status(400).json({ message: "Form must be approved" });
+      if (result.kind === "no_contact") return res.status(404).json({ message: "Contact not found" });
+      if (result.kind === "exists") {
         return res.status(409).json({
           message: "Un bon de commande Zoho existe déjà pour cette soumission.",
-          salesOrderId: form.zohoSalesOrderId,
-          salesOrderNumber: form.zohoSalesOrderNumber,
-          zohoSalesOrderUrl: form.zohoSalesOrderUrl ?? getZohoSOUrl(region, form.zohoSalesOrderId),
+          salesOrderId: result.salesOrderId,
+          salesOrderNumber: result.salesOrderNumber,
+          zohoSalesOrderUrl: result.zohoSalesOrderUrl,
           alreadyExists: true,
         });
       }
-
-      const contact = await storage.getContact(form.contactId);
-      if (!contact) return res.status(404).json({ message: "Contact not found" });
-
-      const qty = form.approvedQuantity != null ? Number(form.approvedQuantity) : 1;
-      const rate = form.price != null ? Number(form.price) : 0;
-
-      const { salesOrderId, salesOrderNumber } = await createFormSalesOrder({
-        formNumber: form.formNumber,
-        formType: form.formType,
-        formData: form.data,
-        quantity: qty,
-        rate,
-        contact: { name: contact.name, email: contact.email, companyName: contact.companyName },
+      res.json({
+        salesOrderId: result.salesOrderId,
+        salesOrderNumber: result.salesOrderNumber,
+        zohoSalesOrderUrl: result.zohoSalesOrderUrl,
       });
-      const region = await getZohoRegion();
-      const zohoSalesOrderUrl = getZohoSOUrl(region, salesOrderId);
-
-      await storage.updateFormSubmission(form.id, {
-        zohoSalesOrderId: salesOrderId,
-        zohoSalesOrderNumber: salesOrderNumber,
-        zohoSalesOrderUrl,
-      });
-
-      console.log(`[zoho] Manually created SO ${salesOrderNumber} for form ${form.formNumber}`);
-      res.json({ salesOrderId, salesOrderNumber, zohoSalesOrderUrl });
     } catch (error: any) {
       console.error(`[zoho] Failed to create SO:`, error.message);
       const msg = error.message || "";
@@ -3229,7 +3391,6 @@ export async function registerRoutes(
       const userId = req.user?.claims?.sub;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
 
-      const livFormNumber = await storage.getNextFormNumber("livraison");
       const livData = {
         reference: `${form.formNumber}`,
         typeMarchandise: "",
@@ -3247,9 +3408,8 @@ export async function registerRoutes(
         instructionsSpeciales: formData.projet ? `Lié au projet co-packing: ${formData.projet}` : "",
       };
 
-      const livForm = await storage.createFormSubmission({
+      const livForm = await storage.createFormSubmissionWithNextNumber({
         formType: "livraison",
-        formNumber: livFormNumber,
         contactId: form.contactId,
         submittedBy: userId,
         submittedByName: userName,
@@ -3298,42 +3458,41 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forms/:id/uploads", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/form-uploads/:id", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
       if (!role) return res.status(401).json({ message: "Unauthorized" });
 
-      const form = await storage.getFormSubmission(Number(req.params.id));
-      if (!form) return res.status(404).json({ message: "Form not found" });
+      const uploadId = Number(req.params.id);
+      if (!Number.isInteger(uploadId) || uploadId <= 0) {
+        return res.status(400).json({ message: "Invalid upload id" });
+      }
+      const upload = await storage.getFormUpload(uploadId);
+      if (!upload) return res.status(404).json({ message: "Upload not found" });
 
-      if (role.role === "client") {
-        if (form.contactId !== role.contactId) {
-          return res.status(403).json({ message: "Not authorized" });
-        }
-        if (form.status !== "draft") {
-          return res.status(403).json({ message: "Cannot upload to non-draft form" });
+      if (role.role !== "admin") {
+        // Clients may only delete uploads on their own draft forms
+        const form = await storage.getFormSubmission(upload.formSubmissionId);
+        if (!form || form.contactId !== role.contactId || form.status !== "draft") {
+          return res.status(403).json({ message: "Non autorisé à supprimer cette pièce jointe" });
         }
       }
 
-      const { fieldKey, fileName, fileUrl, fileType, fileSize } = req.body;
-      const upload = await storage.createFormUpload({
-        formSubmissionId: form.id,
-        fieldKey,
-        fileName,
-        fileUrl,
-        fileType,
-        fileSize,
-      });
-      res.status(201).json(upload);
-    } catch (error) {
-      console.error("Error creating upload record:", error);
-      res.status(500).json({ message: "Failed to create upload record" });
-    }
-  });
-
-  app.delete("/api/form-uploads/:id", isAuthenticated, isAdmin, async (req, res) => {
-    try {
-      await storage.deleteFormUpload(Number(req.params.id));
+      if (upload.fileUrl?.startsWith("/api/uploads/")) {
+        const filename = path.basename(upload.fileUrl.replace("/api/uploads/", ""));
+        const filePath = path.join(uploadsDir, filename);
+        const resolvedPath = path.resolve(filePath);
+        const resolvedDir = path.resolve(uploadsDir);
+        if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
+          return res.status(400).json({ message: "Chemin de pièce jointe invalide" });
+        }
+        try {
+          await fs.promises.unlink(resolvedPath);
+        } catch (error: any) {
+          if (error?.code !== "ENOENT") throw error;
+        }
+      }
+      await storage.deleteFormUpload(uploadId);
       res.json({ message: "Upload deleted" });
     } catch (error) {
       console.error("Error deleting upload:", error);
@@ -3439,13 +3598,11 @@ export async function registerRoutes(
       }
 
       const contactId = role.role === "admin" ? original.contactId : role.contactId!;
-      const formNumber = await storage.getNextFormNumber(original.formType);
       const userId = req.user?.claims?.sub;
       const userName = `${req.user?.claims?.first_name || ""} ${req.user?.claims?.last_name || ""}`.trim() || "Unknown";
 
-      const newForm = await storage.createFormSubmission({
+      const newForm = await storage.createFormSubmissionWithNextNumber({
         formType: original.formType,
-        formNumber,
         contactId,
         submittedBy: userId,
         submittedByName: userName,
@@ -3556,7 +3713,16 @@ export async function registerRoutes(
     try {
       const role = await getUserRole(req);
       if (!role?.contactId) return res.status(403).json({ message: "Client contact not found" });
-      await storage.markAllNotificationsRead(role.contactId);
+      // Ne marquer que les notifications visibles par ce client : même invariant
+      // que la liste / le compteur (exclusion stricte de metadata.adminOnly).
+      // On ne touche jamais aux notifications admin (adminOnly) ni à leurs badges.
+      const notifs = await storage.getNotificationsByContactId(role.contactId);
+      const visibleUnreadIds = notifs
+        .filter((n) => !n.isRead && !(n.metadata as any)?.adminOnly)
+        .map((n) => n.id);
+      for (const id of visibleUnreadIds) {
+        await storage.markNotificationRead(id);
+      }
       res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -4460,15 +4626,36 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Non autorisé" });
       }
 
-      const { items } = req.body as {
+      const { items: rawItems } = req.body as {
         items: { zohoItemId: string; quantity: number }[];
       };
-      if (!Array.isArray(items) || items.length === 0) {
+      if (!Array.isArray(rawItems) || rawItems.length === 0) {
         return res.status(400).json({ message: "Le panier est vide" });
       }
-      if (items.some((i) => !i.zohoItemId || !Number.isInteger(i.quantity) || i.quantity < 1)) {
+      if (rawItems.some((i) =>
+        !i
+        || typeof i.zohoItemId !== "string"
+        || !i.zohoItemId.trim()
+        || !Number.isSafeInteger(i.quantity)
+        || i.quantity < 1
+      )) {
         return res.status(400).json({ message: "Articles du panier invalides" });
       }
+      // Normalize: aggregate duplicate zohoItemId lines while preserving first-seen order
+      const itemOrderMap = new Map<string, number>();
+      const itemQtyMap = new Map<string, number>();
+      for (const raw of rawItems) {
+        const key = raw.zohoItemId.trim();
+        if (!itemOrderMap.has(key)) itemOrderMap.set(key, itemOrderMap.size);
+        const quantity = (itemQtyMap.get(key) ?? 0) + raw.quantity;
+        if (!Number.isSafeInteger(quantity)) {
+          return res.status(400).json({ message: "Quantité totale du panier invalide" });
+        }
+        itemQtyMap.set(key, quantity);
+      }
+      const items = [...itemOrderMap.keys()]
+        .sort((a, b) => itemOrderMap.get(a)! - itemOrderMap.get(b)!)
+        .map((key) => ({ zohoItemId: key, quantity: itemQtyMap.get(key)! }));
       const integration = await getMapiIntegration();
       if (!integration?.isActive || !integration.accessToken || integration.connectionStatus === "invalid_token") {
         await storage.createActivityLog({
@@ -4640,6 +4827,17 @@ export async function registerRoutes(
         return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
       }
 
+      const reservation = await storage.reserveSystemdOrderStock(order.id).catch(async (error: any) => {
+        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
+        return { status: "stock_to_reserve" as const, message: error.message || "Réservation locale indisponible." };
+      });
+      if (reservation.status === "stock_to_reserve") {
+        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
+        return res.status(409).json({
+          message: reservation.message || "Le stock demandé n'est plus disponible.",
+        });
+      }
+
       let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
       try {
         debitResult = await debitRep({
@@ -4654,27 +4852,43 @@ export async function registerRoutes(
         });
         if (!paidOrder) throw new Error("Impossible d'enregistrer la commande payée.");
       } catch (error: any) {
+        let compensationSucceeded = !debitResult;
         if (debitResult) {
-          await creditRep({
-            shopifyCustomerId: shopifyCustomerGid,
-            amount: totalAmount,
-            currencyCode: "CAD",
-          }).catch(async (compensationError: any) => {
+          try {
+            await creditRep({
+              shopifyCustomerId: shopifyCustomerGid,
+              amount: totalAmount,
+              currencyCode: "CAD",
+            });
+            compensationSucceeded = true;
+          } catch (compensationError: any) {
             await storage.createActivityLog({
               type: "shopify_credit_compensation_error",
               status: "error",
               message: `ÉCHEC compensation crédit commande #${order.id}: ${compensationError.message}`,
             }).catch(() => {});
-          });
+          }
         }
-        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
+        await storage.updateSystemdOrder(order.id, compensationSucceeded
+          ? { status: "cancelled" }
+          : {
+              status: "payment_reconciliation_required",
+              shopifyCreditAccountId: debitResult?.accountId ?? null,
+              shopifyCreditTransactionId: debitResult?.transactionId ?? null,
+            }).catch(() => {});
         await storage.createActivityLog({
-          type: creditErrorActivityType(error, "shopify_credit_checkout_error"),
+          type: compensationSucceeded
+            ? creditErrorActivityType(error, "shopify_credit_checkout_error")
+            : "shopify_credit_reconciliation_required",
           status: "error",
-          message: `Checkout crédit commande #${order.id} échoué: ${error.message}`,
+          message: compensationSucceeded
+            ? `Checkout crédit commande #${order.id} échoué: ${error.message}`
+            : `Commande #${order.id} débitée mais compensation échouée — réconciliation manuelle requise.`,
         }).catch(() => {});
         return res.status(creditErrorStatus(error.message)).json({
-          message: error.message || "Crédit Shopify indisponible.",
+          message: compensationSucceeded
+            ? (error.message || "Crédit Shopify indisponible.")
+            : "Le débit doit être vérifié manuellement. Aucun nouvel essai ne doit être effectué.",
         });
       }
 
@@ -4698,19 +4912,10 @@ export async function registerRoutes(
         currentBalanceCurrency: debitResult.newBalance.currencyCode,
         lastBalanceRefreshAt: new Date(),
       }).catch(() => {});
-      const reservation = await storage.reserveSystemdOrderStock(order.id).catch(async (error: any) => {
-        await storage.updateSystemdOrder(order.id, {
-          stockReservationStatus: "stock_to_reserve",
-          fulfillmentStatus: "stock_to_reserve",
-        }).catch(() => {});
-        return { status: "stock_to_reserve" as const, message: error.message || "Réservation locale indisponible." };
-      });
       await storage.createActivityLog({
-        type: reservation.status === "stock_to_reserve" ? "systemd_stock_to_reserve" : "systemd_stock_reserved",
-        status: reservation.status === "stock_to_reserve" ? "error" : "success",
-        message: reservation.status === "stock_to_reserve"
-          ? `Commande #${order.id} payée — stock à réserver manuellement. ${reservation.message ?? ""}`.trim()
-          : `Stock local réservé pour la commande #${order.id}`,
+        type: "systemd_stock_reserved",
+        status: "success",
+        message: `Stock local réservé pour la commande #${order.id}`,
       }).catch(() => {});
       await storage.createMapiRepCreditLog({
         repId: rep.id,
@@ -4769,7 +4974,7 @@ export async function registerRoutes(
             repName,
             repEmail: shopifyCustomer.email || "Email indisponible",
             items: resolvedItems.map((item) => ({ name: item.name, quantity: item.quantity })),
-            stockStatus: reservation.status === "stock_to_reserve" ? "À vérifier / réserver manuellement" : "Réservé localement",
+            stockStatus: "Réservé localement",
           }).catch((error) => console.error("SystemD admin order email error:", error));
         }
       }

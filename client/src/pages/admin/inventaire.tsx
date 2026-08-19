@@ -356,7 +356,7 @@ export default function AdminInventaire() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto scrollbar-hide">
+               <div className="responsive-table scrollbar-hide">
                 <Table className="min-w-[700px] w-full">
                   <TableHeader>
                     <TableRow>
@@ -438,7 +438,7 @@ export default function AdminInventaire() {
                         </div>
                       </button>
                       {!isCollapsed && (
-                        <div className="overflow-x-auto scrollbar-hide">
+                         <div className="responsive-table scrollbar-hide">
                           <Table className="min-w-[700px] w-full">
                             <TableHeader>
                               <TableRow>

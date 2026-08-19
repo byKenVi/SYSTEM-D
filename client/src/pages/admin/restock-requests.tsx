@@ -172,8 +172,9 @@ export default function AdminRestockRequests() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : filtered && filtered.length > 0 ? (
-            <Table>
+           ) : filtered && filtered.length > 0 ? (
+             <div className="responsive-table">
+             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
@@ -240,7 +241,8 @@ export default function AdminRestockRequests() {
                   );
                 })}
               </TableBody>
-            </Table>
+             </Table>
+             </div>
           ) : (
             <div className="p-12 text-center">
               <RefreshCw className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />

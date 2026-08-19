@@ -151,7 +151,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
+      <Sidebar collapsible="icon" className="min-w-0 border-r border-sidebar-border bg-sidebar">
       {/* ── Header ── */}
       <SidebarHeader className="p-4 pt-6 pb-6 group-data-[collapsible=icon]:p-2 border-b border-sidebar-border/50">
         {/* Expanded */}
@@ -173,7 +173,7 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
       </SidebarHeader>
 
       {/* ── Navigation ── */}
-      <SidebarContent className="px-3 pt-4 scrollbar-hide group-data-[collapsible=icon]:px-0">
+       <SidebarContent className="min-w-0 px-3 pt-4 scrollbar-hide group-data-[collapsible=icon]:px-0">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
@@ -240,8 +240,8 @@ export function AppSidebar({ role, viewAsContactId }: AppSidebarProps) {
                 value={viewAsContactId ? String(viewAsContactId) : "__admin__"}
                 onValueChange={handleViewAsChange}
               >
-                <SelectTrigger
-                  className="w-full h-9 text-xs font-medium border-primary/20 bg-primary/10 text-primary ring-offset-sidebar focus:ring-primary/30"
+               <SelectTrigger
+                   className="w-full min-w-0 h-10 text-xs font-medium border-primary/20 bg-primary/10 text-primary ring-offset-sidebar focus:ring-primary/30"
                   data-testid="select-view-as-contact"
                 >
                   <SelectValue placeholder="Voir en tant que client..." />

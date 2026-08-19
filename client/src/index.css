@@ -3,14 +3,6 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-*::-webkit-scrollbar {
-  display: none;
-}
-
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -177,12 +169,100 @@
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    min-width: 320px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight;
+  }
+}
+
+/* Responsive application primitives. Pages can keep their desktop density while
+   these guardrails prevent a single long label, table, or form from widening
+   the viewport on small screens. */
+@layer utilities {
+  .app-shell {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .responsive-table {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.45) hsl(var(--muted) / 0.55);
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-table::-webkit-scrollbar {
+    display: block;
+    height: 8px;
+  }
+
+  .responsive-table::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.55);
+    border-radius: 999px;
+  }
+
+  .responsive-table::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.45);
+    border-radius: 999px;
+  }
+
+  .responsive-table > table {
+    min-width: 680px;
+  }
+
+  .touch-target {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  @media (max-width: 767px) {
+    .responsive-table > table {
+      min-width: 620px;
+    }
+
+    .mobile-stack {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .mobile-full {
+      width: 100%;
+      max-width: none;
+    }
+
+    [data-slot="sidebar-inset"] {
+      min-width: 0;
+    }
+
+    [data-slot="sidebar-inset"] > .app-page-padding {
+      padding: 0.875rem;
+    }
+
+    [data-slot="sidebar-trigger"] {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      max-width: 100%;
+    }
   }
 }
 

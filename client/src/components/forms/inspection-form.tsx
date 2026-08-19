@@ -48,9 +48,9 @@ interface InspectionFormData {
 interface InspectionFormProps {
   data: InspectionFormData;
   onChange: (data: InspectionFormData) => void;
+  formSubmissionId: number;
   disabled?: boolean;
   revisionHistory?: { date: string; rev: number; description: string; modifiedBy: string }[];
-  onFileAdded?: (fieldKey: string, file: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) => void;
 }
 
 const defaultInspectionData: InspectionFormData = {
@@ -90,7 +90,7 @@ const PPE_OPTIONS = [
 
 const CONTROL_METHODS = ["Visuel", "Électrique", "Dimensionnel", "Autre"];
 
-export function InspectionForm({ data, onChange, disabled, revisionHistory = [], onFileAdded }: InspectionFormProps) {
+export function InspectionForm({ data, onChange, formSubmissionId, disabled, revisionHistory = [] }: InspectionFormProps) {
   const d = { ...defaultInspectionData, ...data };
 
   function update(partial: Partial<InspectionFormData>) {
@@ -311,15 +311,15 @@ export function InspectionForm({ data, onChange, disabled, revisionHistory = [],
                 <div className="space-y-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
                   <h4 className="font-medium text-sm text-red-700 dark:text-red-400">Non-conforme</h4>
                   <Textarea value={c.nonCompliantDescription} onChange={(e) => updateCriteria(i, { nonCompliantDescription: e.target.value })} disabled={disabled} rows={2} placeholder="Qu'est-ce qui rend la pièce non-conforme?" data-testid={`input-criteria-nc-desc-${i}`} />
-                  <FileUpload value={c.nonCompliantPhotos || []} onChange={(files) => updateCriteria(i, { nonCompliantPhotos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_nc_photo`, f)} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos non-conformes" />
-                  <FileUpload value={c.nonCompliantVideos || []} onChange={(files) => updateCriteria(i, { nonCompliantVideos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_nc_video`, f)} accept=".mp4,.mov" disabled={disabled} label="Vidéos non-conformes" />
+                  <FileUpload value={c.nonCompliantPhotos || []} onChange={(files) => updateCriteria(i, { nonCompliantPhotos: files })} formSubmissionId={formSubmissionId} fieldKey={`criteria_${i}_nc_photo`} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos non-conformes" />
+                  <FileUpload value={c.nonCompliantVideos || []} onChange={(files) => updateCriteria(i, { nonCompliantVideos: files })} formSubmissionId={formSubmissionId} fieldKey={`criteria_${i}_nc_video`} accept=".mp4,.mov" disabled={disabled} label="Vidéos non-conformes" />
                 </div>
 
                 <div className="space-y-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg">
                   <h4 className="font-medium text-sm text-emerald-700 dark:text-emerald-400">Conforme</h4>
                   <Textarea value={c.compliantDescription} onChange={(e) => updateCriteria(i, { compliantDescription: e.target.value })} disabled={disabled} rows={2} placeholder="À quoi ressemble une pièce conforme?" data-testid={`input-criteria-c-desc-${i}`} />
-                  <FileUpload value={c.compliantPhotos || []} onChange={(files) => updateCriteria(i, { compliantPhotos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_c_photo`, f)} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos conformes" />
-                  <FileUpload value={c.compliantVideos || []} onChange={(files) => updateCriteria(i, { compliantVideos: files })} onFileAdded={(f) => onFileAdded?.(`criteria_${i}_c_video`, f)} accept=".mp4,.mov" disabled={disabled} label="Vidéos conformes" />
+                  <FileUpload value={c.compliantPhotos || []} onChange={(files) => updateCriteria(i, { compliantPhotos: files })} formSubmissionId={formSubmissionId} fieldKey={`criteria_${i}_c_photo`} accept=".jpg,.jpeg,.png,.heic" disabled={disabled} label="Photos conformes" />
+                  <FileUpload value={c.compliantVideos || []} onChange={(files) => updateCriteria(i, { compliantVideos: files })} formSubmissionId={formSubmissionId} fieldKey={`criteria_${i}_c_video`} accept=".mp4,.mov" disabled={disabled} label="Vidéos conformes" />
                 </div>
               </div>
             </div>
