@@ -5,3 +5,4 @@
 - [Store-credit checkout idempotency](store-credit-idempotency.md) — only pending debits block duplicate submissions; paid orders must never prevent a fresh identical purchase.
 - [Shopify connection resilience](shopify-connection-resilience.md) — treat only explicit 401 responses as invalid tokens; rate limits and scope/network faults remain recoverable.
 - [External side-effect serialization](external-side-effect-locking.md) — every path creating the same Zoho entity must share a DB lock and re-check state after acquisition.
+- [Shopify checkout identity](shopify-checkout-identity.md) — reuse a short-lived server-synced rep identity, but always reread the balance immediately before debit.

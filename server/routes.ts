@@ -3885,6 +3885,35 @@ export async function registerRoutes(
       return null;
     };
 
+    type CheckoutShopifyCustomer = {
+      shopifyCustomerId: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+    };
+    const MAPI_CHECKOUT_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
+    const findFreshCachedMapiRepByEmail = async (
+      email: string,
+    ): Promise<CheckoutShopifyCustomer | null> => {
+      const normalizedEmail = email.trim().toLowerCase();
+      const rep = (await storage.getMapiReps("active")).find(
+        (candidate) => candidate.email.trim().toLowerCase() === normalizedEmail,
+      );
+      const refreshedAt = rep?.lastBalanceRefreshAt ? new Date(rep.lastBalanceRefreshAt).getTime() : NaN;
+      const isFresh = Number.isFinite(refreshedAt)
+        && Date.now() - refreshedAt >= 0
+        && Date.now() - refreshedAt <= MAPI_CHECKOUT_CACHE_MAX_AGE_MS;
+      if (!rep || !isFresh || !rep.shopifyCustomerGid.startsWith("gid://shopify/Customer/")) {
+        return null;
+      }
+      return {
+        shopifyCustomerId: rep.shopifyCustomerGid,
+        email: rep.email,
+        firstName: rep.firstName,
+        lastName: rep.lastName,
+      };
+    };
+
     const creditErrorStatus = shopifyCreditHttpStatus;
     const creditErrorActivityType = (error: any, fallback: string) => {
       if (error?.code === "SHOPIFY_PERMISSION_INSUFFICIENT" || /scope|permission|access denied|403/i.test(error?.message ?? "")) {
@@ -4676,18 +4705,23 @@ export async function registerRoutes(
         });
       }
 
-      let shopifyCustomer: Awaited<ReturnType<typeof findMapiRepByEmail>>;
-      try {
-        shopifyCustomer = await findMapiRepByEmail(authenticatedEmail);
-      } catch (error: any) {
-        await storage.createActivityLog({
-          type: creditErrorActivityType(error, "shopify_credit_error"),
-          status: "error",
-          message: `Checkout crédit: recherche du compte Shopify par email échouée (${error.message})`,
-        }).catch(() => {});
-        return res.status(error.message?.includes("401") ? 503 : 400).json({
-          message: error.message?.includes("401") ? "Connexion Shopify requise." : "Crédit Shopify indisponible.",
-        });
+      // The cart has just loaded the rep list and refreshed this local cache. Reuse
+      // that short-lived identity rather than issuing a second full Shopify customer
+      // listing immediately before the debit; the balance below is still read live.
+      let shopifyCustomer: CheckoutShopifyCustomer | null = await findFreshCachedMapiRepByEmail(authenticatedEmail);
+      if (!shopifyCustomer) {
+        try {
+          shopifyCustomer = await findMapiRepByEmail(authenticatedEmail);
+        } catch (error: any) {
+          await storage.createActivityLog({
+            type: creditErrorActivityType(error, "shopify_credit_error"),
+            status: "error",
+            message: `Checkout crédit: recherche du compte Shopify par email échouée (${error.message})`,
+          }).catch(() => {});
+          return res.status(creditErrorStatus(error.message)).json({
+            message: error.message?.includes("401") ? "Connexion Shopify requise." : "Crédit Shopify indisponible.",
+          });
+        }
       }
       if (!shopifyCustomer) {
         await storage.createActivityLog({

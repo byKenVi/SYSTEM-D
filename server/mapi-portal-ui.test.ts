@@ -24,6 +24,20 @@ test("le checkout résout automatiquement le rep par l'email authentifié", () =
   assert.match(routes, /paymentMethod: "shopify_credit"/);
 });
 
+test("le checkout réutilise le rep fraîchement synchronisé avant une recherche Shopify de secours", () => {
+  assert.match(routes, /MAPI_CHECKOUT_CACHE_MAX_AGE_MS = 10 \* 60 \* 1000/);
+  assert.match(routes, /findFreshCachedMapiRepByEmail/);
+  const checkout = routes.slice(
+    routes.indexOf('app.post("/api/portal/systemd-checkout"'),
+    routes.indexOf('app.get("/api/admin/systemd-orders"', routes.indexOf('app.post("/api/portal/systemd-checkout"')),
+  );
+  const cacheLookup = checkout.indexOf("findFreshCachedMapiRepByEmail(authenticatedEmail)");
+  const liveLookup = checkout.indexOf("findMapiRepByEmail(authenticatedEmail)");
+  assert.ok(cacheLookup > -1 && liveLookup > cacheLookup, "le cache récent est préféré à une seconde liste Shopify");
+  assert.match(checkout, /getRepBalance\(shopifyCustomerGid\)/, "le solde reste relu en direct avant le débit");
+  assert.match(checkout, /res\.status\(creditErrorStatus\(error\.message\)\)/, "une indisponibilité de recherche reste un 503, pas un faux 400");
+});
+
 test("Mes reps lit les soldes Mapei et identifie le compte de l'utilisateur", () => {
   assert.match(boutique, /\/api\/portal\/mapi\/reps/);
   assert.match(boutique, /Crédit disponible/);
