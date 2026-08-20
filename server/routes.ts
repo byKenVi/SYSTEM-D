@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -24,6 +24,10 @@ import {
   testShopifyConnection,
   validateShopifyStoreUrl,
   fetchShopifyOrders,
+  buildShopifyAuthUrl,
+  exchangeShopifyCode,
+  getShopDetails,
+  verifyShopifyCallbackHmac,
 } from "./shopify-api";
 
 function buildStatusNotification(
@@ -345,6 +349,46 @@ export async function registerRoutes(
       res.status(500).json({ message: "Internal server error" });
     }
   };
+
+  type PendingShopifyOAuth = {
+    contactId: number;
+    storeUrl: string;
+    shopName: string | null;
+    createdAt: number;
+  };
+  const SHOPIFY_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+  function getShopifyOAuthCredentials(settings: Awaited<ReturnType<typeof storage.getAdminSettings>>) {
+    const clientId = (process.env.SHOPIFY_CLIENT_ID || settings?.shopifyAppClientId || "").trim();
+    const clientSecret = (process.env.SHOPIFY_CLIENT_SECRET || settings?.shopifyAppClientSecret || "").trim();
+    if (!clientId || !clientSecret) {
+      throw new Error("La connexion Shopify OAuth doit être configurée avec SHOPIFY_CLIENT_ID et SHOPIFY_CLIENT_SECRET.");
+    }
+    return { clientId, clientSecret };
+  }
+
+  function getShopifyOAuthCallbackUrl(req: any): string {
+    const rawHost = String(req.get("x-forwarded-host") || req.get("host") || "").split(",")[0].trim();
+    if (!/^[a-zA-Z0-9.-]+(?::\d+)?$/.test(rawHost)) {
+      throw new Error("Adresse publique de l'application Shopify invalide.");
+    }
+    const forwardedProtocol = String(req.get("x-forwarded-proto") || "").split(",")[0].trim().toLowerCase();
+    const protocol = rawHost.startsWith("localhost") || rawHost.startsWith("127.0.0.1")
+      ? "http"
+      : forwardedProtocol === "http" ? "http" : "https";
+    return `${protocol}://${rawHost}/api/auth/shopify/callback`;
+  }
+
+  async function saveShopifyOAuthSession(req: any): Promise<void> {
+    if (!req.session?.save) return;
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((error: Error | null | undefined) => error ? reject(error) : resolve());
+    });
+  }
+
+  function redirectToShopifySettings(res: any, params: Record<string, string>) {
+    return res.redirect(`/admin/settings?${new URLSearchParams(params).toString()}`);
+  }
 
   app.get("/api/auth/role", isAuthenticated, async (req: any, res) => {
     try {
@@ -1131,7 +1175,7 @@ export async function registerRoutes(
 
   app.post("/api/shopify-integrations/connect", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const { contactId, storeUrl, platform = "shopify", shopName, accessToken, consumerKey, consumerSecret } = req.body;
+      const { contactId, storeUrl, platform = "shopify", shopName, consumerKey, consumerSecret } = req.body;
       if (!contactId || !storeUrl) {
         return res.status(400).json({ message: "contactId and storeUrl are required" });
       }
@@ -1178,47 +1222,12 @@ export async function registerRoutes(
         return res.json({ success: true, shopName: test.shopName, integrationId: integration?.id, reconnected: Boolean(existing) });
       }
 
-      // Shopify
-      if (!accessToken) {
-        return res.status(400).json({ message: "accessToken is required for Shopify" });
-      }
-      const normalizedStore = normalizeShopifyStoreUrl(storeUrl);
-      if (!validateShopifyStoreUrl(normalizedStore)) {
-        return res.status(400).json({ message: "Store URL must be a valid *.myshopify.com domain (e.g. mystore.myshopify.com)" });
-      }
-      const test = await testShopifyConnection(normalizedStore, accessToken);
-      if (!test.success) {
-        return res.status(400).json({ message: `Could not connect to Shopify store: ${test.error || "invalid token or store URL"}` });
-      }
-      const integrations = await storage.getShopifyIntegrations();
-      const existing = integrations.find((integration) =>
-        integration.contactId === Number(contactId) &&
-        (integration.platform ?? "shopify") === "shopify" &&
-        normalizeShopifyStoreUrl(integration.storeUrl) === normalizedStore
-      );
-      const integration = existing
-        ? await storage.updateShopifyIntegration(existing.id, {
-            accessToken,
-            storeUrl: normalizedStore,
-            shopName: shopName?.trim() || test.shopName || normalizedStore,
-            isActive: true,
-            connectionStatus: "ok",
-            lastConnectionTestedAt: new Date(),
-            lastConnectionError: null,
-            consecutiveErrors: 0,
-            syncPausedUntil: null,
-          } as any)
-        : await storage.createShopifyIntegration({
-            contactId: Number(contactId),
-            platform: "shopify",
-            accessToken,
-            storeUrl: normalizedStore,
-            shopName: shopName?.trim() || test.shopName || normalizedStore,
-            scope: null,
-            isActive: true,
-          } as any);
-      await storage.updateContact(Number(contactId), { shopifyConnected: true });
-      res.json({ success: true, shopName: test.shopName, integrationId: integration?.id, reconnected: Boolean(existing) });
+      // Shopify installations are deliberately created through the offline OAuth
+      // flow. A pasted token cannot be renewed and would reintroduce avoidable
+      // disconnects for the client-facing portal.
+      return res.status(410).json({
+        message: "La connexion Shopify utilise OAuth offline. Utilisez « Continuer avec Shopify » dans les réglages.",
+      });
     } catch (error: any) {
       console.error("Error connecting store:", error);
       res.status(500).json({ message: error.message || "Failed to connect store" });
@@ -1497,6 +1506,142 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating settings:", error);
       res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // ====== SHOPIFY OFFLINE OAUTH ======
+
+  app.get("/api/auth/shopify/callback-url", isAuthenticated, isAdmin, (req: any, res) => {
+    try {
+      res.json({ callbackUrl: getShopifyOAuthCallbackUrl(req) });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Impossible de déterminer l'URL de retour Shopify." });
+    }
+  });
+
+  app.post("/api/auth/shopify/connect", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const contactId = Number(req.body?.contactId);
+      const requestedStore = typeof req.body?.storeUrl === "string" ? req.body.storeUrl : "";
+      const shopName = typeof req.body?.shopName === "string" && req.body.shopName.trim()
+        ? req.body.shopName.trim().slice(0, 250)
+        : null;
+      const storeUrl = normalizeShopifyStoreUrl(requestedStore);
+      if (!Number.isSafeInteger(contactId) || contactId <= 0 || !validateShopifyStoreUrl(storeUrl)) {
+        return res.status(400).json({ message: "Sélectionnez un client et une boutique *.myshopify.com valide." });
+      }
+      const contact = await storage.getContact(contactId);
+      if (!contact) return res.status(404).json({ message: "Client introuvable." });
+
+      const settings = await storage.getAdminSettings();
+      const { clientId } = getShopifyOAuthCredentials(settings);
+      const callbackUrl = getShopifyOAuthCallbackUrl(req);
+      const state = randomBytes(32).toString("hex");
+      const session = req.session as { shopifyOAuthStates?: Record<string, PendingShopifyOAuth> } | undefined;
+      if (!session) return res.status(500).json({ message: "Session administrateur indisponible. Rechargez la page et réessayez." });
+
+      const now = Date.now();
+      const states = Object.fromEntries(
+        Object.entries(session.shopifyOAuthStates ?? {}).filter(([, value]) =>
+          Number.isFinite(value.createdAt) && now - value.createdAt <= SHOPIFY_OAUTH_STATE_TTL_MS,
+        ),
+      );
+      states[state] = { contactId, storeUrl, shopName, createdAt: now };
+      session.shopifyOAuthStates = states;
+      await saveShopifyOAuthSession(req);
+
+      res.json({ authUrl: buildShopifyAuthUrl(storeUrl, clientId, callbackUrl, state) });
+    } catch (error: any) {
+      console.error("Shopify OAuth connection start failed:", error.message || error);
+      res.status(500).json({ message: error.message || "Impossible de démarrer la connexion Shopify." });
+    }
+  });
+
+  app.get("/api/auth/shopify/callback", async (req: any, res) => {
+    const state = typeof req.query?.state === "string" ? req.query.state : "";
+    const session = req.session as { shopifyOAuthStates?: Record<string, PendingShopifyOAuth> } | undefined;
+    const pending = state ? session?.shopifyOAuthStates?.[state] : undefined;
+
+    try {
+      if (!pending || Date.now() - pending.createdAt > SHOPIFY_OAUTH_STATE_TTL_MS) {
+        return redirectToShopifySettings(res, { shopify_error: "authorization_expired" });
+      }
+
+      const settings = await storage.getAdminSettings();
+      const { clientId, clientSecret } = getShopifyOAuthCredentials(settings);
+      const rawQuery = req.originalUrl.includes("?") ? req.originalUrl.split("?")[1] : "";
+      if (!verifyShopifyCallbackHmac(rawQuery, clientSecret)) {
+        return redirectToShopifySettings(res, { shopify_error: "authorization_invalid" });
+      }
+
+      const callbackError = typeof req.query?.error === "string" ? req.query.error : "";
+      delete session!.shopifyOAuthStates![state];
+      await saveShopifyOAuthSession(req);
+      if (callbackError) {
+        return redirectToShopifySettings(res, { shopify_error: "authorization_cancelled" });
+      }
+
+      const code = typeof req.query?.code === "string" ? req.query.code : "";
+      const callbackShop = typeof req.query?.shop === "string"
+        ? normalizeShopifyStoreUrl(req.query.shop)
+        : "";
+      if (!code || !callbackShop || callbackShop !== pending.storeUrl) {
+        return redirectToShopifySettings(res, { shopify_error: "authorization_invalid" });
+      }
+
+      const callbackUrl = getShopifyOAuthCallbackUrl(req);
+      const oauth = await exchangeShopifyCode(pending.storeUrl, clientId, clientSecret, code);
+      const shop = await getShopDetails(pending.storeUrl, oauth.accessToken);
+      const verifiedStoreUrl = normalizeShopifyStoreUrl(shop.domain);
+      if (verifiedStoreUrl !== pending.storeUrl) {
+        throw new Error("Shopify returned a store different from the requested store.");
+      }
+
+      const integrations = await storage.getShopifyIntegrations();
+      const existing = integrations.find((integration) =>
+        integration.contactId === pending.contactId
+        && (integration.platform ?? "shopify") === "shopify"
+        && normalizeShopifyStoreUrl(integration.storeUrl) === verifiedStoreUrl,
+      );
+      const integrationData = {
+        accessToken: oauth.accessToken,
+        storeUrl: verifiedStoreUrl,
+        shopName: pending.shopName || shop.name || verifiedStoreUrl,
+        scope: oauth.scope || null,
+        platformConfig: { authMode: "oauth_offline" },
+        isActive: true,
+        connectionStatus: "ok",
+        lastConnectionTestedAt: new Date(),
+        lastConnectionError: null,
+        consecutiveErrors: 0,
+        syncPausedUntil: null,
+      };
+      const integration = existing
+        ? await storage.updateShopifyIntegration(existing.id, integrationData as any)
+        : await storage.createShopifyIntegration({
+            contactId: pending.contactId,
+            platform: "shopify",
+            ...integrationData,
+          } as any);
+
+      await storage.updateContact(pending.contactId, { shopifyConnected: true });
+      await storage.createActivityLog({
+        type: "shopify_oauth_connected",
+        status: "success",
+        message: `Boutique Shopify connectée via OAuth offline : ${verifiedStoreUrl}`,
+      });
+      return redirectToShopifySettings(res, {
+        shopify_connected: "true",
+        integration_id: String(integration?.id ?? ""),
+      });
+    } catch (error: any) {
+      console.error("Shopify OAuth callback failed:", error?.message || "unknown error");
+      await storage.createActivityLog({
+        type: "shopify_oauth_connected",
+        status: "error",
+        message: "La connexion OAuth Shopify a échoué. Aucun secret ni token n'a été journalisé.",
+      }).catch(() => {});
+      return redirectToShopifySettings(res, { shopify_error: "connection_failed" });
     }
   });
 

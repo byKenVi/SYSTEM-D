@@ -1,10 +1,17 @@
 import { storage } from "./storage";
-import { fetchShopifyOrders } from "./shopify-api";
+import { classifyShopifyFailure, fetchShopifyOrders } from "./shopify-api";
 import { fetchWooOrders, normalizeWooOrders } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
+const INITIAL_RETRY_DELAY_MS = 2 * 60 * 1000;
+const MAX_RETRY_DELAY_MS = 60 * 60 * 1000;
+const PERMISSION_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
 let isSyncing = false;
+
+function retryDelayFor(errorCount: number): number {
+  return Math.min(MAX_RETRY_DELAY_MS, INITIAL_RETRY_DELAY_MS * 2 ** Math.min(Math.max(errorCount - 1, 0), 5));
+}
 
 export async function syncOrdersForIntegration(integration: { id: number; contactId: number; storeUrl: string; accessToken: string; shopName: string | null; platform?: string; platformConfig?: any }) {
   const platform = integration.platform ?? "shopify";
@@ -35,7 +42,13 @@ export async function syncOrdersForIntegration(integration: { id: number; contac
   }
 
   await storage.upsertShopifyOrdersByIntegration(integration.id, orders);
-  await storage.updateShopifyIntegration(integration.id, { lastOrderSyncAt: new Date() } as any);
+  await storage.updateShopifyIntegration(integration.id, {
+    lastOrderSyncAt: new Date(),
+    connectionStatus: "ok",
+    consecutiveErrors: 0,
+    syncPausedUntil: null,
+    lastConnectionError: null,
+  } as any);
   return orders.length;
 }
 
@@ -64,12 +77,37 @@ export function startShopifyOrdersSyncScheduler() {
             message: `Orders auto-sync: ${count} order${count !== 1 ? "s" : ""} updated from ${integration.storeUrl}`,
           });
         } catch (err: any) {
-          log(`Orders auto-sync error for integration ${integration.id}: ${err.message}`, "orders-sync");
-          await storage.createActivityLog({
-            type: "shopify_orders_sync",
-            status: "error",
-            message: `Orders auto-sync failed for ${integration.storeUrl}: ${err.message}`,
-          });
+          const failureKind = classifyShopifyFailure(err);
+          const errorCount = ((integration as any).consecutiveErrors ?? 0) + 1;
+          const syncPausedUntil = failureKind === "invalid_token"
+            ? null
+            : new Date(Date.now() + (
+              failureKind === "permission_insufficient"
+                ? PERMISSION_RETRY_DELAY_MS
+                : retryDelayFor(errorCount)
+            ));
+          await storage.updateShopifyIntegration(integration.id, {
+            consecutiveErrors: errorCount,
+            connectionStatus: failureKind === "invalid_token"
+              ? "invalid_token"
+              : failureKind === "permission_insufficient"
+              ? "permission_insufficient"
+              : "error",
+            syncPausedUntil,
+            lastConnectionError: err.message,
+          } as any);
+          log(`Orders auto-sync ${failureKind} for integration ${integration.id}`, "orders-sync");
+          if (errorCount === 1 || failureKind === "invalid_token" || failureKind === "permission_insufficient") {
+            await storage.createActivityLog({
+              type: "shopify_orders_sync",
+              status: "error",
+              message: failureKind === "invalid_token"
+                ? `Sync commandes Shopify interrompue pour ${integration.storeUrl} : l'autorisation a été révoquée.`
+                : failureKind === "permission_insufficient"
+                ? `Sync commandes Shopify suspendue pour ${integration.storeUrl} : autorisation insuffisante.`
+                : `Sync commandes Shopify temporairement différée pour ${integration.storeUrl}. Nouvelle tentative automatique prévue.`,
+            });
+          }
         }
       }
     } catch (err: any) {

@@ -17,7 +17,7 @@ import {
   zohoCatalog, type ZohoCatalogItem, type InsertZohoCatalogItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, asc, desc, gt, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
+import { eq, and, asc, desc, gt, ne, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   getContacts(): Promise<Contact[]>;
@@ -317,6 +317,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(shopifyIntegrations).where(
       and(
         eq(shopifyIntegrations.isActive, true),
+        ne(shopifyIntegrations.connectionStatus, "invalid_token"),
         gt(shopifyIntegrations.syncFrequencyMinutes, 0),
         // Exclude integrations paused due to consecutive errors
         or(
@@ -335,7 +336,12 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(shopifyIntegrations).where(
       and(
         eq(shopifyIntegrations.isActive, true),
+        ne(shopifyIntegrations.connectionStatus, "invalid_token"),
         gt(shopifyIntegrations.orderSyncFrequencyMinutes, 0),
+        or(
+          isNull(shopifyIntegrations.syncPausedUntil),
+          sql`${shopifyIntegrations.syncPausedUntil} <= NOW()`
+        ),
         or(
           isNull(shopifyIntegrations.lastOrderSyncAt),
           sql`${shopifyIntegrations.lastOrderSyncAt} < NOW() - (${shopifyIntegrations.orderSyncFrequencyMinutes} || ' minutes')::interval`

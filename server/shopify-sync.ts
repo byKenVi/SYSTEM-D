@@ -1,12 +1,17 @@
 import { storage } from "./storage";
-import { fetchAllProducts, normalizeProducts } from "./shopify-api";
+import { classifyShopifyFailure, fetchAllProducts, normalizeProducts } from "./shopify-api";
 import { fetchWooProducts } from "./woocommerce-api";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
-const MAX_CONSECUTIVE_ERRORS = 5;
-const PAUSE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+const INITIAL_RETRY_DELAY_MS = 2 * 60 * 1000;
+const MAX_RETRY_DELAY_MS = 60 * 60 * 1000;
+const PERMISSION_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
 let isSyncing = false;
+
+function retryDelayFor(errorCount: number): number {
+  return Math.min(MAX_RETRY_DELAY_MS, INITIAL_RETRY_DELAY_MS * 2 ** Math.min(Math.max(errorCount - 1, 0), 5));
+}
 
 export function startShopifySyncScheduler() {
   log("Shopify auto-sync scheduler started (checks every 60s)", "sync");
@@ -162,35 +167,46 @@ export function startShopifySyncScheduler() {
             await storage.createActivityLog({ type: "shopify_auto_sync", status: "success", message: `Auto-sync : ${summary} produit(s) depuis ${integration.storeUrl}` });
           }
         } catch (err: any) {
-          const is401 = err.message?.includes("401");
-          const is429 = err.message?.includes("429") || err.message?.toLowerCase().includes("rate limit");
+          const failureKind = classifyShopifyFailure(err);
           const prevErrors = (integration as any).consecutiveErrors ?? 0;
-          // Rate-limit (429) is transient — don't increment the consecutive error counter
-          const newConsecutiveErrors = is429 ? prevErrors : prevErrors + 1;
-          const shouldPause = newConsecutiveErrors >= MAX_CONSECUTIVE_ERRORS;
+          const newConsecutiveErrors = prevErrors + 1;
+          const pauseUntil = failureKind === "invalid_token"
+            ? null
+            : new Date(Date.now() + (
+              failureKind === "permission_insufficient"
+                ? PERMISSION_RETRY_DELAY_MS
+                : retryDelayFor(newConsecutiveErrors)
+            ));
 
           const updateData: Record<string, any> = {
             consecutiveErrors: newConsecutiveErrors,
-            connectionStatus: is401 ? "invalid_token" : "error",
+            connectionStatus: failureKind === "invalid_token"
+              ? "invalid_token"
+              : failureKind === "permission_insufficient"
+              ? "permission_insufficient"
+              : "error",
             lastConnectionError: err.message,
+            syncPausedUntil: pauseUntil,
           };
-          if (shouldPause) {
-            updateData.syncPausedUntil = new Date(Date.now() + PAUSE_DURATION_MS);
-          }
           await storage.updateShopifyIntegration(integration.id, updateData as any);
 
-          // Only log on first error or when pausing — avoid flooding activity_logs
-          if (newConsecutiveErrors === 1 || shouldPause) {
-            const msg = shouldPause
-              ? `Sync suspendue pour ${integration.storeUrl} après ${newConsecutiveErrors} erreurs consécutives (reprise dans 30 min). Erreur : ${err.message}`
-              : `Auto-sync error for integration ${integration.id}: ${err.message}`;
+          // Log the first issue and explicit authorization/scope failures. A
+          // retry delay prevents transient faults from flooding this journal.
+          if (newConsecutiveErrors === 1 || failureKind === "invalid_token" || failureKind === "permission_insufficient") {
+            const msg = failureKind === "invalid_token"
+              ? `Sync Shopify arrêtée : autorisation révoquée pour ${integration.storeUrl}.`
+              : failureKind === "permission_insufficient"
+              ? `Sync Shopify suspendue : autorisation insuffisante pour ${integration.storeUrl}.`
+              : `Sync Shopify différée jusqu'à ${pauseUntil?.toLocaleTimeString("fr-CA")} après une erreur ${failureKind}.`;
             log(msg, "sync");
             await storage.createActivityLog({
               type: "shopify_auto_sync",
               status: "error",
-              message: shouldPause
-                ? `Sync Shopify suspendue pour ${integration.storeUrl} — token invalide ou store inaccessible. Reprise automatique dans 30 min.`
-                : `Auto-sync failed for ${integration.storeUrl}: ${err.message}`,
+              message: failureKind === "invalid_token"
+                ? `Sync Shopify interrompue pour ${integration.storeUrl} : l'autorisation a été révoquée et doit être renouvelée via OAuth.`
+                : failureKind === "permission_insufficient"
+                ? `Sync Shopify suspendue pour ${integration.storeUrl} : une autorisation Shopify requise est absente.`
+                : `Sync Shopify temporairement différée pour ${integration.storeUrl}. Nouvelle tentative automatique prévue.`,
             });
           }
         }

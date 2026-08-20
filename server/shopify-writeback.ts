@@ -56,7 +56,7 @@ export function startShopifyWritebackScheduler() {
       const integrations = await storage.getShopifyIntegrations();
       const storeInfoMap = new Map<string, { accessToken: string; platform: string; platformConfig: any }>();
       for (const integ of integrations) {
-        if (integ.isActive) {
+        if (integ.isActive && integ.connectionStatus !== "invalid_token") {
           storeInfoMap.set(integ.storeUrl, {
             accessToken: integ.accessToken,
             platform: (integ as any).platform ?? "shopify",

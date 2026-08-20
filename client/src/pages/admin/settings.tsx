@@ -119,7 +119,6 @@ export default function AdminSettingsPage() {
   const [storePlatform, setStorePlatform] = useState<"shopify" | "woocommerce" | "other">("shopify");
   const [storeName, setStoreName] = useState("");
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
-  const [shopifyAccessToken, setShopifyAccessToken] = useState("");
   const [wooConsumerKey, setWooConsumerKey] = useState("");
   const [wooConsumerSecret, setWooConsumerSecret] = useState("");
   const [zohoRegion, setZohoRegion] = useState("us");
@@ -183,6 +182,29 @@ export default function AdminSettingsPage() {
       });
       window.history.replaceState({}, "", "/admin/settings");
     }
+    if (params.get("shopify_connected") === "true") {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      toast({
+        title: "Shopify connecté",
+        description: "La boutique est liée avec un accès OAuth offline durable.",
+      });
+      window.history.replaceState({}, "", "/admin/settings");
+    } else if (params.get("shopify_error")) {
+      const reason = params.get("shopify_error");
+      const messages: Record<string, string> = {
+        authorization_expired: "La demande a expiré. Relancez la connexion depuis les réglages.",
+        authorization_invalid: "Le retour Shopify n’a pas pu être vérifié. Relancez la connexion.",
+        authorization_cancelled: "L’autorisation Shopify a été annulée.",
+        connection_failed: "La connexion Shopify n’a pas abouti. Vérifiez la configuration de l’application Shopify puis réessayez.",
+      };
+      toast({
+        title: "Connexion Shopify échouée",
+        description: messages[reason || ""] || "Impossible de finaliser la connexion Shopify.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/admin/settings");
+    }
 
   }, []);
 
@@ -225,13 +247,17 @@ export default function AdminSettingsPage() {
       if (storePlatform === "woocommerce") {
         body.consumerKey = wooConsumerKey;
         body.consumerSecret = wooConsumerSecret;
-      } else {
-        body.accessToken = shopifyAccessToken;
+        const res = await apiRequest("POST", "/api/shopify-integrations/connect", body);
+        return res.json();
       }
-      const res = await apiRequest("POST", "/api/shopify-integrations/connect", body);
+      const res = await apiRequest("POST", "/api/auth/shopify/connect", body);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      if (storePlatform === "shopify" && data?.authUrl) {
+        window.location.assign(data.authUrl);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/shopify-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setShopifyOpen(false);
@@ -239,7 +265,6 @@ export default function AdminSettingsPage() {
       setStorePlatform("shopify");
       setStoreName("");
       setShopifyStoreUrl("");
-      setShopifyAccessToken("");
       setWooConsumerKey("");
       setWooConsumerSecret("");
       const label = storePlatform === "woocommerce" ? "WooCommerce" : "Shopify";
@@ -248,7 +273,7 @@ export default function AdminSettingsPage() {
     onError: (error: any) => {
       toast({
         title: "Connexion échouée",
-        description: error.message || "Impossible de connecter la boutique. Vérifiez l'URL et les identifiants.",
+        description: error.message || "Impossible de démarrer la connexion de la boutique.",
         variant: "destructive",
       });
     },
@@ -339,7 +364,7 @@ export default function AdminSettingsPage() {
       if (data.status === "ok") {
         toast({ title: "Connexion OK", description: `Boutique ${data.shopName ? `"${data.shopName}"` : ""} accessible.` });
       } else if (data.status === "invalid_token") {
-        toast({ title: "Token invalide", description: "Le jeton d'accès Shopify est invalide ou révoqué. Déconnectez et reconnectez la boutique avec un nouveau token.", variant: "destructive" });
+        toast({ title: "Autorisation Shopify révoquée", description: "La connexion a été invalidée par Shopify. Reconnectez la boutique via OAuth offline.", variant: "destructive" });
       } else {
         toast({ title: "Erreur de connexion", description: data.error || "Store inaccessible.", variant: "destructive" });
       }
@@ -1006,7 +1031,6 @@ export default function AdminSettingsPage() {
                     setStorePlatform("shopify");
                     setStoreName("");
                     setShopifyStoreUrl("");
-                    setShopifyAccessToken("");
                     setWooConsumerKey("");
                     setWooConsumerSecret("");
                   }
@@ -1078,17 +1102,10 @@ export default function AdminSettingsPage() {
                       </div>
 
                       {storePlatform === "shopify" ? (
-                        <div className="space-y-2">
-                          <Label>Jeton d'accès API Admin</Label>
-                          <Input
-                            type="password"
-                            value={shopifyAccessToken}
-                            onChange={(e) => setShopifyAccessToken(e.target.value)}
-                            placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
-                            data-testid="input-shopify-access-token"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Le jeton requiert les portées <code>read_products</code>, <code>read_inventory</code>, <code>write_inventory</code>, <code>read_customers</code>, <code>read_store_credit_accounts</code> et <code>write_store_credit_account_transactions</code>.
+                        <div className="rounded-md border border-green-200 bg-green-50/60 p-3 text-sm dark:border-green-900 dark:bg-green-950/20">
+                          <p className="font-medium text-green-900 dark:text-green-200">Connexion Shopify sécurisée</p>
+                          <p className="mt-1 text-xs text-green-800 dark:text-green-300">
+                            Vous serez redirigé vers Shopify pour autoriser l’application une seule fois. L’accès offline reste actif sans token à copier ni renouvellement quotidien.
                           </p>
                         </div>
                       ) : storePlatform === "woocommerce" ? (
@@ -1125,12 +1142,18 @@ export default function AdminSettingsPage() {
                         onClick={() => connectShopifyMutation.mutate()}
                         disabled={
                           !selectedClient || !shopifyStoreUrl || storePlatform === "other" ||
-                          (storePlatform === "shopify" ? !shopifyAccessToken : !wooConsumerKey || !wooConsumerSecret) ||
+                          (storePlatform === "woocommerce" && (!wooConsumerKey || !wooConsumerSecret)) ||
                           connectShopifyMutation.isPending
                         }
                         data-testid="button-submit-shopify"
                       >
-                        {storePlatform === "other" ? "Non configuré — à venir" : connectShopifyMutation.isPending ? "Test et connexion…" : "Tester et connecter la boutique"}
+                        {storePlatform === "other"
+                          ? "Non configuré — à venir"
+                          : connectShopifyMutation.isPending
+                          ? "Préparation…"
+                          : storePlatform === "shopify"
+                          ? "Continuer avec Shopify"
+                          : "Tester et connecter la boutique"}
                       </Button>
                     </div>
                   </DialogContent>
@@ -1164,6 +1187,11 @@ export default function AdminSettingsPage() {
                                   <Badge variant="outline" className={`text-[10px] px-1.5 py-0 flex-shrink-0 ${isWoo ? "border-purple-300 text-purple-600 dark:text-purple-400" : "border-green-300 text-green-600 dark:text-green-400"}`}>
                                     {isWoo ? "WooCommerce" : "Shopify"}
                                   </Badge>
+                                  {!isWoo && (integration.platformConfig as any)?.authMode === "oauth_offline" && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-sky-300 text-sky-700 dark:border-sky-800 dark:text-sky-400">
+                                      OAuth offline
+                                    </Badge>
+                                  )}
                                   {/* Connection status badge */}
                                   {(() => {
                                     const cs = integration.connectionStatus ?? "unknown";
@@ -1180,6 +1208,11 @@ export default function AdminSettingsPage() {
                                     if (cs === "error") return (
                                       <Badge className="text-[10px] px-1.5 py-0 bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-800 flex-shrink-0" variant="outline">
                                         ⚠ Erreur de connexion
+                                      </Badge>
+                                    );
+                                    if (cs === "permission_insufficient") return (
+                                      <Badge className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800 flex-shrink-0" variant="outline">
+                                        ⚠ Autorisation insuffisante
                                       </Badge>
                                     );
                                     if (cs === "disconnected" || !integration.isActive) return (
@@ -1229,7 +1262,7 @@ export default function AdminSettingsPage() {
                                   onClick={() => testShopifyConnectionMutation.mutate(integration.id)}
                                   disabled={testShopifyConnectionMutation.isPending && testShopifyConnectionMutation.variables === integration.id}
                                   data-testid={`button-test-connection-${integration.id}`}
-                                  title="Vérifie si le token Shopify est valide"
+                                  title="Vérifie si l’autorisation Shopify est toujours valide"
                                 >
                                   {testShopifyConnectionMutation.isPending && testShopifyConnectionMutation.variables === integration.id
                                     ? "Test…"

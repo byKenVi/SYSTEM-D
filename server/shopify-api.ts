@@ -3,12 +3,15 @@ import type { ParsedQs } from "qs";
 
 const SHOPIFY_API_VERSION = "2025-04";
 
-const SHOPIFY_SCOPES = [
+export const SHOPIFY_OFFLINE_SCOPES = [
   "read_products",
   "read_inventory",
   "write_inventory",
+  "read_locations",
   "read_customers",
   "read_orders",
+  "read_store_credit_accounts",
+  "write_store_credit_account_transactions",
 ].join(",");
 
 function normalizeDomain(storeUrl: string): string {
@@ -24,7 +27,9 @@ export function buildShopifyAuthUrl(
   const domain = normalizeDomain(storeUrl);
   const params = new URLSearchParams({
     client_id: clientId,
-    scope: SHOPIFY_SCOPES,
+    // Shopify issues an offline token by default when grant_options[] is omitted.
+    // Offline tokens stay valid until the app is revoked or uninstalled.
+    scope: SHOPIFY_OFFLINE_SCOPES,
     redirect_uri: redirectUri,
     state,
   });
@@ -77,25 +82,68 @@ export function verifyShopifyHmac(
   query: Record<string, any>,
   clientSecret: string
 ): boolean {
-  const hmac = query.hmac;
-  if (!hmac) return false;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, String(item));
+    } else if (value != null) {
+      params.set(key, String(value));
+    }
+  }
+  return verifyShopifyCallbackHmac(params.toString(), clientSecret);
+}
 
-  const params = { ...query };
-  delete params.hmac;
-  delete params.signature;
+/**
+ * Validates Shopify's callback HMAC against the raw query string. Keeping the
+ * original encoded pairs avoids changing a value before signature validation.
+ */
+export function verifyShopifyCallbackHmac(rawQuery: string, clientSecret: string): boolean {
+  const pairs = rawQuery.split("&").filter(Boolean);
+  let receivedHmac: string | null = null;
+  const signedPairs: string[] = [];
 
-  const sortedKeys = Object.keys(params).sort();
-  const message = sortedKeys.map((k) => `${k}=${params[k]}`).join("&");
+  for (const pair of pairs) {
+    const separator = pair.indexOf("=");
+    const rawKey = separator === -1 ? pair : pair.slice(0, separator);
+    const rawValue = separator === -1 ? "" : pair.slice(separator + 1);
+    const key = decodeURIComponent(rawKey.replace(/\+/g, " "));
+    if (key === "hmac") {
+      receivedHmac = decodeURIComponent(rawValue.replace(/\+/g, " "));
+      continue;
+    }
+    if (key !== "signature") signedPairs.push(pair);
+  }
 
-  const computed = crypto
-    .createHmac("sha256", clientSecret)
-    .update(message)
-    .digest("hex");
+  if (!receivedHmac || !/^[a-f0-9]{64}$/i.test(receivedHmac)) return false;
 
-  return crypto.timingSafeEqual(
-    Buffer.from(computed, "hex"),
-    Buffer.from(hmac as string, "hex")
-  );
+  const keyForSort = (pair: string) => {
+    const separator = pair.indexOf("=");
+    return separator === -1 ? pair : pair.slice(0, separator);
+  };
+  const message = signedPairs
+    .sort((left, right) => keyForSort(left).localeCompare(keyForSort(right)))
+    .join("&");
+  const expected = crypto.createHmac("sha256", clientSecret).update(message).digest();
+  const actual = Buffer.from(receivedHmac, "hex");
+  return actual.length === expected.length && crypto.timingSafeEqual(expected, actual);
+}
+
+export type ShopifyFailureKind = "invalid_token" | "permission_insufficient" | "throttled" | "transient";
+
+/**
+ * Only an explicit 401 can invalidate a Shopify installation. Quotas,
+ * permissions, server responses and network faults keep the installation
+ * connected and are handled without an OAuth reconnect prompt.
+ */
+export function classifyShopifyFailure(error: unknown): ShopifyFailureKind {
+  const candidate = error as { message?: unknown; status?: unknown } | undefined;
+  const message = typeof candidate?.message === "string" ? candidate.message : String(error ?? "");
+  if (candidate?.status === 401 || /\b401\b/.test(message)) return "invalid_token";
+  if (candidate?.status === 403 || /\b403\b/.test(message) || /scope|permission|access denied/i.test(message)) {
+    return "permission_insufficient";
+  }
+  if (candidate?.status === 429 || /\b429\b/.test(message) || /rate.?limit|throttl/i.test(message)) return "throttled";
+  return "transient";
 }
 
 export async function getShopDetails(
