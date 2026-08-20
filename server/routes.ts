@@ -28,6 +28,7 @@ import {
   exchangeShopifyCode,
   getShopDetails,
   verifyShopifyCallbackHmac,
+  SHOPIFY_OFFLINE_SCOPES,
 } from "./shopify-api";
 
 function buildStatusNotification(
@@ -388,6 +389,16 @@ export async function registerRoutes(
 
   function redirectToShopifySettings(res: any, params: Record<string, string>) {
     return res.redirect(`/admin/settings?${new URLSearchParams(params).toString()}`);
+  }
+
+  function hashShopifyOAuthState(state: string): string {
+    return createHash("sha256").update(state).digest("hex");
+  }
+
+  function hasRequiredShopifyScopes(scope: string | null | undefined): boolean {
+    if (!scope) return false;
+    const granted = new Set(scope.split(",").map((value) => value.trim()).filter(Boolean));
+    return SHOPIFY_OFFLINE_SCOPES.split(",").every((requiredScope) => granted.has(requiredScope));
   }
 
   app.get("/api/auth/role", isAuthenticated, async (req: any, res) => {
@@ -1549,6 +1560,11 @@ export async function registerRoutes(
       states[state] = { contactId, storeUrl, shopName, createdAt: now };
       session.shopifyOAuthStates = states;
       await saveShopifyOAuthSession(req);
+      await storage.createShopifyOAuthState(
+        hashShopifyOAuthState(state),
+        req.sessionID,
+        new Date(now + SHOPIFY_OAUTH_STATE_TTL_MS),
+      );
 
       res.json({ authUrl: buildShopifyAuthUrl(storeUrl, clientId, callbackUrl, state) });
     } catch (error: any) {
@@ -1573,6 +1589,10 @@ export async function registerRoutes(
       if (!verifyShopifyCallbackHmac(rawQuery, clientSecret)) {
         return redirectToShopifySettings(res, { shopify_error: "authorization_invalid" });
       }
+      const wasConsumed = await storage.consumeShopifyOAuthState(hashShopifyOAuthState(state), req.sessionID);
+      if (!wasConsumed) {
+        return redirectToShopifySettings(res, { shopify_error: "authorization_expired" });
+      }
 
       const callbackError = typeof req.query?.error === "string" ? req.query.error : "";
       delete session!.shopifyOAuthStates![state];
@@ -1589,8 +1609,10 @@ export async function registerRoutes(
         return redirectToShopifySettings(res, { shopify_error: "authorization_invalid" });
       }
 
-      const callbackUrl = getShopifyOAuthCallbackUrl(req);
       const oauth = await exchangeShopifyCode(pending.storeUrl, clientId, clientSecret, code);
+      if (!hasRequiredShopifyScopes(oauth.scope)) {
+        throw new Error("Shopify did not grant all required application scopes.");
+      }
       const shop = await getShopDetails(pending.storeUrl, oauth.accessToken);
       const verifiedStoreUrl = normalizeShopifyStoreUrl(shop.domain);
       if (verifiedStoreUrl !== pending.storeUrl) {

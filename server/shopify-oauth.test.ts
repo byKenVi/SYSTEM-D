@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildShopifyAuthUrl,
@@ -48,4 +49,13 @@ test("seul un 401 invalide une installation Shopify", () => {
   assert.equal(classifyShopifyFailure(new Error("Shopify API error 403: Forbidden")), "permission_insufficient");
   assert.equal(classifyShopifyFailure(new Error("Shopify API error 429: Too Many Requests")), "throttled");
   assert.equal(classifyShopifyFailure(new Error("fetch failed")), "transient");
+});
+
+test("le callback consomme atomiquement son état avant tout échange de code", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const consumeIndex = routes.indexOf("const wasConsumed = await storage.consumeShopifyOAuthState");
+  const exchangeIndex = routes.indexOf("const oauth = await exchangeShopifyCode");
+  assert.ok(consumeIndex >= 0, "le callback doit réclamer l'état dans le stockage serveur");
+  assert.ok(exchangeIndex > consumeIndex, "l'état doit être consommé avant l'échange du code");
+  assert.match(routes, /hasRequiredShopifyScopes\(oauth\.scope\)/);
 });

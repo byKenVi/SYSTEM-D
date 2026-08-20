@@ -47,6 +47,18 @@ export const shopifyIntegrations = pgTable("shopify_integrations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/**
+ * Short-lived, server-side replay protection for Shopify OAuth callbacks.
+ * The opaque browser state itself is never stored here, only its SHA-256 hash.
+ */
+export const shopifyOAuthStates = pgTable("shopify_oauth_states", {
+  stateHash: varchar("state_hash", { length: 64 }).primaryKey(),
+  sessionId: text("session_id").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const shopifyOrders = pgTable("shopify_orders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   integrationId: integer("integration_id").notNull(),

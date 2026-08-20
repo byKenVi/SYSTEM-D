@@ -3,6 +3,7 @@ import {
   products, type Product, type InsertProduct,
   restockRequests, type RestockRequest, type InsertRestockRequest,
   shopifyIntegrations, type ShopifyIntegration, type InsertShopifyIntegration,
+  shopifyOAuthStates,
   shopifyOrders, type ShopifyOrder, type InsertShopifyOrder,
   adminSettings, type AdminSettings, type InsertAdminSettings,
   activityLogs, type ActivityLog, type InsertActivityLog,
@@ -17,7 +18,7 @@ import {
   zohoCatalog, type ZohoCatalogItem, type InsertZohoCatalogItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, asc, desc, gt, ne, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
+import { eq, and, asc, desc, gt, lt, ne, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   getContacts(): Promise<Contact[]>;
@@ -51,6 +52,8 @@ export interface IStorage {
   deleteShopifyIntegration(id: number): Promise<void>;
   getShopifyIntegrationsDueForSync(): Promise<ShopifyIntegration[]>;
   getShopifyIntegrationsDueForOrderSync(): Promise<ShopifyIntegration[]>;
+  createShopifyOAuthState(stateHash: string, sessionId: string, expiresAt: Date): Promise<void>;
+  consumeShopifyOAuthState(stateHash: string, sessionId: string): Promise<boolean>;
 
   getShopifyOrders(filters?: { contactId?: number }): Promise<ShopifyOrder[]>;
   getShopifyOrdersByContactIds(contactIds: number[]): Promise<ShopifyOrder[]>;
@@ -348,6 +351,33 @@ export class DatabaseStorage implements IStorage {
         )
       )
     );
+  }
+
+  async createShopifyOAuthState(stateHash: string, sessionId: string, expiresAt: Date): Promise<void> {
+    await db.delete(shopifyOAuthStates).where(lt(shopifyOAuthStates.expiresAt, new Date()));
+    await db.insert(shopifyOAuthStates)
+      .values({ stateHash, sessionId, expiresAt })
+      .onConflictDoUpdate({
+        target: shopifyOAuthStates.stateHash,
+        set: { sessionId, expiresAt, consumedAt: null },
+      });
+  }
+
+  /**
+   * Atomic compare-and-set. Exactly one callback can change consumedAt from
+   * NULL, even when the same signed callback arrives concurrently.
+   */
+  async consumeShopifyOAuthState(stateHash: string, sessionId: string): Promise<boolean> {
+    const consumed = await db.update(shopifyOAuthStates)
+      .set({ consumedAt: new Date() })
+      .where(and(
+        eq(shopifyOAuthStates.stateHash, stateHash),
+        eq(shopifyOAuthStates.sessionId, sessionId),
+        isNull(shopifyOAuthStates.consumedAt),
+        gt(shopifyOAuthStates.expiresAt, new Date()),
+      ))
+      .returning({ stateHash: shopifyOAuthStates.stateHash });
+    return consumed.length === 1;
   }
 
   async getShopifyOrders(filters?: { contactId?: number }): Promise<ShopifyOrder[]> {

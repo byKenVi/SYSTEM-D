@@ -136,6 +136,9 @@ export default function AdminSettingsPage() {
   const { data: integrations } = useQuery<IntegrationWithCount[]>({
     queryKey: ["/api/shopify-integrations"],
   });
+  const { data: shopifyOAuthConfig } = useQuery<{ callbackUrl: string }>({
+    queryKey: ["/api/auth/shopify/callback-url"],
+  });
 
   const { data: adminSettings, isLoading: settingsLoading } = useQuery<AdminSettings & { zohoInventoryConnected?: boolean }>({
     queryKey: ["/api/admin-settings"],
@@ -1107,6 +1110,11 @@ export default function AdminSettingsPage() {
                           <p className="mt-1 text-xs text-green-800 dark:text-green-300">
                             Vous serez redirigé vers Shopify pour autoriser l’application une seule fois. L’accès offline reste actif sans token à copier ni renouvellement quotidien.
                           </p>
+                          {shopifyOAuthConfig?.callbackUrl && (
+                            <p className="mt-2 break-all text-xs text-green-800 dark:text-green-300">
+                              URL de redirection à enregistrer dans Shopify : <code className="rounded bg-white/70 px-1 py-0.5 dark:bg-black/20">{shopifyOAuthConfig.callbackUrl}</code>
+                            </p>
+                          )}
                         </div>
                       ) : storePlatform === "woocommerce" ? (
                         <>

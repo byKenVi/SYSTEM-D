@@ -57,6 +57,15 @@ app.use((req, res, next) => {
 (async () => {
   await pool.query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS additional_admin_emails TEXT`);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS shopify_oauth_states (
+      state_hash VARCHAR(64) PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS systemd_orders (
       id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
       contact_id INTEGER NOT NULL,
