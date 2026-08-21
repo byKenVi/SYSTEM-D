@@ -132,19 +132,21 @@ export interface IStorage {
   getSystemdOrders(filters?: { contactId?: number }): Promise<SystemdOrder[]>;
   getSystemdOrdersByContactIds(contactIds: number[]): Promise<SystemdOrder[]>;
   updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
+  markSystemdOrderPaidIfPending(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
+  resolveSystemdOrderReconciliation(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
   getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined>;
   /**
    * Insère une commande SystemD de façon atomique.
    * Utilise ON CONFLICT DO NOTHING sur l'index partiel unique
-   * `uq_systemd_orders_intent_active` (checkout_intent_key WHERE status NOT IN
-   * ('expired','cancelled')). Si un conflit est détecté, retourne la commande
-   * existante sans créer de doublon — même si deux requêtes identiques arrivent
-   * simultanément.
+   * `uq_systemd_orders_intent_active` (checkout_intent_key WHERE the payment is
+   * pending or needs reconciliation). A conflict returns the active order so
+   * concurrent or ambiguous Shopify attempts cannot create a second debit.
    */
   tryInsertSystemdOrder(data: InsertSystemdOrder): Promise<{ order: SystemdOrder; created: boolean }>;
   getReservedSystemdStockQuantities(): Promise<Record<string, number>>;
   reserveSystemdOrderStock(orderId: number): Promise<{ status: "reserved" | "already_reserved" | "stock_to_reserve"; message?: string }>;
+  releaseSystemdOrderStock(orderId: number): Promise<void>;
 
   // Zoho Sync Runs
   createZohoSyncRun(data: { triggeredBy: string; status?: string }): Promise<ZohoSyncRun>;
@@ -787,6 +789,20 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async markSystemdOrderPaidIfPending(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined> {
+    const [updated] = await db.update(systemdOrders).set(data)
+      .where(and(eq(systemdOrders.id, id), eq(systemdOrders.status, "pending")))
+      .returning();
+    return updated;
+  }
+
+  async resolveSystemdOrderReconciliation(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined> {
+    const [updated] = await db.update(systemdOrders).set(data)
+      .where(and(eq(systemdOrders.id, id), eq(systemdOrders.status, "payment_reconciliation_required")))
+      .returning();
+    return updated;
+  }
+
   async getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined> {
     const [order] = await db.select().from(systemdOrders)
       .where(eq(systemdOrders.stripeCheckoutSessionId, sessionId));
@@ -800,7 +816,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, intentKey),
-          eq(systemdOrders.status, "pending"),
+          inArray(systemdOrders.status, ["pending", "payment_reconciliation_required"]),
           sql`${systemdOrders.createdAt} > NOW() - INTERVAL '${sql.raw(String(windowMinutes))} minutes'`
         )
       )
@@ -829,7 +845,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, data.checkoutIntentKey),
-          eq(systemdOrders.status, "pending")
+          inArray(systemdOrders.status, ["pending", "payment_reconciliation_required"])
         )
       )
       .orderBy(desc(systemdOrders.createdAt))
@@ -840,18 +856,8 @@ export class DatabaseStorage implements IStorage {
       throw new Error("tryInsertSystemdOrder : conflit détecté mais aucune commande existante trouvée");
     }
 
-    // Un processus interrompu peut laisser une commande en attente. Au-delà de
-    // 30 secondes, il est sûr de libérer cette intention et de relancer le débit.
-    const pendingAge = existing.createdAt
-      ? Date.now() - new Date(existing.createdAt).getTime()
-      : Number.POSITIVE_INFINITY;
-    if (pendingAge >= 30_000) {
-      await db.update(systemdOrders)
-        .set({ status: "cancelled" })
-        .where(and(eq(systemdOrders.id, existing.id), eq(systemdOrders.status, "pending")));
-      return this.tryInsertSystemdOrder(data);
-    }
-
+    // A pending credit debit can be slow or suffer a response loss after Shopify
+    // has committed it. It must be reconciled, never auto-cancelled/retried.
     return { order: existing, created: false };
   }
 
@@ -947,6 +953,16 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(systemdOrders.id, orderId));
       return { status: "reserved" };
     });
+  }
+
+  async releaseSystemdOrderStock(orderId: number): Promise<void> {
+    await db.update(systemdOrders).set({
+      stockReservationStatus: "released",
+      stockReservedAt: null,
+    }).where(and(
+      eq(systemdOrders.id, orderId),
+      eq(systemdOrders.stockReservationStatus, "reserved"),
+    ));
   }
 
   // ─── Zoho Sync Runs ────────────────────────────────────────────────────────

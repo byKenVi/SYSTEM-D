@@ -1524,9 +1524,16 @@ export async function registerRoutes(
 
   // ====== SHOPIFY OFFLINE OAUTH ======
 
-  app.get("/api/auth/shopify/callback-url", isAuthenticated, isAdmin, (req: any, res) => {
+  app.get("/api/auth/shopify/callback-url", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      res.json({ callbackUrl: getShopifyOAuthCallbackUrl(req) });
+      const settings = await storage.getAdminSettings();
+      let configured = true;
+      try {
+        getShopifyOAuthCredentials(settings);
+      } catch {
+        configured = false;
+      }
+      res.json({ callbackUrl: getShopifyOAuthCallbackUrl(req), configured });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Impossible de déterminer l'URL de retour Shopify." });
     }
@@ -4049,6 +4056,9 @@ export async function registerRoutes(
       debitRep,
       getRepBalance,
       getRepTransactionHistory,
+      assertShopifyDebitProof,
+      isShopifyDebitOutcomeUnknown,
+      isShopifyDebitDefinitelyRejected,
       renewRepBudget,
       deactivateRepInShopify,
       listRepsFromShopify,
@@ -4972,7 +4982,7 @@ export async function registerRoutes(
 
       // ── Idempotence : clé d'intention ────────────────────────────────────────
       // SHA256(contactId | items triés par zohoItemId | total en centimes)
-      // Fenêtre : 10 minutes. Si une commande pending identique existe, on réutilise son URL.
+      // An active identical intent must be resolved before it can be retried.
       const intentPayload = [
         String(contactId),
         resolvedItems
@@ -4986,7 +4996,7 @@ export async function registerRoutes(
       const intentKey = createHash("sha256").update(intentPayload).digest("hex").slice(0, 64);
 
       // Protection atomique : une intention identique ne peut créer qu'une seule
-      // commande active (pending ou paid) pendant la fenêtre d'idempotence.
+      // tentative active (pending ou réconciliation) pendant la fenêtre d'idempotence.
       const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 2);
       const host = `${req.protocol}://${req.get("host")}`;
       if (previousOrder?.status === "paid") {
@@ -5003,16 +5013,10 @@ export async function registerRoutes(
           reused: true,
         });
       }
-      if (previousOrder?.status === "pending") {
-        // Auto-cancel if the pending order is older than 30 seconds (stuck/failed)
-        const pendingAge = previousOrder.createdAt
-          ? Date.now() - new Date(previousOrder.createdAt as unknown as string).getTime()
-          : 999999;
-        if (pendingAge < 30_000) {
-          return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
-        }
-        // Stale pending order — cancel and proceed
-        await storage.updateSystemdOrder(previousOrder.id, { status: "cancelled" }).catch(() => {});
+      if (previousOrder?.status === "pending" || previousOrder?.status === "payment_reconciliation_required") {
+        return res.status(409).json({
+          message: "Paiement crédit déjà en cours ou en vérification. Aucun nouveau débit ne sera tenté tant que Shopify n’a pas confirmé le résultat.",
+        });
       }
 
       const reservedQuantities = await storage.getReservedSystemdStockQuantities();
@@ -5037,7 +5041,7 @@ export async function registerRoutes(
       }
       const cadBalance = balances.find((balance) => balance.currencyCode === "CAD");
       const availableCredit = Number(cadBalance?.amount ?? 0);
-      if (!isShopifyCreditSufficient(availableCredit, totalAmount)) {
+      if (!cadBalance?.accountId || !isShopifyCreditSufficient(availableCredit, totalAmount)) {
         await storage.createActivityLog({
           type: "shopify_credit_insufficient",
           status: "error",
@@ -5076,27 +5080,50 @@ export async function registerRoutes(
       }
 
       let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
+      let debitSubmissionStarted = false;
       try {
+        debitSubmissionStarted = true;
         debitResult = await debitRep({
           shopifyCustomerId: shopifyCustomerGid,
+          shopifyStoreCreditAccountId: cadBalance.accountId,
           amount: totalAmount,
           currencyCode: "CAD",
         });
-        const paidOrder = await storage.updateSystemdOrder(order.id, {
+        const balancesAfterDebit = await getRepBalance(shopifyCustomerGid);
+        const cadBalanceAfterDebit = balancesAfterDebit.find((balance) => balance.accountId === cadBalance.accountId);
+        assertShopifyDebitProof({
+          beforeBalance: cadBalance.amount,
+          afterBalance: cadBalanceAfterDebit?.amount ?? "",
+          expectedAmount: totalAmount,
+          expectedCurrency: "CAD",
+          expectedAccountId: cadBalance.accountId,
+          transaction: debitResult,
+        });
+        const paidOrder = await storage.markSystemdOrderPaidIfPending(order.id, {
           status: "paid",
           shopifyCreditAccountId: debitResult.accountId,
           shopifyCreditTransactionId: debitResult.transactionId,
         });
         if (!paidOrder) throw new Error("Impossible d'enregistrer la commande payée.");
       } catch (error: any) {
-        let compensationSucceeded = !debitResult;
+        // Once a debit request is submitted, transport/API failures are ambiguous:
+        // Shopify may have committed it even when the response was lost. Only a
+        // mutation userError proves the debit did not happen and may be cancelled.
+        const debitDefinitelyRejected = isShopifyDebitDefinitelyRejected(error);
+        let compensationSucceeded = !debitResult && (!debitSubmissionStarted || debitDefinitelyRejected);
         if (debitResult) {
           try {
             await creditRep({
               shopifyCustomerId: shopifyCustomerGid,
+              shopifyStoreCreditAccountId: debitResult.accountId,
               amount: totalAmount,
               currencyCode: "CAD",
             });
+            const balancesAfterCompensation = await getRepBalance(shopifyCustomerGid);
+            const compensatedAccount = balancesAfterCompensation.find((balance) => balance.accountId === debitResult!.accountId);
+            if (!compensatedAccount || compensatedAccount.currencyCode !== "CAD" || compensatedAccount.amount !== cadBalance.amount) {
+              throw new Error("Compensation Shopify non confirmée par relecture du solde.");
+            }
             compensationSucceeded = true;
           } catch (compensationError: any) {
             await storage.createActivityLog({
@@ -5110,9 +5137,12 @@ export async function registerRoutes(
           ? { status: "cancelled" }
           : {
               status: "payment_reconciliation_required",
-              shopifyCreditAccountId: debitResult?.accountId ?? null,
+              shopifyCreditAccountId: debitResult?.accountId ?? cadBalance.accountId,
               shopifyCreditTransactionId: debitResult?.transactionId ?? null,
             }).catch(() => {});
+        if (compensationSucceeded) {
+          await storage.releaseSystemdOrderStock(order.id).catch(() => {});
+        }
         await storage.createActivityLog({
           type: compensationSucceeded
             ? creditErrorActivityType(error, "shopify_credit_checkout_error")
@@ -5250,6 +5280,102 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error fetching SystemD orders:", error);
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/systemd-orders/:id/reconciliation", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const orderId = Number(req.params.id);
+      const order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
+      if (!order) return res.status(404).json({ message: "Commande Système D introuvable." });
+      if (order.status !== "payment_reconciliation_required" || !order.shopifyCustomerGid || !order.shopifyCreditAccountId) {
+        return res.status(409).json({ message: "Cette commande ne nécessite pas de réconciliation Shopify." });
+      }
+
+      const expectedDebitCents = -order.amount;
+      const orderStartedAt = order.createdAt ? new Date(order.createdAt).getTime() - 60_000 : 0;
+      const candidates = (await getRepTransactionHistory(order.shopifyCustomerGid, 100))
+        .filter((transaction) =>
+          transaction.type === "Debit"
+          && transaction.accountId === order.shopifyCreditAccountId
+          && transaction.currency === order.currency.toUpperCase()
+          && Math.round(Number(transaction.amount) * 100) === expectedDebitCents
+          && new Date(transaction.createdAt).getTime() >= orderStartedAt,
+        )
+        .map(({ id, amount, currency, createdAt }) => ({ id, amount, currency, createdAt }));
+
+      res.json({
+        orderId,
+        expectedAccountId: order.shopifyCreditAccountId,
+        expectedAmount: (order.amount / 100).toFixed(2),
+        candidates,
+      });
+    } catch (error: any) {
+      res.status(creditErrorStatus(error.message)).json({ message: error.message || "Historique Shopify indisponible." });
+    }
+  });
+
+  app.post("/api/admin/systemd-orders/:id/reconciliation", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const orderId = Number(req.params.id);
+      const resolution = String(req.body?.resolution ?? "");
+      const transactionId = typeof req.body?.transactionId === "string" ? req.body.transactionId : "";
+      const order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
+      if (!order) return res.status(404).json({ message: "Commande Système D introuvable." });
+      if (order.status !== "payment_reconciliation_required" || !order.shopifyCustomerGid || !order.shopifyCreditAccountId) {
+        return res.status(409).json({ message: "Cette commande ne nécessite pas de réconciliation Shopify." });
+      }
+
+      const expectedDebitCents = -order.amount;
+      const orderStartedAt = order.createdAt ? new Date(order.createdAt).getTime() - 60_000 : 0;
+      const candidates = (await getRepTransactionHistory(order.shopifyCustomerGid, 100))
+        .filter((transaction) =>
+          transaction.type === "Debit"
+          && transaction.accountId === order.shopifyCreditAccountId
+          && transaction.currency === order.currency.toUpperCase()
+          && Math.round(Number(transaction.amount) * 100) === expectedDebitCents
+          && new Date(transaction.createdAt).getTime() >= orderStartedAt,
+        );
+
+      if (resolution === "paid") {
+        const transaction = candidates.find((candidate) => candidate.id === transactionId);
+        if (!transaction) {
+          return res.status(400).json({ message: "La transaction Shopify indiquée ne prouve pas ce débit." });
+        }
+        const updated = await storage.resolveSystemdOrderReconciliation(orderId, {
+          status: "paid",
+          shopifyCreditAccountId: transaction.accountId,
+          shopifyCreditTransactionId: transaction.id,
+        });
+        if (!updated) return res.status(409).json({ message: "La commande a déjà été résolue." });
+        await storage.createActivityLog({
+          type: "shopify_credit_reconciliation_paid",
+          status: "success",
+          message: `Commande Système D #${orderId} confirmée après vérification Shopify.`,
+          metadata: JSON.stringify({ orderId, transactionId: transaction.id, accountId: transaction.accountId, resolvedBy: req.user?.claims?.sub ?? null }),
+        });
+        return res.json(updated);
+      }
+
+      if (resolution === "cancelled" && req.body?.confirmNoDebit === true) {
+        if (candidates.length > 0) {
+          return res.status(409).json({ message: "Un débit Shopify correspondant existe : confirmez-le au lieu d’annuler la commande." });
+        }
+        const updated = await storage.resolveSystemdOrderReconciliation(orderId, { status: "cancelled" });
+        if (!updated) return res.status(409).json({ message: "La commande a déjà été résolue." });
+        await storage.releaseSystemdOrderStock(orderId);
+        await storage.createActivityLog({
+          type: "shopify_credit_reconciliation_cancelled",
+          status: "success",
+          message: `Commande Système D #${orderId} annulée après vérification de l’historique Shopify.`,
+          metadata: JSON.stringify({ orderId, accountId: order.shopifyCreditAccountId, resolvedBy: req.user?.claims?.sub ?? null }),
+        });
+        return res.json(updated);
+      }
+
+      return res.status(400).json({ message: "Résolution de réconciliation invalide." });
+    } catch (error: any) {
+      res.status(creditErrorStatus(error.message)).json({ message: error.message || "Réconciliation Shopify indisponible." });
     }
   });
 

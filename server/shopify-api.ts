@@ -11,6 +11,7 @@ export const SHOPIFY_OFFLINE_SCOPES = [
   "read_customers",
   "read_orders",
   "read_store_credit_accounts",
+  "read_store_credit_account_transactions",
   "write_store_credit_account_transactions",
 ].join(",");
 

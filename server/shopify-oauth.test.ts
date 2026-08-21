@@ -28,6 +28,7 @@ test("le flux OAuth Shopify demande un token offline avec toutes les portées re
     "read_customers",
     "read_orders",
     "read_store_credit_accounts",
+    "read_store_credit_account_transactions",
     "write_store_credit_account_transactions",
   ]) {
     assert.ok(scopes.has(scope), `portée OAuth absente : ${scope}`);

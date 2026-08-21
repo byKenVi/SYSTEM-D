@@ -8,6 +8,7 @@ const GQL_VERSION = "2026-04";
 export const MAPI_CREDIT_REQUIRED_SCOPES = [
   "read_customers",
   "read_store_credit_accounts",
+  "read_store_credit_account_transactions",
   "write_store_credit_account_transactions",
 ] as const;
 
@@ -61,13 +62,61 @@ async function shopifyGQL<T = any>(query: string, variables: Record<string, any>
 function checkUserErrors(errs: Array<{ message: string; field?: string[] }>) {
   if (!errs?.length) return;
   const msg = errs[0].message ?? "Unknown Shopify error";
-  if (/positive amount|greater than 0/i.test(msg)) throw new Error("Montant invalide.");
-  if (/insufficient|exceed|balance/i.test(msg)) throw new Error("Crédit insuffisant.");
-  if (/not found|doesn't exist/i.test(msg)) throw new Error("Rep Shopify introuvable.");
-  if (/access denied|scope|permission/i.test(msg)) {
-    throw shopifyCreditError("Crédit Shopify indisponible.", "SHOPIFY_PERMISSION_INSUFFICIENT");
+  if (/positive amount|greater than 0/i.test(msg)) {
+    throw shopifyCreditError("Montant invalide.", "SHOPIFY_DEBIT_REJECTED");
   }
-  throw new Error(msg);
+  if (/insufficient|exceed|balance/i.test(msg)) {
+    throw shopifyCreditError("Crédit insuffisant.", "SHOPIFY_DEBIT_REJECTED");
+  }
+  if (/not found|doesn't exist/i.test(msg)) {
+    throw shopifyCreditError("Rep Shopify introuvable.", "SHOPIFY_DEBIT_REJECTED");
+  }
+  if (/access denied|scope|permission/i.test(msg)) {
+    throw shopifyCreditError("Crédit Shopify indisponible.", "SHOPIFY_DEBIT_REJECTED");
+  }
+  // A GraphQL userError proves Shopify rejected this mutation before it could
+  // create a Store Credit transaction.
+  throw shopifyCreditError(msg, "SHOPIFY_DEBIT_REJECTED");
+}
+
+function moneyInCents(value: string): bigint {
+  if (!/^-?\d+(?:\.\d{1,2})?$/.test(value)) {
+    throw new Error("Montant Shopify invalide.");
+  }
+  const [whole, decimal = ""] = value.split(".");
+  return BigInt(whole) * 100n + BigInt((decimal + "00").slice(0, 2));
+}
+
+export function assertShopifyDebitProof(input: {
+  beforeBalance: string;
+  afterBalance: string;
+  expectedAmount: string;
+  expectedCurrency: string;
+  expectedAccountId: string;
+  transaction: { transactionId: string; accountId: string; amount: string; currencyCode: string };
+}) {
+  const { transaction } = input;
+  if (!transaction?.transactionId || transaction.accountId !== input.expectedAccountId) {
+    throw shopifyCreditError("Débit Shopify non confirmé.", "SHOPIFY_DEBIT_OUTCOME_UNKNOWN");
+  }
+  if (
+    transaction.currencyCode !== input.expectedCurrency
+    || moneyInCents(transaction.amount) !== -moneyInCents(input.expectedAmount)
+  ) {
+    throw shopifyCreditError("Montant du débit Shopify non confirmé.", "SHOPIFY_DEBIT_OUTCOME_UNKNOWN");
+  }
+  const expectedAfter = moneyInCents(input.beforeBalance) - moneyInCents(input.expectedAmount);
+  if (expectedAfter < 0n || moneyInCents(input.afterBalance) !== expectedAfter) {
+    throw shopifyCreditError("Solde Shopify après débit non confirmé.", "SHOPIFY_DEBIT_OUTCOME_UNKNOWN");
+  }
+}
+
+export function isShopifyDebitOutcomeUnknown(error: unknown): boolean {
+  return (error as { code?: string } | undefined)?.code === "SHOPIFY_DEBIT_OUTCOME_UNKNOWN";
+}
+
+export function isShopifyDebitDefinitelyRejected(error: unknown): boolean {
+  return (error as { code?: string } | undefined)?.code === "SHOPIFY_DEBIT_REJECTED";
 }
 
 // ─── Rep CRUD ────────────────────────────────────────────────────────────────
@@ -130,6 +179,8 @@ export async function getRepBalance(
 }
 
 export interface RepTransaction {
+  id: string;
+  accountId: string;
   type: "Credit" | "Debit" | "Expiration" | "DebitRevert";
   amount: string;
   currency: string;
@@ -150,6 +201,7 @@ export async function getRepTransactionHistory(
               transactions(first: $limit, reverse: true, sortKey: CREATED_AT) {
                 edges {
                   node {
+                    id
                     __typename
                     ... on StoreCreditAccountCreditTransaction {
                       amount { amount currencyCode }
@@ -189,6 +241,8 @@ export async function getRepTransactionHistory(
         StoreCreditAccountDebitRevertTransaction: "DebitRevert",
       };
       txns.push({
+        id: n.id,
+        accountId: acct.node.id,
         type: typeMap[n.__typename] ?? "Credit",
         amount: n.amount.amount,
         currency: n.amount.currencyCode,
@@ -246,6 +300,7 @@ export async function listRepsFromShopify(cursor?: string): Promise<{
 
 export async function creditRep(input: {
   shopifyCustomerId: string;
+  shopifyStoreCreditAccountId?: string;
   amount: string;
   currencyCode?: string;
   expiresAt?: string;
@@ -266,7 +321,7 @@ export async function creditRep(input: {
         userErrors { message field }
       }
     }`,
-    { id: input.shopifyCustomerId, creditInput }
+    { id: input.shopifyStoreCreditAccountId ?? input.shopifyCustomerId, creditInput }
   );
   checkUserErrors(data.storeCreditAccountCredit.userErrors);
   const txn = data.storeCreditAccountCredit.storeCreditAccountTransaction;
@@ -279,9 +334,16 @@ export async function creditRep(input: {
 
 export async function debitRep(input: {
   shopifyCustomerId: string;
+  shopifyStoreCreditAccountId?: string;
   amount: string;
   currencyCode?: string;
-}): Promise<{ transactionId: string; accountId: string; newBalance: { amount: string; currencyCode: string } }> {
+}): Promise<{
+  transactionId: string;
+  accountId: string;
+  amount: string;
+  currencyCode: string;
+  newBalance: { amount: string; currencyCode: string };
+}> {
   const data = await shopifyGQL<any>(
     `mutation debit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {
       storeCreditAccountDebit(id: $id, debitInput: $debitInput) {
@@ -294,7 +356,7 @@ export async function debitRep(input: {
       }
     }`,
     {
-      id: input.shopifyCustomerId,
+      id: input.shopifyStoreCreditAccountId ?? input.shopifyCustomerId,
       debitInput: {
         debitAmount: { amount: input.amount, currencyCode: input.currencyCode ?? "CAD" },
       },
@@ -302,9 +364,14 @@ export async function debitRep(input: {
   );
   checkUserErrors(data.storeCreditAccountDebit.userErrors);
   const txn = data.storeCreditAccountDebit.storeCreditAccountTransaction;
+  if (!txn?.id || !txn?.account?.id || !txn?.amount?.amount || !txn?.amount?.currencyCode) {
+    throw shopifyCreditError("Débit Shopify non confirmé.", "SHOPIFY_DEBIT_OUTCOME_UNKNOWN");
+  }
   return {
     transactionId: txn.id,
     accountId: txn.account.id,
+    amount: txn.amount.amount,
+    currencyCode: txn.amount.currencyCode,
     newBalance: txn.account.balance,
   };
 }

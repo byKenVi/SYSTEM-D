@@ -124,6 +124,8 @@ interface SystemdOrder {
   status: string;
   fulfillmentStatus: string;
   stockReservationStatus: string;
+  shopifyCreditAccountId?: string | null;
+  shopifyCreditTransactionId?: string | null;
   createdAt: string | null;
   lineItems: { name?: string; sku?: string; quantity?: number; unitPrice?: number }[];
 }
@@ -260,6 +262,42 @@ export default function AdminBoutique() {
   const customers = customersData?.customers ?? [];
   const systemdOrders = systemdOrdersData ?? [];
   const systemdToProcess = systemdOrders.filter((order) => order.status === "paid" && order.fulfillmentStatus !== "completed");
+  const systemdToReconcile = systemdOrders.filter((order) => order.status === "payment_reconciliation_required");
+
+  const systemdReconciliationMutation = useMutation({
+    mutationFn: async ({ id, resolution, transactionId, confirmNoDebit }: {
+      id: number; resolution: "paid" | "cancelled"; transactionId?: string; confirmNoDebit?: boolean;
+    }) => {
+      const response = await apiRequest("POST", `/api/admin/systemd-orders/${id}/reconciliation`, { resolution, transactionId, confirmNoDebit });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/dashboard/kpis"] });
+    },
+    onError: (error: Error) => toast({ title: "Réconciliation impossible", description: error.message, variant: "destructive" }),
+  });
+
+  const inspectSystemdReconciliation = async (order: SystemdOrder) => {
+    try {
+      const response = await fetch(`/api/admin/systemd-orders/${order.id}/reconciliation`, { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Historique Shopify indisponible.");
+      if (data.candidates.length === 1) {
+        if (window.confirm(`Shopify confirme un débit de ${data.expectedAmount} CAD. Confirmer la commande #${order.id} ?`)) {
+          systemdReconciliationMutation.mutate({ id: order.id, resolution: "paid", transactionId: data.candidates[0].id });
+        }
+        return;
+      }
+      if (data.candidates.length === 0 && window.confirm(`Aucun débit Shopify correspondant n’a été trouvé. Annuler la commande #${order.id} et libérer le stock ?`)) {
+        systemdReconciliationMutation.mutate({ id: order.id, resolution: "cancelled", confirmNoDebit: true });
+        return;
+      }
+      toast({ title: "Vérification requise", description: "Plusieurs débits correspondants ont été trouvés. Vérifiez Shopify avant de résoudre cette commande.", variant: "destructive" });
+    } catch (error: any) {
+      toast({ title: "Historique Shopify indisponible", description: error.message, variant: "destructive" });
+    }
+  };
 
   const systemdFulfillmentMutation = useMutation({
     mutationFn: async ({ id, fulfillmentStatus }: { id: number; fulfillmentStatus: "processing" | "completed" }) => {
@@ -887,6 +925,30 @@ export default function AdminBoutique() {
 
         {/* ══ COMMANDES TAB ══ */}
         <TabsContent value="orders" className="mt-4 space-y-4">
+          {systemdToReconcile.length > 0 && (
+            <Card className="border-red-300/60 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-bold">Débits Shopify à réconcilier</h2>
+                  <Badge variant="destructive">{systemdToReconcile.length}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Aucun nouveau débit identique n’est autorisé tant que Shopify n’a pas confirmé ou infirmé ce paiement.</p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {systemdToReconcile.map((order) => (
+                  <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background/70 p-3">
+                    <div className="text-sm">
+                      <p className="font-medium">Commande #{order.id} — {money(order.amount / 100, order.currency.toUpperCase())}</p>
+                      <p className="text-xs text-muted-foreground">{order.companyName || order.contactName || "Client"} · compte Shopify conservé pour audit</p>
+                    </div>
+                    <Button size="sm" variant="destructive" disabled={systemdReconciliationMutation.isPending} onClick={() => inspectSystemdReconciliation(order)} data-testid={`button-reconcile-systemd-${order.id}`}>
+                      Vérifier dans Shopify
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
           <Card className="border-amber-300/60 bg-amber-50/60 dark:border-amber-900/50 dark:bg-amber-950/20">
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-start justify-between gap-3">

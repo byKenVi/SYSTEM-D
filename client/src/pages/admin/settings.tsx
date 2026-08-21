@@ -136,7 +136,7 @@ export default function AdminSettingsPage() {
   const { data: integrations } = useQuery<IntegrationWithCount[]>({
     queryKey: ["/api/shopify-integrations"],
   });
-  const { data: shopifyOAuthConfig } = useQuery<{ callbackUrl: string }>({
+  const { data: shopifyOAuthConfig } = useQuery<{ callbackUrl: string; configured: boolean }>({
     queryKey: ["/api/auth/shopify/callback-url"],
   });
 
@@ -1113,6 +1113,15 @@ export default function AdminSettingsPage() {
                           {shopifyOAuthConfig?.callbackUrl && (
                             <p className="mt-2 break-all text-xs text-green-800 dark:text-green-300">
                               URL de redirection à enregistrer dans Shopify : <code className="rounded bg-white/70 px-1 py-0.5 dark:bg-black/20">{shopifyOAuthConfig.callbackUrl}</code>
+                            </p>
+                          )}
+                          {shopifyOAuthConfig?.configured === false ? (
+                            <p className="mt-3 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+                              OAuth Shopify n’est pas configuré sur le serveur. Ajoutez les identifiants de l’application Shopify active dans les secrets du déploiement avant de connecter une boutique.
+                            </p>
+                          ) : (
+                            <p className="mt-3 text-xs text-green-800 dark:text-green-300">
+                              Si Shopify affiche « application cannot be found », vérifiez que l’application est active, que son Client ID correspond à la configuration serveur et que cette URL est autorisée dans Shopify.
                             </p>
                           )}
                         </div>
