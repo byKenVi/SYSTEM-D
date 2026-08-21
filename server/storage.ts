@@ -244,16 +244,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertProductByShopifyVariant(contactId: number, shopifyVariantId: string, data: InsertProduct): Promise<Product> {
-    const [existing] = await db.select().from(products)
-      .where(and(eq(products.contactId, contactId), eq(products.shopifyVariantId, shopifyVariantId)));
-    if (existing) {
-      const { id, createdAt, ...updateData } = data as any;
-      const [updated] = await db.update(products).set({ ...updateData, lastSyncedAt: new Date() })
-        .where(eq(products.id, existing.id)).returning();
-      return updated;
-    }
-    const [created] = await db.insert(products).values({ ...data, lastSyncedAt: new Date() }).returning();
-    return created;
+    const { id, createdAt, ...updateData } = data as any;
+    const [product] = await db.insert(products)
+      .values({ ...data, lastSyncedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [products.contactId, products.shopifyVariantId],
+        targetWhere: sql`${products.shopifyVariantId} IS NOT NULL`,
+        set: { ...updateData, lastSyncedAt: new Date() },
+      })
+      .returning();
+    return product;
   }
 
   async getRestockRequests(): Promise<RestockRequest[]> {

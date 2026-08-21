@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb, unique, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -116,7 +116,13 @@ export const products = pgTable("products", {
   zohoItemId: text("zoho_item_id"),
   lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  // An import and an auto-sync can overlap. The database, not only an
+  // application-level lookup, must prevent two rows for the same variant.
+  contactVariantUnique: uniqueIndex("products_contact_variant_unique")
+    .on(table.contactId, table.shopifyVariantId)
+    .where(sql`${table.shopifyVariantId} IS NOT NULL`),
+}));
 
 export const insertProductSchema = createInsertSchema(products).omit({ createdAt: true });
 export type InsertProduct = z.infer<typeof insertProductSchema>;
