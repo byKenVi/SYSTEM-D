@@ -10,6 +10,7 @@ import { db } from "./db";
 import { users as usersTable } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 import { resolveClientProductContactIds } from "./client-product-scope";
+import { dedupeScopedProducts } from "./portal-product-deduplication";
 import { isShopifyCreditSufficient, normalizeShopifyStoreUrl, shopifyCreditHttpStatus } from "./shopify-credit-policy";
 import multer from "multer";
 import path from "path";
@@ -2224,7 +2225,7 @@ export async function registerRoutes(
       const contactId = Number(req.params.contactId);
       const productContactIds = await getProductContactIds(contactId);
       const products = await storage.getProductsByContactIds(productContactIds);
-      res.json(products);
+      res.json(dedupeScopedProducts(products, contactId));
     } catch (error) {
       console.error("Error fetching view-as products:", error);
       res.status(500).json({ message: "Failed to fetch products" });
@@ -2340,7 +2341,7 @@ export async function registerRoutes(
       }
       const productContactIds = await getProductContactIds(role.contactId);
       const products = await storage.getProductsByContactIds(productContactIds);
-      res.json(products);
+      res.json(dedupeScopedProducts(products, role.contactId));
     } catch (error) {
       console.error("Error fetching portal products:", error);
       res.status(500).json({ message: "Failed to fetch products" });
