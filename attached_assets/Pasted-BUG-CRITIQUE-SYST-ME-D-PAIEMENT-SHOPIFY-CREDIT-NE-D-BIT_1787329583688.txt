@@ -1,0 +1,348 @@
+BUG CRITIQUE SYSTÈME D — PAIEMENT SHOPIFY CREDIT NE DÉBITE PAS + OAUTH SHOPIFY CASSÉ
+
+Contexte :
+Le client Ridgie a confirmé par email que tout semble fonctionner sauf le système de paiement.
+
+Message client :
+“Pour l’instant tout a l’air fonctionnel sauf le système de paiement. Ce site ne va utiliser que les crédits en magasin comme mode de paiement. Il ne faudrait pas pouvoir payer avec une carte de crédit. Lors de ma rencontre avec le client, j’ai voulu faire une commande avec mon compte mais le cart n’a pas fonctionné.”
+
+QA réelle :
+1. Le panier / checkout semble fonctionner côté Système D.
+2. Une commande peut être créée.
+3. Mais le compte Shopify Store Credit n’est PAS débité.
+4. Exemple : le rep a 602 $ de crédit avant paiement, puis toujours 602 $ après paiement.
+5. Donc Système D donne une fausse impression de paiement réussi.
+6. Après déconnexion manuelle Shopify et tentative de reconnexion, l’app redirige vers Shopify OAuth puis affiche une erreur Shopify :
+
+“Oops, something went wrong.”
+“Oauth error application_cannot_be_found: Could not find Shopify API application with api_key Techmallc2026”
+
+Objectif :
+Corriger définitivement :
+- le paiement Store Credit Shopify ;
+- l’absence de débit réel ;
+- l’OAuth Shopify cassé ;
+- l’interdiction de tout paiement carte ;
+- la fiabilité du checkout.
+
+Ne pas faire de polish UI.
+Ne pas toucher aux flows non liés.
+Ne pas réintroduire Stripe.
+Ne pas activer Global Payments.
+Ne pas créer de commande payée si le débit Shopify n’a pas réellement réussi.
+Ne jamais logger de token, secret, client secret ou access token.
+
+==================================================
+1. RÈGLE MÉTIER NON NÉGOCIABLE
+==================================================
+
+Cette boutique ne doit utiliser que le crédit en magasin Shopify.
+
+Donc :
+- aucun paiement carte ;
+- aucun Stripe ;
+- aucun Global Payments ;
+- aucun paiement “simulé” ;
+- aucun statut paid si Shopify Store Credit n’a pas réellement été débité ;
+- aucun débit local fictif ;
+- aucune commande “payée” si le solde Shopify ne diminue pas.
+
+Le seul flow paiement accepté :
+
+Panier Système D
+→ rep/customer Shopify correspondant à l’email utilisateur
+→ lecture live du solde Shopify Store Credit
+→ appel live Shopify storeCreditAccountDebit
+→ vérification du résultat Shopify
+→ relecture live du solde après débit
+→ création/confirmation commande payée seulement si le débit est confirmé.
+
+==================================================
+2. BUG 1 — PAIEMENT NE DÉBITE PAS SHOPIFY
+==================================================
+
+Diagnostiquer précisément `/api/portal/systemd-checkout`.
+
+Vérifier :
+1. Est-ce que le code appelle réellement Shopify GraphQL `storeCreditAccountDebit` ?
+2. Est-ce que l’appel est fait avec le bon token Shopify actif ?
+3. Est-ce que l’appel est fait sur la bonne boutique Mapei ?
+4. Est-ce que l’ID envoyé est :
+   - storeCreditAccount ID ;
+   - ou Customer ID ;
+   - et est-il valide ?
+5. Est-ce que la currency est correcte ?
+6. Est-ce que les `userErrors` Shopify sont vérifiés ?
+7. Est-ce que les erreurs GraphQL sont vérifiées ?
+8. Est-ce que le HTTP status est vérifié ?
+9. Est-ce que le code marque la commande paid même si Shopify retourne une erreur ?
+10. Est-ce que le code écrit seulement dans `mapi_rep_credit_log` sans débiter Shopify ?
+11. Est-ce que le solde affiché vient du cache au lieu de Shopify live ?
+12. Est-ce que le débit est fait sur un autre customer que celui affiché ?
+13. Est-ce que le débit est fait puis compensé automatiquement par erreur ?
+14. Est-ce que le token manque le scope `write_store_credit_account_transactions` ?
+15. Est-ce que le token manque le scope `read_store_credit_accounts` ?
+
+Correction attendue :
+- Forcer le checkout à faire un vrai débit Shopify live.
+- Lire le solde avant débit.
+- Appeler `storeCreditAccountDebit`.
+- Vérifier que Shopify retourne une transaction de débit valide.
+- Lire le solde après débit.
+- Confirmer que le solde a diminué du montant attendu.
+- Si la mutation échoue ou si le solde ne diminue pas :
+  - ne pas marquer la commande payée ;
+  - ne pas créer de réservation ;
+  - ne pas envoyer email succès ;
+  - retourner une erreur claire ;
+  - loguer l’échec sans secret.
+
+Message erreur client :
+“Le crédit Shopify n’a pas pu être débité. Aucune commande payée n’a été créée.”
+
+Message admin/log :
+“Débit Shopify Store Credit échoué : commande non confirmée.”
+
+==================================================
+3. PROTECTION ANTI-FAUX POSITIF
+==================================================
+
+Le checkout ne doit plus se baser seulement sur :
+- crédit cache ;
+- credit_log local ;
+- ancien solde synchronisé ;
+- réponse partielle ;
+- absence d’erreur HTTP uniquement.
+
+Une commande est paid uniquement si :
+
+1. rep/customer Shopify identifié ;
+2. crédit live lu ;
+3. solde live suffisant ;
+4. mutation Store Credit Debit réussie ;
+5. transaction ID Shopify obtenue ;
+6. solde live après débit confirmé ou transaction validée ;
+7. aucun `userErrors`.
+
+Sinon :
+- status = failed/cancelled ;
+- pas de réservation ;
+- pas de notification succès ;
+- pas d’email succès.
+
+==================================================
+4. BUG 2 — OAUTH SHOPIFY CASSÉ
+==================================================
+
+Erreur visible :
+“Could not find Shopify API application with api_key Techmallc2026”
+
+Cela indique que l’URL OAuth Shopify est construite avec une mauvaise app key / client ID.
+
+À diagnostiquer :
+1. Où est générée l’URL OAuth Shopify ?
+2. Quelle variable est utilisée pour `client_id` ou `api_key` ?
+3. Pourquoi la valeur `Techmallc2026` est utilisée ?
+4. Est-ce une ancienne valeur hardcodée ?
+5. Est-ce une mauvaise variable d’environnement ?
+6. Est-ce le nom de l’app utilisé à la place du Client ID ?
+7. Est-ce que Replit Secrets contient :
+   - SHOPIFY_CLIENT_ID ?
+   - SHOPIFY_CLIENT_SECRET ?
+   - SHOPIFY_API_KEY ?
+   - ancienne valeur incorrecte ?
+8. Est-ce que le callback OAuth est correctement configuré côté Shopify App ?
+9. Est-ce que le redirect_uri correspond exactement à l’URL publique Système D ?
+10. Est-ce que l’app Shopify utilisée est bien celle installée sur la boutique Mapei ?
+
+Correction attendue :
+- Remplacer toute valeur hardcodée `Techmallc2026`.
+- Utiliser le vrai Shopify Client ID depuis les secrets/env.
+- Valider que l’OAuth URL utilise `client_id=<vrai_client_id>`.
+- Valider que le callback URL correspond à celui configuré dans Shopify.
+- Si l’app est Dev Dashboard / client_credentials, ne pas lancer un OAuth authorization-code cassé.
+- Choisir un seul mode de connexion cohérent :
+  A. client_credentials avec Client ID + Client Secret ;
+  ou
+  B. OAuth authorization code complet.
+- Ne pas mélanger les deux.
+
+Si on garde OAuth :
+- corriger install URL ;
+- corriger callback ;
+- échanger code contre access token ;
+- stocker token sécurisé ;
+- vérifier scopes ;
+- tester connexion.
+
+Si on garde client_credentials :
+- retirer/rediriger le bouton OAuth cassé ;
+- reconnecter via Client ID + Client Secret ;
+- générer automatiquement l’access token côté serveur ;
+- ne pas exposer les secrets.
+
+==================================================
+5. MODE RECOMMANDÉ POUR MAPEl
+==================================================
+
+Si l’app Shopify Mapei actuelle est une app Dev Dashboard utilisée uniquement pour cette boutique / organisation, privilégier le flow client_credentials déjà utilisé précédemment :
+
+POST https://{shop}.myshopify.com/admin/oauth/access_token
+
+avec :
+grant_type=client_credentials
+client_id=...
+client_secret=...
+
+Puis utiliser l’access_token pour les appels Admin API.
+
+Mais il faut que Système D gère ça correctement :
+- Client ID et Client Secret stockés côté serveur uniquement ;
+- access token obtenu côté serveur ;
+- refresh/régénération automatique si nécessaire ;
+- aucun redirect OAuth cassé vers Shopify ;
+- aucun `api_key Techmallc2026`.
+
+Si OAuth authorization-code est vraiment souhaité :
+- utiliser le vrai Client ID Shopify ;
+- corriger l’URL ;
+- corriger callback ;
+- tester de bout en bout.
+
+Choisir l’option la plus fiable pour fermer le projet rapidement.
+
+==================================================
+6. SCOPES SHOPIFY OBLIGATOIRES
+==================================================
+
+Vérifier que l’app/token possède au minimum :
+
+Produits :
+- read_products
+- read_inventory
+
+Commandes :
+- read_orders
+- write_orders si création Shopify order nécessaire, sinon ne pas demander inutilement
+
+Customers/Reps :
+- read_customers
+
+Store Credit :
+- read_store_credit_accounts
+- read_store_credit_account_transactions si historique affiché
+- write_store_credit_account_transactions
+
+Si un scope manque :
+- afficher le scope manquant ;
+- ne pas prétendre que le paiement fonctionne ;
+- bloquer checkout avec message clair.
+
+==================================================
+7. PAIEMENT CARTE À BLOQUER PARTOUT
+==================================================
+
+Le client a confirmé :
+Le site ne va utiliser que les crédits en magasin comme mode de paiement.
+
+Donc :
+- supprimer/masquer toute option carte ;
+- supprimer/masquer toute mention Stripe ;
+- supprimer/masquer toute mention Global Payments dans le portail client ;
+- si paiement crédit indisponible, ne pas proposer carte comme fallback ;
+- afficher :
+  “Paiement par crédit en magasin uniquement.”
+
+Côté admin :
+- Global Payments peut rester comme futur statut “non configuré” si nécessaire ;
+- mais ne doit pas apparaître comme option utilisable pour Mapei.
+
+==================================================
+8. CART / PANIER
+==================================================
+
+Le client dit que “le cart n’a pas fonctionné”.
+
+Tester et corriger :
+1. ajout produit ;
+2. modification quantité ;
+3. suppression produit ;
+4. persistance panier ;
+5. ouverture drawer ;
+6. checkout ;
+7. panier après paiement réussi ;
+8. panier après paiement échoué ;
+9. mobile.
+
+Règles :
+- Si paiement réussi : vider le panier.
+- Si paiement échoué : garder le panier et afficher erreur claire.
+- Si crédit indisponible : garder le panier.
+- Si token invalide : garder le panier.
+- Si rep non trouvé : garder le panier.
+
+==================================================
+9. TESTS OBLIGATOIRES QA RÉELLE
+==================================================
+
+Après correction, tester avec vrai compte Mapei :
+
+A. Connexion Shopify
+1. Reconnecter Shopify sans erreur OAuth.
+2. Test connexion OK.
+3. Scopes crédit validés.
+4. Mes reps visible.
+5. Crédit live visible.
+
+B. Checkout crédit
+1. Vérifier solde Shopify avant achat.
+2. Ajouter produit au panier.
+3. Procéder au paiement.
+4. Vérifier commande réussie.
+5. Vérifier solde Shopify après achat.
+6. Le solde doit diminuer exactement du montant payé.
+7. Vérifier transaction Shopify Store Credit créée.
+8. Vérifier commande Système D créée.
+9. Vérifier réservation locale.
+10. Vérifier notification/email.
+
+C. Échec contrôlé
+1. Tester crédit insuffisant.
+2. Tester token invalide.
+3. Tester rep non trouvé.
+4. Dans chaque cas :
+   - pas de commande paid ;
+   - pas de réservation ;
+   - panier conservé ;
+   - message clair.
+
+D. Paiement carte
+1. Vérifier qu’aucune option carte n’est visible côté client.
+2. Vérifier qu’aucun appel Stripe/Global Payments n’est déclenché.
+
+==================================================
+10. RAPPORT ATTENDU
+==================================================
+
+Réponds avec :
+
+A. Cause exacte du paiement non débité
+B. Preuve du code qui ne débitait pas Shopify ou ne vérifiait pas le résultat
+C. Correction appliquée au checkout
+D. Comment le débit Shopify est vérifié maintenant
+E. Solde avant/après sur un test réel ou procédure exacte si test réel impossible
+F. Cause exacte de l’erreur OAuth `api_key Techmallc2026`
+G. Mode de connexion Shopify retenu : OAuth ou client_credentials
+H. Variables/secrets à configurer dans Replit
+I. Scopes Shopify validés ou manquants
+J. Correction panier/cart
+K. Paiement carte bloqué partout
+L. Fichiers modifiés
+M. Tests lancés
+N. Tests manuels à faire
+O. Statut final GO / NO-GO paiement Mapei
+
+Statut final attendu uniquement si le solde Shopify diminue réellement :
+PAIEMENT SHOPIFY STORE CREDIT VALIDÉ — SOLDE DÉBITÉ EN LIVE.
+
+Ne termine pas avec “ça fonctionne” si le crédit Shopify ne diminue pas réellement.
