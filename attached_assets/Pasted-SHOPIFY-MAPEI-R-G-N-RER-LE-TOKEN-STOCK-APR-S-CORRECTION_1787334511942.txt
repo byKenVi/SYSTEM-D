@@ -1,0 +1,61 @@
+SHOPIFY MAPEI — RÉGÉNÉRER LE TOKEN STOCKÉ APRÈS CORRECTION DES SECRETS
+
+Contexte :
+Les secrets Replit SHOPIFY_CLIENT_ID et SHOPIFY_CLIENT_SECRET ont été corrigés.
+Ils ne contiennent plus Techmallc2026.
+
+Mais l’intégration Shopify Mapei utilise encore un ancien token stocké en base.
+Le test live retourne toujours :
+401 Invalid API key or access token
+
+Objectif :
+Régénérer proprement le token Shopify de l’intégration Mapei avec les nouveaux secrets, puis enregistrer ce nouveau token pour que le checkout crédit fonctionne.
+
+Ne modifie pas l’architecture.
+Ne touche pas au checkout.
+Ne touche pas aux produits.
+Ne touche pas aux commandes.
+Ne touche pas aux reps.
+Ne supprime aucune donnée Shopify importée.
+Ne loggue jamais le token ni le client secret.
+
+À faire :
+
+1. Identifier l’intégration Shopify active de Mapei.
+2. Vérifier le domaine boutique utilisé.
+3. Utiliser les nouveaux secrets serveur :
+   - SHOPIFY_CLIENT_ID
+   - SHOPIFY_CLIENT_SECRET
+
+4. Régénérer un access token côté serveur via le flow actuellement supporté par le code.
+
+Si le projet utilise client_credentials :
+POST https://{shop}.myshopify.com/admin/oauth/access_token
+avec :
+grant_type=client_credentials
+client_id=SHOPIFY_CLIENT_ID
+client_secret=SHOPIFY_CLIENT_SECRET
+
+5. Remplacer l’ancien token invalide stocké pour l’intégration Mapei.
+6. Mettre à jour :
+   - statut connexion ;
+   - dernier test ;
+   - dernière erreur ;
+   - scopes si disponibles.
+
+7. Relancer le test connexion Shopify.
+8. Confirmer que le résultat n’est plus 401.
+9. Tester une lecture live du crédit d’un rep.
+10. Ne pas tenter de paiement tant que la lecture crédit live ne fonctionne pas.
+
+Rapport attendu :
+A. Ancien token détecté comme invalide : oui/non
+B. Nouveau token généré : oui/non, sans afficher sa valeur
+C. Intégration Mapei mise à jour : oui/non
+D. Test connexion Shopify : OK / échec
+E. Lecture crédit live : OK / échec
+F. Si échec, message exact Shopify sans secret
+G. Prochaine étape pour tester le checkout
+
+Statut attendu :
+SHOPIFY MAPEI — TOKEN RÉGÉNÉRÉ ET CONNEXION LIVE VALIDÉE.
