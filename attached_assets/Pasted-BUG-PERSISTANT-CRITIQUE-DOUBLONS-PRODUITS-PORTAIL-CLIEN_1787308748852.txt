@@ -1,0 +1,338 @@
+BUG PERSISTANT CRITIQUE — DOUBLONS PRODUITS PORTAIL CLIENT MAPEl — À CORRIGER DÉFINITIVEMENT
+
+Contexte :
+Cela fait plusieurs tentatives que le problème de doublons produits est supposé corrigé, mais il est toujours visible dans l’interface client réelle.
+
+Capture QA actuelle :
+Dans le portail client Mapei, onglet “Mes Produits”, le compteur affiche encore :
+
+396 produits
+
+Alors que le catalogue attendu est :
+
+198 produits uniques
+
+Les lignes visibles sont clairement dupliquées :
+- même image ;
+- même nom ;
+- même SKU ;
+- même prix ;
+- même statut stock ;
+- même produit affiché deux fois.
+
+Exemples visibles :
+- “Boîte pouvant contenir 20 morceaux (9106)” SKU MK10 apparaît deux fois.
+- “Boîte pouvant contenir 8 morceaux (9107)” SKU MK11 apparaît deux fois.
+
+Les corrections précédentes ont prétendu :
+- dédoublonnage serveur ;
+- dédoublonnage client ;
+- dédoublonnage admin ;
+- cache no-store ;
+- tests passés ;
+- compteur corrigé.
+
+Mais en QA réelle, ce n’est toujours PAS corrigé.
+
+Objectif :
+Corriger définitivement le problème, en prouvant que la route réellement utilisée par l’interface client retourne 198 produits uniques, pas 396.
+
+Ne fais pas un simple filtre supplémentaire sans diagnostic.
+Ne réponds pas seulement “tests passés”.
+Ne suppose pas que la bonne route est corrigée.
+Ne termine pas tant que tu n’as pas prouvé la réponse réelle utilisée par l’écran.
+
+==================================================
+1. PREUVE DE LA ROUTE RÉELLEMENT UTILISÉE
+==================================================
+
+Commence par identifier précisément quelle route alimente l’écran :
+
+Portail client → Boutique → Mes Produits
+
+Vérifie dans le frontend :
+- composant exact ;
+- hook React Query exact ;
+- URL appelée ;
+- query key ;
+- paramètres envoyés ;
+- source du compteur 396 ;
+- source de la liste affichée.
+
+Trouve exactement :
+- route API appelée ;
+- méthode ;
+- paramètres ;
+- réponse brute ;
+- champ utilisé pour le compteur ;
+- champ utilisé pour les lignes.
+
+Rapport obligatoire :
+A. fichier frontend ;
+B. fonction/hook utilisé ;
+C. route exacte appelée ;
+D. exemple de réponse brute avant correction ;
+E. nombre brut retourné ;
+F. nombre affiché.
+
+==================================================
+2. PREUVE CÔTÉ API EN ENVIRONNEMENT RÉEL
+==================================================
+
+Ajoute temporairement un log de diagnostic contrôlé, ou utilise les logs existants, pour prouver ce que la route retourne réellement.
+
+Pour le vrai compte Mapei, la route portail doit logger :
+
+- user/contact connecté ;
+- contactId ;
+- zohoCrmAccountId ;
+- companyName ;
+- nombre de contacts inclus dans la portée entreprise ;
+- nombre de produits bruts récupérés ;
+- nombre de groupes de doublons détectés ;
+- nombre final retourné ;
+- 5 premiers groupes de doublons avec :
+  - name ;
+  - sku ;
+  - zohoItemId ;
+  - shopifyProductId ;
+  - shopifyVariantId ;
+  - contactId ;
+  - shopifyStoreUrl ;
+  - product.id.
+
+Important :
+Ne pas logger de token ou secret.
+
+Rapport obligatoire :
+- résultat réel pour Mapei ;
+- nombre brut ;
+- nombre après dédoublonnage ;
+- preuve que la route utilisée par l’UI retourne bien 198.
+
+==================================================
+3. DIAGNOSTIC BASE DE DONNÉES
+==================================================
+
+Interroge la base réelle pour Mapei.
+
+Rechercher les doublons exacts par compte entreprise Mapei.
+
+Groupes à inspecter :
+
+1. même `zoho_item_id`
+2. même `shopify_variant_id`
+3. même `shopify_product_id`
+4. même `sku` + même `shopify_store_url`
+5. même `sku` + même nom normalisé + même prix
+6. même image + même sku si disponible
+
+Rapport attendu :
+- nombre total de lignes produits liées à Mapei ;
+- nombre de produits uniques attendus ;
+- nombre de groupes de doublons ;
+- exemple sur SKU MK10 ;
+- exemple sur SKU MK11 ;
+- explication exacte de pourquoi les doublons existent.
+
+Si la base contient deux copies du même produit sur deux contacts du même compte, confirmer :
+- contact propriétaire 1 ;
+- contact propriétaire 2 ;
+- même compte Zoho ou non ;
+- même boutique Shopify ou non ;
+- même variant Shopify ou non.
+
+==================================================
+4. CORRECTION À LA SOURCE — PAS UNIQUEMENT UI
+==================================================
+
+La correction doit être appliquée à la source réellement utilisée.
+
+Priorité de correction :
+
+A. Backend route portail
+La route qui alimente “Mes Produits” doit retourner uniquement des produits uniques.
+
+B. Backend route admin / view-as
+La même règle doit s’appliquer à l’aperçu admin/view-as et à toute route qui affiche les produits client.
+
+C. Compteur
+Le compteur doit être calculé à partir de la liste dédoublonnée, jamais depuis le total brut.
+
+D. Frontend
+Le frontend peut garder une protection locale, mais ne doit pas être la seule correction.
+
+E. Cache
+Empêcher l’ancienne réponse 396 de rester affichée :
+- invalidation React Query correcte ;
+- query key stable ;
+- no-store côté API ;
+- pas de stale cache qui garde 396 ;
+- après refresh, 198 doit apparaître.
+
+==================================================
+5. RÈGLE DE DÉDOUBLONNAGE EXACTE
+==================================================
+
+Un produit ne doit s’afficher qu’une seule fois pour un même compte client si l’une de ces clés est identique :
+
+Priorité 1 :
+- `zohoItemId` identique et non null.
+
+Priorité 2 :
+- `shopifyVariantId` identique et non null.
+
+Priorité 3 :
+- `shopifyProductId` identique et SKU identique.
+
+Priorité 4 :
+- boutique normalisée + SKU identique + nom normalisé + prix identique.
+
+Ne pas fusionner deux produits différents uniquement parce que leurs noms se ressemblent.
+
+Pour chaque groupe de doublons, conserver en priorité :
+1. produit rattaché au contact connecté ;
+2. sinon produit rattaché au contact principal de l’intégration active ;
+3. sinon produit le plus récemment synchronisé ;
+4. sinon plus petit id stable.
+
+La règle doit être déterministe.
+
+==================================================
+6. NETTOYAGE BASE — SI NÉCESSAIRE
+==================================================
+
+Si le diagnostic montre que les doublons sont réellement stockés en base et que le simple dédoublonnage de lecture reste fragile, proposer un nettoyage sûr.
+
+Mais attention :
+Ne supprime pas de données tant que le diagnostic n’a pas prouvé que ce sont des doublons exacts.
+
+Nettoyage accepté uniquement si :
+- même compte client ;
+- même boutique ;
+- même SKU ;
+- même Shopify variant ou même Zoho item ;
+- mêmes données principales ;
+- aucune commande/historique ne dépend directement de la ligne supprimée.
+
+Si suppression risquée :
+- ne pas supprimer ;
+- créer un champ ou une logique de consolidation ;
+- marquer les doublons comme hidden/duplicate si le schéma le permet ;
+- sinon dédoublonnage lecture obligatoire.
+
+Si nettoyage fait :
+- sauvegarder la liste des ids concernés dans un log ou rapport ;
+- ne jamais supprimer des produits d’un autre client ;
+- ne jamais supprimer produits SystemD ;
+- ne jamais supprimer commandes/historiques.
+
+==================================================
+7. VÉRIFIER LE BON ENVIRONNEMENT / DÉPLOIEMENT
+==================================================
+
+Le problème peut venir du fait que le correctif n’est pas réellement dans la version servie.
+
+Vérifie :
+- commit actuel exécuté par l’app ;
+- dernier commit contenant le fix ;
+- build réellement utilisé ;
+- serveur redémarré ;
+- route API chargée depuis le bon fichier ;
+- frontend bundle mis à jour ;
+- pas d’ancien service worker/cache ;
+- pas de CDN/cache qui sert l’ancien bundle.
+
+Ajoute si nécessaire un endpoint ou log temporaire de version :
+- commit SHA ;
+- build time ;
+- app version.
+
+Rapport :
+- commit exécuté ;
+- commit attendu ;
+- preuve que la version publiée contient le correctif.
+
+==================================================
+8. TESTS OBLIGATOIRES
+==================================================
+
+Tests backend :
+1. Pour Mapei, route portail Mes Produits retourne 198.
+2. Le compteur retourné est 198.
+3. Aucun groupe doublon MK10/MK11 dans la réponse.
+4. Les produits en rupture restent visibles.
+5. Les produits SystemD ne sont pas affectés.
+6. Les produits d’un autre client ne sont pas visibles.
+7. L’admin view-as Mapei retourne aussi 198.
+8. L’admin catalogue client ne montre pas les doublons.
+
+Tests frontend :
+1. Ouvrir portail client Mapei.
+2. Aller dans Boutique → Mes Produits.
+3. Le compteur affiche 198.
+4. MK10 apparaît une seule fois.
+5. MK11 apparaît une seule fois.
+6. Refresh navigateur : toujours 198.
+7. Changer d’onglet puis revenir : toujours 198.
+8. Recharger en navigation privée si possible : toujours 198.
+9. Admin view-as : toujours 198.
+10. Admin boutique : pas de doublons.
+
+Tests de non-régression :
+1. Produits SystemD toujours visibles.
+2. Mes commandes toujours visibles.
+3. Mes reps toujours visibles.
+4. Checkout crédit toujours fonctionne.
+5. Bon de travail produit toujours fonctionne.
+6. Aucun produit d’un autre client ne s’affiche.
+
+==================================================
+9. CRITÈRE D’ACCEPTATION FINAL
+==================================================
+
+Le bug est considéré corrigé uniquement si toutes ces conditions sont vraies :
+
+- L’API réellement appelée par le portail retourne 198 produits uniques pour Mapei.
+- Le compteur UI affiche 198, pas 396.
+- MK10 apparaît une seule fois.
+- MK11 apparaît une seule fois.
+- Le même résultat est visible après refresh.
+- Le même résultat est visible en admin/view-as.
+- Le même résultat est visible après redémarrage serveur.
+- Les tests passent.
+- La version publiée est bien celle contenant le correctif.
+
+Si tu ne peux pas tester l’interface avec un vrai utilisateur à cause de l’auth, alors tu dois au minimum fournir :
+- la réponse JSON réelle de la route portail ;
+- le nombre exact retourné ;
+- le log serveur de la requête ;
+- la preuve que le frontend utilise cette route ;
+- et demander explicitement une validation manuelle finale.
+
+==================================================
+10. RAPPORT ATTENDU
+==================================================
+
+Réponds avec :
+
+A. Route frontend exacte utilisée par Mes Produits
+B. Route API exacte appelée
+C. Nombre brut en base pour Mapei
+D. Nombre de produits uniques attendu
+E. Cause exacte des 396
+F. Pourquoi les corrections précédentes n’ont pas corrigé l’interface réelle
+G. Correction backend appliquée
+H. Correction frontend/cache appliquée
+I. Nettoyage base appliqué ou non, avec justification
+J. Preuve que l’API retourne 198
+K. Preuve que le compteur utilise la liste dédoublonnée
+L. Tests client réalisés
+M. Tests admin réalisés
+N. Commit/version réellement servie
+O. Statut final
+
+Statut final attendu uniquement si la capture réelle est corrigée :
+DOUBLONS PRODUITS PORTAIL CLIENT CORRIGÉS — 198 PRODUITS UNIQUES CONFIRMÉS.
+
+Ne termine pas avec “prêt à publier” si l’app réelle affiche encore 396.

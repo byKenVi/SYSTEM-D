@@ -10,7 +10,7 @@ import { db } from "./db";
 import { users as usersTable } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 import { resolveClientProductContactIds } from "./client-product-scope";
-import { dedupeScopedProducts } from "./portal-product-deduplication";
+import { dedupeScopedProducts, dedupeScopedProductsWithStats } from "./portal-product-deduplication";
 import { isShopifyCreditSufficient, normalizeShopifyStoreUrl, shopifyCreditHttpStatus } from "./shopify-credit-policy";
 import multer from "multer";
 import path from "path";
@@ -2342,9 +2342,41 @@ export async function registerRoutes(
         return res.json([]);
       }
       const productContactIds = await getProductContactIds(role.contactId);
-      const products = await storage.getProductsByContactIds(productContactIds);
+      const rawProducts = await storage.getProductsByContactIds(productContactIds);
+      const deduped = dedupeScopedProductsWithStats(rawProducts, role.contactId);
+      const contact = await storage.getContact(role.contactId);
+      const contactList = await storage.getContacts();
+      const accountId = contact?.zohoCrmAccountId?.trim() || null;
+      console.info("[catalog-dedupe]", JSON.stringify({
+        route: "GET /api/portal/products",
+        routeVersion: "portal-products-dedupe-v4",
+        contactId: role.contactId,
+        zohoCrmAccountId: accountId,
+        companyName: contact?.companyName || null,
+        scopedContactCount: productContactIds.length,
+        knownContactCount: contactList.length,
+        rawCount: rawProducts.length,
+        duplicateGroups: deduped.duplicateGroups,
+        finalCount: deduped.products.length,
+        examples: deduped.examples.map((example) => ({
+          identity: example.identity,
+          products: example.products.map((product) => ({
+            id: product.id,
+            contactId: product.contactId,
+            name: product.name,
+            sku: product.sku,
+            zohoItemId: product.zohoItemId,
+            shopifyProductId: product.shopifyProductId,
+            shopifyVariantId: product.shopifyVariantId,
+            shopifyStoreUrl: product.shopifyStoreUrl,
+          })),
+        })),
+      }));
       res.set("Cache-Control", "no-store");
-      res.json(dedupeScopedProducts(products, role.contactId));
+      res.set("X-Catalog-Route-Version", "portal-products-dedupe-v4");
+      res.set("X-Catalog-Raw-Count", String(rawProducts.length));
+      res.set("X-Catalog-Final-Count", String(deduped.products.length));
+      res.json(deduped.products);
     } catch (error) {
       console.error("Error fetching portal products:", error);
       res.status(500).json({ message: "Failed to fetch products" });
