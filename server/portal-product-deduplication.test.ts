@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { dedupeScopedProducts } from "./portal-product-deduplication";
 
@@ -28,4 +29,17 @@ test("le portail ne fusionne pas les produits sans identifiant source fiable", (
   ], 10);
 
   assert.deepEqual(result.map((product) => product.id), [1, 2]);
+});
+
+test("les réponses et écrans catalogue dédoublonnent côté client comme côté admin", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const portalBoutique = readFileSync(new URL("../client/src/pages/portal/boutique.tsx", import.meta.url), "utf8");
+  const portalDashboard = readFileSync(new URL("../client/src/pages/portal/dashboard.tsx", import.meta.url), "utf8");
+  const adminBoutique = readFileSync(new URL("../client/src/pages/admin/boutique.tsx", import.meta.url), "utf8");
+
+  assert.match(routes, /app\.get\("\/api\/products"[\s\S]{0,400}dedupeScopedProducts\(products\)/);
+  assert.match(routes, /app\.get\("\/api\/portal\/products"[\s\S]{0,700}dedupeScopedProducts\(products, role\.contactId\)/);
+  assert.match(portalBoutique, /dedupeCatalogProducts\(rawProducts, viewAsContactId\)/);
+  assert.match(portalDashboard, /dedupeCatalogProducts\(rawProducts, viewAsContactId\)/);
+  assert.match(adminBoutique, /dedupeCatalogProducts\(rawProducts\)/);
 });

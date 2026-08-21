@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product } from "@shared/schema";
+import { dedupeCatalogProducts } from "@shared/catalog-product-deduplication";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -637,11 +638,15 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   }, [paymentStatus, confirmedOrderId, systemdOrdersFetching, systemdOrdersList, isViewAs]);
 
   /* Data fetching */
-  const { data: products, isLoading: productsLoading, isError: productsError, refetch: refetchPortalProducts } = useQuery<Product[]>({
+  const { data: rawProducts, isLoading: productsLoading, isError: productsError, refetch: refetchPortalProducts } = useQuery<Product[]>({
     queryKey: viewAsContactId
-      ? ["/api/admin/view-as", viewAsContactId, "products"]
-      : ["/api/portal/products"],
+      ? ["/api/admin/view-as", viewAsContactId, "products?catalog=v3"]
+      : ["/api/portal/products?catalog=v3"],
   });
+  const products = useMemo(
+    () => rawProducts ? dedupeCatalogProducts(rawProducts, viewAsContactId) : undefined,
+    [rawProducts, viewAsContactId],
+  );
 
   const { data: ordersData, isLoading: ordersLoading, isError: ordersError, refetch: refetchPortalOrders } = useQuery<OrdersResponse>({
     queryKey: viewAsContactId

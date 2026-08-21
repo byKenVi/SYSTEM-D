@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import type { Contact, Product, RestockRequest, FormSubmission } from "@shared/schema";
+import { dedupeCatalogProducts } from "@shared/catalog-product-deduplication";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,11 +80,15 @@ export default function PortalDashboard({ viewAsContactId }: { viewAsContactId?:
       : ["/api/portal/profile"],
   });
 
-  const { data: products, isLoading: loadingProducts } = useQuery<Product[]>({
+  const { data: rawProducts, isLoading: loadingProducts } = useQuery<Product[]>({
     queryKey: viewAsContactId
-      ? ["/api/admin/view-as", viewAsContactId, "products"]
-      : ["/api/portal/products"],
+      ? ["/api/admin/view-as", viewAsContactId, "products?catalog=v3"]
+      : ["/api/portal/products?catalog=v3"],
   });
+  const products = useMemo(
+    () => rawProducts ? dedupeCatalogProducts(rawProducts, viewAsContactId) : undefined,
+    [rawProducts, viewAsContactId],
+  );
 
   const { data: restockRequests, isLoading: loadingRestock } = useQuery<RestockRequest[]>({
     queryKey: viewAsContactId

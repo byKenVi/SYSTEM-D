@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, Contact } from "@shared/schema";
+import { dedupeCatalogProducts } from "@shared/catalog-product-deduplication";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -195,7 +196,11 @@ export default function AdminBoutique() {
   const [systemdSearch, setSystemdSearch] = useState("");
 
   /* Data */
-  const { data: products, isLoading: productsLoading } = useQuery<Product[]>({ queryKey: ["/api/products"] });
+  const { data: rawProducts, isLoading: productsLoading } = useQuery<Product[]>({ queryKey: ["/api/products"] });
+  const products = useMemo(
+    () => rawProducts ? dedupeCatalogProducts(rawProducts) : undefined,
+    [rawProducts],
+  );
   const { data: contacts } = useQuery<Contact[]>({ queryKey: ["/api/contacts"] });
 
   interface SystemdItem { zohoItemId: string; name: string; sku: string | null; description: string | null; imageUrl: string | null; price: number; stock: number; }

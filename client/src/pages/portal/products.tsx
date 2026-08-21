@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import type { Product } from "@shared/schema";
+import { dedupeCatalogProducts } from "@shared/catalog-product-deduplication";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ import {
   Search,
   RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -47,11 +48,15 @@ export default function PortalProducts({ viewAsContactId }: { viewAsContactId?: 
   const [restockQty, setRestockQty] = useState("");
   const isViewAs = !!viewAsContactId;
 
-  const { data: products, isLoading } = useQuery<Product[]>({
+  const { data: rawProducts, isLoading } = useQuery<Product[]>({
     queryKey: viewAsContactId
-      ? ["/api/admin/view-as", viewAsContactId, "products"]
-      : ["/api/portal/products"],
+      ? ["/api/admin/view-as", viewAsContactId, "products?catalog=v3"]
+      : ["/api/portal/products?catalog=v3"],
   });
+  const products = useMemo(
+    () => rawProducts ? dedupeCatalogProducts(rawProducts, viewAsContactId) : undefined,
+    [rawProducts, viewAsContactId],
+  );
 
   const restockMutation = useMutation({
     mutationFn: async () => {

@@ -1015,7 +1015,8 @@ export async function registerRoutes(
   app.get("/api/products", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const products = await storage.getProducts();
-      res.json(products);
+      res.set("Cache-Control", "no-store");
+      res.json(dedupeScopedProducts(products));
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ message: "Failed to fetch products" });
@@ -2225,6 +2226,7 @@ export async function registerRoutes(
       const contactId = Number(req.params.contactId);
       const productContactIds = await getProductContactIds(contactId);
       const products = await storage.getProductsByContactIds(productContactIds);
+      res.set("Cache-Control", "no-store");
       res.json(dedupeScopedProducts(products, contactId));
     } catch (error) {
       console.error("Error fetching view-as products:", error);
@@ -2341,6 +2343,7 @@ export async function registerRoutes(
       }
       const productContactIds = await getProductContactIds(role.contactId);
       const products = await storage.getProductsByContactIds(productContactIds);
+      res.set("Cache-Control", "no-store");
       res.json(dedupeScopedProducts(products, role.contactId));
     } catch (error) {
       console.error("Error fetching portal products:", error);
