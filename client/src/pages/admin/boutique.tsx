@@ -179,7 +179,7 @@ export default function AdminBoutique() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
-  const [groupBy, setGroupBy] = useState<boolean>(() => localStorage.getItem("products_groupBy") !== "false");
+  const [groupBy, setGroupBy] = useState<boolean>(true);
 
   /* Orders state */
   const [orderSearch, setOrderSearch] = useState("");
@@ -323,6 +323,10 @@ export default function AdminBoutique() {
   const toggleCollapse = (contactId: number) => { setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(contactId)) next.delete(contactId); else next.add(contactId); return next; }); };
   const handleDeleteClick = (product: Product) => { if (product.shopifyStoreUrl) setDeleteTarget(product); else deleteProductMutation.mutate(product.id); };
   const contactMap = new Map(contacts?.map((c) => [c.id, c]) || []);
+  const getProductOwnerLabel = (product: Product) => {
+    const contact = contactMap.get(product.contactId);
+    return contact?.companyName || contact?.name || contact?.email || `Client #${product.contactId}`;
+  };
 
   const filtered = products?.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku || "").toLowerCase().includes(search.toLowerCase()) || (p.barcode || "").toLowerCase().includes(search.toLowerCase());
@@ -455,8 +459,8 @@ export default function AdminBoutique() {
                 <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 p-0" onClick={() => setViewMode("list")} data-testid="button-view-list"><LayoutList className="h-4 w-4" /></Button>
                 <Button variant={viewMode === "card" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 p-0" onClick={() => setViewMode("card")} data-testid="button-view-card"><LayoutGrid className="h-4 w-4" /></Button>
               </div>
-              <Button variant={groupBy ? "secondary" : "outline"} size="sm" className="h-8 gap-1.5 text-xs" onClick={toggleGroupBy} data-testid="button-toggle-groupby">
-                <Layers className="h-3.5 w-3.5" />Grouper
+                <Button variant={groupBy ? "secondary" : "outline"} size="sm" className="h-8 gap-1.5 text-xs" onClick={toggleGroupBy} data-testid="button-toggle-groupby">
+                  <Layers className="h-3.5 w-3.5" />Par client
               </Button>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -510,7 +514,12 @@ export default function AdminBoutique() {
                               <div className="flex items-center gap-3">
                                 <img src={product.imageUrl || ""} alt={product.name} className="h-9 w-9 rounded-md object-cover flex-shrink-0" style={{ display: product.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
                                 <div className="h-9 w-9 rounded-md bg-muted items-center justify-center flex-shrink-0" style={{ display: product.imageUrl ? "none" : "flex" }}><Package className="h-4 w-4 text-muted-foreground" /></div>
-                                <span className="font-medium" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
+                                <div className="min-w-0">
+                                  <span className="block font-medium" data-testid={`text-product-name-${product.id}`}>{product.name}</span>
+                                  <span className="block truncate text-[11px] text-muted-foreground" data-testid={`text-product-owner-${product.id}`}>
+                                    {getProductOwnerLabel(product)}{product.shopifyStoreUrl ? ` · ${product.shopifyStoreUrl}` : ""}
+                                  </span>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground font-mono text-sm">{product.sku || "—"}</TableCell>
@@ -652,6 +661,9 @@ export default function AdminBoutique() {
                         </div>
                         <div className="p-3 space-y-1.5">
                           <p className="text-sm font-semibold leading-tight line-clamp-2" data-testid={`text-card-product-name-${product.id}`}>{product.name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate" data-testid={`text-card-product-owner-${product.id}`}>
+                            {getProductOwnerLabel(product)}{product.shopifyStoreUrl ? ` · ${product.shopifyStoreUrl}` : ""}
+                          </p>
                           {product.sku && <p className="text-[11px] font-mono text-muted-foreground truncate">{product.sku}</p>}
                           <div className="flex items-center justify-between pt-0.5">
                             <span className="text-xs font-medium">{product.price ? `$${Number(product.price).toFixed(2)}` : "—"}</span>
