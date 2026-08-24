@@ -1147,11 +1147,11 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                           const itemCount = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
                           return (
                             <Fragment key={order.id}>
-                              <TableRow id={`systemd-order-${order.id}`} className="scroll-mt-24 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setExpandedSystemdOrderId(expandedSystemdOrderId === order.id ? null : order.id)}>
+                              <TableRow id={`systemd-order-${order.id}`} className="scroll-mt-24 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate(`/portal/orders/systemd/${order.id}`)}>
                                 <TableCell className="font-mono font-bold">#{order.id}</TableCell>
                                 <TableCell className="whitespace-nowrap text-xs">{new Date(order.createdAt).toLocaleDateString("fr-CA")}</TableCell>
                                 <TableCell><p className="text-sm font-medium">{order.repName || order.repEmail || "—"}</p>{order.repName && order.repEmail && <p className="text-[10px] text-muted-foreground">{order.repEmail}</p>}</TableCell>
-                                <TableCell><Badge variant="outline">Système D</Badge></TableCell>
+                                <TableCell><Badge variant="outline">{items[0]?.source === "client_product" ? "Produit client" : "Système D"}</Badge></TableCell>
                                 <TableCell>{itemCount}</TableCell>
                                 <TableCell><Badge className={order.status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{order.status === "paid" ? "Payé" : "En attente"}</Badge></TableCell>
                                 <TableCell><Badge variant="secondary">{order.fulfillmentStatus === "completed" ? "Terminé" : order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter"}</Badge></TableCell>

@@ -77,7 +77,8 @@ function fmt(d: string | null | undefined) {
 function getDestUrl(n: EnrichedNotification): string | null {
   const meta = (n.metadata ?? {}) as Record<string, unknown>;
   if (meta.formId) return `/admin/forms/${meta.formId}`;
-  if (meta.systemdOrderId) return `/admin/orders#systemd-${meta.systemdOrderId}`;
+  if (meta.systemdOrderId) return `/admin/orders/systemd/${meta.systemdOrderId}`;
+  if (meta.shopifyOrderId) return `/admin/orders/${meta.shopifyOrderId}`;
   return null;
 }
 

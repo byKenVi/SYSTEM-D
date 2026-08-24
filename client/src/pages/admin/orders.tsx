@@ -523,7 +523,7 @@ export default function AdminOrders() {
                             <TableRow
                               id={`systemd-${order.id}`}
                               className="cursor-pointer hover:bg-muted/50 transition-colors group"
-                              onClick={() => setSdExpandedId(isExpanded ? null : order.id)}
+                              onClick={() => navigate(`/admin/orders/systemd/${order.id}`)}
                               data-testid={`row-systemd-order-${order.id}`}
                             >
                               <TableCell className="text-sm text-muted-foreground whitespace-nowrap">

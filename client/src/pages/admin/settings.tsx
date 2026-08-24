@@ -119,8 +119,6 @@ export default function AdminSettingsPage() {
   const [storePlatform, setStorePlatform] = useState<"shopify" | "woocommerce" | "other">("shopify");
   const [storeName, setStoreName] = useState("");
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
-  const [wooConsumerKey, setWooConsumerKey] = useState("");
-  const [wooConsumerSecret, setWooConsumerSecret] = useState("");
   const [zohoRegion, setZohoRegion] = useState("us");
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
   const [zohoProjectsPortalInput, setZohoProjectsPortalInput] = useState("");
@@ -247,12 +245,6 @@ export default function AdminSettingsPage() {
         platform: storePlatform,
         shopName: storeName.trim() || undefined,
       };
-      if (storePlatform === "woocommerce") {
-        body.consumerKey = wooConsumerKey;
-        body.consumerSecret = wooConsumerSecret;
-        const res = await apiRequest("POST", "/api/shopify-integrations/connect", body);
-        return res.json();
-      }
       const res = await apiRequest("POST", "/api/auth/shopify/connect", body);
       return res.json();
     },
@@ -268,10 +260,7 @@ export default function AdminSettingsPage() {
       setStorePlatform("shopify");
       setStoreName("");
       setShopifyStoreUrl("");
-      setWooConsumerKey("");
-      setWooConsumerSecret("");
-      const label = storePlatform === "woocommerce" ? "WooCommerce" : "Shopify";
-      toast({ title: "Boutique connectée", description: `La boutique ${label} a été liée avec succès.` });
+      toast({ title: "Boutique connectée", description: "La boutique Shopify a été liée avec succès." });
     },
     onError: (error: any) => {
       toast({
@@ -1034,8 +1023,6 @@ export default function AdminSettingsPage() {
                     setStorePlatform("shopify");
                     setStoreName("");
                     setShopifyStoreUrl("");
-                    setWooConsumerKey("");
-                    setWooConsumerSecret("");
                   }
                 }}>
                   <DialogTrigger asChild>
@@ -1048,7 +1035,7 @@ export default function AdminSettingsPage() {
                     <DialogHeader>
                       <DialogTitle>Connecter une boutique</DialogTitle>
                       <DialogDescription>
-                        Associez une boutique Shopify ou WooCommerce à un client existant.
+                        Associez une boutique Shopify à un client existant. Les autres plateformes seront disponibles prochainement.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 mt-2">
@@ -1063,10 +1050,10 @@ export default function AdminSettingsPage() {
                             <SelectItem value="shopify">
                               <span className="flex items-center gap-2"><SiShopify className="h-4 w-4 text-green-600" /> Shopify</span>
                             </SelectItem>
-                            <SelectItem value="woocommerce">
-                              <span className="flex items-center gap-2"><SiWoocommerce className="h-4 w-4 text-purple-600" /> WooCommerce</span>
+                            <SelectItem value="woocommerce" disabled>
+                              <span className="flex items-center gap-2"><SiWoocommerce className="h-4 w-4 text-purple-600" /> WooCommerce — à venir</span>
                             </SelectItem>
-                            <SelectItem value="other">Autre / à configurer</SelectItem>
+                            <SelectItem value="other" disabled>Autre / à configurer — à venir</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1099,7 +1086,7 @@ export default function AdminSettingsPage() {
                         <Input
                           value={shopifyStoreUrl}
                           onChange={(e) => setShopifyStoreUrl(e.target.value)}
-                          placeholder={storePlatform === "woocommerce" ? "https://example.com" : "mystore.myshopify.com"}
+                          placeholder="mystore.myshopify.com"
                           data-testid="input-shopify-store-url"
                         />
                       </div>
@@ -1125,29 +1112,6 @@ export default function AdminSettingsPage() {
                             </p>
                           )}
                         </div>
-                      ) : storePlatform === "woocommerce" ? (
-                        <>
-                          <div className="space-y-2">
-                            <Label>Consumer Key</Label>
-                            <Input
-                              value={wooConsumerKey}
-                              onChange={(e) => setWooConsumerKey(e.target.value)}
-                              placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                              data-testid="input-woo-consumer-key"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Consumer Secret</Label>
-                            <Input
-                              type="password"
-                              value={wooConsumerSecret}
-                              onChange={(e) => setWooConsumerSecret(e.target.value)}
-                              placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                              data-testid="input-woo-consumer-secret"
-                            />
-                            <p className="text-xs text-muted-foreground">Générez une clé API dans <strong>WooCommerce → Réglages → Avancé → API REST</strong> avec l'autorisation Lecture/Écriture.</p>
-                          </div>
-                        </>
                       ) : (
                         <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
                           Cette plateforme est préparée dans l’interface mais n’est pas encore configurable. Aucun secret n’est demandé ni enregistré.
@@ -1158,19 +1122,16 @@ export default function AdminSettingsPage() {
                         className="w-full"
                         onClick={() => connectShopifyMutation.mutate()}
                         disabled={
-                          !selectedClient || !shopifyStoreUrl || storePlatform === "other" ||
-                          (storePlatform === "woocommerce" && (!wooConsumerKey || !wooConsumerSecret)) ||
+                          !selectedClient || !shopifyStoreUrl || storePlatform !== "shopify" ||
                           connectShopifyMutation.isPending
                         }
                         data-testid="button-submit-shopify"
                       >
-                        {storePlatform === "other"
+                        {storePlatform !== "shopify"
                           ? "Non configuré — à venir"
                           : connectShopifyMutation.isPending
                           ? "Préparation…"
-                          : storePlatform === "shopify"
-                          ? "Continuer avec Shopify"
-                          : "Tester et connecter la boutique"}
+                          : "Continuer avec Shopify"}
                       </Button>
                     </div>
                   </DialogContent>

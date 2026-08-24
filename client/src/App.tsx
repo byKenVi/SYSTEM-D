@@ -43,6 +43,7 @@ import PortalDashboard from "@/pages/portal/dashboard";
 import PortalSystemdProductDetail from "@/pages/portal/systemd-product-detail";
 import { CartProvider } from "@/contexts/cart-context";
 import PortalNotifications from "@/pages/portal/notifications";
+import LocalOrderDetail from "@/pages/local-order-detail";
 import FormPrintPage from "@/pages/form-print";
 
 interface UserRole {
@@ -86,6 +87,7 @@ function AdminLayout() {
             <Route path="/admin/products/:id" component={AdminProductDetail} />
             <Route path="/admin/boutique/systemd/:zohoItemId" component={AdminSystemdProductDetail} />
             <Route path="/admin/boutique" component={AdminBoutique} />
+            <Route path="/admin/orders/systemd/:id">{() => <LocalOrderDetail admin />}</Route>
             <Route path="/admin/orders/:id" component={AdminOrderDetail} />
             <Route path="/admin/orders" component={AdminOrders} />
             <Route path="/admin/customers/:id" component={AdminCustomerDetail} />
@@ -176,6 +178,9 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
               </Route>
               <Route path="/portal/products/:id">
                 <PortalProductDetail viewAsContactId={viewAsContactId} />
+              </Route>
+              <Route path="/portal/orders/systemd/:id">
+                <LocalOrderDetail />
               </Route>
               <Route path="/portal/orders/:id">
                 <PortalOrderDetail />

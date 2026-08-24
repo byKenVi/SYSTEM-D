@@ -106,13 +106,15 @@ function mapiMoney(amount: string | number | null | undefined, currency = "CAD")
 function TxnTypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string; icon: any }> = {
     credit:          { label: "Crédit ajouté dans Shopify", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", icon: TrendingUp },
-    debit:           { label: "Débit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: TrendingDown },
+    debit:           { label: "Débit Store Credit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: TrendingDown },
+    store_credit_debit: { label: "Débit Store Credit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: TrendingDown },
     checkout_debit:  { label: "Paiement commande Système D", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: ShoppingBag },
+    product_purchase_debit: { label: "Paiement produit client", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: ShoppingCart },
     compensation:    { label: "Remboursement / compensation", cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", icon: RotateCcw },
     refund:          { label: "Remboursement / compensation", cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", icon: RotateCcw },
     monthly_renewal: { label: "Renouvellement",cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",           icon: RotateCcw },
     Credit:          { label: "Crédit ajouté dans Shopify", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", icon: TrendingUp },
-    Debit:           { label: "Débit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: TrendingDown },
+    Debit:           { label: "Débit Store Credit Shopify", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: TrendingDown },
     Expiration:      { label: "Expiré",        cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",       icon: Clock },
     DebitRevert:     { label: "Réversion",     cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",   icon: RotateCcw },
   };
@@ -157,7 +159,7 @@ export default function PortalCustomerDetail() {
     enabled: !!shopifyCustomerId,
   });
 
-  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[]; canManageCredit?: boolean } | null>({
+  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[]; canManageCredit?: boolean; purchaseStats?: { localOrderCount: number; localAmountSpent: string; lastLocalPurchase: { orderId: number; orderNumber: string; createdAt: string | null; amount: string; currency: string; source: string } | null } } | null>({
     queryKey: [isAdminViewAs ? "/api/mapi/reps/by-shopify-customer" : "/api/portal/mapi/reps/by-shopify-customer", shopifyCustomerId],
     queryFn: async () => {
       const customer = data?.customer;
@@ -177,6 +179,13 @@ export default function PortalCustomerDetail() {
 
   const c: any = data?.customer ?? {};
   const orders: any[] = data?.orders ?? [];
+  const localStats = mapiData?.purchaseStats;
+  const combinedOrderCount = Number(c.orders_count || 0) + Number(localStats?.localOrderCount || 0);
+  const combinedAmountSpent = Number(c.total_spent || 0) + Number(localStats?.localAmountSpent || 0);
+  const latestShopifyOrder = [...orders].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+  const localLast = localStats?.lastLocalPurchase;
+  const latestIsLocal = !!localLast && (!latestShopifyOrder || new Date(localLast.createdAt || 0).getTime() >= new Date(latestShopifyOrder.created_at || 0).getTime());
+  const lastPurchaseLabel = latestIsLocal ? `${localLast?.orderNumber} · ${localLast?.source === "client_product" ? "Produit client" : "Système D"}` : (latestShopifyOrder?.name || c.last_order_name || "Aucun");
 
   const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "—";
   const initials = ((c.first_name?.[0] ?? "") + (c.last_name?.[0] ?? "")).toUpperCase() || (c.email?.[0] ?? "?").toUpperCase();
@@ -272,9 +281,9 @@ export default function PortalCustomerDetail() {
       {/* Summary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Commandes", value: isLoading ? null : c.orders_count ?? 0, icon: <ShoppingCart className="h-5 w-5 text-primary" /> },
-          { label: "Dépensé en commandes", value: isLoading ? null : money(c.total_spent || "0", c.currency ?? "CAD"), icon: <DollarSign className="h-5 w-5 text-primary" /> },
-          { label: "Dernier Achat", value: isLoading ? null : (c.last_order_name ?? "Aucun"), icon: <Package className="h-5 w-5 text-primary" /> },
+          { label: "Commandes", value: isLoading ? null : combinedOrderCount, icon: <ShoppingCart className="h-5 w-5 text-primary" /> },
+          { label: "Dépensé en commandes", value: isLoading ? null : money(combinedAmountSpent, c.currency ?? "CAD"), icon: <DollarSign className="h-5 w-5 text-primary" /> },
+          { label: "Dernier Achat", value: isLoading ? null : lastPurchaseLabel, icon: <Package className="h-5 w-5 text-primary" /> },
           { label: "Devise par défaut", value: isLoading ? null : (c.currency ?? "—"), icon: <CreditCard className="h-5 w-5 text-primary" /> },
         ].map(({ label, value, icon }, i) => (
           <Card key={i} className="border-border/50 shadow-sm bg-card hover:border-primary/30 transition-colors">
@@ -292,6 +301,14 @@ export default function PortalCustomerDetail() {
           </Card>
         ))}
       </div>
+      {latestIsLocal && localLast && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+          <span><strong>Dernier achat :</strong> {localLast.orderNumber}</span>
+          <span><strong>Date :</strong> {fmt(localLast.createdAt)}</span>
+          <span><strong>Source :</strong> {localLast.source === "client_product" ? "Produit client" : "Système D"}</span>
+          <span><strong>Montant :</strong> {money(localLast.amount, localLast.currency)}</span>
+        </div>
+      )}
 
       <p className="rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
         Le montant dépensé provient des commandes Shopify. Les crédits ajoutés et les ajustements de solde ne sont pas comptés comme dépenses.

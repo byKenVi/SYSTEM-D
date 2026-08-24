@@ -46,7 +46,7 @@ test("aucun ajustement manuel de crédit n'est exposé sur les fiches reps activ
 test("les commandes client utilisent des tableaux cohérents pour les deux sources", () => {
   assert.match(portalBoutique, /min-w-\[920px\]/);
   assert.match(portalBoutique, /<TableHead>Source<\/TableHead>/);
-  assert.match(portalBoutique, /<Badge variant="outline">Système D<\/Badge>/);
+  assert.match(portalBoutique, /client_product" \? "Produit client" : "Système D"/);
   assert.match(portalBoutique, /<Badge variant="outline">Shopify<\/Badge>/);
   assert.doesNotMatch(adminBoutique, />Clients Shopify</);
 });

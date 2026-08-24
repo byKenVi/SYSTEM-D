@@ -78,13 +78,17 @@ test("un retry payé réutilise la commande et la réservation existantes", () =
   assert.match(routes.slice(retry, pendingInsert), /reserveSystemdOrderStock\(previousOrder\.id\)/);
 });
 
-test("la réservation de stock précède toujours le débit Shopify", () => {
+test("la preuve du débit Shopify précède la réservation et le statut payé", () => {
   const pendingInsert = routes.indexOf("storage.tryInsertSystemdOrder");
-  const reservation = routes.indexOf("storage.reserveSystemdOrderStock(order.id)", pendingInsert);
   const debit = routes.indexOf("debitRep({", pendingInsert);
+  const proof = routes.indexOf("assertShopifyDebitProof({", debit);
+  const reservation = routes.indexOf("storage.reserveSystemdOrderStock(order.id)", proof);
+  const paid = routes.indexOf("storage.markSystemdOrderPaidIfPending(order.id", reservation);
   assert.ok(pendingInsert > -1);
-  assert.ok(reservation > pendingInsert);
-  assert.ok(debit > reservation);
+  assert.ok(debit > pendingInsert);
+  assert.ok(proof > debit);
+  assert.ok(reservation > proof);
+  assert.ok(paid > reservation);
   assert.match(storage, /notInArray\(systemdOrders\.status, \["cancelled", "expired"\]\)/);
 });
 

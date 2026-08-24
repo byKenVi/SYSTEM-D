@@ -18,7 +18,7 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Package, Wrench, Tag, Layers, ChevronLeft, ChevronRight, Hash, DollarSign, Box } from "lucide-react";
+import { ArrowLeft, Package, Wrench, Tag, Layers, ChevronLeft, ChevronRight, Hash, DollarSign, Box, ShoppingCart, CreditCard } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export default function PortalProductDetail({ viewAsContactId }: { viewAsContactId?: number }) {
@@ -29,6 +29,8 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   const isViewAs = !!viewAsContactId;
   const [restockOpen, setRestockOpen] = useState(false);
   const [restockQty, setRestockQty] = useState("");
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [purchaseQty, setPurchaseQty] = useState("1");
 
   const { data: product, isLoading } = useQuery<Product>({
     queryKey: viewAsContactId
@@ -60,6 +62,26 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
     },
     onError: () => {
       toast({ title: "Erreur", description: "Échec de la soumission du bon de travail.", variant: "destructive" });
+    },
+  });
+
+  const purchaseMutation = useMutation({
+    mutationFn: async () => {
+      if (!product) return;
+      const response = await apiRequest("POST", "/api/portal/product-checkout", {
+        productId: product.id,
+        quantity: Number(purchaseQty),
+      });
+      return response.json();
+    },
+    onSuccess: (order: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/systemd-orders"] });
+      setPurchaseOpen(false);
+      toast({ title: "Commande payée", description: "Le Store Credit Shopify du rep a été débité." });
+      if (order?.url) navigate(order.url);
+    },
+    onError: (error: any) => {
+      toast({ title: "Paiement impossible", description: error?.message || "Le Store Credit n’a pas pu être débité.", variant: "destructive" });
     },
   });
 
@@ -259,10 +281,28 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
               </div>
             </div>
 
-            <div className="p-6 rounded-2xl border border-border/50 bg-card shadow-sm flex flex-col justify-center items-start">
+            <div className="p-6 rounded-2xl border border-border/50 bg-card shadow-sm flex flex-col justify-center items-start gap-3">
               <Button
                 size="lg"
                 className="w-full h-16 text-lg font-bold shadow-lg shadow-primary/20 hover:-translate-y-1 transition-transform duration-200"
+                disabled={!product.price || product.inventoryQuantity < 1}
+                onClick={() => {
+                  if (isViewAs) {
+                    toast({ title: "Mode Aperçu", description: "Le paiement est disponible uniquement dans la session du client." });
+                    return;
+                  }
+                  setPurchaseQty("1");
+                  setPurchaseOpen(true);
+                }}
+                data-testid="button-purchase-product"
+              >
+                <ShoppingCart className="h-5 w-5 mr-3" />
+                Commander
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full h-12 font-bold"
                 onClick={() => {
                   if (isViewAs) {
                     toast({ title: "Mode Aperçu", description: "Les clients peuvent soumettre un bon de travail ici." });
@@ -276,7 +316,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                 <Wrench className="h-5 w-5 mr-3" />
                 Bon de Travail
               </Button>
-              <p className="text-xs font-medium text-muted-foreground text-center w-full mt-3">Demander une intervention sur stock</p>
+              <p className="text-xs font-medium text-muted-foreground text-center w-full">Commande payée par Store Credit; le bon de travail reste une demande distincte.</p>
             </div>
           </div>
 
@@ -339,6 +379,35 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
 
         </div>
       )}
+
+      <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Commander ce produit</DialogTitle>
+            <DialogDescription>Le montant sera débité du Store Credit Shopify du rep connecté. Aucun Bon de Travail ne sera créé.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="font-bold">{product.name}</p>
+              <p className="text-sm text-muted-foreground">{Number(product.price || 0).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })} / unité</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="purchase-quantity">Quantité</Label>
+              <Input id="purchase-quantity" type="number" min="1" max={product.inventoryQuantity} value={purchaseQty} onChange={(event) => setPurchaseQty(event.target.value)} data-testid="input-purchase-quantity" />
+            </div>
+            <div className="flex justify-between rounded-lg bg-primary/5 p-4 font-bold">
+              <span>Total Store Credit</span>
+              <span>{(Number(product.price || 0) * Number(purchaseQty || 0)).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPurchaseOpen(false)}>Annuler</Button>
+            <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Number(purchaseQty) < 1 || Number(purchaseQty) > product.inventoryQuantity} data-testid="button-confirm-purchase">
+              {purchaseMutation.isPending ? "Paiement…" : "Payer avec Store Credit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Work Order Dialog ── */}
       <Dialog open={restockOpen} onOpenChange={setRestockOpen}>

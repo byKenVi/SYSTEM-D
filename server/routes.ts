@@ -1583,7 +1583,9 @@ export async function registerRoutes(
 
       const { clientId, clientSecret } = getShopifyServerCredentials();
 
-      try {
+      // Mapei peut utiliser le grant serveur interne. Toute autre boutique suit
+      // l'OAuth administrateur standard, sans exposer ni demander de secret.
+      if (storeUrl === "tnt5ar-ki.myshopify.com") try {
         const token = await requestShopifyClientCredentialsToken(storeUrl, clientId, clientSecret);
         const shop = await getShopIdentityGraphQL(storeUrl, token.accessToken);
         const verifiedStoreUrl = normalizeShopifyStoreUrl(shop.domain);
@@ -1662,8 +1664,8 @@ export async function registerRoutes(
       res.json({
         authUrl: buildShopifyAuthUrl(storeUrl, clientId, callbackUrl, state),
         authMode: "oauth_offline",
-        reason: "shop_not_permitted",
-        message: "Shopify refuse client_credentials pour cette boutique; autorisation OAuth requise.",
+        reason: storeUrl === "tnt5ar-ki.myshopify.com" ? "shop_not_permitted" : "standard_shopify_oauth",
+        message: "Autorisation OAuth Shopify requise.",
       });
     } catch (error: any) {
       console.error("Shopify OAuth connection start failed:", error.message || error);
@@ -4263,12 +4265,27 @@ export async function registerRoutes(
         storage.getMapiRepCreditLogs(rep.id),
         getRepTransactionHistory(rep.shopifyCustomerGid).catch(() => []),
       ]);
+      const localPaidOrders = (await storage.getSystemdOrders())
+        .filter((order) => order.status === "paid" && order.shopifyCustomerGid === rep.shopifyCustomerGid)
+        .sort((left, right) => new Date(right.createdAt ?? 0).getTime() - new Date(left.createdAt ?? 0).getTime());
+      const purchaseStats = {
+        localOrderCount: localPaidOrders.length,
+        localAmountSpent: (localPaidOrders.reduce((sum, order) => sum + order.amount, 0) / 100).toFixed(2),
+        lastLocalPurchase: localPaidOrders[0] ? {
+          orderId: localPaidOrders[0].id,
+          orderNumber: `#${localPaidOrders[0].id}`,
+          createdAt: localPaidOrders[0].createdAt,
+          amount: (localPaidOrders[0].amount / 100).toFixed(2),
+          currency: localPaidOrders[0].currency.toUpperCase(),
+          source: ((localPaidOrders[0].lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd"),
+        } : null,
+      };
       await storage.createActivityLog({
         type: "shopify_credit_read",
         status: "success",
         message: `Solde crédit Shopify consulté pour le rep ${rep.email}`,
       }).catch(() => {});
-      return { rep, logs, shopifyTransactions };
+      return { rep, logs, shopifyTransactions, purchaseStats };
     };
 
     app.post("/api/admin/mapi/reps/sync", isAuthenticated, isAdmin, async (_req, res) => {
@@ -4427,24 +4444,31 @@ export async function registerRoutes(
           const authenticatedEmail = await getAuthenticatedEmail(req);
           const cached = await storage.getMapiReps("active");
           if (cached.length > 0) {
+            const allowedContactIds = await getProductContactIds(role.contactId);
+            const localOrders = (await storage.getSystemdOrders()).filter((order) =>
+              order.status === "paid" && allowedContactIds.includes(order.contactId),
+            );
             return res.json({
               stale: true,
-              reps: cached.map((rep) => ({
-                id: rep.shopifyCustomerGid.split("/").pop(),
-                gid: rep.shopifyCustomerGid,
-                firstName: rep.firstName,
-                lastName: rep.lastName,
-                email: rep.email,
-                balance: rep.currentBalance ?? "0.00",
-                currency: rep.currentBalanceCurrency ?? "CAD",
-                numberOfOrders: 0,
-                amountSpent: "0",
-                createdAt: rep.createdAt,
-                status: rep.status,
-                isCurrentContact: !!authenticatedEmail && rep.email.trim().toLowerCase() === authenticatedEmail,
-                integrationId: integration?.id ?? null,
-                storeUrl: normalizeShopifyStoreUrl(integration?.storeUrl),
-              })),
+              reps: cached.map((rep) => {
+                const repOrders = localOrders.filter((order) => order.shopifyCustomerGid === rep.shopifyCustomerGid);
+                return {
+                  id: rep.shopifyCustomerGid.split("/").pop(),
+                  gid: rep.shopifyCustomerGid,
+                  firstName: rep.firstName,
+                  lastName: rep.lastName,
+                  email: rep.email,
+                  balance: rep.currentBalance ?? "0.00",
+                  currency: rep.currentBalanceCurrency ?? "CAD",
+                  numberOfOrders: repOrders.length,
+                  amountSpent: (repOrders.reduce((sum, order) => sum + order.amount, 0) / 100).toFixed(2),
+                  createdAt: rep.createdAt,
+                  status: rep.status,
+                  isCurrentContact: !!authenticatedEmail && rep.email.trim().toLowerCase() === authenticatedEmail,
+                  integrationId: integration?.id ?? null,
+                  storeUrl: normalizeShopifyStoreUrl(integration?.storeUrl),
+                };
+              }),
             });
           }
         }
@@ -4950,6 +4974,171 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/portal/product-checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) return res.status(403).json({ message: "Non autorisé" });
+      const productId = Number(req.body?.productId);
+      const quantity = Number(req.body?.quantity);
+      if (!Number.isSafeInteger(productId) || productId <= 0 || !Number.isSafeInteger(quantity) || quantity <= 0) {
+        return res.status(400).json({ message: "Produit ou quantité invalide." });
+      }
+      const product = await storage.getProduct(productId);
+      const allowedContactIds = await getProductContactIds(role.contactId);
+      if (!product || !allowedContactIds.includes(product.contactId) || !product.shopifyProductId) {
+        return res.status(404).json({ message: "Produit Shopify introuvable." });
+      }
+      if (quantity > product.inventoryQuantity) return res.status(400).json({ message: "Stock insuffisant." });
+      const unitPriceCents = Math.round(Number(product.price ?? 0) * 100);
+      if (!Number.isSafeInteger(unitPriceCents) || unitPriceCents <= 0) {
+        return res.status(400).json({ message: "Ce produit n’a pas de prix achetable." });
+      }
+
+      const integration = await getMapiIntegration();
+      if (!integration?.isActive || !integration.accessToken || integration.connectionStatus === "invalid_token") {
+        return res.status(503).json({ message: "Connexion Shopify requise." });
+      }
+      if (!await roleCanAccessMapi(role, integration)) return res.status(403).json({ message: "Compte crédit non autorisé." });
+      const authenticatedEmail = await getAuthenticatedEmail(req);
+      if (!authenticatedEmail) return res.status(400).json({ message: "Aucun compte crédit Shopify n’est associé à votre utilisateur." });
+      let shopifyCustomer: CheckoutShopifyCustomer | null = await findFreshCachedMapiRepByEmail(authenticatedEmail);
+      if (!shopifyCustomer) shopifyCustomer = await findMapiRepByEmail(authenticatedEmail);
+      if (!shopifyCustomer) return res.status(400).json({ message: "Aucun compte crédit Shopify n’est associé à votre utilisateur." });
+
+      const totalAmountCents = unitPriceCents * quantity;
+      const totalAmount = (totalAmountCents / 100).toFixed(2);
+      const balances = await getRepBalance(shopifyCustomer.shopifyCustomerId);
+      const cadBalance = balances.find((balance) => balance.currencyCode === "CAD");
+      if (!cadBalance?.accountId || !isShopifyCreditSufficient(Number(cadBalance.amount), totalAmount)) {
+        return res.status(400).json({ message: "Crédit insuffisant." });
+      }
+      const intentKey = createHash("sha256")
+        .update(["client_product", role.contactId, product.id, quantity, totalAmountCents, shopifyCustomer.shopifyCustomerId].join("|"))
+        .digest("hex").slice(0, 64);
+      const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 2);
+      if (previousOrder?.status === "pending" || previousOrder?.status === "payment_reconciliation_required") {
+        return res.status(409).json({ message: "Paiement déjà en cours ou en vérification." });
+      }
+      const insertProductOrder = storage["tryInsertSystemdOrder"].bind(storage);
+      const { order, created } = await insertProductOrder({
+        contactId: role.contactId,
+        stripeCheckoutSessionId: null,
+        stripeCheckoutUrl: null,
+        checkoutIntentKey: intentKey,
+        paymentMethod: "shopify_credit",
+        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
+        amount: totalAmountCents,
+        currency: "cad",
+        status: "pending",
+        fulfillmentStatus: "to_process",
+        stockReservationStatus: "not_applicable",
+        lineItems: [{
+          source: "client_product",
+          productId: product.id,
+          shopifyProductId: product.shopifyProductId,
+          shopifyVariantId: product.shopifyVariantId,
+          storeUrl: product.shopifyStoreUrl,
+          name: product.name,
+          sku: product.sku,
+          quantity,
+          unitPrice: unitPriceCents / 100,
+        }] as any,
+      });
+      if (!created) return res.status(409).json({ message: "Paiement déjà en cours." });
+
+      let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
+      let debitSubmissionStarted = false;
+      try {
+        debitSubmissionStarted = true;
+        debitResult = await debitRep({
+          shopifyCustomerId: shopifyCustomer.shopifyCustomerId,
+          shopifyStoreCreditAccountId: cadBalance.accountId,
+          amount: totalAmount,
+          currencyCode: "CAD",
+        });
+        const balancesAfter = await getRepBalance(shopifyCustomer.shopifyCustomerId);
+        const accountAfter = balancesAfter.find((balance) => balance.accountId === cadBalance.accountId);
+        assertShopifyDebitProof({
+          beforeBalance: cadBalance.amount,
+          afterBalance: accountAfter?.amount ?? "",
+          expectedAmount: totalAmount,
+          expectedCurrency: "CAD",
+          expectedAccountId: cadBalance.accountId,
+          transaction: debitResult,
+        });
+        const paid = await storage.markSystemdOrderPaidIfPending(order.id, {
+          status: "paid",
+          shopifyCreditAccountId: debitResult.accountId,
+          shopifyCreditTransactionId: debitResult.transactionId,
+        });
+        if (!paid) throw new Error("Impossible d’enregistrer la commande payée.");
+      } catch (error: any) {
+        const definitelyRejected = isShopifyDebitDefinitelyRejected(error);
+        let compensated = !debitResult && (!debitSubmissionStarted || definitelyRejected);
+        if (debitResult) {
+          try {
+            await creditRep({
+              shopifyCustomerId: shopifyCustomer.shopifyCustomerId,
+              shopifyStoreCreditAccountId: debitResult.accountId,
+              amount: totalAmount,
+              currencyCode: "CAD",
+            });
+            compensated = true;
+          } catch {}
+        }
+        await storage.updateSystemdOrder(order.id, compensated
+          ? { status: "cancelled" }
+          : { status: "payment_reconciliation_required", shopifyCreditAccountId: debitResult?.accountId ?? cadBalance.accountId, shopifyCreditTransactionId: debitResult?.transactionId ?? null });
+        return res.status(creditErrorStatus(error.message)).json({ message: "Le crédit Shopify n’a pas pu être débité. Aucune commande payée n’a été créée." });
+      }
+
+      const existingRep = await storage.getMapiRepByGid(shopifyCustomer.shopifyCustomerId);
+      const rep = existingRep ?? await storage.createMapiRep({
+        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
+        email: shopifyCustomer.email,
+        firstName: shopifyCustomer.firstName,
+        lastName: shopifyCustomer.lastName,
+        status: "active",
+        currentBalance: debitResult!.newBalance.amount,
+        currentBalanceCurrency: debitResult!.newBalance.currencyCode,
+      });
+      await storage.updateMapiRep(rep.id, { currentBalance: debitResult!.newBalance.amount, lastBalanceRefreshAt: new Date() }).catch(() => {});
+      await storage.createMapiRepCreditLog({
+        repId: rep.id,
+        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
+        action: "product_purchase_debit",
+        amount: totalAmount,
+        currency: "CAD",
+        reason: `Paiement produit client — commande #${order.id}`,
+        performedByUserId: req.user?.claims?.sub ?? null,
+        shopifyTransactionId: debitResult!.transactionId,
+      }).catch(() => {});
+      const repName = [shopifyCustomer.firstName, shopifyCustomer.lastName].filter(Boolean).join(" ") || shopifyCustomer.email;
+      await storage.createNotification({
+        contactId: role.contactId,
+        category: "commande",
+        type: "client_product_order_admin_action",
+        title: `Nouvelle commande produit client #${order.id}`,
+        message: `${product.name} × ${quantity} — ${totalAmount} CAD — crédit de ${repName}.`,
+        metadata: { adminOnly: true, systemdOrderId: order.id, orderSource: "client_product" },
+      }).catch(() => {});
+      if (await storage.isNotificationEnabled(role.contactId, "commande")) {
+        await storage.createNotification({
+          contactId: role.contactId,
+          category: "commande",
+          type: "client_product_order_paid",
+          title: `Commande #${order.id} confirmée`,
+          message: `Le crédit Shopify a été débité de ${totalAmount} CAD.`,
+          metadata: { systemdOrderId: order.id, orderSource: "client_product" },
+        }).catch(() => {});
+      }
+      return res.json({ orderId: order.id, url: `/portal/orders/systemd/${order.id}` });
+    } catch (error: any) {
+      console.error("Client product checkout failed:", error?.message || "unknown error");
+      return res.status(500).json({ message: error.message || "Paiement temporairement indisponible." });
+    }
+  });
+
   app.post("/api/portal/systemd-checkout", isAuthenticated, async (req: any, res) => {
     try {
       const role = await getUserRole(req);
@@ -5365,6 +5554,31 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/systemd-orders/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const orderId = Number(req.params.id);
+      const order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
+      if (!order) return res.status(404).json({ message: "Commande introuvable." });
+      const [contact, rep] = await Promise.all([
+        storage.getContact(order.contactId),
+        order.shopifyCustomerGid ? storage.getMapiRepByGid(order.shopifyCustomerGid) : Promise.resolve(undefined),
+      ]);
+      return res.json({
+        order: {
+          ...order,
+          source: (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd",
+          contactName: contact?.name ?? null,
+          companyName: contact?.companyName ?? null,
+          contactEmail: contact?.email ?? null,
+          repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
+          repEmail: rep?.email ?? null,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/admin/systemd-orders/:id/reconciliation", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const orderId = Number(req.params.id);
@@ -5522,6 +5736,34 @@ export async function registerRoutes(
       res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/portal/systemd-orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const role = await getUserRole(req);
+      if (!role || role.role !== "client" || !role.contactId) return res.status(403).json({ message: "Non autorisé" });
+      const orderId = Number(req.params.id);
+      const allowedContactIds = await getProductContactIds(role.contactId);
+      const order = (await storage.getSystemdOrdersByContactIds(allowedContactIds)).find((candidate) => candidate.id === orderId);
+      if (!order) return res.status(404).json({ message: "Commande introuvable." });
+      const [contact, rep] = await Promise.all([
+        storage.getContact(order.contactId),
+        order.shopifyCustomerGid ? storage.getMapiRepByGid(order.shopifyCustomerGid) : Promise.resolve(undefined),
+      ]);
+      return res.json({
+        order: {
+          ...order,
+          source: (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd",
+          contactName: contact?.name ?? null,
+          companyName: contact?.companyName ?? null,
+          contactEmail: contact?.email ?? null,
+          repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
+          repEmail: rep?.email ?? null,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
     }
   });
 
