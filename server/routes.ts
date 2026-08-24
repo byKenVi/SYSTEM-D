@@ -27,7 +27,10 @@ import {
   fetchShopifyOrders,
   buildShopifyAuthUrl,
   exchangeShopifyCode,
+  getShopIdentityGraphQL,
   getShopDetails,
+  requestShopifyClientCredentialsToken,
+  ShopifyClientCredentialsError,
   verifyShopifyCallbackHmac,
   SHOPIFY_OFFLINE_SCOPES,
 } from "./shopify-api";
@@ -369,7 +372,32 @@ export async function registerRoutes(
     return { clientId, clientSecret };
   }
 
+  function getShopifyServerCredentials() {
+    const clientId = (process.env.SHOPIFY_CLIENT_ID || "").trim();
+    const clientSecret = (process.env.SHOPIFY_CLIENT_SECRET || "").trim();
+    if (!clientId || !clientSecret) {
+      throw new Error("SHOPIFY_CLIENT_ID et SHOPIFY_CLIENT_SECRET sont requis pour la connexion serveur Shopify.");
+    }
+    return { clientId, clientSecret };
+  }
+
   function getShopifyOAuthCallbackUrl(req: any): string {
+    const configuredBase = (process.env.SHOPIFY_APP_URL || process.env.APP_URL || "").trim();
+    if (configuredBase) {
+      let url: URL;
+      try {
+        url = new URL(configuredBase);
+      } catch {
+        throw new Error("SHOPIFY_APP_URL ou APP_URL doit être une URL publique valide.");
+      }
+      if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
+        throw new Error("SHOPIFY_APP_URL ou APP_URL doit utiliser HTTPS.");
+      }
+      return `${url.origin}/api/auth/shopify/callback`;
+    }
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SHOPIFY_APP_URL ou APP_URL est requis en production pour le fallback OAuth Shopify.");
+    }
     const rawHost = String(req.get("x-forwarded-host") || req.get("host") || "").split(",")[0].trim();
     if (!/^[a-zA-Z0-9.-]+(?::\d+)?$/.test(rawHost)) {
       throw new Error("Adresse publique de l'application Shopify invalide.");
@@ -1553,8 +1581,64 @@ export async function registerRoutes(
       const contact = await storage.getContact(contactId);
       if (!contact) return res.status(404).json({ message: "Client introuvable." });
 
-      const settings = await storage.getAdminSettings();
-      const { clientId } = getShopifyOAuthCredentials(settings);
+      const { clientId, clientSecret } = getShopifyServerCredentials();
+
+      try {
+        const token = await requestShopifyClientCredentialsToken(storeUrl, clientId, clientSecret);
+        const shop = await getShopIdentityGraphQL(storeUrl, token.accessToken);
+        const verifiedStoreUrl = normalizeShopifyStoreUrl(shop.domain);
+        if (verifiedStoreUrl !== storeUrl) {
+          throw new Error("Shopify returned a store different from the requested store.");
+        }
+        const tokenExpiresAt = new Date(Date.now() + token.expiresIn * 1000);
+        const integrations = await storage.getShopifyIntegrations();
+        const existing = integrations.find((integration) =>
+          integration.contactId === contactId
+          && (integration.platform ?? "shopify") === "shopify"
+          && normalizeShopifyStoreUrl(integration.storeUrl) === verifiedStoreUrl,
+        );
+        const integrationData = {
+          accessToken: token.accessToken,
+          storeUrl: verifiedStoreUrl,
+          shopName: shopName || shop.name || verifiedStoreUrl,
+          scope: token.scope,
+          platformConfig: {
+            authMode: "client_credentials",
+            expiresIn: token.expiresIn,
+            tokenExpiresAt: tokenExpiresAt.toISOString(),
+          },
+          isActive: true,
+          connectionStatus: "ok",
+          lastConnectionTestedAt: new Date(),
+          lastConnectionError: null,
+          consecutiveErrors: 0,
+          syncPausedUntil: null,
+        };
+        const integration = existing
+          ? await storage.updateShopifyIntegration(existing.id, integrationData as any)
+          : await storage.createShopifyIntegration({
+              contactId,
+              platform: "shopify",
+              ...integrationData,
+            } as any);
+        await storage.updateContact(contactId, { shopifyConnected: true });
+        await storage.createActivityLog({
+          type: "shopify_client_credentials_connected",
+          status: "success",
+          message: `Boutique Shopify connectée côté serveur : ${verifiedStoreUrl}`,
+        });
+        return res.json({ connected: true, authMode: "client_credentials", integrationId: integration?.id });
+      } catch (error: any) {
+        if (!(error instanceof ShopifyClientCredentialsError) || error.code !== "shop_not_permitted") {
+          throw error;
+        }
+        await storage.createActivityLog({
+          type: "shopify_client_credentials_not_permitted",
+          status: "error",
+          message: `Shopify exige OAuth pour ${storeUrl}; aucune donnée secrète n'a été journalisée.`,
+        }).catch(() => {});
+      }
+
       const callbackUrl = getShopifyOAuthCallbackUrl(req);
       const state = randomBytes(32).toString("hex");
       const session = req.session as { shopifyOAuthStates?: Record<string, PendingShopifyOAuth> } | undefined;
@@ -1575,7 +1659,12 @@ export async function registerRoutes(
         new Date(now + SHOPIFY_OAUTH_STATE_TTL_MS),
       );
 
-      res.json({ authUrl: buildShopifyAuthUrl(storeUrl, clientId, callbackUrl, state) });
+      res.json({
+        authUrl: buildShopifyAuthUrl(storeUrl, clientId, callbackUrl, state),
+        authMode: "oauth_offline",
+        reason: "shop_not_permitted",
+        message: "Shopify refuse client_credentials pour cette boutique; autorisation OAuth requise.",
+      });
     } catch (error: any) {
       console.error("Shopify OAuth connection start failed:", error.message || error);
       res.status(500).json({ message: error.message || "Impossible de démarrer la connexion Shopify." });
@@ -5068,19 +5157,9 @@ export async function registerRoutes(
         return res.status(409).json({ message: "Paiement crédit déjà en cours. Réessayez dans quelques instants." });
       }
 
-      const reservation = await storage.reserveSystemdOrderStock(order.id).catch(async (error: any) => {
-        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
-        return { status: "stock_to_reserve" as const, message: error.message || "Réservation locale indisponible." };
-      });
-      if (reservation.status === "stock_to_reserve") {
-        await storage.updateSystemdOrder(order.id, { status: "cancelled" }).catch(() => {});
-        return res.status(409).json({
-          message: reservation.message || "Le stock demandé n'est plus disponible.",
-        });
-      }
-
       let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
       let debitSubmissionStarted = false;
+      let stockReserved = false;
       try {
         debitSubmissionStarted = true;
         debitResult = await debitRep({
@@ -5099,6 +5178,11 @@ export async function registerRoutes(
           expectedAccountId: cadBalance.accountId,
           transaction: debitResult,
         });
+        const reservation = await storage.reserveSystemdOrderStock(order.id);
+        if (reservation.status === "stock_to_reserve") {
+          throw new Error(reservation.message || "Le stock demandé n'est plus disponible.");
+        }
+        stockReserved = true;
         const paidOrder = await storage.markSystemdOrderPaidIfPending(order.id, {
           status: "paid",
           shopifyCreditAccountId: debitResult.accountId,
@@ -5141,7 +5225,7 @@ export async function registerRoutes(
               shopifyCreditTransactionId: debitResult?.transactionId ?? null,
             }).catch(() => {});
         if (compensationSucceeded) {
-          await storage.releaseSystemdOrderStock(order.id).catch(() => {});
+          if (stockReserved) await storage.releaseSystemdOrderStock(order.id).catch(() => {});
         }
         await storage.createActivityLog({
           type: compensationSucceeded
@@ -5153,9 +5237,7 @@ export async function registerRoutes(
             : `Commande #${order.id} débitée mais compensation échouée — réconciliation manuelle requise.`,
         }).catch(() => {});
         return res.status(creditErrorStatus(error.message)).json({
-          message: compensationSucceeded
-            ? (error.message || "Crédit Shopify indisponible.")
-            : "Le débit doit être vérifié manuellement. Aucun nouvel essai ne doit être effectué.",
+          message: "Le crédit Shopify n’a pas pu être débité. Aucune commande payée n’a été créée.",
         });
       }
 

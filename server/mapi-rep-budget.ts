@@ -1,6 +1,8 @@
 import { db } from "./db";
 import { shopifyIntegrations } from "@shared/schema";
 import { normalizeShopifyStoreUrl } from "./shopify-credit-policy";
+import { eq } from "drizzle-orm";
+import { requestShopifyClientCredentialsToken } from "./shopify-api";
 
 export const MAPI_STORE_URL = "tnt5ar-ki.myshopify.com";
 const GQL_VERSION = "2026-04";
@@ -20,6 +22,26 @@ async function getMAPIToken(): Promise<string> {
   const integration = matching.find((candidate) => candidate.isActive && candidate.accessToken);
   if (!integration?.accessToken) {
     throw new Error("Connexion Shopify requise.");
+  }
+  const config = (integration.platformConfig ?? {}) as Record<string, unknown>;
+  if (config.authMode === "client_credentials") {
+    const expiresAt = typeof config.tokenExpiresAt === "string" ? Date.parse(config.tokenExpiresAt) : NaN;
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 5 * 60 * 1000) {
+      const clientId = (process.env.SHOPIFY_CLIENT_ID || "").trim();
+      const clientSecret = (process.env.SHOPIFY_CLIENT_SECRET || "").trim();
+      if (!clientId || !clientSecret) throw new Error("Connexion Shopify requise.");
+      const token = await requestShopifyClientCredentialsToken(MAPI_STORE_URL, clientId, clientSecret);
+      const tokenExpiresAt = new Date(Date.now() + token.expiresIn * 1000).toISOString();
+      await db.update(shopifyIntegrations).set({
+        accessToken: token.accessToken,
+        scope: token.scope,
+        platformConfig: { ...config, expiresIn: token.expiresIn, tokenExpiresAt },
+        connectionStatus: "ok",
+        lastConnectionTestedAt: new Date(),
+        lastConnectionError: null,
+      }).where(eq(shopifyIntegrations.id, integration.id));
+      return token.accessToken;
+    }
   }
   return integration.accessToken;
 }

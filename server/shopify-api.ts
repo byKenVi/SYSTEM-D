@@ -3,6 +3,19 @@ import type { ParsedQs } from "qs";
 
 const SHOPIFY_API_VERSION = "2025-04";
 
+export type ShopifyClientCredentialsFailureCode = "shop_not_permitted" | "token_request_failed";
+
+export class ShopifyClientCredentialsError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ShopifyClientCredentialsFailureCode,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ShopifyClientCredentialsError";
+  }
+}
+
 export const SHOPIFY_OFFLINE_SCOPES = [
   "read_products",
   "read_inventory",
@@ -43,6 +56,75 @@ export function generateOAuthState(): string {
 
 export function getShopifyCallbackUrl(host: string): string {
   return `https://${host}/api/auth/shopify/callback`;
+}
+
+export async function requestShopifyClientCredentialsToken(
+  storeUrl: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<{ accessToken: string; expiresIn: number; scope: string | null }> {
+  const domain = normalizeDomain(storeUrl);
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+  const res = await fetch(`https://${domain}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const payload = await res.json().catch(() => ({})) as Record<string, unknown>;
+  if (!res.ok) {
+    const shopifyCode = typeof payload.error === "string" ? payload.error : "";
+    if (shopifyCode === "shop_not_permitted") {
+      throw new ShopifyClientCredentialsError(
+        "Shopify refuse client_credentials pour cette boutique. Une autorisation OAuth avec une APP_URL stable est requise.",
+        "shop_not_permitted",
+        res.status,
+      );
+    }
+    throw new ShopifyClientCredentialsError(
+      `Shopify a refusé la connexion serveur (${res.status}).`,
+      "token_request_failed",
+      res.status,
+    );
+  }
+  const accessToken = typeof payload.access_token === "string" ? payload.access_token : "";
+  const expiresIn = Number(payload.expires_in);
+  if (!accessToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new ShopifyClientCredentialsError(
+      "Shopify n’a pas retourné un token serveur valide.",
+      "token_request_failed",
+      res.status,
+    );
+  }
+  return {
+    accessToken,
+    expiresIn,
+    scope: typeof payload.scope === "string" ? payload.scope : null,
+  };
+}
+
+export async function getShopIdentityGraphQL(
+  storeUrl: string,
+  accessToken: string,
+): Promise<{ name: string; domain: string }> {
+  const domain = normalizeDomain(storeUrl);
+  const res = await fetch(`https://${domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({ query: "{ shop { name myshopifyDomain } }" }),
+  });
+  if (!res.ok) throw new Error(`Shopify connection test failed (${res.status}).`);
+  const payload = await res.json() as any;
+  if (payload.errors?.length || !payload.data?.shop?.myshopifyDomain) {
+    throw new Error("Shopify connection test returned an invalid GraphQL response.");
+  }
+  return {
+    name: payload.data.shop.name,
+    domain: payload.data.shop.myshopifyDomain,
+  };
 }
 
 export async function exchangeShopifyCode(

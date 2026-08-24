@@ -63,3 +63,16 @@ test("les opérations Shopify sensibles sont journalisées", () => {
     assert.match(routes, new RegExp(eventType));
   }
 });
+
+test("le checkout ne réserve le stock et ne marque paid qu'après preuve du débit Shopify", () => {
+  const checkout = routes.slice(
+    routes.indexOf('app.post("/api/portal/systemd-checkout"'),
+    routes.indexOf('app.get("/api/admin/systemd-orders"', routes.indexOf('app.post("/api/portal/systemd-checkout"')),
+  );
+  const proof = checkout.indexOf("assertShopifyDebitProof");
+  const reserve = checkout.indexOf("reserveSystemdOrderStock(order.id)");
+  const paid = checkout.indexOf("markSystemdOrderPaidIfPending");
+  assert.ok(proof > -1 && reserve > proof, "la réservation locale doit suivre la preuve Shopify");
+  assert.ok(paid > reserve, "paid doit suivre la preuve Shopify et la réservation locale");
+  assert.match(checkout, /Le crédit Shopify n’a pas pu être débité\. Aucune commande payée n’a été créée\./);
+});
