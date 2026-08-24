@@ -559,7 +559,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [viewModeProducts, setViewModeProductsRaw] = useState<"list" | "grid">(
-    () => (localStorage.getItem("boutique_products_viewMode") as "list" | "grid") || "list"
+    () => (localStorage.getItem("boutique_products_viewMode") as "list" | "grid") || "grid"
   );
   const setViewModeProducts = (v: "list" | "grid") => {
     localStorage.setItem("boutique_products_viewMode", v);
@@ -922,14 +922,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     </div>
                   ) : (
                   <div className="responsive-table">
-                    <Table className="min-w-[800px]">
+                    <Table className="min-w-[960px]">
                       <TableHeader>
                         <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
-                          <TableHead className="w-72 py-4" />
+                          <TableHead className="w-[22rem] py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -975,14 +975,15 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right py-4" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex justify-end gap-2">
+                            <TableCell className="w-[22rem] py-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-col items-stretch justify-end gap-2 xl:flex-row xl:items-center">
                                 {!isViewAs && (
                                 <>
                                 <Button
                                   size="sm"
                                   disabled={product.inventoryQuantity < 1}
-                                  className="font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="w-full whitespace-nowrap font-bold xl:w-auto"
+                                  title={product.inventoryQuantity < 1 ? "Produit en rupture de stock" : "Commander avec le crédit Shopify"}
                                   onClick={() => navigate(`/portal/products/${product.id}`)}
                                 >
                                   <CreditCard className="h-3.5 w-3.5 mr-2" />
@@ -991,7 +992,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="font-bold opacity-0 group-hover:opacity-100 transition-opacity border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+                                  className="w-full whitespace-nowrap font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary xl:w-auto"
                                   onClick={() => { setRestockProduct(product); setRestockQty(""); }}
                                   data-testid={`button-request-restock-${product.id}`}
                                 >
