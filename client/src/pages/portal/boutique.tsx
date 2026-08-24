@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product } from "@shared/schema";
 import { dedupeCatalogProducts } from "@shared/catalog-product-deduplication";
@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +34,6 @@ import {
   Eye,
   LayoutGrid,
   LayoutList,
-  ClipboardList,
 } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -110,83 +108,6 @@ interface ShopifyOrder {
   integrationId?: number;
 }
 interface OrdersResponse { orders: ShopifyOrder[] }
-
-type ProductCreditStatus = "loading" | "available" | "insufficient" | "unavailable";
-
-function ProductListActions({
-  product,
-  creditStatus,
-  creditBalance,
-  isViewAs,
-  onOrder,
-  onWorkOrder,
-  layout = "row",
-}: {
-  product: Product;
-  creditStatus: ProductCreditStatus;
-  creditBalance?: string | number;
-  isViewAs: boolean;
-  onOrder: () => void;
-  onWorkOrder: () => void;
-  layout?: "row" | "stack";
-}) {
-  if (isViewAs) return null;
-
-  const inStock = product.inventoryQuantity > 0;
-  const productPrice = Number(product.price);
-  const availableCredit = Number(creditBalance);
-  const resolvedCreditStatus: ProductCreditStatus =
-    creditStatus === "available"
-      && Number.isFinite(productPrice)
-      && Number.isFinite(availableCredit)
-      && availableCredit < productPrice
-      ? "insufficient"
-      : creditStatus;
-  const actionClass = layout === "stack"
-    ? "flex flex-col items-stretch gap-2"
-    : "flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:flex-wrap sm:items-center";
-  const secondaryClass = layout === "stack" ? "w-full" : "w-full shrink-0 sm:w-auto";
-
-  return (
-    <div className={actionClass} data-testid={`product-actions-${product.id}`}>
-      {!inStock ? (
-        <span className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
-          Produit en rupture
-        </span>
-      ) : resolvedCreditStatus === "loading" ? (
-        <span className="text-[11px] font-medium text-muted-foreground">Vérification du crédit…</span>
-      ) : resolvedCreditStatus === "insufficient" ? (
-        <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400">
-          Crédit insuffisant
-        </span>
-      ) : resolvedCreditStatus === "unavailable" ? (
-        <span className="inline-flex items-center rounded-md border border-muted bg-muted/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-          Commande indisponible
-        </span>
-      ) : (
-        <Button
-          size="sm"
-          className="shrink-0 font-bold"
-          onClick={(event) => { event.stopPropagation(); onOrder(); }}
-          data-testid={`button-order-product-${product.id}`}
-        >
-          <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-          Commander
-        </Button>
-      )}
-      <Button
-        size="sm"
-        variant="outline"
-        className={`${secondaryClass} font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary`}
-        onClick={(event) => { event.stopPropagation(); onWorkOrder(); }}
-        data-testid={`button-request-restock-${product.id}`}
-      >
-        <ClipboardList className="mr-1.5 h-3.5 w-3.5" />
-        Bon de travail
-      </Button>
-    </div>
-  );
-}
 
 /* ── Badges ── */
 function FinancialBadge({ status }: { status: string | null }) {
@@ -642,8 +563,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     localStorage.setItem("boutique_products_viewMode", v);
     setViewModeProductsRaw(v);
   };
-  const [restockProduct, setRestockProduct] = useState<Product | null>(null);
-  const [restockQty, setRestockQty] = useState("");
   const isViewAs = !!viewAsContactId;
 
   const { data: systemdCatalog } = useQuery<SystemdProduct[]>({
@@ -781,12 +700,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
   const orders: ShopifyOrder[] = ordersData?.orders ?? [];
   const customers: ShopifyCustomer[] = customersData?.customers ?? [];
-  const currentCreditRep = customers.find((customer) => customer.isCurrentContact);
-  const creditStatus: ProductCreditStatus = customersLoading
-    ? "loading"
-    : customersError || !currentCreditRep || currentCreditRep.creditBalance === undefined
-      ? "unavailable"
-      : "available";
 
   /* Filtering & Sorting */
   const filteredProducts = products
@@ -824,27 +737,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
     const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
     return name.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q) || (c.phone ?? "").toLowerCase().includes(q);
   }), [customers, customerSearch]);
-
-  const restockMutation = useMutation({
-    mutationFn: async () => {
-      if (!restockProduct) return;
-      const response = await apiRequest("POST", "/api/portal/product-work-orders", {
-        productId: restockProduct.id,
-        requestedQuantity: Number(restockQty),
-      });
-      return response.json();
-    },
-    onSuccess: (submission: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
-      setRestockProduct(null);
-      setRestockQty("");
-      toast({ title: "Bon de Travail soumis", description: "Cette demande n’est pas une commande payée. L’équipe Système D doit l’analyser avant traitement." });
-      if (submission?.id) navigate(`/portal/forms/${submission.id}`);
-    },
-    onError: () => {
-      toast({ title: "Erreur", description: "Échec de la soumission du bon de travail.", variant: "destructive" });
-    },
-  });
 
   return (
     <div className="space-y-6 animate-in w-full max-w-full">
@@ -987,29 +879,19 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </div>
-                            <ProductListActions
-                              product={product}
-                              creditStatus={creditStatus}
-                              creditBalance={currentCreditRep?.creditBalance}
-                              isViewAs={isViewAs}
-                              layout="stack"
-                              onOrder={() => navigate(`/portal/products/${product.id}`)}
-                              onWorkOrder={() => { setRestockProduct(product); setRestockQty(""); }}
-                            />
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                   <div className="responsive-table">
-                      <Table className="w-full min-w-[860px] table-fixed">
+                       <Table className="w-full min-w-[760px] table-fixed">
                       <TableHeader>
                         <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
-                           <TableHead className="w-[40%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
-                           <TableHead className="w-[11%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
-                           <TableHead className="w-[10%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
-                           <TableHead className="w-[14%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
-                            <TableHead className="w-[25%] min-w-[15rem] py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</TableHead>
+                            <TableHead className="w-[55%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
+                            <TableHead className="w-[15%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
+                            <TableHead className="w-[15%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
+                            <TableHead className="w-[15%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1050,20 +932,10 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             <TableCell className="text-right py-4 font-mono font-bold">
                               {product.price ? `$${Number(product.price).toFixed(2)}` : "—"}
                             </TableCell>
-                            <TableCell className="text-right py-4">
+                             <TableCell className="text-right py-4">
                               <Badge variant="secondary" className={`font-mono text-sm px-2.5 py-1 rounded-md border-0 ${product.inventoryQuantity <= 5 ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-muted text-foreground"}`}>
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
-                            </TableCell>
-                             <TableCell className="w-[25%] min-w-[15rem] py-4" onClick={(e) => e.stopPropagation()}>
-                               <ProductListActions
-                                 product={product}
-                                 creditStatus={creditStatus}
-                                 creditBalance={currentCreditRep?.creditBalance}
-                                 isViewAs={isViewAs}
-                                 onOrder={() => navigate(`/portal/products/${product.id}`)}
-                                 onWorkOrder={() => { setRestockProduct(product); setRestockQty(""); }}
-                               />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1085,69 +957,6 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
               </CardContent>
             </Card>
 
-            {/* Restock Dialog */}
-            <Dialog open={!!restockProduct} onOpenChange={() => setRestockProduct(null)}>
-              <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 shadow-2xl">
-                <div className="bg-primary/5 p-6 border-b border-border/50 flex gap-4 items-start">
-                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
-                    <RefreshCw className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <DialogTitle className="text-xl font-bold tracking-tight mb-2">Créer un bon de travail</DialogTitle>
-                    <DialogDescription className="text-sm font-medium text-muted-foreground leading-relaxed">
-                      Demandez une intervention ou un réapprovisionnement. Ce n’est pas une commande payée et aucun crédit Shopify n’est débité.
-                    </DialogDescription>
-                  </div>
-                </div>
-                
-                {restockProduct && (
-                  <div className="p-6 space-y-6 bg-background">
-                    <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm">
-                      <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center shrink-0 overflow-hidden bg-white">
-                        <img src={restockProduct.imageUrl || ""} alt={restockProduct.name} className="h-full w-full object-cover" style={{ display: restockProduct.imageUrl ? undefined : "none" }} onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
-                        <span className="items-center justify-center" style={{ display: restockProduct.imageUrl ? "none" : "flex" }}><Package className="h-5 w-5 text-muted-foreground/50" /></span>
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-foreground line-clamp-1">{restockProduct.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="font-mono text-[10px]">{restockProduct.sku || "Sans SKU"}</Badge>
-                          <span className="text-xs font-medium text-muted-foreground">Stock: <span className="font-mono font-bold text-foreground">{restockProduct.inventoryQuantity}</span></span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Quantité à traiter
-                      </Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={restockQty}
-                        onChange={(e) => setRestockQty(e.target.value)}
-                        placeholder="Entrez le nombre d'unités..."
-                        className="h-12 text-base font-medium font-mono shadow-none focus-visible:ring-1"
-                        data-testid="input-restock-quantity"
-                      />
-                    </div>
-                    
-                    <DialogFooter className="pt-2 gap-2 sm:gap-0">
-                      <Button variant="ghost" className="font-bold" onClick={() => setRestockProduct(null)}>
-                        Annuler
-                      </Button>
-                      <Button
-                        className="font-bold shadow-md shadow-primary/20"
-                        disabled={!restockQty || Number(restockQty) <= 0 || restockMutation.isPending}
-                        onClick={() => restockMutation.mutate()}
-                        data-testid="button-submit-restock"
-                      >
-                        {restockMutation.isPending ? "Envoi..." : "Créer le bon"}
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
           </TabsContent>
 
           {/* ══ PRODUITS SYSTEMD TAB ══ */}

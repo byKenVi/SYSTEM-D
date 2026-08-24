@@ -279,21 +279,21 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
           )}
 
           {/* Key Metrics row */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className={`p-6 rounded-2xl border bg-card shadow-sm relative overflow-hidden ${isLowStock ? 'border-red-500/30' : 'border-border/50'}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4 mb-8">
+            <div className={`self-start p-4 sm:p-5 rounded-2xl border bg-card shadow-sm relative overflow-hidden ${isLowStock ? 'border-red-500/30' : 'border-border/50'}`}>
               {isLowStock && <div className="absolute inset-0 bg-red-500/5" />}
               <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 border ${isLowStock ? 'bg-red-500/10 border-red-500/20' : 'bg-primary/10 border-primary/20'}`}>
-                    <Layers className={`h-5 w-5 ${isLowStock ? 'text-red-500' : 'text-primary'}`} />
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border ${isLowStock ? 'bg-red-500/10 border-red-500/20' : 'bg-primary/10 border-primary/20'}`}>
+                    <Layers className={`h-4 w-4 ${isLowStock ? 'text-red-500' : 'text-primary'}`} />
                   </div>
-                  <span className={`text-xs font-bold uppercase tracking-widest ${isLowStock ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>En Inventaire</span>
+                  <span className={`text-[11px] font-bold uppercase tracking-widest ${isLowStock ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>En inventaire</span>
                 </div>
-                <div className="flex items-baseline gap-2" data-testid="text-stock">
-                  <span className={`text-4xl font-mono font-bold ${isLowStock ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                <div className="flex items-baseline gap-2 pl-10" data-testid="text-stock">
+                  <span className={`text-3xl font-mono font-bold ${isLowStock ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
                     {product.inventoryQuantity}
                   </span>
-                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-widest">unités</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">unités</span>
                 </div>
               </div>
             </div>
