@@ -27,6 +27,7 @@ export default function LocalOrderDetail({ admin = false }: { admin?: boolean })
     },
   });
   const order = data?.order;
+  const logs = Array.isArray(data?.logs) ? data.logs : [];
   const fulfillmentMutation = useMutation({
     mutationFn: async (fulfillmentStatus: "processing" | "completed") => {
       const response = await apiRequest("PATCH", `/api/admin/systemd-orders/${id}/fulfillment`, { fulfillmentStatus });
@@ -77,5 +78,6 @@ export default function LocalOrderDetail({ admin = false }: { admin?: boolean })
     </Card>
 
     <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-5"><div className="flex items-center gap-3"><CreditCard className="h-5 w-5 text-primary" /><div><p className="font-bold">{paymentLabel}</p><p className="text-xs text-muted-foreground">Transaction Store Credit : {order.shopifyCreditTransactionId || "—"}</p></div></div><p className="font-mono font-bold">{money(Number(order.amount || 0) / 100, currency)}</p></CardContent></Card>
+    <Card><CardHeader><CardTitle className="text-base">Historique</CardTitle></CardHeader><CardContent>{logs.length === 0 ? <p className="text-sm text-muted-foreground">Aucun événement supplémentaire enregistré.</p> : <div className="space-y-3">{logs.map((log: any) => <div key={log.id} className="flex items-start justify-between gap-4 border-b pb-3 last:border-0"><div><p className="text-sm font-medium">{log.message}</p><Badge variant="outline" className="mt-1 text-[10px]">{log.status}</Badge></div><time className="text-xs text-muted-foreground whitespace-nowrap">{log.createdAt ? new Date(log.createdAt).toLocaleString("fr-CA") : "—"}</time></div>)}</div>}</CardContent></Card>
   </div>;
 }

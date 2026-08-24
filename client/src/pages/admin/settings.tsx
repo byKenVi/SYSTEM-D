@@ -1039,6 +1039,9 @@ export default function AdminSettingsPage() {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 mt-2">
+                      <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                        Connectez une boutique à un client pour importer ses produits, reps et commandes. Les données restent isolées par client.
+                      </div>
                       {/* Platform selector */}
                       <div className="space-y-2">
                         <Label>Plateforme</Label>
@@ -1386,7 +1389,7 @@ export default function AdminSettingsPage() {
                       <SiWoocommerce className="h-6 w-6 text-muted-foreground/30" />
                     </div>
                     <p className="text-sm text-muted-foreground">Aucune boutique connectée</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">Cliquez sur « Connecter boutique » pour lier une boutique Shopify ou WooCommerce</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Cliquez sur « Ajouter une boutique » pour autoriser une boutique Shopify. Les autres plateformes arrivent prochainement.</p>
                   </div>
                 )}
               </CardContent>

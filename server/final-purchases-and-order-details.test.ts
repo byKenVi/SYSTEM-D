@@ -7,6 +7,9 @@ const app = readFileSync(new URL("../client/src/App.tsx", import.meta.url), "utf
 const product = readFileSync(new URL("../client/src/pages/portal/product-detail.tsx", import.meta.url), "utf8");
 const rep = readFileSync(new URL("../client/src/pages/portal/customer-detail.tsx", import.meta.url), "utf8");
 const settings = readFileSync(new URL("../client/src/pages/admin/settings.tsx", import.meta.url), "utf8");
+const boutique = readFileSync(new URL("../client/src/pages/portal/boutique.tsx", import.meta.url), "utf8");
+const formEditor = readFileSync(new URL("../client/src/pages/form-editor.tsx", import.meta.url), "utf8");
+const localOrderDetail = readFileSync(new URL("../client/src/pages/local-order-detail.tsx", import.meta.url), "utf8");
 const portalNotifications = readFileSync(new URL("../client/src/pages/portal/notifications.tsx", import.meta.url), "utf8");
 const adminNotifications = readFileSync(new URL("../client/src/pages/admin/notifications.tsx", import.meta.url), "utf8");
 
@@ -28,6 +31,20 @@ test("les stats rep additionnent Shopify et les commandes locales payées", () =
   assert.match(rep, /combinedAmountSpent/);
   assert.match(rep, /Paiement produit client/);
   assert.match(rep, /Débit Store Credit Shopify/);
+  assert.match(routes, /localOrders: localPaidOrders\.map/);
+  assert.match(rep, /row-local-order-/);
+  assert.match(rep, /Produit client/);
+});
+
+test("Commander et Bon de Travail restent deux flux sans contournement de paiement", () => {
+  assert.match(product, /Commander avec crédit/);
+  assert.match(product, /Crédit insuffisant pour commander/);
+  assert.match(product, /Produit en rupture/);
+  assert.match(boutique, /Cette demande n’est pas une commande payée/);
+  assert.match(formEditor, /paiement non applicable/);
+  const workOrderStart = routes.indexOf('app.post("/api/portal/product-work-orders"');
+  const workOrder = routes.slice(workOrderStart, routes.indexOf('app.get("/api/activity-logs"', workOrderStart));
+  assert.doesNotMatch(workOrder, /debitRep|product-checkout|markSystemdOrderPaidIfPending/);
 });
 
 test("chaque commande locale et notification ouvre une page de détail dédiée", () => {
@@ -37,11 +54,14 @@ test("chaque commande locale et notification ouvre une page de détail dédiée"
   assert.match(routes, /\/api\/portal\/systemd-orders\/:id/);
   assert.match(portalNotifications, /`\/portal\/orders\/systemd\/\$\{meta\.systemdOrderId\}`/);
   assert.match(adminNotifications, /`\/admin\/orders\/systemd\/\$\{meta\.systemdOrderId\}`/);
+  assert.match(localOrderDetail, /Historique/);
+  assert.match(routes, /getSystemdOrderLogs/);
 });
 
 test("l'ajout multi-boutique réserve client_credentials à Mapei et n'expose aucun secret marchand", () => {
   assert.match(routes, /storeUrl === "tnt5ar-ki\.myshopify\.com"/);
   assert.match(routes, /authMode: "oauth_offline"/);
   assert.match(settings, /WooCommerce — à venir/);
+  assert.match(settings, /Les données restent isolées par client/);
   assert.doesNotMatch(settings, /Consumer Secret|input-woo-consumer-secret|wooConsumerSecret/);
 });

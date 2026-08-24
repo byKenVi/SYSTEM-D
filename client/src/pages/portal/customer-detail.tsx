@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft, ExternalLink, Mail, Phone, MapPin, ShoppingBag, DollarSign,
   Calendar, Tag, Shield, User, CreditCard, CheckCircle, XCircle, Package, Truck, AlertCircle, ShoppingCart,
-  Wallet, TrendingUp, TrendingDown, RotateCcw, Clock,
+  Wallet, TrendingUp, TrendingDown, RotateCcw, Clock, ChevronRight,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -68,13 +68,16 @@ function FulfillmentStatusBadge({ status }: { status?: string | null }) {
   if (!status) return <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-muted text-muted-foreground">Non expédié</Badge>;
   const map: Record<string, string> = {
     fulfilled: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
     partial: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    processing: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    to_process: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
     unfulfilled: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
     restocked: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
   };
   const cls = map[status] ?? "bg-muted text-muted-foreground border-border";
   const labels: Record<string, string> = {
-    fulfilled: "Expédié", partial: "Partiel", unfulfilled: "À expédier", restocked: "Remis en stock",
+    fulfilled: "Expédié", completed: "Terminé", processing: "En traitement", to_process: "À traiter", partial: "Partiel", unfulfilled: "À expédier", restocked: "Remis en stock",
   };
   return <Badge className={`${cls} text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md`}>{labels[status] ?? status}</Badge>;
 }
@@ -159,7 +162,7 @@ export default function PortalCustomerDetail() {
     enabled: !!shopifyCustomerId,
   });
 
-  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[]; canManageCredit?: boolean; purchaseStats?: { localOrderCount: number; localAmountSpent: string; lastLocalPurchase: { orderId: number; orderNumber: string; createdAt: string | null; amount: string; currency: string; source: string } | null } } | null>({
+  const { data: mapiData, isLoading: mapiLoading } = useQuery<{ rep: MapiRep; logs: MapiRepCreditLog[]; shopifyTransactions: any[]; canManageCredit?: boolean; purchaseStats?: { localOrderCount: number; localAmountSpent: string; localOrders: Array<{ orderId: number; orderNumber: string; createdAt: string | null; amount: string; currency: string; source: "systemd" | "client_product"; lineItems: any[]; paymentStatus: string; fulfillmentStatus: string }>; lastLocalPurchase: { orderId: number; orderNumber: string; createdAt: string | null; amount: string; currency: string; source: string } | null } } | null>({
     queryKey: [isAdminViewAs ? "/api/mapi/reps/by-shopify-customer" : "/api/portal/mapi/reps/by-shopify-customer", shopifyCustomerId],
     queryFn: async () => {
       const customer = data?.customer;
@@ -180,6 +183,7 @@ export default function PortalCustomerDetail() {
   const c: any = data?.customer ?? {};
   const orders: any[] = data?.orders ?? [];
   const localStats = mapiData?.purchaseStats;
+  const localOrders = localStats?.localOrders ?? [];
   const combinedOrderCount = Number(c.orders_count || 0) + Number(localStats?.localOrderCount || 0);
   const combinedAmountSpent = Number(c.total_spent || 0) + Number(localStats?.localAmountSpent || 0);
   const latestShopifyOrder = [...orders].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
@@ -525,7 +529,7 @@ export default function PortalCustomerDetail() {
           <CardTitle className="text-sm font-bold uppercase tracking-widest text-foreground flex items-center gap-2">
             <ShoppingBag className="h-4 w-4 text-primary" />
             Historique des commandes
-            {!isLoading && <Badge variant="secondary" className="ml-2 bg-background border-border text-foreground font-mono">{orders.length}</Badge>}
+            {!isLoading && <Badge variant="secondary" className="ml-2 bg-background border-border text-foreground font-mono">{orders.length + localOrders.length}</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -533,23 +537,25 @@ export default function PortalCustomerDetail() {
             <div className="p-6 space-y-4">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
             </div>
-          ) : orders.length === 0 ? (
+          ) : orders.length === 0 && localOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
                 <ShoppingBag className="h-10 w-10 text-muted-foreground/50" />
               </div>
               <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande</h3>
               <p className="text-muted-foreground max-w-sm">
-                Ce client n'a pas encore passé de commande sur la boutique.
+                Ce rep n'a pas encore de commande payée dans Système D ni dans Shopify.
               </p>
             </div>
           ) : (
             <div className="responsive-table">
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[1050px]">
                 <TableHeader>
                   <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
                     <TableHead className="py-4 pl-6 text-xs font-bold uppercase tracking-widest text-muted-foreground">Commande</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Source</TableHead>
                     <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Date</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produits</TableHead>
                     <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Paiement</TableHead>
                     <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Expédition</TableHead>
                     <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Articles</TableHead>
@@ -558,8 +564,26 @@ export default function PortalCustomerDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {localOrders.map((order) => {
+                    const detailUrl = isAdminViewAs ? `/admin/orders/systemd/${order.orderId}` : `/portal/orders/systemd/${order.orderId}`;
+                    const items = Array.isArray(order.lineItems) ? order.lineItems : [];
+                    const quantity = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+                    return (
+                      <TableRow key={`local-${order.orderId}`} className="cursor-pointer group hover:bg-muted/50 transition-colors" onClick={() => navigate(detailUrl)} data-testid={`row-local-order-${order.orderId}`}>
+                        <TableCell className="pl-6 py-4 font-bold font-mono text-base">{order.orderNumber}</TableCell>
+                        <TableCell><Badge variant="outline">{order.source === "client_product" ? "Produit client" : "Système D"}</Badge></TableCell>
+                        <TableCell className="py-4 text-sm text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-CA", { dateStyle: "medium" }) : "—"}</TableCell>
+                        <TableCell className="py-4 text-sm max-w-[260px]"><p className="truncate">{items.map((item: any) => item.name).filter(Boolean).join(", ") || "—"}</p></TableCell>
+                        <TableCell className="py-4"><FinancialStatusBadge status={order.paymentStatus} /></TableCell>
+                        <TableCell className="py-4"><FulfillmentStatusBadge status={order.fulfillmentStatus} /></TableCell>
+                        <TableCell className="py-4 text-right"><span className="font-mono font-bold text-sm">{quantity}</span></TableCell>
+                        <TableCell className="py-4 text-right font-mono font-bold">{money(order.amount, order.currency)}</TableCell>
+                        <TableCell className="pr-6"><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {orders.map((order: any) => {
-                    const detailUrl = `/portal/orders/${order.id}?store=${encodeURIComponent(store)}`;
+                    const detailUrl = `${isAdminViewAs ? "/admin" : "/portal"}/orders/${order.id}?store=${encodeURIComponent(store)}${integrationId ? `&integrationId=${encodeURIComponent(integrationId)}` : ""}`;
                     return (
                       <TableRow
                         key={order.id}
@@ -568,9 +592,11 @@ export default function PortalCustomerDetail() {
                         onClick={() => navigate(detailUrl)}
                       >
                         <TableCell className="pl-6 py-4 font-bold font-mono text-base text-foreground">{order.name}</TableCell>
+                        <TableCell><Badge variant="outline">Shopify</Badge></TableCell>
                         <TableCell className="py-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
                           {new Date(order.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" })}
                         </TableCell>
+                        <TableCell className="py-4 text-sm max-w-[260px]"><p className="truncate">{(order.line_items as any[] | undefined)?.map((item: any) => item.title || item.name).filter(Boolean).join(", ") || "—"}</p></TableCell>
                         <TableCell className="py-4"><FinancialStatusBadge status={order.financial_status} /></TableCell>
                         <TableCell className="py-4"><FulfillmentStatusBadge status={order.fulfillment_status} /></TableCell>
                         <TableCell className="py-4 text-right">

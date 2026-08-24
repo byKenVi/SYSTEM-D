@@ -32,6 +32,19 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseQty, setPurchaseQty] = useState("1");
 
+  const { data: repsData, isLoading: creditLoading, isError: creditUnavailable } = useQuery<{ reps: Array<{ balance: string; currency: string; isCurrentContact: boolean }> }>({
+    queryKey: ["/api/portal/mapi/reps", "product-checkout"],
+    queryFn: async () => {
+      const response = await fetch("/api/portal/mapi/reps", { credentials: "include" });
+      if (!response.ok) throw new Error("Crédit Shopify indisponible");
+      return response.json();
+    },
+    enabled: !isViewAs,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const currentRep = repsData?.reps?.find((rep) => rep.isCurrentContact);
+
   const { data: product, isLoading } = useQuery<Product>({
     queryKey: viewAsContactId
       ? ["/api/admin/view-as", viewAsContactId, "products", productId]
@@ -57,7 +70,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
       queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
       setRestockOpen(false);
       setRestockQty("");
-      toast({ title: "Bon de travail soumis", description: "Vous pouvez le suivre dans Soumissions." });
+      toast({ title: "Bon de Travail soumis", description: "Cette demande n’est pas une commande payée. L’équipe Système D doit l’analyser avant traitement." });
       if (submission?.id) navigate(`/portal/forms/${submission.id}`);
     },
     onError: () => {
@@ -164,6 +177,10 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   ].filter((s) => s.value);
 
   const isLowStock = product.inventoryQuantity <= 5;
+  const unitPrice = Number(product.price || 0);
+  const insufficientCredit = !!currentRep && Number(currentRep.balance) < unitPrice;
+  const immediatePurchaseBlocked = product.inventoryQuantity < 1 || !product.price || (!isViewAs && (creditLoading || creditUnavailable || !currentRep || insufficientCredit));
+  const requestedTotal = unitPrice * Number(purchaseQty || 0);
 
   return (
     <div className="space-y-8 animate-in w-full pb-12">
@@ -285,7 +302,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
               <Button
                 size="lg"
                 className="w-full h-16 text-lg font-bold shadow-lg shadow-primary/20 hover:-translate-y-1 transition-transform duration-200"
-                disabled={!product.price || product.inventoryQuantity < 1}
+                disabled={immediatePurchaseBlocked}
                 onClick={() => {
                   if (isViewAs) {
                     toast({ title: "Mode Aperçu", description: "Le paiement est disponible uniquement dans la session du client." });
@@ -297,7 +314,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                 data-testid="button-purchase-product"
               >
                 <ShoppingCart className="h-5 w-5 mr-3" />
-                Commander
+                Commander avec crédit
               </Button>
               <Button
                 variant="outline"
@@ -316,7 +333,13 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
                 <Wrench className="h-5 w-5 mr-3" />
                 Bon de Travail
               </Button>
-              <p className="text-xs font-medium text-muted-foreground text-center w-full">Commande payée par Store Credit; le bon de travail reste une demande distincte.</p>
+              <div className="space-y-1 text-center w-full text-xs font-medium text-muted-foreground">
+                <p><strong>Commander avec crédit :</strong> achetez maintenant avec le crédit Shopify de votre compte.</p>
+                <p><strong>Bon de Travail :</strong> demande spéciale non payée; aucun crédit n’est débité avant validation.</p>
+                {product.inventoryQuantity < 1 && <p className="text-amber-600">Produit en rupture. Vous pouvez soumettre une demande à l’équipe Système D.</p>}
+                {insufficientCredit && <p className="text-destructive font-bold">Crédit insuffisant pour commander ce produit.</p>}
+                {creditUnavailable && <p className="text-destructive">Store Credit Shopify indisponible. L’achat immédiat est temporairement bloqué.</p>}
+              </div>
             </div>
           </div>
 
@@ -397,12 +420,12 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
             </div>
             <div className="flex justify-between rounded-lg bg-primary/5 p-4 font-bold">
               <span>Total Store Credit</span>
-              <span>{(Number(product.price || 0) * Number(purchaseQty || 0)).toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</span>
+              <span>{requestedTotal.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}</span>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPurchaseOpen(false)}>Annuler</Button>
-            <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Number(purchaseQty) < 1 || Number(purchaseQty) > product.inventoryQuantity} data-testid="button-confirm-purchase">
+            <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Number(purchaseQty) < 1 || Number(purchaseQty) > product.inventoryQuantity || !currentRep || requestedTotal > Number(currentRep.balance)} data-testid="button-confirm-purchase">
               {purchaseMutation.isPending ? "Paiement…" : "Payer avec Store Credit"}
             </Button>
           </DialogFooter>

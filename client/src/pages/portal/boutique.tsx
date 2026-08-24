@@ -755,6 +755,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
       queryClient.invalidateQueries({ queryKey: ["/api/portal/forms"] });
       setRestockProduct(null);
       setRestockQty("");
+      toast({ title: "Bon de Travail soumis", description: "Cette demande n’est pas une commande payée. L’équipe Système D doit l’analyser avant traitement." });
       if (submission?.id) navigate(`/portal/forms/${submission.id}`);
     },
     onError: () => {
@@ -905,7 +906,11 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             </div>
                             {!isViewAs && (
                               <div className="flex gap-2 pt-1">
-                                <Button size="sm" variant="outline" className="flex-1 font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
+                                <Button size="sm" className="flex-1 font-bold" disabled={product.inventoryQuantity < 1} onClick={(e) => { e.stopPropagation(); navigate(`/portal/products/${product.id}`); }}>
+                                  <CreditCard className="h-3.5 w-3.5 mr-2" />
+                                  Commander avec crédit
+                                </Button>
+                                <Button size="sm" variant="outline" className="flex-1 font-bold" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
                                   <ClipboardList className="h-3.5 w-3.5 mr-2" />
                                   Bon de travail
                                 </Button>
@@ -973,6 +978,16 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                             <TableCell className="text-right py-4" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
                                 {!isViewAs && (
+                                <>
+                                <Button
+                                  size="sm"
+                                  disabled={product.inventoryQuantity < 1}
+                                  className="font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => navigate(`/portal/products/${product.id}`)}
+                                >
+                                  <CreditCard className="h-3.5 w-3.5 mr-2" />
+                                  Commander avec crédit
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -983,6 +998,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                   <ClipboardList className="h-3.5 w-3.5 mr-2" />
                                   Bon de travail
                                 </Button>
+                                </>
                                 )}
                               </div>
                             </TableCell>
@@ -1016,7 +1032,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   <div>
                     <DialogTitle className="text-xl font-bold tracking-tight mb-2">Créer un bon de travail</DialogTitle>
                     <DialogDescription className="text-sm font-medium text-muted-foreground leading-relaxed">
-                      Demandez une intervention ou un réapprovisionnement pour ce produit spécifique.
+                      Demandez une intervention ou un réapprovisionnement. Ce n’est pas une commande payée et aucun crédit Shopify n’est débité.
                     </DialogDescription>
                   </div>
                 </div>

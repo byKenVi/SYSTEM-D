@@ -4271,6 +4271,17 @@ export async function registerRoutes(
       const purchaseStats = {
         localOrderCount: localPaidOrders.length,
         localAmountSpent: (localPaidOrders.reduce((sum, order) => sum + order.amount, 0) / 100).toFixed(2),
+        localOrders: localPaidOrders.map((order) => ({
+          orderId: order.id,
+          orderNumber: `#${order.id}`,
+          createdAt: order.createdAt,
+          amount: (order.amount / 100).toFixed(2),
+          currency: order.currency.toUpperCase(),
+          source: ((order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd"),
+          lineItems: order.lineItems,
+          paymentStatus: order.status,
+          fulfillmentStatus: order.fulfillmentStatus,
+        })),
         lastLocalPurchase: localPaidOrders[0] ? {
           orderId: localPaidOrders[0].id,
           orderNumber: `#${localPaidOrders[0].id}`,
@@ -5113,6 +5124,12 @@ export async function registerRoutes(
         performedByUserId: req.user?.claims?.sub ?? null,
         shopifyTransactionId: debitResult!.transactionId,
       }).catch(() => {});
+      await storage.createActivityLog({
+        type: "client_product_order_paid",
+        status: "success",
+        message: `Commande produit client #${order.id} payée par Store Credit Shopify.`,
+        metadata: JSON.stringify({ orderId: order.id, source: "client_product", shopifyTransactionId: debitResult!.transactionId }),
+      }).catch(() => {});
       const repName = [shopifyCustomer.firstName, shopifyCustomer.lastName].filter(Boolean).join(" ") || shopifyCustomer.email;
       await storage.createNotification({
         contactId: role.contactId,
@@ -5554,14 +5571,25 @@ export async function registerRoutes(
     }
   });
 
+  const getSystemdOrderLogs = async (orderId: number) => (await storage.getActivityLogs(500)).filter((log) => {
+    if (!log.metadata) return false;
+    try {
+      const metadata = JSON.parse(log.metadata);
+      return Number(metadata?.orderId ?? metadata?.systemdOrderId) === orderId;
+    } catch {
+      return false;
+    }
+  });
+
   app.get("/api/admin/systemd-orders/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const orderId = Number(req.params.id);
       const order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
       if (!order) return res.status(404).json({ message: "Commande introuvable." });
-      const [contact, rep] = await Promise.all([
+      const [contact, rep, logs] = await Promise.all([
         storage.getContact(order.contactId),
         order.shopifyCustomerGid ? storage.getMapiRepByGid(order.shopifyCustomerGid) : Promise.resolve(undefined),
+        getSystemdOrderLogs(orderId),
       ]);
       return res.json({
         order: {
@@ -5572,7 +5600,7 @@ export async function registerRoutes(
           contactEmail: contact?.email ?? null,
           repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
           repEmail: rep?.email ?? null,
-        },
+        }, logs,
       });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -5747,9 +5775,10 @@ export async function registerRoutes(
       const allowedContactIds = await getProductContactIds(role.contactId);
       const order = (await storage.getSystemdOrdersByContactIds(allowedContactIds)).find((candidate) => candidate.id === orderId);
       if (!order) return res.status(404).json({ message: "Commande introuvable." });
-      const [contact, rep] = await Promise.all([
+      const [contact, rep, logs] = await Promise.all([
         storage.getContact(order.contactId),
         order.shopifyCustomerGid ? storage.getMapiRepByGid(order.shopifyCustomerGid) : Promise.resolve(undefined),
+        getSystemdOrderLogs(orderId),
       ]);
       return res.json({
         order: {
@@ -5760,7 +5789,7 @@ export async function registerRoutes(
           contactEmail: contact?.email ?? null,
           repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
           repEmail: rep?.email ?? null,
-        },
+        }, logs,
       });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });

@@ -1034,7 +1034,7 @@ export function AdminFormDetail({ id }: { id: number }) {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold font-mono tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
             <Badge className={`text-xs ${STATUS_COLORS[form.status]}`} data-testid="badge-form-status">
-              {STATUS_LABELS[form.status] || form.status}
+              {form.formType === "product_work_order" && form.status === "submitted" ? "À réviser" : (STATUS_LABELS[form.status] || form.status)}
             </Badge>
           </div>
 
@@ -1061,6 +1061,17 @@ export function AdminFormDetail({ id }: { id: number }) {
           </div>
         </div>
       </div>
+
+      {form.formType === "product_work_order" && (
+        <Card className="border-amber-300 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <CardContent className="p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div><p className="text-xs font-bold uppercase text-muted-foreground">Paiement</p><p className="font-bold">Non payé / non applicable</p></div>
+            <div><p className="text-xs font-bold uppercase text-muted-foreground">Produit</p><p className="font-bold">{(form.data as any)?.sourceProductName || "—"}</p></div>
+            <div><p className="text-xs font-bold uppercase text-muted-foreground">Quantité demandée</p><p className="font-mono font-bold">{(form.data as any)?.requestedQuantity ?? "—"}</p></div>
+            <div><p className="text-xs font-bold uppercase text-muted-foreground">Demandeur</p><p className="font-bold">{form.submittedByName || contact?.name || "—"}</p></div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status stepper */}
       <div className="flex items-center w-full">

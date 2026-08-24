@@ -417,6 +417,10 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
             )}
             {form.formType === "product_work_order" && (
               <div className="space-y-6" data-testid="product-work-order-detail">
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                  <p className="font-bold">Demande opérationnelle — paiement non applicable</p>
+                  <p className="mt-1 text-sm">Ce Bon de Travail n’est pas une commande payée. Aucun Store Credit Shopify n’a été débité; l’équipe Système D doit l’analyser avant traitement.</p>
+                </div>
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                     <Package className="h-6 w-6 text-primary" />
@@ -431,7 +435,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
                   <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs text-muted-foreground mb-1">Quantité demandée</p><p className="font-mono font-bold">{(formData as any).requestedQuantity ?? "—"}</p></div>
                   <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs text-muted-foreground mb-1">Référence produit</p><p className="font-mono font-bold">#{(formData as any).sourceProductId ?? "—"}</p></div>
                 </div>
-                <p className="text-sm text-muted-foreground">Cette demande provient de « Mes produits ». Elle est distincte des formulaires Entreposage, Co-packing, Inspection, Livraison et Tri.</p>
+                <p className="text-sm text-muted-foreground">Demandé par : <strong>{form.submittedByName || contact?.name || "—"}</strong>. Cette demande provient de « Mes produits » et reste distincte d’une commande.</p>
               </div>
             )}
 
