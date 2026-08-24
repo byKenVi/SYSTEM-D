@@ -111,6 +111,83 @@ interface ShopifyOrder {
 }
 interface OrdersResponse { orders: ShopifyOrder[] }
 
+type ProductCreditStatus = "loading" | "available" | "insufficient" | "unavailable";
+
+function ProductListActions({
+  product,
+  creditStatus,
+  creditBalance,
+  isViewAs,
+  onOrder,
+  onWorkOrder,
+  layout = "row",
+}: {
+  product: Product;
+  creditStatus: ProductCreditStatus;
+  creditBalance?: string | number;
+  isViewAs: boolean;
+  onOrder: () => void;
+  onWorkOrder: () => void;
+  layout?: "row" | "stack";
+}) {
+  if (isViewAs) return null;
+
+  const inStock = product.inventoryQuantity > 0;
+  const productPrice = Number(product.price);
+  const availableCredit = Number(creditBalance);
+  const resolvedCreditStatus: ProductCreditStatus =
+    creditStatus === "available"
+      && Number.isFinite(productPrice)
+      && Number.isFinite(availableCredit)
+      && availableCredit < productPrice
+      ? "insufficient"
+      : creditStatus;
+  const actionClass = layout === "stack"
+    ? "flex flex-col items-stretch gap-2"
+    : "flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:flex-wrap sm:items-center";
+  const secondaryClass = layout === "stack" ? "w-full" : "w-full shrink-0 sm:w-auto";
+
+  return (
+    <div className={actionClass} data-testid={`product-actions-${product.id}`}>
+      {!inStock ? (
+        <span className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
+          Produit en rupture
+        </span>
+      ) : resolvedCreditStatus === "loading" ? (
+        <span className="text-[11px] font-medium text-muted-foreground">Vérification du crédit…</span>
+      ) : resolvedCreditStatus === "insufficient" ? (
+        <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400">
+          Crédit insuffisant
+        </span>
+      ) : resolvedCreditStatus === "unavailable" ? (
+        <span className="inline-flex items-center rounded-md border border-muted bg-muted/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+          Commande indisponible
+        </span>
+      ) : (
+        <Button
+          size="sm"
+          className="shrink-0 font-bold"
+          onClick={(event) => { event.stopPropagation(); onOrder(); }}
+          data-testid={`button-order-product-${product.id}`}
+        >
+          <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+          Commander
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className={`${secondaryClass} font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary`}
+        onClick={(event) => { event.stopPropagation(); onWorkOrder(); }}
+        data-testid={`button-request-restock-${product.id}`}
+      >
+        <ClipboardList className="mr-1.5 h-3.5 w-3.5" />
+        Bon de travail
+      </Button>
+    </div>
+  );
+}
+
 /* ── Badges ── */
 function FinancialBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-muted-foreground/40 text-xs font-mono">—</span>;
@@ -704,6 +781,12 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
 
   const orders: ShopifyOrder[] = ordersData?.orders ?? [];
   const customers: ShopifyCustomer[] = customersData?.customers ?? [];
+  const currentCreditRep = customers.find((customer) => customer.isCurrentContact);
+  const creditStatus: ProductCreditStatus = customersLoading
+    ? "loading"
+    : customersError || !currentCreditRep || currentCreditRep.creditBalance === undefined
+      ? "unavailable"
+      : "available";
 
   /* Filtering & Sorting */
   const filteredProducts = products
@@ -904,32 +987,29 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </div>
-                            {!isViewAs && (
-                              <div className="flex gap-2 pt-1">
-                                <Button size="sm" className="flex-1 font-bold" disabled={product.inventoryQuantity < 1} onClick={(e) => { e.stopPropagation(); navigate(`/portal/products/${product.id}`); }}>
-                                  <CreditCard className="h-3.5 w-3.5 mr-2" />
-                                  Commander avec crédit
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex-1 font-bold" onClick={(e) => { e.stopPropagation(); setRestockProduct(product); setRestockQty(""); }} data-testid={`button-request-restock-${product.id}`}>
-                                  <ClipboardList className="h-3.5 w-3.5 mr-2" />
-                                  Bon de travail
-                                </Button>
-                              </div>
-                            )}
+                            <ProductListActions
+                              product={product}
+                              creditStatus={creditStatus}
+                              creditBalance={currentCreditRep?.creditBalance}
+                              isViewAs={isViewAs}
+                              layout="stack"
+                              onOrder={() => navigate(`/portal/products/${product.id}`)}
+                              onWorkOrder={() => { setRestockProduct(product); setRestockQty(""); }}
+                            />
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                   <div className="responsive-table">
-                    <Table className="min-w-[960px]">
+                     <Table className="min-w-[860px]">
                       <TableHeader>
                         <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
                           <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
-                          <TableHead className="w-[22rem] py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</TableHead>
+                           <TableHead className="w-[16rem] min-w-[16rem] py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -975,33 +1055,15 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </TableCell>
-                            <TableCell className="w-[22rem] py-4" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex flex-col items-stretch justify-end gap-2 xl:flex-row xl:items-center">
-                                {!isViewAs && (
-                                <>
-                                <Button
-                                  size="sm"
-                                  disabled={product.inventoryQuantity < 1}
-                                  className="w-full whitespace-nowrap font-bold xl:w-auto"
-                                  title={product.inventoryQuantity < 1 ? "Produit en rupture de stock" : "Commander avec le crédit Shopify"}
-                                  onClick={() => navigate(`/portal/products/${product.id}`)}
-                                >
-                                  <CreditCard className="h-3.5 w-3.5 mr-2" />
-                                  Commander avec crédit
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="w-full whitespace-nowrap font-bold border-primary/20 text-primary hover:bg-primary/10 hover:text-primary xl:w-auto"
-                                  onClick={() => { setRestockProduct(product); setRestockQty(""); }}
-                                  data-testid={`button-request-restock-${product.id}`}
-                                >
-                                  <ClipboardList className="h-3.5 w-3.5 mr-2" />
-                                  Bon de travail
-                                </Button>
-                                </>
-                                )}
-                              </div>
+                             <TableCell className="w-[16rem] min-w-[16rem] py-4" onClick={(e) => e.stopPropagation()}>
+                               <ProductListActions
+                                 product={product}
+                                 creditStatus={creditStatus}
+                                 creditBalance={currentCreditRep?.creditBalance}
+                                 isViewAs={isViewAs}
+                                 onOrder={() => navigate(`/portal/products/${product.id}`)}
+                                 onWorkOrder={() => { setRestockProduct(product); setRestockQty(""); }}
+                               />
                             </TableCell>
                           </TableRow>
                         ))}

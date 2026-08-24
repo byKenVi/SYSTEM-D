@@ -1,0 +1,184 @@
+SYSTÈME D — CORRECTION UI LISTE PRODUITS : ACTIONS TROP LARGES / BOUTONS COUPÉS
+
+Contexte :
+Le flow métier est maintenant validé.
+Mais l’interface liste des produits dans le portail client n’est pas acceptable.
+
+Problème visible :
+Dans Boutique > Mes produits > vue liste :
+- la colonne Actions est coupée à droite ;
+- le bouton “Bon de travail” est tronqué ;
+- “Commander avec crédit” prend trop de place ;
+- les actions débordent du tableau ;
+- les produits en rupture affichent encore un gros bouton “Commander avec crédit”, ce qui crée de la confusion ;
+- le rendu n’est pas client-ready.
+
+Objectif :
+Corriger uniquement l’UI/UX de la liste produits.
+Ne pas toucher au backend.
+Ne pas toucher au checkout.
+Ne pas toucher au Store Credit.
+Ne pas toucher aux reps, commandes, BTP, Shopify ou Zoho.
+
+==================================================
+1. CORRIGER LA COLONNE ACTIONS
+==================================================
+
+La colonne Actions doit être entièrement visible.
+
+Règles :
+- aucun bouton ne doit être coupé ;
+- aucun texte ne doit être tronqué ;
+- aucun bouton ne doit sortir du tableau ;
+- pas d’action importante cachée uniquement au hover.
+
+Solutions acceptées :
+A. élargir proprement la colonne Actions ;
+B. passer les actions sur deux lignes ;
+C. utiliser un menu “Actions” ;
+D. afficher une action principale + action secondaire compacte.
+
+Recommandation :
+En vue liste desktop :
+- afficher une action principale visible ;
+- mettre l’action secondaire en bouton discret ou menu.
+
+Exemple :
+Produit en stock :
+[Commander] [Bon de travail]
+
+Produit en rupture :
+[Bon de travail]
+et ne pas afficher un gros bouton “Commander avec crédit” désactivé.
+
+==================================================
+2. RÈGLES D’AFFICHAGE DES ACTIONS
+==================================================
+
+Appliquer ces règles :
+
+A. Produit en stock + crédit disponible :
+- bouton principal : “Commander”
+- bouton secondaire : “Bon de travail”
+
+B. Produit en rupture :
+- masquer ou remplacer “Commander avec crédit”
+- afficher clairement :
+  “Produit en rupture”
+- action principale : “Bon de travail”
+
+C. Crédit insuffisant :
+- ne pas afficher un gros bouton actif “Commander avec crédit”
+- afficher un état discret :
+  “Crédit insuffisant”
+- garder “Bon de travail”
+
+D. Shopify / Store Credit indisponible :
+- afficher :
+  “Commande indisponible”
+- garder “Bon de travail”
+
+Important :
+Le Bon de Travail reste une demande non payée.
+Commander reste un achat immédiat avec débit Shopify.
+
+==================================================
+3. AMÉLIORER LES LIBELLÉS
+==================================================
+
+En vue liste, les boutons doivent être courts.
+
+Remplacer si nécessaire :
+- “Commander avec crédit” → “Commander”
+- “Bon de Travail” → “Bon de travail”
+
+L’explication complète peut rester :
+- dans le détail produit ;
+- en tooltip ;
+- sous les boutons dans la vue grille ;
+- ou dans une aide discrète.
+
+Ne pas mettre de très longs textes dans les boutons de table.
+
+==================================================
+4. TABLE RESPONSIVE
+==================================================
+
+La table doit rester propre à 1366px.
+
+À vérifier :
+- aucune colonne coupée ;
+- actions visibles ;
+- pas de scroll horizontal inutile si évitable ;
+- si scroll horizontal nécessaire, il doit être propre et assumé ;
+- sur tablette/mobile, utiliser des cartes ou empiler les actions.
+
+Tests visuels :
+- largeur 1366px ;
+- largeur 1024px ;
+- largeur 768px ;
+- mobile.
+
+==================================================
+5. COHÉRENCE AVEC LA VUE GRILLE
+==================================================
+
+La logique d’action doit être la même entre vue grille et vue liste.
+
+- Même état stock ;
+- mêmes actions ;
+- mêmes désactivations ;
+- même priorité visuelle ;
+- mêmes libellés.
+
+==================================================
+6. NON-RÉGRESSION
+==================================================
+
+Ne pas casser :
+- Commander avec crédit ;
+- débit Store Credit ;
+- Bon de Travail ;
+- BTP ;
+- Mes commandes ;
+- Mes reps ;
+- détail produit ;
+- produits SystemD ;
+- produits client.
+
+==================================================
+7. TESTS
+==================================================
+
+Tester :
+1. Vue liste Mes produits.
+2. Vue grille Mes produits.
+3. Vue liste Produits Système D.
+4. Produit en stock.
+5. Produit en rupture.
+6. Crédit insuffisant si simulable.
+7. Shopify indisponible si simulable.
+8. Desktop 1366px.
+9. Tablette.
+10. Mobile.
+
+Résultat attendu :
+- aucun bouton coupé ;
+- aucune action cachée au hover ;
+- actions lisibles ;
+- produit en rupture ne montre pas un gros bouton Commander trompeur ;
+- UI propre et prête pour Loom.
+
+Rapport attendu :
+A. Problème UI identifié
+B. Solution retenue pour les actions
+C. Comportement produit en stock
+D. Comportement produit en rupture
+E. Comportement crédit insuffisant
+F. Comportement responsive
+G. Fichiers modifiés
+H. Tests lancés
+I. Statut final
+
+Termine par :
+BOUTIQUE PRODUITS — ACTIONS LISTE PROPRES ET NON TRONQUÉES.
