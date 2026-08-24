@@ -1002,14 +1002,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                     </div>
                   ) : (
                   <div className="responsive-table">
-                     <Table className="min-w-[860px]">
+                      <Table className="w-full min-w-[860px] table-fixed">
                       <TableHeader>
                         <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
-                          <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
-                          <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
-                          <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
-                          <TableHead className="py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
-                           <TableHead className="w-[16rem] min-w-[16rem] py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</TableHead>
+                           <TableHead className="w-[40%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Produit</TableHead>
+                           <TableHead className="w-[11%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</TableHead>
+                           <TableHead className="w-[10%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Prix</TableHead>
+                           <TableHead className="w-[14%] py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground text-right">Inventaire</TableHead>
+                            <TableHead className="w-[25%] min-w-[15rem] py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1055,7 +1055,7 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 {product.inventoryQuantity === 0 ? "Rupture" : `${product.inventoryQuantity} un.`}
                               </Badge>
                             </TableCell>
-                             <TableCell className="w-[16rem] min-w-[16rem] py-4" onClick={(e) => e.stopPropagation()}>
+                             <TableCell className="w-[25%] min-w-[15rem] py-4" onClick={(e) => e.stopPropagation()}>
                                <ProductListActions
                                  product={product}
                                  creditStatus={creditStatus}
