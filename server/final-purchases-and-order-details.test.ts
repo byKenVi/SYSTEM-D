@@ -15,19 +15,29 @@ const adminNotifications = readFileSync(new URL("../client/src/pages/admin/notif
 const reconciliation = readFileSync(new URL("./shopify-client-order-reconciliation.ts", import.meta.url), "utf8");
 const shopifyApi = readFileSync(new URL("./shopify-api.ts", import.meta.url), "utf8");
 
-test("un produit client passe par le checkout Shopify sans faux paiement local", () => {
+test("un produit client crée une vraie commande Shopify payée après preuve du débit", () => {
   assert.match(product, /\/api\/portal\/product-checkout/);
-  assert.match(product, /Continuer dans Shopify/);
+  assert.match(product, /Confirmer avec Store Credit/);
   assert.match(product, /Aucun Bon de Travail ne sera créé/);
   const checkout = routes.slice(routes.indexOf('app.post("/api/portal/product-checkout"'), routes.indexOf('app.post("/api/portal/systemd-checkout"'));
-  assert.match(checkout, /createShopifyDraftCheckout/);
-  assert.match(checkout, /status: "pending_shopify"/);
-  assert.doesNotMatch(checkout, /debitRep\(|markSystemdOrderPaidIfPending/);
+  assert.match(checkout, /debitRep\(/);
+  assert.match(checkout, /assertShopifyDebitProof/);
+  assert.match(checkout, /createPaidShopifyOrder/);
+  assert.match(checkout, /markSystemdOrderPaidIfPending/);
+  assert.match(checkout, /shopifyOrder\.displayFinancialStatus !== "PAID"/);
+  assert.doesNotMatch(checkout, /createShopifyDraftCheckout/);
   assert.match(checkout, /source: "client_product"/);
-  assert.match(shopifyApi, /draftOrderCreate/);
+  assert.match(shopifyApi, /orderCreate\(order: \$order, options: \$options\)/);
+  assert.match(shopifyApi, /"write_orders"/);
+  assert.match(shopifyApi, /gateway: "Store Credit \(Système D\)"/);
+  assert.match(shopifyApi, /DECREMENT_OBEYING_POLICY/);
+  assert.match(shopifyApi, /systemd-order-/);
   assert.match(reconciliation, /displayFinancialStatus !== "PAID"/);
   assert.match(reconciliation, /originOrderTransactionId/);
+  assert.match(reconciliation, /findShopifyOrderBySystemdOrderId/);
+  assert.match(reconciliation, /resolveSystemdOrderReconciliation/);
   assert.match(reconciliation, /markSystemdOrderPaidIfShopifyConfirmed/);
+  assert.match(routes, /Le débit seul ne suffit pas : la commande Shopify payée doit aussi être retrouvée et confirmée/);
 });
 
 test("les stats rep additionnent Shopify et les commandes locales payées", () => {

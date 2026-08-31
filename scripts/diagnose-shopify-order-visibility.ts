@@ -7,6 +7,35 @@ function isoDay(value: string | Date): string {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+function summarizeOrder(order: any) {
+  return {
+    id: order.id,
+    name: order.name,
+    createdAt: order.created_at,
+    financialStatus: order.financial_status,
+    fulfillmentStatus: order.fulfillment_status,
+    totalPrice: order.total_price,
+    currency: order.currency,
+    customerId: order.customer?.id ?? null,
+  };
+}
+
+function summarizeDraft(draft: any) {
+  return {
+    id: draft.id,
+    name: draft.name,
+    status: draft.status,
+    createdAt: draft.created_at,
+    updatedAt: draft.updated_at,
+    completedAt: draft.completed_at,
+    orderId: draft.order_id ?? null,
+    customerId: draft.customer?.id ?? null,
+    totalPrice: draft.total_price,
+    currency: draft.currency,
+    hasInvoiceUrl: !!draft.invoice_url,
+  };
+}
+
 async function main() {
   const integrations = await storage.getShopifyIntegrations();
   const integration = integrations.find((candidate) =>
@@ -58,10 +87,10 @@ async function main() {
 
   console.log(JSON.stringify({
     store: MAPI_STORE_URL,
-    order1007: orders.filter((order) => order.name === "#1007" || String(order.id) === "1007"),
-    draftD1: drafts.filter((draft: any) => draft.name === "#D1" || draft.name === "D1"),
-    ordersOnAugust25: orders.filter((order) => order.created_at && isoDay(order.created_at).endsWith("-08-25")),
-    ordersToday: orders.filter((order) => order.created_at && isoDay(order.created_at) === today),
+    order1007: orders.filter((order) => order.name === "#1007" || String(order.id) === "1007").map(summarizeOrder),
+    draftD1: drafts.filter((draft: any) => draft.name === "#D1" || draft.name === "D1").map(summarizeDraft),
+    ordersOnAugust25: orders.filter((order) => order.created_at && isoDay(order.created_at).endsWith("-08-25")).map(summarizeOrder),
+    ordersToday: orders.filter((order) => order.created_at && isoDay(order.created_at) === today).map(summarizeOrder),
     matchingCustomers: creditEvents,
   }, null, 2));
 }

@@ -33,8 +33,10 @@ import {
   ShopifyClientCredentialsError,
   verifyShopifyCallbackHmac,
   SHOPIFY_OFFLINE_SCOPES,
-  createShopifyDraftCheckout,
-  deleteShopifyDraftOrder,
+  createPaidShopifyOrder,
+  findShopifyOrderBySystemdOrderId,
+  fetchShopifyOrderDetail,
+  ShopifyOrderCreateError,
 } from "./shopify-api";
 import { reconcileClientProductOrder } from "./shopify-client-order-reconciliation";
 
@@ -5001,7 +5003,7 @@ export async function registerRoutes(
       }
       const product = await storage.getProduct(productId);
       const allowedContactIds = await getProductContactIds(role.contactId);
-      if (!product || !allowedContactIds.includes(product.contactId) || !product.shopifyProductId) {
+      if (!product || !allowedContactIds.includes(product.contactId) || !product.shopifyProductId || !product.shopifyVariantId) {
         return res.status(404).json({ message: "Produit Shopify introuvable." });
       }
       if (quantity > product.inventoryQuantity) return res.status(400).json({ message: "Stock insuffisant." });
@@ -5053,7 +5055,7 @@ export async function registerRoutes(
         shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
         amount: totalAmountCents,
         currency: "cad",
-        status: "pending_shopify",
+        status: "pending",
         fulfillmentStatus: "to_process",
         stockReservationStatus: "not_applicable",
         shopifyIntegrationId: integration.id,
@@ -5070,73 +5072,227 @@ export async function registerRoutes(
         }] as any,
       });
       if (!created) {
-        if (order.status === "pending_shopify" && order.shopifyCheckoutUrl) {
-          return res.status(200).json({
-            orderId: order.id,
-            url: order.shopifyCheckoutUrl,
-            status: "pending_shopify",
-            external: true,
-          });
-        }
         return res.status(409).json({ message: "Paiement déjà en cours ou en vérification." });
       }
 
-      let draft: Awaited<ReturnType<typeof createShopifyDraftCheckout>> | null = null;
+      let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
+      let debitSubmissionStarted = false;
+      let shopifyOrder: Awaited<ReturnType<typeof createPaidShopifyOrder>> | null = null;
+      let shopifyOrderSubmissionStarted = false;
       try {
-        draft = await createShopifyDraftCheckout({
-          storeUrl: integration.storeUrl,
-          accessToken: integration.accessToken,
-          customerId: shopifyCustomer.shopifyCustomerId,
-          variantId: product.shopifyVariantId!,
-          quantity,
-          systemdOrderId: order.id,
+        debitSubmissionStarted = true;
+        debitResult = await debitRep({
+          shopifyCustomerId: shopifyCustomer.shopifyCustomerId,
+          shopifyStoreCreditAccountId: cadBalance.accountId,
+          amount: totalAmount,
+          currencyCode: "CAD",
         });
-        const authoritativeTotalCents = Math.round(Number(draft.totalAmount) * 100);
-        if (draft.currencyCode !== "CAD" || !Number.isSafeInteger(authoritativeTotalCents) || authoritativeTotalCents <= 0) {
-          await deleteShopifyDraftOrder(integration.storeUrl, integration.accessToken, draft.id);
-          await storage.updateSystemdOrder(order.id, { status: "cancelled" });
-          return res.status(409).json({ message: "Le checkout Shopify n’est pas disponible en CAD." });
-        }
-        if (!isShopifyCreditSufficient(Number(cadBalance.amount), draft.totalAmount)) {
-          await deleteShopifyDraftOrder(integration.storeUrl, integration.accessToken, draft.id);
-          await storage.updateSystemdOrder(order.id, { status: "cancelled" });
-          return res.status(400).json({ message: "Crédit insuffisant pour le total calculé par Shopify." });
-        }
-        const updated = await storage.updateSystemdOrder(order.id, {
-          amount: authoritativeTotalCents,
-          currency: draft.currencyCode.toLowerCase(),
-          shopifyDraftOrderId: draft.id,
-          shopifyDraftOrderName: draft.name,
-          shopifyCheckoutUrl: draft.invoiceUrl,
-          shopifyFinancialStatus: "pending",
+        const balancesAfterDebit = await getRepBalance(shopifyCustomer.shopifyCustomerId);
+        const cadBalanceAfterDebit = balancesAfterDebit.find((balance) => balance.accountId === cadBalance.accountId);
+        assertShopifyDebitProof({
+          beforeBalance: cadBalance.amount,
+          afterBalance: cadBalanceAfterDebit?.amount ?? "",
+          expectedAmount: totalAmount,
+          expectedCurrency: "CAD",
+          expectedAccountId: cadBalance.accountId,
+          transaction: debitResult,
         });
-        if (!updated) throw new Error("Impossible d’enregistrer le checkout Shopify.");
+
+        shopifyOrderSubmissionStarted = true;
+        try {
+          shopifyOrder = await createPaidShopifyOrder({
+            storeUrl: integration.storeUrl,
+            accessToken: integration.accessToken,
+            customerId: shopifyCustomer.shopifyCustomerId,
+            variantId: product.shopifyVariantId!,
+            quantity,
+            unitAmount: (unitPriceCents / 100).toFixed(2),
+            amount: totalAmount,
+            currencyCode: "CAD",
+            systemdOrderId: order.id,
+            storeCreditTransactionId: debitResult.transactionId,
+          });
+        } catch (creationError) {
+          if (creationError instanceof ShopifyOrderCreateError && creationError.outcome === "unknown") {
+            shopifyOrder = await findShopifyOrderBySystemdOrderId(
+              integration.storeUrl,
+              integration.accessToken,
+              order.id,
+            ).catch(() => null);
+          }
+          if (!shopifyOrder) throw creationError;
+        }
+
+        const authoritativeTotalCents = Math.round(Number(shopifyOrder.totalAmount) * 100);
+        if (
+          shopifyOrder.displayFinancialStatus !== "PAID"
+          || shopifyOrder.currencyCode !== "CAD"
+          || authoritativeTotalCents !== totalAmountCents
+        ) {
+          throw new Error("La commande Shopify créée ne correspond pas au paiement Store Credit confirmé.");
+        }
+        const paidOrder = await storage.markSystemdOrderPaidIfPending(order.id, {
+          status: "paid",
+          shopifyCreditAccountId: debitResult.accountId,
+          shopifyCreditTransactionId: debitResult.transactionId,
+          shopifyOrderId: shopifyOrder.legacyResourceId,
+          shopifyOrderName: shopifyOrder.name,
+          shopifyAdminUrl: `https://${normalizeShopifyStoreUrl(integration.storeUrl)}/admin/orders/${shopifyOrder.legacyResourceId}`,
+          shopifyFinancialStatus: shopifyOrder.displayFinancialStatus.toLowerCase(),
+          shopifyFulfillmentStatus: shopifyOrder.displayFulfillmentStatus.toLowerCase(),
+          shopifyPaymentConfirmedAt: new Date(),
+        });
+        if (!paidOrder) throw new Error("Impossible d’enregistrer la commande Shopify payée dans Système D.");
       } catch (error: any) {
-        await storage.updateSystemdOrder(order.id, {
-          status: "payment_reconciliation_required",
-          shopifyDraftOrderId: draft?.id ?? null,
-          shopifyDraftOrderName: draft?.name ?? null,
-          shopifyCheckoutUrl: draft?.invoiceUrl ?? null,
-        });
+        const orderDefinitelyRejected = error instanceof ShopifyOrderCreateError && error.outcome === "rejected";
+        const debitDefinitelyRejected = isShopifyDebitDefinitelyRejected(error);
+        const orderMayExist = shopifyOrderSubmissionStarted && !orderDefinitelyRejected;
+        let compensationSucceeded = !debitResult && (!debitSubmissionStarted || debitDefinitelyRejected);
+
+        if (debitResult && !shopifyOrder && !orderMayExist) {
+          try {
+            await creditRep({
+              shopifyCustomerId: shopifyCustomer.shopifyCustomerId,
+              shopifyStoreCreditAccountId: debitResult.accountId,
+              amount: totalAmount,
+              currencyCode: "CAD",
+            });
+            const balancesAfterCompensation = await getRepBalance(shopifyCustomer.shopifyCustomerId);
+            const compensatedAccount = balancesAfterCompensation.find((balance) => balance.accountId === debitResult!.accountId);
+            if (!compensatedAccount || compensatedAccount.currencyCode !== "CAD" || compensatedAccount.amount !== cadBalance.amount) {
+              throw new Error("Compensation Shopify non confirmée par relecture du solde.");
+            }
+            compensationSucceeded = true;
+          } catch (compensationError: any) {
+            await storage.createActivityLog({
+              type: "shopify_credit_compensation_error",
+              status: "error",
+              message: `ÉCHEC compensation crédit commande produit client #${order.id}: ${compensationError.message}`,
+            }).catch(() => {});
+          }
+        }
+
+        const reconciliationRequired = !!shopifyOrder || orderMayExist || (!!debitResult && !compensationSucceeded) || (debitSubmissionStarted && !debitDefinitelyRejected && !debitResult);
+        await storage.updateSystemdOrder(order.id, reconciliationRequired
+          ? {
+              status: "payment_reconciliation_required",
+              shopifyCreditAccountId: debitResult?.accountId ?? cadBalance.accountId,
+              shopifyCreditTransactionId: debitResult?.transactionId ?? null,
+              shopifyOrderId: shopifyOrder?.legacyResourceId ?? null,
+              shopifyOrderName: shopifyOrder?.name ?? null,
+              shopifyAdminUrl: shopifyOrder
+                ? `https://${normalizeShopifyStoreUrl(integration.storeUrl)}/admin/orders/${shopifyOrder.legacyResourceId}`
+                : null,
+              shopifyFinancialStatus: shopifyOrder?.displayFinancialStatus.toLowerCase() ?? null,
+              shopifyFulfillmentStatus: shopifyOrder?.displayFulfillmentStatus.toLowerCase() ?? null,
+            }
+          : { status: "cancelled" }).catch(() => {});
         await storage.createActivityLog({
-          type: "shopify_client_checkout_error",
+          type: reconciliationRequired
+            ? "shopify_client_order_reconciliation_required"
+            : "shopify_client_order_compensated",
           status: "error",
-          message: `Création du checkout Shopify échouée pour la commande produit client #${order.id}.`,
-          metadata: JSON.stringify({ orderId: order.id, hasDraftOrderId: !!draft?.id }),
+          message: reconciliationRequired
+            ? `Commande produit client #${order.id}: résultat Shopify ambigu, aucun second débit autorisé.`
+            : `Commande produit client #${order.id} annulée; tout débit confirmé a été compensé.`,
+          metadata: JSON.stringify({
+            orderId: order.id,
+            debitConfirmed: !!debitResult,
+            shopifyOrderId: shopifyOrder?.legacyResourceId ?? null,
+          }),
         }).catch(() => {});
-        return res.status(503).json({ message: "Shopify n’a pas confirmé la création du checkout. Aucun paiement n’a été enregistré." });
+        return res.status(503).json({
+          message: reconciliationRequired
+            ? "Shopify n’a pas permis de conclure la création de la commande. La transaction est bloquée en vérification et aucun nouveau débit ne sera tenté."
+            : "Shopify n’a pas créé la commande. Le débit Store Credit a été annulé ou n’a pas eu lieu.",
+        });
       }
-      await storage.createActivityLog({
-        type: "client_product_shopify_checkout_created",
-        status: "success",
-        message: `Checkout Shopify ${draft!.name} créé pour la commande produit client #${order.id}.`,
-        metadata: JSON.stringify({ orderId: order.id, source: "client_product", shopifyDraftOrderId: draft!.id }),
+
+      if (!debitResult || !shopifyOrder) {
+        return res.status(503).json({ message: "Confirmation Shopify indisponible." });
+      }
+
+      const detail: any = await fetchShopifyOrderDetail(
+        integration.storeUrl,
+        integration.accessToken,
+        shopifyOrder.legacyResourceId,
+      ).catch(() => null);
+      if (detail) {
+        await storage.upsertShopifyOrdersByIntegration(integration.id, [{
+          integrationId: integration.id,
+          contactId: integration.contactId,
+          shopifyOrderId: String(detail.id),
+          name: detail.name,
+          shopifyCreatedAt: detail.created_at ? new Date(detail.created_at) : null,
+          financialStatus: detail.financial_status ?? "paid",
+          fulfillmentStatus: detail.fulfillment_status ?? null,
+          totalPrice: detail.total_price ?? shopifyOrder.totalAmount,
+          currency: detail.currency ?? shopifyOrder.currencyCode,
+          email: detail.email ?? null,
+          customerFirstName: detail.customer?.first_name ?? null,
+          customerLastName: detail.customer?.last_name ?? null,
+          lineItems: detail.line_items ?? [],
+          shopName: integration.shopName,
+          storeUrl: integration.storeUrl,
+        }]).catch(() => {});
+      }
+      const existingRep = await storage.getMapiRepByGid(shopifyCustomer.shopifyCustomerId);
+      const rep = existingRep ?? await storage.createMapiRep({
+        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
+        email: shopifyCustomer.email,
+        firstName: shopifyCustomer.firstName,
+        lastName: shopifyCustomer.lastName,
+        status: "active",
+        currentBalance: debitResult.newBalance.amount,
+        currentBalanceCurrency: debitResult.newBalance.currencyCode,
+      });
+      await storage.updateMapiRep(rep.id, {
+        currentBalance: debitResult.newBalance.amount,
+        currentBalanceCurrency: debitResult.newBalance.currencyCode,
+        lastBalanceRefreshAt: new Date(),
       }).catch(() => {});
-      return res.status(202).json({
+      await storage.createMapiRepCreditLog({
+        repId: rep.id,
+        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
+        action: "checkout_debit",
+        amount: totalAmount,
+        currency: "CAD",
+        reason: `Commande produit client Système D #${order.id} / Shopify ${shopifyOrder.name}`,
+        performedByUserId: req.user?.claims?.sub ?? null,
+        shopifyTransactionId: debitResult.transactionId,
+      }).catch(() => {});
+      await storage.createActivityLog({
+        type: "shopify_client_product_order_paid",
+        status: "success",
+        message: `Commande Shopify ${shopifyOrder.name} créée et payée pour la commande produit client #${order.id}.`,
+        metadata: JSON.stringify({
+          orderId: order.id,
+          source: "client_product",
+          shopifyOrderId: shopifyOrder.legacyResourceId,
+          shopifyCreditTransactionId: debitResult.transactionId,
+        }),
+      }).catch(() => {});
+      await storage.createNotification({
+        contactId: role.contactId,
+        category: "commande",
+        type: "client_product_order_admin_action",
+        title: `Produit client ${shopifyOrder.name} à traiter`,
+        message: "Shopify a confirmé la commande et le débit Store Credit.",
+        metadata: { adminOnly: true, systemdOrderId: order.id, shopifyOrderId: shopifyOrder.legacyResourceId, orderSource: "client_product" },
+      }).catch(() => {});
+      await storage.createNotification({
+        contactId: role.contactId,
+        category: "commande",
+        type: "client_product_order_paid",
+        title: `Commande ${shopifyOrder.name} confirmée`,
+        message: "La commande est visible dans Shopify et le débit Store Credit est confirmé.",
+        metadata: { systemdOrderId: order.id, shopifyOrderId: shopifyOrder.legacyResourceId, orderSource: "client_product" },
+      }).catch(() => {});
+      return res.status(201).json({
         orderId: order.id,
-        url: draft!.invoiceUrl,
-        status: "pending_shopify",
-        external: true,
+        url: `/portal/orders/systemd/${order.id}`,
+        status: "paid",
+        external: false,
       });
     } catch (error: any) {
       console.error("Client product checkout failed:", error?.message || "unknown error");
@@ -5609,6 +5765,7 @@ export async function registerRoutes(
       }
 
       const expectedDebitCents = -order.amount;
+      const isClientProductOrder = (order.lineItems as any[])?.[0]?.source === "client_product";
       const orderStartedAt = order.createdAt ? new Date(order.createdAt).getTime() - 60_000 : 0;
       const candidates = (await getRepTransactionHistory(order.shopifyCustomerGid, 100))
         .filter((transaction) =>
@@ -5624,6 +5781,7 @@ export async function registerRoutes(
         orderId,
         expectedAccountId: order.shopifyCreditAccountId,
         expectedAmount: (order.amount / 100).toFixed(2),
+        requiresShopifyOrder: isClientProductOrder,
         candidates,
       });
     } catch (error: any) {
@@ -5643,6 +5801,7 @@ export async function registerRoutes(
       }
 
       const expectedDebitCents = -order.amount;
+      const isClientProductOrder = (order.lineItems as any[])?.[0]?.source === "client_product";
       const orderStartedAt = order.createdAt ? new Date(order.createdAt).getTime() - 60_000 : 0;
       const candidates = (await getRepTransactionHistory(order.shopifyCustomerGid, 100))
         .filter((transaction) =>
@@ -5654,6 +5813,15 @@ export async function registerRoutes(
         );
 
       if (resolution === "paid") {
+        if (isClientProductOrder) {
+          const reconciled = await reconcileClientProductOrder(order);
+          if (reconciled.status !== "paid" || !reconciled.shopifyOrderId || reconciled.shopifyFinancialStatus !== "paid") {
+            return res.status(409).json({
+              message: "Le débit seul ne suffit pas : la commande Shopify payée doit aussi être retrouvée et confirmée.",
+            });
+          }
+          return res.json(reconciled);
+        }
         const transaction = candidates.find((candidate) => candidate.id === transactionId);
         if (!transaction) {
           return res.status(400).json({ message: "La transaction Shopify indiquée ne prouve pas ce débit." });
@@ -5674,6 +5842,16 @@ export async function registerRoutes(
       }
 
       if (resolution === "cancelled" && req.body?.confirmNoDebit === true) {
+        if (isClientProductOrder) {
+          const reconciled = await reconcileClientProductOrder(order);
+          if (reconciled.status === "paid") {
+            return res.status(409).json({ message: "La commande Shopify payée a été retrouvée et confirmée." });
+          }
+          const refreshed = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
+          if (refreshed?.shopifyOrderId) {
+            return res.status(409).json({ message: "Une commande Shopify existe : son paiement doit être résolu avant toute annulation." });
+          }
+        }
         if (candidates.length > 0) {
           return res.status(409).json({ message: "Un débit Shopify correspondant existe : confirmez-le au lieu d’annuler la commande." });
         }

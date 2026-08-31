@@ -2,17 +2,23 @@ import crypto from "crypto";
 import type { ParsedQs } from "qs";
 
 const SHOPIFY_API_VERSION = "2025-04";
+const SHOPIFY_ORDER_CREATE_API_VERSION = "2026-04";
 
 export type ShopifyClientCredentialsFailureCode = "shop_not_permitted" | "token_request_failed";
 
 export class ShopifyClientCredentialsError extends Error {
+  readonly code: ShopifyClientCredentialsFailureCode;
+  readonly status: number;
+
   constructor(
     message: string,
-    public readonly code: ShopifyClientCredentialsFailureCode,
-    public readonly status: number,
+    code: ShopifyClientCredentialsFailureCode,
+    status: number,
   ) {
     super(message);
     this.name = "ShopifyClientCredentialsError";
+    this.code = code;
+    this.status = status;
   }
 }
 
@@ -23,6 +29,7 @@ export const SHOPIFY_OFFLINE_SCOPES = [
   "read_locations",
   "read_customers",
   "read_orders",
+  "write_orders",
   "read_draft_orders",
   "write_draft_orders",
   "read_store_credit_accounts",
@@ -291,7 +298,7 @@ function buildBaseUrl(storeUrl: string): string {
   return `https://${domain}/admin/api/${SHOPIFY_API_VERSION}`;
 }
 
-function toShopifyGid(resource: "Customer" | "ProductVariant" | "DraftOrder", id: string): string {
+function toShopifyGid(resource: "Customer" | "ProductVariant" | "DraftOrder" | "Order", id: string): string {
   const value = String(id).trim();
   return value.startsWith("gid://shopify/") ? value : `gid://shopify/${resource}/${value}`;
 }
@@ -315,6 +322,181 @@ async function shopifyAdminGraphQL<T>(
     throw new Error(payload.errors.map((error: any) => error.message).join("; "));
   }
   return payload.data as T;
+}
+
+export type ShopifyOrderCreateOutcome = "rejected" | "unknown";
+
+export class ShopifyOrderCreateError extends Error {
+  readonly outcome: ShopifyOrderCreateOutcome;
+
+  constructor(
+    message: string,
+    outcome: ShopifyOrderCreateOutcome,
+  ) {
+    super(message);
+    this.name = "ShopifyOrderCreateError";
+    this.outcome = outcome;
+  }
+}
+
+export interface ShopifyCreatedOrder {
+  id: string;
+  legacyResourceId: string;
+  name: string;
+  displayFinancialStatus: string;
+  displayFulfillmentStatus: string;
+  totalAmount: string;
+  currencyCode: string;
+}
+
+function mapCreatedOrder(order: any): ShopifyCreatedOrder {
+  return {
+    id: order.id,
+    legacyResourceId: String(order.legacyResourceId),
+    name: order.name,
+    displayFinancialStatus: order.displayFinancialStatus,
+    displayFulfillmentStatus: order.displayFulfillmentStatus,
+    totalAmount: order.totalPriceSet.shopMoney.amount,
+    currencyCode: order.totalPriceSet.shopMoney.currencyCode,
+  };
+}
+
+const SYSTEMD_ORDER_FIELDS = `
+  id legacyResourceId name displayFinancialStatus displayFulfillmentStatus
+  totalPriceSet { shopMoney { amount currencyCode } }
+`;
+
+/**
+ * Creates the Shopify order only after Système D has an independently verified
+ * Store Credit debit. The transaction references that debit in Shopify's order
+ * timeline; the Système D order id is also searchable as a unique tag/source id.
+ */
+export async function createPaidShopifyOrder(input: {
+  storeUrl: string;
+  accessToken: string;
+  customerId: string;
+  variantId: string;
+  quantity: number;
+  unitAmount: string;
+  amount: string;
+  currencyCode: "CAD";
+  systemdOrderId: number;
+  storeCreditTransactionId: string;
+}): Promise<ShopifyCreatedOrder> {
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://${normalizeDomain(input.storeUrl)}/admin/api/${SHOPIFY_ORDER_CREATE_API_VERSION}/graphql.json`,
+      {
+        method: "POST",
+        headers: buildHeaders(input.accessToken),
+        body: JSON.stringify({
+          query: `mutation systemdOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+            orderCreate(order: $order, options: $options) {
+              order { ${SYSTEMD_ORDER_FIELDS} }
+              userErrors { field message }
+            }
+          }`,
+          variables: {
+            order: {
+              lineItems: [{
+                variantId: toShopifyGid("ProductVariant", input.variantId),
+                quantity: input.quantity,
+                priceSet: {
+                  shopMoney: { amount: input.unitAmount, currencyCode: input.currencyCode },
+                  presentmentMoney: { amount: input.unitAmount, currencyCode: input.currencyCode },
+                },
+              }],
+              customer: { toAssociate: { id: toShopifyGid("Customer", input.customerId) } },
+              financialStatus: "PAID",
+              currency: input.currencyCode,
+              presentmentCurrency: input.currencyCode,
+              sourceIdentifier: `systemd-${input.systemdOrderId}`,
+              tags: ["systeme-d", "client-product", `systemd-order-${input.systemdOrderId}`],
+              note: `Commande produit client Système D #${input.systemdOrderId}. Débit Store Credit ${input.storeCreditTransactionId}`,
+              customAttributes: [
+                { key: "systemd_order_id", value: String(input.systemdOrderId) },
+                { key: "store_credit_transaction_id", value: input.storeCreditTransactionId },
+              ],
+              transactions: [{
+                amountSet: {
+                  shopMoney: { amount: input.amount, currencyCode: input.currencyCode },
+                  presentmentMoney: { amount: input.amount, currencyCode: input.currencyCode },
+                },
+                gateway: "Store Credit (Système D)",
+                kind: "SALE",
+                status: "SUCCESS",
+                authorizationCode: input.storeCreditTransactionId,
+              }],
+            },
+            options: {
+              inventoryBehaviour: "DECREMENT_OBEYING_POLICY",
+              sendReceipt: true,
+            },
+          },
+        }),
+      },
+    );
+  } catch {
+    throw new ShopifyOrderCreateError(
+      "Réponse Shopify absente pendant la création de la commande.",
+      "unknown",
+    );
+  }
+
+  const payload = await res.json().catch(() => null) as any;
+  if (!res.ok || !payload) {
+    throw new ShopifyOrderCreateError(
+      `Réponse Shopify non concluante pendant la création de la commande (${res.status}).`,
+      res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429 ? "rejected" : "unknown",
+    );
+  }
+  if (payload.errors?.length) {
+    const message = payload.errors.map((error: any) => error.message).join("; ");
+    const deterministic = /access denied|permission|scope|unknown argument|variable .* invalid|field .* doesn't exist/i.test(message);
+    throw new ShopifyOrderCreateError(
+      message,
+      deterministic ? "rejected" : "unknown",
+    );
+  }
+  const result = payload.data?.orderCreate;
+  if (result?.userErrors?.length) {
+    throw new ShopifyOrderCreateError(
+      result.userErrors.map((error: any) => error.message).join("; "),
+      "rejected",
+    );
+  }
+  if (!result?.order?.id) {
+    throw new ShopifyOrderCreateError(
+      "Shopify n’a pas retourné la commande créée.",
+      "unknown",
+    );
+  }
+  return mapCreatedOrder(result.order);
+}
+
+export async function findShopifyOrderBySystemdOrderId(
+  storeUrl: string,
+  accessToken: string,
+  systemdOrderId: number,
+): Promise<ShopifyCreatedOrder | null> {
+  const data = await shopifyAdminGraphQL<any>(
+    storeUrl,
+    accessToken,
+    `query systemdOrderLookup($query: String!) {
+      orders(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {
+        nodes { ${SYSTEMD_ORDER_FIELDS} tags customAttributes { key value } }
+      }
+    }`,
+    { query: `tag:systemd-order-${systemdOrderId}` },
+  );
+  const matching = (data.orders?.nodes ?? []).find((order: any) =>
+    order.tags?.includes(`systemd-order-${systemdOrderId}`)
+    && order.customAttributes?.some((attribute: any) =>
+      attribute.key === "systemd_order_id" && attribute.value === String(systemdOrderId),
+    ),
+  );
+  return matching ? mapCreatedOrder(matching) : null;
 }
 
 export interface ShopifyDraftCheckout {

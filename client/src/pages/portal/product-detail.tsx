@@ -90,9 +90,8 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
     onSuccess: (order: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/portal/systemd-orders"] });
       setPurchaseOpen(false);
-      toast({ title: "Checkout Shopify prêt", description: "Connectez-vous à votre compte Shopify et appliquez votre Store Credit pour confirmer la commande." });
-      if (order?.external && order?.url) window.location.assign(order.url);
-      else if (order?.url) navigate(order.url);
+      toast({ title: "Commande confirmée", description: "Le débit Store Credit et la commande Shopify ont été confirmés." });
+      if (order?.url) navigate(order.url);
     },
     onError: (error: any) => {
       toast({ title: "Paiement impossible", description: error?.message || "Le Store Credit n’a pas pu être débité.", variant: "destructive" });
@@ -408,7 +407,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Commander ce produit</DialogTitle>
-            <DialogDescription>Vous serez redirigé vers le checkout Shopify. La commande ne sera confirmée dans Système D qu’après le paiement Store Credit validé par Shopify. Aucun Bon de Travail ne sera créé.</DialogDescription>
+            <DialogDescription>Votre Store Credit sera débité, puis une vraie commande payée sera créée dans Shopify. Aucun Bon de Travail ne sera créé.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="rounded-lg border bg-muted/30 p-4">
@@ -427,7 +426,7 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
           <DialogFooter>
             <Button variant="outline" onClick={() => setPurchaseOpen(false)}>Annuler</Button>
             <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Number(purchaseQty) < 1 || Number(purchaseQty) > product.inventoryQuantity || !currentRep || requestedTotal > Number(currentRep.balance)} data-testid="button-confirm-purchase">
-              {purchaseMutation.isPending ? "Création du checkout…" : "Continuer dans Shopify"}
+              {purchaseMutation.isPending ? "Confirmation Shopify…" : "Confirmer avec Store Credit"}
             </Button>
           </DialogFooter>
         </DialogContent>
