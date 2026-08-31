@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, Building2, Calendar, CreditCard, Package, ShoppingBag, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, Calendar, CreditCard, ExternalLink, Package, ShoppingBag, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ export default function LocalOrderDetail({ admin = false }: { admin?: boolean })
       if (!response.ok) throw new Error((await response.json().catch(() => null))?.message || "Commande introuvable.");
       return response.json();
     },
+    refetchInterval: (query) => query.state.data?.order?.status === "pending_shopify" ? 5000 : false,
   });
   const order = data?.order;
   const logs = Array.isArray(data?.logs) ? data.logs : [];
@@ -52,14 +53,27 @@ export default function LocalOrderDetail({ admin = false }: { admin?: boolean })
 
   const items = Array.isArray(order.lineItems) ? order.lineItems : [];
   const currency = order.currency || "CAD";
-  const sourceLabel = order.source === "client_product" ? "Produit client" : "Système D";
-  const paymentLabel = order.status === "paid" ? "Payé par Store Credit Shopify" : order.status === "payment_reconciliation_required" ? "Réconciliation requise" : "En attente";
+  const sourceLabel = order.source === "client_product" ? "Produit client · Shopify" : "Commande Système D — suivi dans Système D";
+  const paymentLabel = order.status === "paid"
+    ? "Payé par Store Credit — confirmé par Shopify"
+    : order.status === "pending_shopify"
+      ? "Paiement à finaliser dans Shopify"
+      : order.status === "payment_reconciliation_required"
+        ? "Réconciliation Shopify requise"
+        : order.status === "cancelled" || order.status === "failed"
+          ? "Paiement non confirmé"
+          : "En attente";
+  const paymentBadgeClass = order.status === "paid"
+    ? "bg-emerald-100 text-emerald-800"
+    : order.status === "payment_reconciliation_required" || order.status === "cancelled" || order.status === "failed"
+      ? "bg-red-100 text-red-800"
+      : "bg-amber-100 text-amber-800";
   const fulfillmentLabel = order.fulfillmentStatus === "completed" ? "Terminée" : order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter";
 
   return <div className="space-y-6 pb-12">
     <div className="flex items-center justify-between gap-3"><Button variant="ghost" className="-ml-3" onClick={() => navigate(admin ? "/admin/orders" : "/portal/boutique?tab=orders")}><ArrowLeft className="mr-2 h-4 w-4" />Retour aux commandes</Button>{admin && order.status === "paid" && order.fulfillmentStatus !== "completed" && <Button disabled={fulfillmentMutation.isPending} onClick={() => fulfillmentMutation.mutate(order.fulfillmentStatus === "processing" ? "completed" : "processing")}>{order.fulfillmentStatus === "processing" ? "Marquer comme terminée" : "Commencer le traitement"}</Button>}</div>
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><div className="mb-2 flex items-center gap-2"><Badge variant="outline">{sourceLabel}</Badge><Badge className={order.status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{paymentLabel}</Badge></div><h1 className="text-3xl font-bold">Commande #{order.id}</h1></div>
+      <div><div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{sourceLabel}</Badge><Badge className={paymentBadgeClass}>{paymentLabel}</Badge></div><h1 className="text-3xl font-bold">Commande #{order.id}</h1>{order.shopifyOrderName && <p className="mt-1 text-sm text-muted-foreground">Commande Shopify {order.shopifyOrderName}</p>}</div>
       <p className="font-mono text-3xl font-bold text-primary">{money(Number(order.amount || 0) / 100, currency)}</p>
     </div>
 
@@ -77,7 +91,7 @@ export default function LocalOrderDetail({ admin = false }: { admin?: boolean })
       </TableBody></Table></div></CardContent>
     </Card>
 
-    <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-5"><div className="flex items-center gap-3"><CreditCard className="h-5 w-5 text-primary" /><div><p className="font-bold">{paymentLabel}</p><p className="text-xs text-muted-foreground">Transaction Store Credit : {order.shopifyCreditTransactionId || "—"}</p></div></div><p className="font-mono font-bold">{money(Number(order.amount || 0) / 100, currency)}</p></CardContent></Card>
+    <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-5"><div className="flex items-center gap-3"><CreditCard className="h-5 w-5 text-primary" /><div><p className="font-bold">{paymentLabel}</p><p className="text-xs text-muted-foreground">Transaction Store Credit : {order.shopifyCreditTransactionId || "Non confirmée"}</p><p className="text-xs text-muted-foreground">Statut paiement Shopify : {order.shopifyFinancialStatus || "en attente"}</p></div></div><div className="flex items-center gap-2">{order.status === "pending_shopify" && order.shopifyCheckoutUrl && <Button asChild><a href={order.shopifyCheckoutUrl}>Continuer dans Shopify <ExternalLink className="ml-2 h-4 w-4" /></a></Button>}{order.shopifyAdminUrl && <Button variant="outline" asChild><a href={order.shopifyAdminUrl} target="_blank" rel="noopener noreferrer">Voir dans Shopify <ExternalLink className="ml-2 h-4 w-4" /></a></Button>}<p className="font-mono font-bold">{money(Number(order.amount || 0) / 100, currency)}</p></div></CardContent></Card>
     <Card><CardHeader><CardTitle className="text-base">Historique</CardTitle></CardHeader><CardContent>{logs.length === 0 ? <p className="text-sm text-muted-foreground">Aucun événement supplémentaire enregistré.</p> : <div className="space-y-3">{logs.map((log: any) => <div key={log.id} className="flex items-start justify-between gap-4 border-b pb-3 last:border-0"><div><p className="text-sm font-medium">{log.message}</p><Badge variant="outline" className="mt-1 text-[10px]">{log.status}</Badge></div><time className="text-xs text-muted-foreground whitespace-nowrap">{log.createdAt ? new Date(log.createdAt).toLocaleString("fr-CA") : "—"}</time></div>)}</div>}</CardContent></Card>
   </div>;
 }

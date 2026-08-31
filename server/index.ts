@@ -8,6 +8,7 @@ import { startShopifyOrdersSyncScheduler } from "./shopify-orders-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
 import { startShopifyWritebackScheduler } from "./shopify-writeback";
 import { startMapiBalanceRefreshScheduler } from "./mapi-balance-refresh";
+import { startShopifyClientOrderReconciliationScheduler } from "./shopify-client-order-reconciliation";
 import { pool } from "./db";
 
 const app = express();
@@ -131,16 +132,27 @@ app.use((req, res, next) => {
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_customer_gid TEXT`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_credit_account_id TEXT`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_credit_transaction_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_integration_id INTEGER`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_draft_order_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_draft_order_name TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_checkout_url TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_order_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_order_name TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_admin_url TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_financial_status TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_fulfillment_status TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS shopify_payment_confirmed_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS fulfillment_status TEXT NOT NULL DEFAULT 'to_process'`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reservation_status TEXT NOT NULL DEFAULT 'pending'`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reserved_at TIMESTAMP`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status IN ('pending', 'payment_reconciliation_required')`);
+  await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent_active`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status IN ('pending', 'pending_shopify', 'payment_reconciliation_required')`);
   // A paid order must allow a legitimate repeat purchase; a reconciliation
   // attempt must remain locked because its external Shopify outcome is unknown.
   await pool.query(`DROP INDEX IF EXISTS uq_systemd_orders_intent_active`);
   await pool.query(`DROP INDEX IF EXISTS uq_systemd_orders_intent_pending`);
-  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status IN ('pending', 'payment_reconciliation_required')`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status IN ('pending', 'pending_shopify', 'payment_reconciliation_required')`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_assignment ON zoho_catalog (assignment_state) WHERE is_deleted = FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_contact ON zoho_catalog (contact_id) WHERE is_deleted = FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_status ON zoho_catalog (status) WHERE is_deleted = FALSE`);
@@ -182,6 +194,7 @@ app.use((req, res, next) => {
       startZohoSyncScheduler();
       startShopifyWritebackScheduler();
       startMapiBalanceRefreshScheduler();
+      startShopifyClientOrderReconciliationScheduler();
     },
   );
 })();

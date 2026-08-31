@@ -12,17 +12,22 @@ const formEditor = readFileSync(new URL("../client/src/pages/form-editor.tsx", i
 const localOrderDetail = readFileSync(new URL("../client/src/pages/local-order-detail.tsx", import.meta.url), "utf8");
 const portalNotifications = readFileSync(new URL("../client/src/pages/portal/notifications.tsx", import.meta.url), "utf8");
 const adminNotifications = readFileSync(new URL("../client/src/pages/admin/notifications.tsx", import.meta.url), "utf8");
+const reconciliation = readFileSync(new URL("./shopify-client-order-reconciliation.ts", import.meta.url), "utf8");
+const shopifyApi = readFileSync(new URL("./shopify-api.ts", import.meta.url), "utf8");
 
-test("un produit client se paie par Store Credit sans créer de bon de travail", () => {
+test("un produit client passe par le checkout Shopify sans faux paiement local", () => {
   assert.match(product, /\/api\/portal\/product-checkout/);
-  assert.match(product, /Payer avec Store Credit/);
+  assert.match(product, /Continuer dans Shopify/);
   assert.match(product, /Aucun Bon de Travail ne sera créé/);
   const checkout = routes.slice(routes.indexOf('app.post("/api/portal/product-checkout"'), routes.indexOf('app.post("/api/portal/systemd-checkout"'));
-  const proof = checkout.indexOf("assertShopifyDebitProof");
-  const paid = checkout.indexOf("markSystemdOrderPaidIfPending");
-  assert.ok(proof > -1 && paid > proof);
+  assert.match(checkout, /createShopifyDraftCheckout/);
+  assert.match(checkout, /status: "pending_shopify"/);
+  assert.doesNotMatch(checkout, /debitRep\(|markSystemdOrderPaidIfPending/);
   assert.match(checkout, /source: "client_product"/);
-  assert.match(checkout, /action: "product_purchase_debit"/);
+  assert.match(shopifyApi, /draftOrderCreate/);
+  assert.match(reconciliation, /displayFinancialStatus !== "PAID"/);
+  assert.match(reconciliation, /originOrderTransactionId/);
+  assert.match(reconciliation, /markSystemdOrderPaidIfShopifyConfirmed/);
 });
 
 test("les stats rep additionnent Shopify et les commandes locales payées", () => {
@@ -40,7 +45,7 @@ test("Commander et Bon de Travail restent deux flux sans contournement de paieme
   assert.match(product, /Commander avec crédit/);
   assert.match(product, /Crédit insuffisant pour commander/);
   assert.match(product, /Produit en rupture/);
-  assert.match(boutique, /Cette demande n’est pas une commande payée/);
+  assert.match(product, /Aucun Bon de Travail ne sera créé/);
   assert.match(formEditor, /paiement non applicable/);
   const workOrderStart = routes.indexOf('app.post("/api/portal/product-work-orders"');
   const workOrder = routes.slice(workOrderStart, routes.indexOf('app.get("/api/activity-logs"', workOrderStart));

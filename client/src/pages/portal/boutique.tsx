@@ -1017,9 +1017,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                   <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
                     <CreditCard className="h-10 w-10 text-muted-foreground/50" />
                   </div>
-                  <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande Système D</h3>
+                  <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande suivie dans Système D</h3>
                   <p className="text-muted-foreground max-w-sm text-sm">
-                    Vos commandes passées via la boutique Système D apparaîtront ici une fois validées.
+                    Les commandes Système D locales et vos achats produit client apparaîtront ici avec leur source.
                   </p>
                 </CardContent>
               </Card>
@@ -1039,9 +1039,9 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 <TableCell className="font-mono font-bold">#{order.id}</TableCell>
                                 <TableCell className="whitespace-nowrap text-xs">{new Date(order.createdAt).toLocaleDateString("fr-CA")}</TableCell>
                                 <TableCell><p className="text-sm font-medium">{order.repName || order.repEmail || "—"}</p>{order.repName && order.repEmail && <p className="text-[10px] text-muted-foreground">{order.repEmail}</p>}</TableCell>
-                                <TableCell><Badge variant="outline">{items[0]?.source === "client_product" ? "Produit client" : "Système D"}</Badge></TableCell>
+                                <TableCell><Badge variant="outline">{order.source === "client_product" ? "Produit client · Shopify" : "Commande Système D locale"}</Badge></TableCell>
                                 <TableCell>{itemCount}</TableCell>
-                                <TableCell><Badge className={order.status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{order.status === "paid" ? "Payé" : "En attente"}</Badge></TableCell>
+                                <TableCell><Badge className={order.status === "paid" ? "bg-emerald-100 text-emerald-800" : order.status === "payment_reconciliation_required" || order.status === "failed" || order.status === "cancelled" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}>{order.status === "paid" ? "Payé Shopify" : order.status === "pending_shopify" ? "À finaliser Shopify" : order.status === "payment_reconciliation_required" ? "Réconciliation" : order.status === "failed" || order.status === "cancelled" ? "Non payé" : "En attente"}</Badge></TableCell>
                                 <TableCell><Badge variant="secondary">{order.fulfillmentStatus === "completed" ? "Terminé" : order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter"}</Badge></TableCell>
                                 <TableCell className="text-right font-mono font-bold">{money(order.amount / 100, (order.currency || "CAD").toUpperCase())}</TableCell>
                               </TableRow>
@@ -1171,13 +1171,14 @@ export default function PortalBoutique({ viewAsContactId }: { viewAsContactId?: 
                                 </div>
                               </TableCell>
                               <TableCell className="py-4 whitespace-nowrap text-xs text-muted-foreground">{order.shopifyCreatedAt ? new Date(order.shopifyCreatedAt).toLocaleDateString("fr-CA") : "—"}</TableCell>
-                              <TableCell className="py-4">
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-sm text-foreground truncate max-w-[150px]">{customerName || "—"}</span>
-                                  {order.email && <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[150px] mt-0.5">{order.email}</span>}
-                                </div>
-                              </TableCell>
-                              <TableCell className="py-4">
+                                  <TableCell className="py-4">
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-sm text-foreground truncate max-w-[150px]">{customerName || "—"}</span>
+                                      {order.email && <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[150px] mt-0.5">{order.email}</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-4"><Badge variant="outline">Shopify</Badge></TableCell>
+                                  <TableCell className="py-4">
                                 <span className="font-mono font-bold text-sm bg-muted px-2 py-0.5 rounded-md">{itemsCount}</span>
                               </TableCell>
                               <TableCell className="py-4"><FinancialBadge status={order.financialStatus} /></TableCell>

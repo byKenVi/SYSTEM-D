@@ -133,6 +133,7 @@ export interface IStorage {
   getSystemdOrdersByContactIds(contactIds: number[]): Promise<SystemdOrder[]>;
   updateSystemdOrder(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   markSystemdOrderPaidIfPending(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
+  markSystemdOrderPaidIfShopifyConfirmed(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   resolveSystemdOrderReconciliation(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined>;
   getSystemdOrderByCheckoutSession(sessionId: string): Promise<SystemdOrder | undefined>;
   getSystemdOrderByIntentKey(intentKey: string, windowMinutes: number): Promise<SystemdOrder | undefined>;
@@ -796,6 +797,13 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async markSystemdOrderPaidIfShopifyConfirmed(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined> {
+    const [updated] = await db.update(systemdOrders).set(data)
+      .where(and(eq(systemdOrders.id, id), eq(systemdOrders.status, "pending_shopify")))
+      .returning();
+    return updated;
+  }
+
   async resolveSystemdOrderReconciliation(id: number, data: Partial<InsertSystemdOrder>): Promise<SystemdOrder | undefined> {
     const [updated] = await db.update(systemdOrders).set(data)
       .where(and(eq(systemdOrders.id, id), eq(systemdOrders.status, "payment_reconciliation_required")))
@@ -816,7 +824,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, intentKey),
-          inArray(systemdOrders.status, ["pending", "payment_reconciliation_required"]),
+          inArray(systemdOrders.status, ["pending", "pending_shopify", "payment_reconciliation_required"]),
           sql`${systemdOrders.createdAt} > NOW() - INTERVAL '${sql.raw(String(windowMinutes))} minutes'`
         )
       )
@@ -845,7 +853,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(systemdOrders.checkoutIntentKey, data.checkoutIntentKey),
-          inArray(systemdOrders.status, ["pending", "payment_reconciliation_required"])
+          inArray(systemdOrders.status, ["pending", "pending_shopify", "payment_reconciliation_required"])
         )
       )
       .orderBy(desc(systemdOrders.createdAt))

@@ -48,6 +48,11 @@ interface SystemdOrder {
   amount: number;
   currency: string;
   status: string;
+  source: "client_product" | "systemd";
+  shopifyOrderId: string | null;
+  shopifyOrderName: string | null;
+  shopifyAdminUrl: string | null;
+  shopifyFinancialStatus: string | null;
   fulfillmentStatus: string;
   stockReservationStatus: string;
   stockReservedAt: string | null;
@@ -59,6 +64,9 @@ function SystemdStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     paid:      { label: "Payé",       cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800" },
     pending:   { label: "En attente",cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
+    pending_shopify: { label: "Checkout Shopify", cls: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800" },
+    payment_reconciliation_required: { label: "Réconciliation", cls: "text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-800" },
+    failed: { label: "Échec", cls: "text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-800" },
     cancelled: { label: "Annulé",    cls: "text-muted-foreground bg-muted border-border" },
     expired:   { label: "Expiré",    cls: "text-muted-foreground bg-muted border-border" },
   };
@@ -445,8 +453,8 @@ export default function AdminOrders() {
             <Warehouse className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">Commandes Système D</h2>
-            <p className="text-sm text-muted-foreground">Achats depuis la boutique Produits Système D</p>
+            <h2 className="text-xl font-bold tracking-tight">Commandes locales et produits client</h2>
+            <p className="text-sm text-muted-foreground">Les libellés distinguent les commandes Système D locales des achats produit client confirmés dans Shopify.</p>
           </div>
           {systemdOrders && systemdOrders.length > 0 && (
             <Badge variant="secondary" className="ml-auto tabular-nums font-bold">
@@ -499,8 +507,8 @@ export default function AdminOrders() {
                       <TableCell colSpan={8} className="h-40 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <Warehouse className="h-8 w-8 text-muted-foreground/20" />
-                          <p className="text-sm font-medium text-muted-foreground">Aucune commande Système D</p>
-                          <p className="text-xs text-muted-foreground/60">Les achats depuis la boutique Produits Système D apparaîtront ici</p>
+                          <p className="text-sm font-medium text-muted-foreground">Aucune commande locale ou produit client</p>
+                          <p className="text-xs text-muted-foreground/60">Les achats suivis dans Système D apparaîtront ici avec leur source.</p>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -533,6 +541,7 @@ export default function AdminOrders() {
                                 <div className="flex flex-col">
                                   <span className="text-sm font-bold text-foreground">{order.contactName ?? `Contact #${order.contactId}`}</span>
                                   {order.companyName && <span className="text-[10px] text-muted-foreground">{order.companyName}</span>}
+                                  <Badge variant="outline" className="mt-1 w-fit text-[10px]">{order.source === "client_product" ? "Produit client · Shopify" : "Commande Système D locale"}</Badge>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -586,6 +595,13 @@ export default function AdminOrders() {
                                     ))}
                                     {order.stripeCheckoutSessionId && (
                                       <p className="text-[10px] text-muted-foreground/60 font-mono mt-2">Réf. paiement: {order.stripeCheckoutSessionId}</p>
+                                    )}
+                                    {order.shopifyAdminUrl && (
+                                      <div className="flex justify-end pt-2">
+                                        <Button variant="outline" size="sm" asChild onClick={(event) => event.stopPropagation()}>
+                                          <a href={order.shopifyAdminUrl} target="_blank" rel="noopener noreferrer">{order.shopifyOrderName || "Voir dans Shopify"}<ExternalLink className="ml-2 h-3.5 w-3.5" /></a>
+                                        </Button>
+                                      </div>
                                     )}
                                     {order.status === "paid" && order.fulfillmentStatus !== "completed" && (
                                       <div className="flex justify-end pt-3">

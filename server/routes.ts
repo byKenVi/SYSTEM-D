@@ -33,7 +33,10 @@ import {
   ShopifyClientCredentialsError,
   verifyShopifyCallbackHmac,
   SHOPIFY_OFFLINE_SCOPES,
+  createShopifyDraftCheckout,
+  deleteShopifyDraftOrder,
 } from "./shopify-api";
+import { reconcileClientProductOrder } from "./shopify-client-order-reconciliation";
 
 function buildStatusNotification(
   formType: string,
@@ -664,7 +667,9 @@ export async function registerRoutes(
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const paidSystemdOrders = allSystemdOrders.filter((order) => order.status === "paid");
+      // Shopify-backed client-product orders are mirrored in systemd_orders for
+      // traceability, but already exist in shopify_orders and must not be counted twice.
+      const paidSystemdOrders = allSystemdOrders.filter((order) => order.status === "paid" && !order.shopifyOrderId);
       const systemdThisMonth = paidSystemdOrders.filter((order) => order.createdAt && new Date(order.createdAt) >= startOfMonth);
       const systemdPrevMonth = paidSystemdOrders.filter((order) => {
         const date = order.createdAt ? new Date(order.createdAt) : null;
@@ -4266,7 +4271,7 @@ export async function registerRoutes(
         getRepTransactionHistory(rep.shopifyCustomerGid).catch(() => []),
       ]);
       const localPaidOrders = (await storage.getSystemdOrders())
-        .filter((order) => order.status === "paid" && order.shopifyCustomerGid === rep.shopifyCustomerGid)
+        .filter((order) => order.status === "paid" && !order.shopifyOrderId && order.shopifyCustomerGid === rep.shopifyCustomerGid)
         .sort((left, right) => new Date(right.createdAt ?? 0).getTime() - new Date(left.createdAt ?? 0).getTime());
       const purchaseStats = {
         localOrderCount: localPaidOrders.length,
@@ -4394,7 +4399,7 @@ export async function registerRoutes(
         const authenticatedEmail = await getAuthenticatedEmail(req);
         const allowedContactIds = await getProductContactIds(role.contactId);
         const localOrders = (await storage.getSystemdOrders()).filter((order) =>
-          order.status === "paid" && allowedContactIds.includes(order.contactId),
+          order.status === "paid" && !order.shopifyOrderId && allowedContactIds.includes(order.contactId),
         );
         const reps: any[] = [];
         let cursor: string | undefined;
@@ -4457,7 +4462,7 @@ export async function registerRoutes(
           if (cached.length > 0) {
             const allowedContactIds = await getProductContactIds(role.contactId);
             const localOrders = (await storage.getSystemdOrders()).filter((order) =>
-              order.status === "paid" && allowedContactIds.includes(order.contactId),
+              order.status === "paid" && !order.shopifyOrderId && allowedContactIds.includes(order.contactId),
             );
             return res.json({
               stale: true,
@@ -5027,7 +5032,15 @@ export async function registerRoutes(
         .update(["client_product", role.contactId, product.id, quantity, totalAmountCents, shopifyCustomer.shopifyCustomerId].join("|"))
         .digest("hex").slice(0, 64);
       const previousOrder = await storage.getSystemdOrderByIntentKey(intentKey, 2);
-      if (previousOrder?.status === "pending" || previousOrder?.status === "payment_reconciliation_required") {
+      if (previousOrder?.status === "pending_shopify" && previousOrder.shopifyCheckoutUrl) {
+        return res.status(200).json({
+          orderId: previousOrder.id,
+          url: previousOrder.shopifyCheckoutUrl,
+          status: "pending_shopify",
+          external: true,
+        });
+      }
+      if (previousOrder?.status === "pending" || previousOrder?.status === "pending_shopify" || previousOrder?.status === "payment_reconciliation_required") {
         return res.status(409).json({ message: "Paiement déjà en cours ou en vérification." });
       }
       const insertProductOrder = storage["tryInsertSystemdOrder"].bind(storage);
@@ -5040,9 +5053,10 @@ export async function registerRoutes(
         shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
         amount: totalAmountCents,
         currency: "cad",
-        status: "pending",
+        status: "pending_shopify",
         fulfillmentStatus: "to_process",
         stockReservationStatus: "not_applicable",
+        shopifyIntegrationId: integration.id,
         lineItems: [{
           source: "client_product",
           productId: product.id,
@@ -5055,101 +5069,75 @@ export async function registerRoutes(
           unitPrice: unitPriceCents / 100,
         }] as any,
       });
-      if (!created) return res.status(409).json({ message: "Paiement déjà en cours." });
-
-      let debitResult: Awaited<ReturnType<typeof debitRep>> | null = null;
-      let debitSubmissionStarted = false;
-      try {
-        debitSubmissionStarted = true;
-        debitResult = await debitRep({
-          shopifyCustomerId: shopifyCustomer.shopifyCustomerId,
-          shopifyStoreCreditAccountId: cadBalance.accountId,
-          amount: totalAmount,
-          currencyCode: "CAD",
-        });
-        const balancesAfter = await getRepBalance(shopifyCustomer.shopifyCustomerId);
-        const accountAfter = balancesAfter.find((balance) => balance.accountId === cadBalance.accountId);
-        assertShopifyDebitProof({
-          beforeBalance: cadBalance.amount,
-          afterBalance: accountAfter?.amount ?? "",
-          expectedAmount: totalAmount,
-          expectedCurrency: "CAD",
-          expectedAccountId: cadBalance.accountId,
-          transaction: debitResult,
-        });
-        const paid = await storage.markSystemdOrderPaidIfPending(order.id, {
-          status: "paid",
-          shopifyCreditAccountId: debitResult.accountId,
-          shopifyCreditTransactionId: debitResult.transactionId,
-        });
-        if (!paid) throw new Error("Impossible d’enregistrer la commande payée.");
-      } catch (error: any) {
-        const definitelyRejected = isShopifyDebitDefinitelyRejected(error);
-        let compensated = !debitResult && (!debitSubmissionStarted || definitelyRejected);
-        if (debitResult) {
-          try {
-            await creditRep({
-              shopifyCustomerId: shopifyCustomer.shopifyCustomerId,
-              shopifyStoreCreditAccountId: debitResult.accountId,
-              amount: totalAmount,
-              currencyCode: "CAD",
-            });
-            compensated = true;
-          } catch {}
+      if (!created) {
+        if (order.status === "pending_shopify" && order.shopifyCheckoutUrl) {
+          return res.status(200).json({
+            orderId: order.id,
+            url: order.shopifyCheckoutUrl,
+            status: "pending_shopify",
+            external: true,
+          });
         }
-        await storage.updateSystemdOrder(order.id, compensated
-          ? { status: "cancelled" }
-          : { status: "payment_reconciliation_required", shopifyCreditAccountId: debitResult?.accountId ?? cadBalance.accountId, shopifyCreditTransactionId: debitResult?.transactionId ?? null });
-        return res.status(creditErrorStatus(error.message)).json({ message: "Le crédit Shopify n’a pas pu être débité. Aucune commande payée n’a été créée." });
+        return res.status(409).json({ message: "Paiement déjà en cours ou en vérification." });
       }
 
-      const existingRep = await storage.getMapiRepByGid(shopifyCustomer.shopifyCustomerId);
-      const rep = existingRep ?? await storage.createMapiRep({
-        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
-        email: shopifyCustomer.email,
-        firstName: shopifyCustomer.firstName,
-        lastName: shopifyCustomer.lastName,
-        status: "active",
-        currentBalance: debitResult!.newBalance.amount,
-        currentBalanceCurrency: debitResult!.newBalance.currencyCode,
-      });
-      await storage.updateMapiRep(rep.id, { currentBalance: debitResult!.newBalance.amount, lastBalanceRefreshAt: new Date() }).catch(() => {});
-      await storage.createMapiRepCreditLog({
-        repId: rep.id,
-        shopifyCustomerGid: shopifyCustomer.shopifyCustomerId,
-        action: "product_purchase_debit",
-        amount: totalAmount,
-        currency: "CAD",
-        reason: `Paiement produit client — commande #${order.id}`,
-        performedByUserId: req.user?.claims?.sub ?? null,
-        shopifyTransactionId: debitResult!.transactionId,
-      }).catch(() => {});
-      await storage.createActivityLog({
-        type: "client_product_order_paid",
-        status: "success",
-        message: `Commande produit client #${order.id} payée par Store Credit Shopify.`,
-        metadata: JSON.stringify({ orderId: order.id, source: "client_product", shopifyTransactionId: debitResult!.transactionId }),
-      }).catch(() => {});
-      const repName = [shopifyCustomer.firstName, shopifyCustomer.lastName].filter(Boolean).join(" ") || shopifyCustomer.email;
-      await storage.createNotification({
-        contactId: role.contactId,
-        category: "commande",
-        type: "client_product_order_admin_action",
-        title: `Nouvelle commande produit client #${order.id}`,
-        message: `${product.name} × ${quantity} — ${totalAmount} CAD — crédit de ${repName}.`,
-        metadata: { adminOnly: true, systemdOrderId: order.id, orderSource: "client_product" },
-      }).catch(() => {});
-      if (await storage.isNotificationEnabled(role.contactId, "commande")) {
-        await storage.createNotification({
-          contactId: role.contactId,
-          category: "commande",
-          type: "client_product_order_paid",
-          title: `Commande #${order.id} confirmée`,
-          message: `Le crédit Shopify a été débité de ${totalAmount} CAD.`,
-          metadata: { systemdOrderId: order.id, orderSource: "client_product" },
+      let draft: Awaited<ReturnType<typeof createShopifyDraftCheckout>> | null = null;
+      try {
+        draft = await createShopifyDraftCheckout({
+          storeUrl: integration.storeUrl,
+          accessToken: integration.accessToken,
+          customerId: shopifyCustomer.shopifyCustomerId,
+          variantId: product.shopifyVariantId!,
+          quantity,
+          systemdOrderId: order.id,
+        });
+        const authoritativeTotalCents = Math.round(Number(draft.totalAmount) * 100);
+        if (draft.currencyCode !== "CAD" || !Number.isSafeInteger(authoritativeTotalCents) || authoritativeTotalCents <= 0) {
+          await deleteShopifyDraftOrder(integration.storeUrl, integration.accessToken, draft.id);
+          await storage.updateSystemdOrder(order.id, { status: "cancelled" });
+          return res.status(409).json({ message: "Le checkout Shopify n’est pas disponible en CAD." });
+        }
+        if (!isShopifyCreditSufficient(Number(cadBalance.amount), draft.totalAmount)) {
+          await deleteShopifyDraftOrder(integration.storeUrl, integration.accessToken, draft.id);
+          await storage.updateSystemdOrder(order.id, { status: "cancelled" });
+          return res.status(400).json({ message: "Crédit insuffisant pour le total calculé par Shopify." });
+        }
+        const updated = await storage.updateSystemdOrder(order.id, {
+          amount: authoritativeTotalCents,
+          currency: draft.currencyCode.toLowerCase(),
+          shopifyDraftOrderId: draft.id,
+          shopifyDraftOrderName: draft.name,
+          shopifyCheckoutUrl: draft.invoiceUrl,
+          shopifyFinancialStatus: "pending",
+        });
+        if (!updated) throw new Error("Impossible d’enregistrer le checkout Shopify.");
+      } catch (error: any) {
+        await storage.updateSystemdOrder(order.id, {
+          status: "payment_reconciliation_required",
+          shopifyDraftOrderId: draft?.id ?? null,
+          shopifyDraftOrderName: draft?.name ?? null,
+          shopifyCheckoutUrl: draft?.invoiceUrl ?? null,
+        });
+        await storage.createActivityLog({
+          type: "shopify_client_checkout_error",
+          status: "error",
+          message: `Création du checkout Shopify échouée pour la commande produit client #${order.id}.`,
+          metadata: JSON.stringify({ orderId: order.id, hasDraftOrderId: !!draft?.id }),
         }).catch(() => {});
+        return res.status(503).json({ message: "Shopify n’a pas confirmé la création du checkout. Aucun paiement n’a été enregistré." });
       }
-      return res.json({ orderId: order.id, url: `/portal/orders/systemd/${order.id}` });
+      await storage.createActivityLog({
+        type: "client_product_shopify_checkout_created",
+        status: "success",
+        message: `Checkout Shopify ${draft!.name} créé pour la commande produit client #${order.id}.`,
+        metadata: JSON.stringify({ orderId: order.id, source: "client_product", shopifyDraftOrderId: draft!.id }),
+      }).catch(() => {});
+      return res.status(202).json({
+        orderId: order.id,
+        url: draft!.invoiceUrl,
+        status: "pending_shopify",
+        external: true,
+      });
     } catch (error: any) {
       console.error("Client product checkout failed:", error?.message || "unknown error");
       return res.status(500).json({ message: error.message || "Paiement temporairement indisponible." });
@@ -5558,6 +5546,7 @@ export async function registerRoutes(
         const rep = order.shopifyCustomerGid ? await storage.getMapiRepByGid(order.shopifyCustomerGid) : undefined;
         return {
           ...order,
+          source: (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd",
           contactName: contact?.name ?? null,
           companyName: contact?.companyName ?? null,
           repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
@@ -5584,8 +5573,11 @@ export async function registerRoutes(
   app.get("/api/admin/systemd-orders/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const orderId = Number(req.params.id);
-      const order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
+      let order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
       if (!order) return res.status(404).json({ message: "Commande introuvable." });
+      if (order.status === "pending_shopify") {
+        order = await reconcileClientProductOrder(order).catch(() => order!);
+      }
       const [contact, rep, logs] = await Promise.all([
         storage.getContact(order.contactId),
         order.shopifyCustomerGid ? storage.getMapiRepByGid(order.shopifyCustomerGid) : Promise.resolve(undefined),
@@ -5757,6 +5749,7 @@ export async function registerRoutes(
         const rep = order.shopifyCustomerGid ? await storage.getMapiRepByGid(order.shopifyCustomerGid) : undefined;
         return {
           ...order,
+          source: (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd",
           repName: rep ? ([rep.firstName, rep.lastName].filter(Boolean).join(" ") || rep.email) : null,
           repEmail: rep?.email ?? null,
         };
@@ -5773,8 +5766,11 @@ export async function registerRoutes(
       if (!role || role.role !== "client" || !role.contactId) return res.status(403).json({ message: "Non autorisé" });
       const orderId = Number(req.params.id);
       const allowedContactIds = await getProductContactIds(role.contactId);
-      const order = (await storage.getSystemdOrdersByContactIds(allowedContactIds)).find((candidate) => candidate.id === orderId);
+      let order = (await storage.getSystemdOrdersByContactIds(allowedContactIds)).find((candidate) => candidate.id === orderId);
       if (!order) return res.status(404).json({ message: "Commande introuvable." });
+      if (order.status === "pending_shopify") {
+        order = await reconcileClientProductOrder(order).catch(() => order!);
+      }
       const [contact, rep, logs] = await Promise.all([
         storage.getContact(order.contactId),
         order.shopifyCustomerGid ? storage.getMapiRepByGid(order.shopifyCustomerGid) : Promise.resolve(undefined),

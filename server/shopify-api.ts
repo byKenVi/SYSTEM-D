@@ -23,6 +23,8 @@ export const SHOPIFY_OFFLINE_SCOPES = [
   "read_locations",
   "read_customers",
   "read_orders",
+  "read_draft_orders",
+  "write_draft_orders",
   "read_store_credit_accounts",
   "read_store_credit_account_transactions",
   "write_store_credit_account_transactions",
@@ -287,6 +289,169 @@ function buildHeaders(accessToken: string) {
 function buildBaseUrl(storeUrl: string): string {
   const domain = storeUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
   return `https://${domain}/admin/api/${SHOPIFY_API_VERSION}`;
+}
+
+function toShopifyGid(resource: "Customer" | "ProductVariant" | "DraftOrder", id: string): string {
+  const value = String(id).trim();
+  return value.startsWith("gid://shopify/") ? value : `gid://shopify/${resource}/${value}`;
+}
+
+async function shopifyAdminGraphQL<T>(
+  storeUrl: string,
+  accessToken: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`${buildBaseUrl(storeUrl)}/graphql.json`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({ query, variables }),
+  });
+  const payload = await res.json().catch(() => ({})) as any;
+  if (!res.ok) {
+    throw new Error(`Shopify Admin API error ${res.status}.`);
+  }
+  if (payload.errors?.length) {
+    throw new Error(payload.errors.map((error: any) => error.message).join("; "));
+  }
+  return payload.data as T;
+}
+
+export interface ShopifyDraftCheckout {
+  id: string;
+  legacyResourceId: string;
+  name: string;
+  invoiceUrl: string;
+  status: "OPEN" | "INVOICE_SENT" | "COMPLETED";
+  totalAmount: string;
+  currencyCode: string;
+}
+
+export async function createShopifyDraftCheckout(input: {
+  storeUrl: string;
+  accessToken: string;
+  customerId: string;
+  variantId: string;
+  quantity: number;
+  systemdOrderId: number;
+}): Promise<ShopifyDraftCheckout> {
+  const data = await shopifyAdminGraphQL<any>(
+    input.storeUrl,
+    input.accessToken,
+    `mutation systemdDraftOrderCreate($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder {
+          id legacyResourceId name invoiceUrl status
+          totalPriceSet { presentmentMoney { amount currencyCode } }
+        }
+        userErrors { field message }
+      }
+    }`,
+    {
+      input: {
+        customerId: toShopifyGid("Customer", input.customerId),
+        lineItems: [{
+          variantId: toShopifyGid("ProductVariant", input.variantId),
+          quantity: input.quantity,
+        }],
+        tags: ["systeme-d", "client-product"],
+        note: `Commande produit client Système D #${input.systemdOrderId}`,
+        customAttributes: [{ key: "systemd_order_id", value: String(input.systemdOrderId) }],
+      },
+    },
+  );
+  const errors = data?.draftOrderCreate?.userErrors ?? [];
+  if (errors.length) {
+    throw new Error(errors.map((error: any) => error.message).join("; "));
+  }
+  const draft = data?.draftOrderCreate?.draftOrder;
+  const money = draft?.totalPriceSet?.presentmentMoney;
+  if (!draft?.id || !draft?.invoiceUrl || !money?.amount || !money?.currencyCode) {
+    throw new Error("Shopify n’a pas retourné un checkout de commande provisoire valide.");
+  }
+  return {
+    id: draft.id,
+    legacyResourceId: String(draft.legacyResourceId),
+    name: draft.name,
+    invoiceUrl: draft.invoiceUrl,
+    status: draft.status,
+    totalAmount: money.amount,
+    currencyCode: money.currencyCode,
+  };
+}
+
+export async function deleteShopifyDraftOrder(
+  storeUrl: string,
+  accessToken: string,
+  draftOrderId: string,
+): Promise<void> {
+  const data = await shopifyAdminGraphQL<any>(
+    storeUrl,
+    accessToken,
+    `mutation systemdDraftOrderDelete($input: DraftOrderDeleteInput!) {
+      draftOrderDelete(input: $input) { deletedId userErrors { field message } }
+    }`,
+    { input: { id: toShopifyGid("DraftOrder", draftOrderId) } },
+  );
+  const errors = data?.draftOrderDelete?.userErrors ?? [];
+  if (errors.length) throw new Error(errors.map((error: any) => error.message).join("; "));
+}
+
+export interface ShopifyDraftCheckoutStatus {
+  id: string;
+  name: string;
+  status: "OPEN" | "INVOICE_SENT" | "COMPLETED";
+  completedAt: string | null;
+  order: null | {
+    id: string;
+    legacyResourceId: string;
+    name: string;
+    displayFinancialStatus: string;
+    displayFulfillmentStatus: string;
+    totalAmount: string;
+    currencyCode: string;
+    transactions: Array<{ id: string; gateway: string | null; status: string; kind: string }>;
+  };
+}
+
+export async function fetchShopifyDraftCheckoutStatus(
+  storeUrl: string,
+  accessToken: string,
+  draftOrderId: string,
+): Promise<ShopifyDraftCheckoutStatus | null> {
+  const data = await shopifyAdminGraphQL<any>(
+    storeUrl,
+    accessToken,
+    `query systemdDraftOrderStatus($id: ID!) {
+      draftOrder(id: $id) {
+        id name status completedAt
+        order {
+          id legacyResourceId name displayFinancialStatus displayFulfillmentStatus
+          totalPriceSet { shopMoney { amount currencyCode } }
+          transactions(first: 25) { id gateway status kind }
+        }
+      }
+    }`,
+    { id: toShopifyGid("DraftOrder", draftOrderId) },
+  );
+  const draft = data?.draftOrder;
+  if (!draft) return null;
+  return {
+    id: draft.id,
+    name: draft.name,
+    status: draft.status,
+    completedAt: draft.completedAt ?? null,
+    order: draft.order ? {
+      id: draft.order.id,
+      legacyResourceId: String(draft.order.legacyResourceId),
+      name: draft.order.name,
+      displayFinancialStatus: draft.order.displayFinancialStatus,
+      displayFulfillmentStatus: draft.order.displayFulfillmentStatus,
+      totalAmount: draft.order.totalPriceSet.shopMoney.amount,
+      currencyCode: draft.order.totalPriceSet.shopMoney.currencyCode,
+      transactions: draft.order.transactions ?? [],
+    } : null,
+  };
 }
 
 export async function testShopifyConnection(

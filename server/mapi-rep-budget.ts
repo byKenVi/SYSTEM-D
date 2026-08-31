@@ -208,6 +208,7 @@ export interface RepTransaction {
   currency: string;
   createdAt: string;
   expiresAt?: string | null;
+  originOrderTransactionId?: string | null;
 }
 
 export async function getRepTransactionHistory(
@@ -225,6 +226,7 @@ export async function getRepTransactionHistory(
                   node {
                     id
                     __typename
+                    origin { ... on OrderTransaction { id } }
                     ... on StoreCreditAccountCreditTransaction {
                       amount { amount currencyCode }
                       createdAt expiresAt
@@ -270,6 +272,7 @@ export async function getRepTransactionHistory(
         currency: n.amount.currencyCode,
         createdAt: n.createdAt,
         expiresAt: n.expiresAt ?? null,
+        originOrderTransactionId: n.origin?.id ?? null,
       });
     }
   }
