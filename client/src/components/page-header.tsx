@@ -18,12 +18,13 @@ type PageHeaderProps = {
   items: PageHeaderCrumb[];
   /** Titre h1 ; par défaut le libellé du dernier fil d'Ariane. */
   title?: string;
+  titleTestId?: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
 };
 
-export function PageHeader({ items, title, description, actions, className }: PageHeaderProps) {
+export function PageHeader({ items, title, titleTestId, description, actions, className }: PageHeaderProps) {
   if (items.length === 0) return null;
 
   const current = items[items.length - 1];
@@ -61,7 +62,9 @@ export function PageHeader({ items, title, description, actions, className }: Pa
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground truncate">{heading}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground truncate" data-testid={titleTestId}>
+            {heading}
+          </h1>
           {description ? (
             <div className="text-sm text-muted-foreground leading-relaxed">{description}</div>
           ) : null}

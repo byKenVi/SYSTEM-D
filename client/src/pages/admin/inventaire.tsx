@@ -5,7 +5,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -341,21 +342,23 @@ export default function AdminInventaire() {
       {(!error || items.length > 0) && !groupBy && (
         <Card>
           <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-6 space-y-3">
-                {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="p-12 text-center">
-                <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {items.length === 0
-                    ? "Aucun produit dans votre organisation Zoho Inventory."
-                    : "Aucun produit ne correspond à vos filtres."}
-                </p>
-              </div>
-            ) : (
+            <AsyncContentRegion
+              isLoading={isLoading}
+              isEmpty={filtered.length === 0}
+              loadingFallback={<ListLoadingSkeleton rows={5} rowClassName="h-14 w-full" />}
+              emptyFallback={
+                <EmptyState
+                  compact
+                  icon={Package}
+                  title="Aucun produit trouvé"
+                  description={
+                    items.length === 0
+                      ? "Aucun produit dans votre organisation Zoho Inventory."
+                      : "Aucun produit ne correspond à vos filtres."
+                  }
+                />
+              }
+            >
                <div className="responsive-table scrollbar-hide">
                 <Table className="min-w-[700px] w-full">
                   <TableHeader>
@@ -376,7 +379,7 @@ export default function AdminInventaire() {
                   </TableBody>
                 </Table>
               </div>
-            )}
+            </AsyncContentRegion>
           </CardContent>
         </Card>
       )}
@@ -385,16 +388,14 @@ export default function AdminInventaire() {
       {(!error || items.length > 0) && groupBy && (
         <Card>
           <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-6 space-y-3">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
-              </div>
-            ) : groupedByClient.length === 0 ? (
-              <div className="p-12 text-center">
-                <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
-              </div>
-            ) : (
+            <AsyncContentRegion
+              isLoading={isLoading}
+              isEmpty={groupedByClient.length === 0}
+              loadingFallback={<ListLoadingSkeleton rows={3} rowClassName="h-20 w-full" />}
+              emptyFallback={
+                <EmptyState compact icon={Package} title="Aucun produit trouvé" description="Ajustez les filtres ou vérifiez la synchronisation Zoho." />
+              }
+            >
               <div className="divide-y">
                 {groupedByClient.map((group) => {
                   const isCollapsed = collapsedGroups.has(group.key);
@@ -463,7 +464,7 @@ export default function AdminInventaire() {
                   );
                 })}
               </div>
-            )}
+            </AsyncContentRegion>
           </CardContent>
         </Card>
       )}

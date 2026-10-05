@@ -6,6 +6,8 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -61,6 +63,28 @@ import { Fragment, useState, useMemo } from "react";
 
 type ViewMode = "table" | "card";
 type GroupBy = "none" | "company" | "status";
+
+function ContactsListEmpty({ search, onClearSearch }: { search: string; onClearSearch: () => void }) {
+  return (
+    <EmptyState
+      compact
+      icon={Users}
+      title="Aucun contact trouvé"
+      description="Les contacts sont créés lorsque Zoho CRM envoie un webhook."
+      secondaryAction={
+        search ? (
+          <button
+            type="button"
+            className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
+            onClick={onClearSearch}
+          >
+            Effacer les filtres
+          </button>
+        ) : undefined
+      }
+    />
+  );
+}
 
 export default function AdminContacts() {
   const { toast } = useToast();
@@ -485,6 +509,12 @@ export default function AdminContacts() {
       {viewMode === "table" && (
         <Card>
           <CardContent className="p-0">
+            <AsyncContentRegion
+              isLoading={isLoading}
+              isEmpty={!filtered?.length}
+              loadingFallback={<ListLoadingSkeleton rows={5} rowClassName="h-12 w-full mx-4 max-w-[calc(100%-2rem)]" />}
+              emptyFallback={<ContactsListEmpty search={search} onClearSearch={() => setSearch("")} />}
+            >
             <div className="responsive-table">
               <Table>
                 <TableHeader>
@@ -513,17 +543,8 @@ export default function AdminContacts() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {Array.from({ length: 7 }).map((_, j) => (
-                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  ) : filtered && filtered.length > 0 ? (
-                    grouped ? (
-                      grouped.map(([key, contacts]) => (
+                  {grouped
+                    ? grouped.map(([key, contacts]) => (
                         <Fragment key={`group-${key}`}>
                           <TableRow className="hover:bg-transparent">
                             <TableCell colSpan={8} className="py-2 px-4 bg-muted/40 border-b">
@@ -538,40 +559,24 @@ export default function AdminContacts() {
                           ))}
                         </Fragment>
                       ))
-                    ) : (
-                      filtered.map((contact) => (
+                    : (filtered ?? []).map((contact) => (
                         <ContactRow key={contact.id} contact={contact} />
-                      ))
-                    )
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-36 text-center">
-                        <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-                        <p className="text-sm text-muted-foreground">Aucun contact trouvé</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
-                        {search && (
-                          <button
-                            className="text-xs text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
-                            onClick={() => setSearch("")}
-                          >
-                            Effacer les filtres
-                          </button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )}
+                      ))}
                 </TableBody>
               </Table>
             </div>
+            </AsyncContentRegion>
           </CardContent>
         </Card>
       )}
 
       {/* ── Card View ── */}
       {viewMode === "card" && (
-        <div>
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <AsyncContentRegion
+          isLoading={isLoading}
+          isEmpty={!filtered?.length}
+          loadingFallback={
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-hidden>
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i}>
                   <CardHeader className="pb-3">
@@ -589,43 +594,30 @@ export default function AdminContacts() {
                 </Card>
               ))}
             </div>
-          ) : filtered && filtered.length > 0 ? (
-            grouped ? (
-              <div className="space-y-6">
-                {grouped.map(([key, contacts]) => (
-                  <div key={key || "__empty__"}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{groupLabel(key)}</span>
-                      <span className="text-xs text-muted-foreground/50">{contacts.length}</span>
-                      <div className="flex-1 h-px bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {contacts.map((contact) => <ContactCard key={contact.id} contact={contact} />)}
-                    </div>
+          }
+          emptyFallback={<ContactsListEmpty search={search} onClearSearch={() => setSearch("")} />}
+        >
+          {grouped ? (
+            <div className="space-y-6">
+              {grouped.map(([key, contacts]) => (
+                <div key={key || "__empty__"}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{groupLabel(key)}</span>
+                    <span className="text-xs text-muted-foreground/50">{contacts.length}</span>
+                    <div className="flex-1 h-px bg-border" />
                   </div>
-                ))}
-              </div>
-            ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((contact) => <ContactCard key={contact.id} contact={contact} />)}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {contacts.map((contact) => <ContactCard key={contact.id} contact={contact} />)}
+                  </div>
+                </div>
+              ))}
             </div>
-            )
           ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <Users className="h-8 w-8 text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">Aucun contact trouvé</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Les contacts sont créés lorsque Zoho CRM envoie un webhook</p>
-              {search && (
-                <button
-                  className="text-xs text-primary underline underline-offset-2 hover:opacity-80 transition-opacity mt-3"
-                  onClick={() => setSearch("")}
-                >
-                  Effacer les filtres
-                </button>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(filtered ?? []).map((contact) => <ContactCard key={contact.id} contact={contact} />)}
             </div>
           )}
-        </div>
+        </AsyncContentRegion>
       )}
 
       {/* Bulk Delete Confirmation */}

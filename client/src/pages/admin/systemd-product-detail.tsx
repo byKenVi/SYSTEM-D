@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SystemdProduct } from "@/contexts/cart-context";
+import { PageHeader } from "@/components/page-header";
 
 function money(amount: number | null | undefined) {
   return amount == null ? "—" : amount.toLocaleString("fr-CA", { style: "currency", currency: "CAD" });
@@ -66,18 +67,22 @@ export default function AdminSystemdProductDetail() {
 
   return (
     <div className="space-y-6" data-testid="page-admin-systemd-product-detail">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" className="-ml-2" onClick={() => navigate(backUrl)} data-testid="button-back-admin-systemd">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Retour aux produits Système D
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => window.open(`/portal/systemd/${product.zohoItemId}`, "_blank", "noopener,noreferrer")}
-          data-testid="button-view-client-systemd"
-        >
-          Voir côté client <ExternalLink className="ml-2 h-4 w-4" />
-        </Button>
-      </div>
+      <PageHeader
+        items={[
+          { label: "Produits Système D", href: backUrl },
+          { label: product.name },
+        ]}
+        title={product.name}
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => window.open(`/portal/systemd/${product.zohoItemId}`, "_blank", "noopener,noreferrer")}
+            data-testid="button-view-client-systemd"
+          >
+            Voir côté client <ExternalLink className="ml-2 h-4 w-4" />
+          </Button>
+        }
+      />
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(280px,440px)_1fr]">
         <div className="mx-auto flex aspect-square w-full max-w-[440px] items-center justify-center overflow-hidden rounded-2xl border bg-muted/30">

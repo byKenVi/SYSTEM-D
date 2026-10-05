@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useState } from "react";
+import { PageHeader } from "@/components/page-header";
 
 const LOW_STOCK_THRESHOLD = 10;
 
@@ -98,34 +99,28 @@ export default function AdminProductDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href="/admin/products">
-            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-0.5">Détail du produit</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-bold tracking-tight leading-none" data-testid="text-product-name">
-                {product.name}
-              </h1>
-              {product.pushedToZoho ? (
-                <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">Zoho Synced</Badge>
-              ) : (
-                <Badge className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 hover:bg-orange-100 border-orange-200 dark:border-orange-800">Pas dans Zoho</Badge>
-              )}
-              {product.shopifyStatus && (
-                <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
-                  {product.shopifyStatus}
-                </Badge>
-              )}
-            </div>
+      <PageHeader
+        items={[
+          { label: "Boutique", href: "/admin/boutique" },
+          { label: product.name },
+        ]}
+        title={product.name}
+        titleTestId="text-product-name"
+        description={
+          <div className="flex items-center gap-2 flex-wrap">
+            {product.pushedToZoho ? (
+              <Badge className="bg-violet-600 hover:bg-violet-600 text-white text-xs" data-testid="badge-zoho-synced">Zoho Synced</Badge>
+            ) : (
+              <Badge className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 hover:bg-orange-100 border-orange-200 dark:border-orange-800">Pas dans Zoho</Badge>
+            )}
+            {product.shopifyStatus && (
+              <Badge variant={product.shopifyStatus === "active" ? "default" : "secondary"} className="text-xs capitalize" data-testid="badge-shopify-status">
+                {product.shopifyStatus}
+              </Badge>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        }
+        actions={
           <Button
             size="sm"
             variant="outline"
@@ -136,8 +131,8 @@ export default function AdminProductDetail() {
             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
             Supprimer
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Body */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">

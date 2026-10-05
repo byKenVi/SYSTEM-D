@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Package, Wrench, Tag, Layers, ChevronLeft, ChevronRight, Hash, DollarSign, Box, ShoppingCart, CreditCard } from "lucide-react";
 import { useState, useMemo } from "react";
+import { PageBreadcrumb } from "@/components/page-header";
 
 export default function PortalProductDetail({ viewAsContactId }: { viewAsContactId?: number }) {
   const { id } = useParams<{ id: string }>();
@@ -185,13 +186,21 @@ export default function PortalProductDetail({ viewAsContactId }: { viewAsContact
   return (
     <div className="space-y-8 animate-in w-full pb-12">
       
-      {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <Link href={backHref}>
-          <Button variant="ghost" size="sm" className="h-10 px-4 font-bold text-muted-foreground hover:text-foreground -ml-4" data-testid="button-back">
-            <ArrowLeft className="h-4 w-4 mr-2" /> Retour au catalogue
-          </Button>
-        </Link>
+        <div className="flex flex-col gap-2 min-w-0">
+          <PageBreadcrumb
+            className="hidden sm:block"
+            items={[
+              { label: "Boutique", href: backHref },
+              { label: product.name },
+            ]}
+          />
+          <Link href={backHref} className="sm:hidden">
+            <Button variant="ghost" size="sm" className="touch-target h-11 px-4 font-bold text-muted-foreground hover:text-foreground -ml-2" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" /> Catalogue
+            </Button>
+          </Link>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

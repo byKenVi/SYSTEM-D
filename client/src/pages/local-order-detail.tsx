@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/page-header";
 
 function money(amount: number, currency = "CAD") {
   return amount.toLocaleString("fr-CA", { style: "currency", currency: currency.toUpperCase() });
@@ -69,11 +70,39 @@ export default function LocalOrderDetail({ admin = false }: { admin?: boolean })
       ? "bg-red-100 text-red-800"
       : "bg-amber-100 text-amber-800";
   const fulfillmentLabel = order.fulfillmentStatus === "completed" ? "Terminée" : order.fulfillmentStatus === "processing" ? "En traitement" : "À traiter";
+  const ordersHref = admin ? "/admin/orders" : "/portal/boutique?tab=orders";
+  const breadcrumbLabel = order.shopifyOrderName || `Commande #${order.id}`;
 
   return <div className="space-y-6 pb-12">
-    <div className="flex items-center justify-between gap-3"><Button variant="ghost" className="-ml-3" onClick={() => navigate(admin ? "/admin/orders" : "/portal/boutique?tab=orders")}><ArrowLeft className="mr-2 h-4 w-4" />Retour aux commandes</Button>{admin && order.status === "paid" && order.fulfillmentStatus !== "completed" && <Button disabled={fulfillmentMutation.isPending} onClick={() => fulfillmentMutation.mutate(order.fulfillmentStatus === "processing" ? "completed" : "processing")}>{order.fulfillmentStatus === "processing" ? "Marquer comme terminée" : "Commencer le traitement"}</Button>}</div>
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{sourceLabel}</Badge><Badge className={paymentBadgeClass}>{paymentLabel}</Badge></div><h1 className="text-3xl font-bold">Commande #{order.id}</h1>{order.shopifyOrderName && <p className="mt-1 text-sm text-muted-foreground">Commande Shopify {order.shopifyOrderName}</p>}</div>
+    <PageHeader
+      items={[
+        { label: "Commandes", href: ordersHref },
+        { label: breadcrumbLabel },
+      ]}
+      title={`Commande #${order.id}`}
+      description={
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{sourceLabel}</Badge>
+          <Badge className={paymentBadgeClass}>{paymentLabel}</Badge>
+          {order.shopifyOrderName ? (
+            <span className="text-sm text-muted-foreground">Shopify {order.shopifyOrderName}</span>
+          ) : null}
+        </div>
+      }
+      actions={
+        admin && order.status === "paid" && order.fulfillmentStatus !== "completed" ? (
+          <Button
+            disabled={fulfillmentMutation.isPending}
+            onClick={() =>
+              fulfillmentMutation.mutate(order.fulfillmentStatus === "processing" ? "completed" : "processing")
+            }
+          >
+            {order.fulfillmentStatus === "processing" ? "Marquer comme terminée" : "Commencer le traitement"}
+          </Button>
+        ) : undefined
+      }
+    />
+    <div className="flex flex-wrap items-center justify-end gap-4">
       <p className="font-mono text-3xl font-bold text-primary">{money(Number(order.amount || 0) / 100, currency)}</p>
     </div>
 

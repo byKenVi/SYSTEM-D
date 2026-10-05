@@ -20,6 +20,7 @@ import {
   Tag,
   Ruler,
 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 function money(amount: number | string | null | undefined, currency = "CAD") {
   if (amount === null || amount === undefined) return "—";
@@ -227,16 +228,14 @@ export default function PortalSystemdProductDetail({
 
   return (
     <div className="space-y-6 animate-in">
-      {/* Retour */}
-      <Button
-        variant="ghost"
-        className="gap-2 text-muted-foreground hover:text-foreground -ml-2"
-        onClick={() => navigate(backUrl)}
-        data-testid="button-back-to-boutique"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Retour à la boutique
-      </Button>
+      <PageHeader
+        items={[
+          { label: "Boutique", href: backUrl },
+          { label: product.name },
+        ]}
+        title={product.name}
+        titleTestId="text-systemd-product-name"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,440px)_1fr] gap-8 items-start">
         {/* Image */}
@@ -264,19 +263,11 @@ export default function PortalSystemdProductDetail({
 
         {/* Détails */}
         <div className="space-y-6">
-          <div>
-            <h1
-              className="text-3xl font-bold tracking-tight text-foreground"
-              data-testid="text-systemd-product-name"
-            >
-              {product.name}
-            </h1>
-            {product.sku && (
-              <Badge variant="outline" className="font-mono text-xs border-dashed mt-2">
-                {product.sku}
-              </Badge>
-            )}
-          </div>
+          {product.sku && (
+            <Badge variant="outline" className="font-mono text-xs border-dashed">
+              {product.sku}
+            </Badge>
+          )}
 
           {/* Prix + Stock */}
           <div className="grid grid-cols-2 gap-4">
