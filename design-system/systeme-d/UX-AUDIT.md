@@ -144,10 +144,11 @@ Avant chaque lot de changements UI:
 Ordre recommandé pour les « gros changements » à venir:
 
 1. ~~**Fondations layout:** skip link, `#main-content`, touch targets mobile, `EmptyState`, utilitaire loading `aria-busy`.~~ **Fait (2026-10-05)** — voir `client/src/components/{skip-to-main-content,empty-state,async-content-region}.tsx`, `App.tsx`, `index.css` (reduced-motion).
-2. ~~**Navigation (amorcé):** breadcrumbs + `PageHeader` / `PageBreadcrumb`.~~ **Partiel** — `contact-detail`, `portal/order-detail` ; étendre aux autres pages détail.
-3. **Listes à fort trafic:** DataTable commandes/contacts/orders.
-4. **Formulaires:** contrat erreurs (inline + summary) dans `form-editor` et forms métier.
-5. **Dashboards:** fraîcheur des données + empty/loading unifiés.
-6. **Motion a11y:** reduced-motion global.
+2. ~~**Navigation (amorcé):** breadcrumbs + `PageHeader` / `PageBreadcrumb`.~~ **Partiel** — admin/portail `contact-detail`, `order-detail`, `customer-detail` ; reste: produits, `local-order-detail`, `form-editor`.
+3. ~~**Listes (amorcé):** `EmptyState` + `AsyncContentRegion`.~~ **Partiel** — forms, notifications, commandes admin/portail, livraisons admin/portail ; reste: contacts, inventaire, orders/boutique.
+4. **Listes à fort trafic:** DataTable commandes/contacts/orders.
+5. **Formulaires:** contrat erreurs (inline + summary) dans `form-editor` et forms métier.
+6. **Dashboards:** fraîcheur des données + empty/loading unifiés.
+7. ~~**Motion a11y:** reduced-motion global.~~ **Fait** — `index.css`.
 
 Fichiers d’override par page: créer `design-system/systeme-d/pages/<nom>.md` au fur et à mesure des chantiers.
