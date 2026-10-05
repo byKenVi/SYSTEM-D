@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
 import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -16,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, FileText, Trash2, ArrowLeft, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign, ExternalLink, ClipboardList, RefreshCw } from "lucide-react";
+import { Plus, FileText, Trash2, Pencil, Download, Link as LinkIcon, CheckCircle2, Circle, Layers, User, Calendar, DollarSign, ExternalLink, ClipboardList, RefreshCw } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -979,92 +980,86 @@ export function AdminFormDetail({ id }: { id: number }) {
   const nextStatus = currentStep < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentStep + 1] : null;
   const canAdvance = nextStatus && form.status !== "draft";
 
+  const formActions = (
+    <>
+      {form.status !== "draft" && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isDownloadingPdf}
+          onClick={handleDownloadPdf}
+          data-testid="button-download-pdf"
+        >
+          <Download className={`h-3.5 w-3.5 mr-1.5 ${isDownloadingPdf ? "animate-spin" : ""}`} />
+          {isDownloadingPdf ? "Génération…" : "PDF"}
+        </Button>
+      )}
+      {canAdvance && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={statusMutation.isPending}
+          data-testid="button-advance-status"
+          onClick={() => {
+            if (nextStatus === "approved" && form.formType !== "product_work_order") {
+              const fd = form.data as any;
+              let defaultQty = form.approvedQuantity ? String(form.approvedQuantity) : "";
+              if (!defaultQty && form.formType === "copacking") defaultQty = fd?.paletteNb || "";
+              setPriceDialog({ open: true, priceInput: form.price ? String(form.price) : "", quantityInput: defaultQty });
+            } else {
+              statusMutation.mutate({ newStatus: nextStatus! });
+            }
+          }}
+        >
+          {ADVANCE_LABELS[form.status] || `→ ${STATUS_LABELS[nextStatus!]}`}
+        </Button>
+      )}
+      <Button size="sm" onClick={() => navigate(`/admin/forms/${id}/edit`)} data-testid="button-edit-form">
+        <Pencil className="h-3.5 w-3.5 mr-1.5" />
+        Modifier
+      </Button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header card */}
-      <div className={`rounded-xl border-l-4 border border-border bg-card shadow-sm overflow-hidden ${STATUS_BORDER[form.status] || "border-l-gray-300"}`}>
-        <div className="px-5 pt-4 pb-5 space-y-3">
-          {/* Top row: back + actions */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <button
-              onClick={() => navigate("/admin/forms")}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="button-back-to-list"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Soumissions
-            </button>
-            <div className="flex items-center gap-2 flex-wrap">
-              {form.status !== "draft" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isDownloadingPdf}
-                  onClick={handleDownloadPdf}
-                  data-testid="button-download-pdf"
-                >
-                  <Download className={`h-3.5 w-3.5 mr-1.5 ${isDownloadingPdf ? "animate-spin" : ""}`} />
-                  {isDownloadingPdf ? "Génération…" : "PDF"}
-                </Button>
-              )}
-              {canAdvance && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={statusMutation.isPending}
-                  data-testid="button-advance-status"
-                  onClick={() => {
-                    if (nextStatus === "approved" && form.formType !== "product_work_order") {
-                      const fd = form.data as any;
-                      let defaultQty = form.approvedQuantity ? String(form.approvedQuantity) : "";
-                      if (!defaultQty && form.formType === "copacking") defaultQty = fd?.paletteNb || "";
-                      setPriceDialog({ open: true, priceInput: form.price ? String(form.price) : "", quantityInput: defaultQty });
-                    } else {
-                      statusMutation.mutate({ newStatus: nextStatus! });
-                    }
-                  }}
-                >
-                  {ADVANCE_LABELS[form.status] || `→ ${STATUS_LABELS[nextStatus!]}`}
-                </Button>
-              )}
-              <Button size="sm" onClick={() => navigate(`/admin/forms/${id}/edit`)} data-testid="button-edit-form">
-                <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                Modifier
-              </Button>
-            </div>
-          </div>
-
-          {/* Form number + badge */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold font-mono tracking-tight" data-testid="text-form-number">{form.formNumber}</h1>
-            <Badge className={`text-xs ${STATUS_COLORS[form.status]}`} data-testid="badge-form-status">
+      <PageHeader
+        items={[
+          { label: "Soumissions", href: "/admin/forms" },
+          { label: form.formNumber },
+        ]}
+        title={form.formNumber}
+        titleTestId="text-form-number"
+        actions={formActions}
+        description={
+          <div className="space-y-2">
+            <Badge className={`text-xs w-fit ${STATUS_COLORS[form.status]}`} data-testid="badge-form-status">
               {form.formType === "product_work_order" && form.status === "submitted" ? "À réviser" : (STATUS_LABELS[form.status] || form.status)}
             </Badge>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+                {TYPE_LABELS[form.formType] || form.formType}
+              </span>
+              {contact && (
+                <Link href={`/admin/contacts/${contact.id}`}>
+                  <span className="flex items-center gap-1.5 hover:text-foreground cursor-pointer transition-colors" data-testid="text-form-client">
+                    <User className="h-3.5 w-3.5 flex-shrink-0" />
+                    {contact.companyName || contact.name}
+                  </span>
+                </Link>
+              )}
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                Modifié le {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
+                <span className="text-muted-foreground/50">·</span>
+                Rev. {form.revision}
+              </span>
+            </div>
           </div>
-
-          {/* Meta row: type + client + date */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-              {TYPE_LABELS[form.formType] || form.formType}
-            </span>
-            {contact && (
-              <Link href={`/admin/contacts/${contact.id}`}>
-                <span className="flex items-center gap-1.5 hover:text-foreground cursor-pointer transition-colors" data-testid="text-form-client">
-                  <User className="h-3.5 w-3.5 flex-shrink-0" />
-                  {contact.companyName || contact.name}
-                </span>
-              </Link>
-            )}
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-              Modifié le {form.updatedAt ? new Date(form.updatedAt).toLocaleString("fr-CA", { timeZone: "America/New_York", dateStyle: "short", timeStyle: "short" }) : "—"}
-              <span className="text-muted-foreground/50">·</span>
-              Rev. {form.revision}
-            </span>
-          </div>
-        </div>
-      </div>
+        }
+        className={`rounded-xl border-l-4 border border-border bg-card shadow-sm px-5 pt-4 pb-5 ${STATUS_BORDER[form.status] || "border-l-gray-300"}`}
+      />
 
       {form.formType === "product_work_order" && (
         <Card className="border-amber-300 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10">

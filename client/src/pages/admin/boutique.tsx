@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -671,11 +673,17 @@ export default function AdminBoutique() {
                     })}
                   </div>
                 ) : (
-                  <div className="p-12 text-center">
-                    <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                    <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
-                    <p className="text-sm text-muted-foreground mt-1">Importez des produits depuis les boutiques Shopify des clients dans les Paramètres.</p>
-                  </div>
+                  <EmptyState
+                    compact
+                    icon={Package}
+                    title="Aucun produit trouvé"
+                    description="Importez des produits depuis les boutiques Shopify des clients dans les Paramètres."
+                    action={
+                      <Link href="/admin/settings">
+                        <Button variant="outline" size="sm">Paramètres</Button>
+                      </Link>
+                    }
+                  />
                 )}
               </CardContent>
             </Card>
@@ -778,11 +786,18 @@ export default function AdminBoutique() {
                   })}
                 </div>
               ) : (
-                <div className="p-12 text-center border rounded-xl bg-card">
-                  <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground font-medium">Aucun produit trouvé</p>
-                  <p className="text-sm text-muted-foreground mt-1">Importez des produits depuis les boutiques Shopify des clients dans les Paramètres.</p>
-                </div>
+                <EmptyState
+                  className="border rounded-xl bg-card"
+                  compact
+                  icon={Package}
+                  title="Aucun produit trouvé"
+                  description="Importez des produits depuis les boutiques Shopify des clients dans les Paramètres."
+                  action={
+                    <Link href="/admin/settings">
+                      <Button variant="outline" size="sm">Paramètres</Button>
+                    </Link>
+                  }
+                />
               )}
             </div>
           )}
@@ -858,16 +873,23 @@ export default function AdminBoutique() {
             </div>
           ) : filteredSystemd.length === 0 ? (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center p-16 text-center">
-                <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
-                  <Warehouse className="h-10 w-10 text-muted-foreground/50" />
-                </div>
-                <h3 className="text-xl font-bold tracking-tight mb-2">Catalogue vide</h3>
-                <p className="text-muted-foreground max-w-sm">
-                  {systemdSearch
-                    ? "Aucun produit ne correspond à votre recherche."
-                    : "Aucun produit Système D disponible. Vérifiez que Zoho Inventory est connecté et que les articles destinés au catalogue sont bien synchronisés."}
-                </p>
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={Warehouse}
+                  title="Catalogue vide"
+                  description={
+                    systemdSearch
+                      ? "Aucun produit ne correspond à votre recherche."
+                      : "Aucun produit Système D disponible. Vérifiez que Zoho Inventory est connecté et que les articles destinés au catalogue sont bien synchronisés."
+                  }
+                  action={
+                    !systemdSearch ? (
+                      <Link href="/admin/settings">
+                        <Button variant="outline" size="sm">Paramètres</Button>
+                      </Link>
+                    ) : undefined
+                  }
+                />
               </CardContent>
             </Card>
           ) : (
@@ -1047,6 +1069,33 @@ export default function AdminBoutique() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
+              <AsyncContentRegion
+                isLoading={ordersLoading}
+                isEmpty={filteredOrders.length === 0}
+                loadingFallback={<ListLoadingSkeleton rows={8} rowClassName="h-4 w-full mx-4 max-w-[calc(100%-2rem)]" />}
+                emptyFallback={
+                  orders.length === 0 ? (
+                    <EmptyState
+                      compact
+                      icon={ShoppingCart}
+                      title="Aucune commande Shopify synchronisée"
+                      description="Les commandes apparaîtront ici après une synchronisation. Vérifiez les intégrations dans Paramètres si nécessaire."
+                      action={
+                        <Link href="/admin/settings">
+                          <Button variant="outline" size="sm">Paramètres</Button>
+                        </Link>
+                      }
+                    />
+                  ) : (
+                    <EmptyState
+                      compact
+                      icon={ShoppingCart}
+                      title="Aucune commande ne correspond à vos filtres"
+                      description="Ajustez la recherche ou les filtres de la liste."
+                    />
+                  )
+                }
+              >
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -1064,31 +1113,7 @@ export default function AdminBoutique() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ordersLoading ? (
-                      Array.from({ length: 8 }).map((_, i) => (
-                        <TableRow key={i}>{Array.from({ length: 10 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
-                      ))
-                    ) : filteredOrders.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={10} className="h-40 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            {orders.length === 0 ? (
-                              <>
-                                <SiShopify className="h-8 w-8 text-muted-foreground/20" />
-                                <p className="text-sm font-medium text-muted-foreground">Aucune commande Shopify synchronisée</p>
-                                <p className="text-xs text-muted-foreground/60">Les commandes apparaîtront ici après une synchronisation. Vérifiez les intégrations dans Paramètres si nécessaire.</p>
-                              </>
-                            ) : (
-                              <>
-                                <ShoppingCart className="h-7 w-7 text-muted-foreground/30" />
-                                <p className="text-sm text-muted-foreground">Aucune commande ne correspond à vos filtres</p>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredOrders.map((order) => {
+                      {filteredOrders.map((order) => {
                         const customer = order.customer ? `${order.customer.first_name} ${order.customer.last_name}`.trim() : order.email ?? null;
                         const shopifyOrderUrl = order.storeUrl ? `https://${order.storeUrl}/admin/orders/${order.id}` : null;
                         const detailParams = new URLSearchParams({
@@ -1128,11 +1153,11 @@ export default function AdminBoutique() {
                             </TableCell>
                           </TableRow>
                         );
-                      })
-                    )}
+                      })}
                   </TableBody>
                 </Table>
               </div>
+              </AsyncContentRegion>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1202,12 +1227,17 @@ export default function AdminBoutique() {
                       ))
                     ) : filteredCustomers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="h-40 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <Users className="h-8 w-8 text-muted-foreground/20" />
-                            <p className="text-sm font-medium text-muted-foreground">{customers.length === 0 ? "Aucun client Shopify trouvé" : "Aucun client ne correspond à vos filtres"}</p>
-                            {customers.length === 0 && <p className="text-xs text-muted-foreground/60">Les clients des boutiques Shopify connectées apparaîtront ici</p>}
-                          </div>
+                        <TableCell colSpan={8} className="p-0 border-0">
+                          <EmptyState
+                            compact
+                            icon={Users}
+                            title={customers.length === 0 ? "Aucun client Shopify trouvé" : "Aucun client ne correspond à vos filtres"}
+                            description={
+                              customers.length === 0
+                                ? "Les clients des boutiques Shopify connectées apparaîtront ici."
+                                : "Modifiez la recherche ou les filtres."
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     ) : filteredCustomers.map((c) => {

@@ -16,6 +16,9 @@ import { InspectionForm, defaultInspectionData, type InspectionFormData } from "
 import { EntreposageForm, defaultEntreposageData, type EntreposageFormData } from "@/components/forms/entreposage-form";
 import { CopackingForm, defaultCopackingData, type CopackingFormData } from "@/components/forms/copacking-form";
 import { LivraisonForm, defaultLivraisonData, type LivraisonFormData } from "@/components/forms/livraison-form";
+import { FormValidationSummary } from "@/components/form-validation-summary";
+import { PageBreadcrumb } from "@/components/page-header";
+import { collectFormSubmitErrors } from "@/lib/form-submit-validation";
 
 type FormData = TriFormData | InspectionFormData | EntreposageFormData | CopackingFormData | LivraisonFormData;
 
@@ -56,7 +59,9 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const [formData, setFormData] = useState<any>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [revisionDesc, setRevisionDesc] = useState("");
+  const [submitErrors, setSubmitErrors] = useState<string[]>([]);
   const formBodyRef = useRef<HTMLDivElement>(null);
+  const validationSummaryRef = useRef<HTMLDivElement>(null);
 
   const { data: form, isLoading } = useQuery<FormSubmission & { uploads?: any[] }>({
     queryKey: ["/api/forms", formId],
@@ -95,68 +100,43 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
   const handleChange = useCallback((data: FormData) => {
     setFormData(data);
     setData(data);
+    setSubmitErrors([]);
   }, [setData]);
 
-  function validateBeforeSubmit(): string | null {
-    if (!formData) return "Aucune donnée à soumettre.";
+  const formsListHref = role === "admin" ? "/admin/forms" : backUrl.replace(/\?.*$/, "") || "/portal/forms";
 
-    // Helper : retourne un message d'erreur si la valeur est présente mais ≤ 0 ou non numérique
-    const checkPositive = (val: unknown, label: string): string | null => {
-      if (val === undefined || val === null || val === "") return null; // champ optionnel
-      const n = Number(val);
-      if (isNaN(n) || n <= 0) return `${label} doit être un nombre positif.`;
-      return null;
-    };
+  function focusValidationSummary() {
+    window.setTimeout(() => {
+      validationSummaryRef.current?.focus({ preventScroll: true });
+      validationSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      formBodyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }
 
-    if (form?.formType === "tri") {
-      if (!(formData as any).client?.trim()) return "Le champ Client est requis.";
-      if (!(formData as any).nomProjet?.trim()) return "Le champ Nom du projet est requis.";
-      if (!(formData as any).codePiece?.trim()) return "Le champ Code pièce est requis.";
-      return (
-        checkPositive((formData as any).uniteParBoite, "Le nombre d'unités par boîte") ||
-        checkPositive((formData as any).besoinQuotidien, "Le besoin quotidien") ||
-        checkPositive((formData as any).cycleTri, "La durée du cycle")
-      );
+  function handleOpenSubmit() {
+    const errors = collectFormSubmitErrors(form?.formType, formData);
+    if (errors.length > 0) {
+      setSubmitErrors(errors);
+      toast({
+        title: "Formulaire incomplet",
+        description: `${errors.length} point${errors.length > 1 ? "s" : ""} à corriger avant la soumission.`,
+        variant: "destructive",
+      });
+      focusValidationSummary();
+      return;
     }
-
-    if (form?.formType === "inspection") {
-      if (!(formData as any).customer?.trim()) return "Le champ Client est requis.";
-      if (!(formData as any).partNumber?.trim()) return "Le champ Numéro de pièce est requis.";
-      const pct = (formData as any).customSamplePercent;
-      if (pct !== undefined && pct !== null && pct !== "") {
-        const n = Number(pct);
-        if (isNaN(n) || n < 0 || n > 100)
-          return "Le pourcentage d'échantillonnage doit être compris entre 0 et 100.";
-      }
-      return null;
-    }
-
-    if (form?.formType === "entreposage") {
-      const d = formData as any;
-      return (
-        checkPositive(d.longueur, "La longueur") ||
-        checkPositive(d.largeur, "La largeur") ||
-        checkPositive(d.hauteur, "La hauteur") ||
-        checkPositive(d.poids, "Le poids") ||
-        checkPositive(d.paletteNbUnites, "Le nombre d'unités par palette")
-      );
-    }
-
-    if (form?.formType === "livraison") {
-      const d = formData as any;
-      return (
-        checkPositive(d.nbUnites, "Le nombre d'unités") ||
-        checkPositive(d.poidsTotal, "Le poids total")
-      );
-    }
-
-    return null;
+    setSubmitErrors([]);
+    setSubmitDialogOpen(true);
   }
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const validationError = validateBeforeSubmit();
-      if (validationError) throw new Error(validationError);
+      const validationErrors = collectFormSubmitErrors(form?.formType, formData);
+      if (validationErrors.length > 0) {
+        const err = new Error(validationErrors.join(" "));
+        (err as Error & { validationErrors?: string[] }).validationErrors = validationErrors;
+        throw err;
+      }
       await apiRequest("PUT", `/api/forms/${formId}`, {
         data: formData,
         status: "submitted",
@@ -169,12 +149,16 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       setSubmitDialogOpen(false);
       toast({ title: "Formulaire soumis", description: "Le formulaire a été soumis avec succès." });
     },
-    onError: (err: any) => {
-      toast({ title: "Erreur de validation", description: err.message || "Veuillez vérifier les champs requis.", variant: "destructive" });
-      // Ramène l'utilisateur au début du formulaire pour voir les champs invalides
-      setTimeout(() => {
-        formBodyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+    onError: (err: Error & { validationErrors?: string[] }) => {
+      const errors = err.validationErrors ?? (err.message ? [err.message] : ["Veuillez vérifier les champs requis."]);
+      setSubmitErrors(errors);
+      setSubmitDialogOpen(false);
+      toast({
+        title: "Erreur de validation",
+        description: errors.length === 1 ? errors[0] : `${errors.length} points à corriger.`,
+        variant: "destructive",
+      });
+      focusValidationSummary();
     },
   });
 
@@ -223,11 +207,19 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 min-w-0 flex-1">
+          <PageBreadcrumb
+            className="hidden sm:block"
+            items={[
+              { label: "Soumissions", href: formsListHref },
+              { label: form.formNumber },
+            ]}
+          />
+          <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-full hover:bg-muted shrink-0"
+            className="touch-target h-11 w-11 rounded-full hover:bg-muted shrink-0 sm:hidden"
             data-testid="button-back-forms"
             onClick={async () => {
               if (isDraft) {
@@ -267,6 +259,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
                 </>
               )}
             </div>
+          </div>
           </div>
         </div>
 
@@ -310,7 +303,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
                 {saveDraftMutation.isPending ? "..." : "Enregistrer"}
               </Button>
               <Button 
-                onClick={() => setSubmitDialogOpen(true)} 
+                onClick={handleOpenSubmit} 
                 className="font-bold shadow-lg shadow-primary/20 flex-1 sm:flex-none"
                 data-testid="button-submit-form"
               >
@@ -349,6 +342,8 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
           )}
         </div>
       </div>
+
+      <FormValidationSummary ref={validationSummaryRef} errors={submitErrors} className="-mt-4" />
 
       {/* ── Banners ── */}
       <div className="space-y-4">
@@ -453,7 +448,7 @@ export default function FormEditor({ formId, role, backUrl }: FormEditorProps) {
                   {saveDraftMutation.isPending ? "Sauvegarde..." : "Enregistrer le brouillon"}
                 </Button>
                 <Button
-                  onClick={() => setSubmitDialogOpen(true)}
+                  onClick={handleOpenSubmit}
                   disabled={submitMutation.isPending}
                   className="font-bold shadow-lg shadow-primary/20"
                   data-testid="button-submit-form-bottom"
