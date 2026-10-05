@@ -5,7 +5,8 @@ import { useLocation, useRoute } from "wouter";
 import type { FormSubmission } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -193,30 +194,29 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
       {/* Main List */}
       <Card className="border-border shadow-sm overflow-hidden">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : !forms || forms.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-16 text-center">
-              <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
-                <FileText className="h-10 w-10 text-muted-foreground/50" />
-              </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2">Aucun formulaire</h3>
-              <p className="text-muted-foreground max-w-sm mb-6">
-                Commencez par créer votre première demande de service.
-              </p>
-              <Button
-                size="lg"
-                onClick={() => setNewFormOpen(true)}
-                data-testid="button-new-form-empty"
-                className="font-bold shadow-md shadow-primary/20"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Créer un formulaire
-              </Button>
-            </div>
-          ) : (
+          <AsyncContentRegion
+            isLoading={isLoading}
+            isEmpty={!forms?.length}
+            loadingFallback={<ListLoadingSkeleton rows={5} rowClassName="h-16 w-full mx-4 max-w-[calc(100%-2rem)]" />}
+            emptyFallback={
+              <EmptyState
+                icon={FileText}
+                title="Aucun formulaire"
+                description="Commencez par créer votre première demande de service."
+                action={
+                  <Button
+                    size="lg"
+                    onClick={() => setNewFormOpen(true)}
+                    data-testid="button-new-form-empty"
+                    className="font-bold shadow-md shadow-primary/20"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Créer un formulaire
+                  </Button>
+                }
+              />
+            }
+          >
             <div className="overflow-x-auto scrollbar-hide">
               <Table className="min-w-[800px]">
                 <TableHeader>
@@ -230,7 +230,7 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {forms.map((form) => {
+                  {(forms ?? []).map((form) => {
                     const typeCfg = FORM_TYPES.find(t => t.value === form.formType);
                     const TypeIcon = typeCfg?.icon || FileText;
                     return (
@@ -289,7 +289,7 @@ export default function PortalForms({ viewAsContactId }: { viewAsContactId?: num
                 </TableBody>
               </Table>
             </div>
-          )}
+          </AsyncContentRegion>
         </CardContent>
       </Card>
 

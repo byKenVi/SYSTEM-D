@@ -45,6 +45,7 @@ import { CartProvider } from "@/contexts/cart-context";
 import PortalNotifications from "@/pages/portal/notifications";
 import LocalOrderDetail from "@/pages/local-order-detail";
 import FormPrintPage from "@/pages/form-print";
+import { SkipToMainContent } from "@/components/skip-to-main-content";
 
 interface UserRole {
   role: "admin" | "client";
@@ -59,11 +60,12 @@ function AdminLayout() {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
+      <SkipToMainContent />
       <AppSidebar role="admin" />
       <SidebarInset className="overflow-y-auto overflow-x-hidden scrollbar-hide bg-background min-w-0">
         <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-3 py-2 bg-background/95 backdrop-blur-sm border-b border-border/50 shrink-0">
           <SidebarTrigger
-            className="h-11 w-11 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
+            className="touch-target h-11 w-11 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
             data-testid="button-sidebar-toggle"
           />
           <span className="text-sm font-bold tracking-tight text-foreground">Administration Système D</span>
@@ -79,7 +81,11 @@ function AdminLayout() {
             </Button>
           </Link>
         </div>
-        <div className="app-shell app-page-padding p-3 sm:p-6 lg:p-8 min-h-full w-full">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="app-shell app-page-padding p-3 sm:p-6 lg:p-8 min-h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+        >
           <Switch>
             <Route path="/admin/dashboard" component={AdminDashboard} />
             <Route path="/admin/contacts/:id" component={AdminContactDetail} />
@@ -110,7 +116,7 @@ function AdminLayout() {
             </Route>
             <Route component={NotFound} />
           </Switch>
-        </div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -156,18 +162,23 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
+      <SkipToMainContent />
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
       <SidebarInset className="overflow-hidden bg-background min-w-0">
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         {showAdminReturn && <AdminPortalBanner />}
         {/* En-tête mobile : visible uniquement en dessous de md */}
         <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-2.5 bg-background/95 backdrop-blur-sm border-b border-border/50 shrink-0">
-          <SidebarTrigger className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg" />
+          <SidebarTrigger className="touch-target h-11 w-11 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg" />
           <span className="text-sm font-bold tracking-tight text-foreground">Système D</span>
           <MobileNotifBell viewAsContactId={viewAsContactId} />
         </div>
         <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
-          <div className="app-shell app-page-padding p-3 sm:p-6 lg:p-8 min-h-full w-full">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="app-shell app-page-padding p-3 sm:p-6 lg:p-8 min-h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+          >
             <CartProvider storageKey={cartStorageKey}>
             <Switch>
               <Route path="/portal/dashboard">
@@ -218,7 +229,7 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
               <Route component={NotFound} />
             </Switch>
             </CartProvider>
-          </div>
+          </main>
         </div>
       </SidebarInset>
     </SidebarProvider>
@@ -239,10 +250,16 @@ function MobileNotifBell({ viewAsContactId }: { viewAsContactId?: number }) {
     ? `/portal/notifications?viewAs=${viewAsContactId}`
     : "/portal/notifications";
 
+  const notifLabel =
+    count > 0 && !viewAsContactId
+      ? `Notifications, ${count} non lue${count > 1 ? "s" : ""}`
+      : "Notifications";
+
   return (
     <button
-      aria-label="Notifications"
-      className="relative h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+      type="button"
+      aria-label={notifLabel}
+      className="touch-target relative h-11 w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors duration-200 cursor-pointer"
       onClick={() => navigate(dest)}
     >
       <Bell className="h-5 w-5" />

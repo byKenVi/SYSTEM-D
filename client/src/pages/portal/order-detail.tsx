@@ -23,6 +23,7 @@ import {
   ShoppingBag
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
+import { PageBreadcrumb } from "@/components/page-header";
 
 function fmt(date?: string | null) {
   if (!date) return "—";
@@ -154,14 +155,22 @@ export default function PortalOrderDetail() {
       )}
       
       {/* ── Action Header (Sticky) ── */}
-      <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col gap-3 sm:flex-row sm:gap-4 items-start sm:items-center justify-between">
+        <div className="flex flex-col gap-2 min-w-0 w-full sm:w-auto">
+          <PageBreadcrumb
+            className="hidden sm:block"
+            items={[
+              { label: "Commandes", href: backHref },
+              { label: order.name },
+            ]}
+          />
+          <div className="flex items-center gap-3 min-w-0">
           <Link href={backHref}>
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted shrink-0" data-testid="button-back-orders">
+            <Button variant="ghost" size="icon" className="touch-target h-11 w-11 rounded-full hover:bg-muted shrink-0 sm:hidden" data-testid="button-back-orders">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap mb-1">
               <h1 className="text-2xl font-mono font-bold tracking-tight text-foreground" data-testid="text-order-name">
                 {order.name}
@@ -177,6 +186,7 @@ export default function PortalOrderDetail() {
               <SiShopify className="h-3.5 w-3.5 text-[#95bf47]" />
               <span className="truncate max-w-[200px]">{data.shopName ?? storeUrl}</span>
             </div>
+          </div>
           </div>
         </div>
 

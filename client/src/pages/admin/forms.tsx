@@ -5,6 +5,8 @@ import { useLocation, Link } from "wouter";
 import type { FormSubmission, Contact } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -276,16 +278,18 @@ export default function AdminForms() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>Aucune demande trouvée</p>
-        </div>
-      ) : (
+      <AsyncContentRegion
+        isLoading={isLoading}
+        isEmpty={filtered.length === 0}
+        loadingFallback={<ListLoadingSkeleton rows={4} rowClassName="h-14 w-full" />}
+        emptyFallback={
+          <EmptyState
+            icon={FileText}
+            title="Aucune demande trouvée"
+            description="Ajustez les filtres ou attendez de nouvelles soumissions de formulaires."
+          />
+        }
+      >
         <div className="border rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
@@ -401,7 +405,7 @@ export default function AdminForms() {
             </Table>
           </div>
         </div>
-      )}
+      </AsyncContentRegion>
 
       <Dialog open={newFormOpen} onOpenChange={setNewFormOpen}>
         <DialogContent>

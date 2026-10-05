@@ -58,6 +58,7 @@ import { SiShopify, SiZoho } from "react-icons/si";
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
 
 interface ShopifyOrdersResponse {
   orders: ShopifyOrder[];
@@ -252,20 +253,14 @@ export default function ContactDetail() {
   return (
     <div className="space-y-5">
 
-      {/* ── Top nav bar ── */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link href="/admin/contacts">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2" data-testid="button-back">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Clients
-            </Button>
-          </Link>
-          <span className="text-muted-foreground/40 text-sm">/</span>
-          <span className="text-sm text-muted-foreground truncate max-w-[200px]">{contact.name}</span>
-        </div>
-
-        <div className="flex items-center gap-3 flex-shrink-0">
+      <PageHeader
+        items={[
+          { label: "Clients", href: "/admin/contacts" },
+          { label: contact.name },
+        ]}
+        title={contact.name}
+        actions={
+          <>
           <div className="flex items-center gap-1.5">
             <Switch
               id="hide-empty-related"
@@ -307,8 +302,9 @@ export default function ContactDetail() {
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* ── Main layout ── */}
       <div className="flex gap-5 items-start">

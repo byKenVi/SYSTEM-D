@@ -5,7 +5,8 @@ import { useLocation } from "wouter";
 import { Bell, ChevronRight, ExternalLink, Plus, Trash2, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -178,18 +179,19 @@ export default function AdminNotifications() {
 
       {/* Table */}
       <div className="rounded-xl border border-border overflow-hidden bg-card">
-        {isLoading ? (
-          <div className="p-4 space-y-3">
-            {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full rounded-lg" />
-            ))}
-          </div>
-        ) : !filtered?.length ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-            <Inbox className="h-10 w-10 opacity-30" />
-            <p className="text-sm">Aucune notification</p>
-          </div>
-        ) : (
+        <AsyncContentRegion
+          isLoading={isLoading}
+          isEmpty={!filtered?.length}
+          loadingFallback={<ListLoadingSkeleton rows={6} rowClassName="h-12 w-full rounded-lg" />}
+          emptyFallback={
+            <EmptyState
+              compact
+              icon={Inbox}
+              title="Aucune notification"
+              description="Les alertes adressées aux clients apparaîtront ici. Utilisez « Nouvelle notification » pour en envoyer une."
+            />
+          }
+        >
           <table className="w-full text-sm" data-testid="table-admin-notifications">
             <thead>
               <tr className="border-b border-border bg-muted/40">
@@ -203,7 +205,7 @@ export default function AdminNotifications() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((n) => {
+              {(filtered ?? []).map((n) => {
                 const cfg = cat(n.category);
                 const destUrl = getDestUrl(n);
                 return (
@@ -265,7 +267,7 @@ export default function AdminNotifications() {
               })}
             </tbody>
           </table>
-        )}
+        </AsyncContentRegion>
       </div>
 
       {/* Create Dialog */}
