@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import type { MapiRep, MapiRepCreditLog } from "@shared/schema";
+import { PageHeader } from "@/components/page-header";
 
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
@@ -176,69 +177,61 @@ export default function AdminCustomerDetail() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Back + Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mt-0.5 flex-shrink-0"
-            onClick={() => navigate(backHref)}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            {isLoading ? (
-              <Skeleton className="h-8 w-56 mb-2" />
-            ) : (
-              <h1 className="text-2xl font-bold tracking-tight">{fullName}</h1>
-            )}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {isLoading ? (
-                <Skeleton className="h-5 w-32" />
-              ) : (
-                <>
-                  <StateBadge state={c.state} />
-                  {c.verified_email && (
-                    <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">
-                      <CheckCircle className="h-3 w-3 mr-1" />Email vérifié
-                    </Badge>
-                  )}
-                  {c.tax_exempt && (
-                    <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0 text-xs">
-                      Exonéré de taxes
-                    </Badge>
-                  )}
-                  {data?.companyName && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <SiShopify className="h-3 w-3" /> {data.companyName}
-                    </span>
-                  )}
-                </>
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-5 w-32" />
+        </div>
+      ) : (
+        <PageHeader
+          items={[
+            { label: "Clients", href: backHref },
+            { label: fullName },
+          ]}
+          title={fullName}
+          description={
+            <div className="flex items-center gap-2 flex-wrap">
+              <StateBadge state={c.state} />
+              {c.verified_email && (
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">
+                  <CheckCircle className="h-3 w-3 mr-1" />Email vérifié
+                </Badge>
+              )}
+              {c.tax_exempt && (
+                <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0 text-xs">
+                  Exonéré de taxes
+                </Badge>
+              )}
+              {data?.companyName && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <SiShopify className="h-3 w-3" /> {data.companyName}
+                </span>
               )}
             </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {data?.contactId && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/admin/contacts/${data.contactId}`}>
-                <User className="h-3.5 w-3.5 mr-1.5" />Contact
-              </Link>
-            </Button>
-          )}
-          {shopifyCustomerUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={shopifyCustomerUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-customer">
-                <SiShopify className="h-3.5 w-3.5 mr-1.5 text-green-600" />
-                Voir dans Shopify
-                <ExternalLink className="h-3 w-3 ml-1.5" />
-              </a>
-            </Button>
-          )}
-        </div>
-      </div>
+          }
+          actions={
+            <>
+              {data?.contactId && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/admin/contacts/${data.contactId}`}>
+                    <User className="h-3.5 w-3.5 mr-1.5" />Contact
+                  </Link>
+                </Button>
+              )}
+              {shopifyCustomerUrl && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={shopifyCustomerUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-customer">
+                    <SiShopify className="h-3.5 w-3.5 mr-1.5 text-green-600" />
+                    Voir dans Shopify
+                    <ExternalLink className="h-3 w-3 ml-1.5" />
+                  </a>
+                </Button>
+              )}
+            </>
+          }
+        />
+      )}
 
       {error && (
         <Card className="border-destructive/30 bg-destructive/5">

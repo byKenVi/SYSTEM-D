@@ -23,6 +23,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { PageBreadcrumb } from "@/components/page-header";
 import type { MapiRep, MapiRepCreditLog } from "@shared/schema";
 
 function fmt(date: string | null | undefined) {
@@ -230,14 +231,23 @@ export default function PortalCustomerDetail() {
       
       {/* ── Action Header (Sticky) ── */}
       <div className="sticky top-0 z-40 -mx-4 px-4 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 min-w-0 w-full sm:w-auto">
+          {!isLoading && (
+            <PageBreadcrumb
+              className="hidden sm:block"
+              items={[
+                { label: "Clients", href: backHref },
+                { label: fullName },
+              ]}
+            />
+          )}
+          <div className="flex items-center gap-3 min-w-0">
           <Link href={backHref}>
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted shrink-0" data-testid="button-back">
+            <Button variant="ghost" size="icon" className="touch-target h-11 w-11 rounded-full hover:bg-muted shrink-0 sm:hidden" data-testid="button-back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          
-          <div>
+          <div className="min-w-0">
             {isLoading ? (
               <Skeleton className="h-8 w-56 mb-1" />
             ) : (
@@ -270,6 +280,7 @@ export default function PortalCustomerDetail() {
                 <span>{data?.shopName ?? store}</span>
               </div>
             )}
+          </div>
           </div>
         </div>
 

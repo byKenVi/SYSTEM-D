@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
 import {
   Select,
   SelectContent,
@@ -298,18 +299,20 @@ export default function PortalLivraisons({ viewAsContactId }: { viewAsContactId?
       {/* Table */}
       <Card className="shadow-sm border-border overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-16 text-center">
-            <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
-              <Truck className="h-10 w-10 text-muted-foreground/50" />
-            </div>
-            <h3 className="text-xl font-bold tracking-tight mb-2">Aucune livraison trouvée</h3>
-            <p className="text-muted-foreground max-w-sm mb-6">
-              {forms?.length ? "Aucune livraison ne correspond aux filtres sélectionnés." : "Les livraisons apparaîtront lorsqu’une demande de livraison sera soumise ou qu’une commande sera expédiée."}
-            </p>
-            <Button variant="outline" onClick={() => navigate(`/portal/forms${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`)}>
-              Créer ou consulter une soumission
-            </Button>
-          </div>
+          <EmptyState
+            icon={Truck}
+            title="Aucune livraison trouvée"
+            description={
+              forms?.length
+                ? "Aucune livraison ne correspond aux filtres sélectionnés."
+                : "Les livraisons apparaîtront lorsqu'une demande de livraison sera soumise ou qu'une commande sera expédiée."
+            }
+            action={
+              <Button variant="outline" onClick={() => navigate(`/portal/forms${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`)}>
+                Créer ou consulter une soumission
+              </Button>
+            }
+          />
         ) : (
           <div className="overflow-x-auto w-full">
             <Table className="w-full min-w-[1000px]">

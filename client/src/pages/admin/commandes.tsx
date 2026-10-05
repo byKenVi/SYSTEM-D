@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -217,21 +218,19 @@ export default function AdminCommandes() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <ShoppingCart className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground font-medium">Aucune commande</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Les commandes apparaissent lorsque des soumissions sont approuvées.
-              </p>
-            </div>
-          ) : (
+          <AsyncContentRegion
+            isLoading={isLoading}
+            isEmpty={filtered.length === 0}
+            loadingFallback={<ListLoadingSkeleton rows={4} rowClassName="h-12 w-full mx-4 max-w-[calc(100%-2rem)]" />}
+            emptyFallback={
+              <EmptyState
+                compact
+                icon={ShoppingCart}
+                title="Aucune commande"
+                description="Les commandes apparaissent lorsque des soumissions sont approuvées."
+              />
+            }
+          >
             <div className="responsive-table">
               <Table className="min-w-[700px]">
                 <TableHeader>
@@ -318,7 +317,7 @@ export default function AdminCommandes() {
                 </TableBody>
               </Table>
             </div>
-          )}
+          </AsyncContentRegion>
         </CardContent>
       </Card>
 

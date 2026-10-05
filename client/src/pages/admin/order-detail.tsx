@@ -25,6 +25,7 @@ import {
   Hash,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
+import { PageHeader } from "@/components/page-header";
 
 interface ShopifyAddress {
   first_name?: string;
@@ -339,41 +340,43 @@ export default function AdminOrderDetail() {
           <span>Commande importée depuis WooCommerce — certains détails peuvent ne pas être disponibles.</span>
         </div>
       )}
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <Link href={backHref}>
-            <Button variant="ghost" size="sm" className="-ml-2 mb-1" data-testid="button-back-orders">
-              <ArrowLeft className="h-4 w-4 mr-1.5" />Retour aux commandes
-            </Button>
-          </Link>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-order-name">{order.name}</h1>
-            {order.test && <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Test</Badge>}
-            <FinancialBadge status={order.financial_status} />
-            <FulfillmentBadge status={order.fulfillment_status} />
-          </div>
-          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
-            <span>Passée le {fmt(order.created_at)}</span>
-            {data.companyName && (
-              <Link href={`/admin/contacts/${data.contactId}`}>
-                <span className="hover:underline cursor-pointer font-medium text-foreground">{data.companyName}</span>
-              </Link>
-            )}
-            <div className="flex items-center gap-1">
-              <SiShopify className="h-3 w-3 text-green-600 dark:text-green-400" />
-              <span>{data.shopName ?? storeUrl}</span>
+      <PageHeader
+        items={[
+          { label: "Commandes", href: backHref },
+          { label: order.name },
+        ]}
+        title={order.name}
+        description={
+          <>
+            <div className="flex items-center gap-3 flex-wrap mt-1">
+              {order.test && <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Test</Badge>}
+              <FinancialBadge status={order.financial_status} />
+              <FulfillmentBadge status={order.fulfillment_status} />
             </div>
-          </div>
-        </div>
-        {shopifyOrderUrl && (
-          <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-order">
-            <Button variant="outline" size="sm">
-              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir dans Shopify
-            </Button>
-          </a>
-        )}
-      </div>
+            <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
+              <span>Passée le {fmt(order.created_at)}</span>
+              {data.companyName && (
+                <Link href={`/admin/contacts/${data.contactId}`}>
+                  <span className="hover:underline cursor-pointer font-medium text-foreground">{data.companyName}</span>
+                </Link>
+              )}
+              <div className="flex items-center gap-1">
+                <SiShopify className="h-3 w-3 text-green-600 dark:text-green-400" />
+                <span>{data.shopName ?? storeUrl}</span>
+              </div>
+            </div>
+          </>
+        }
+        actions={
+          shopifyOrderUrl ? (
+            <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-order">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir dans Shopify
+              </Button>
+            </a>
+          ) : undefined
+        }
+      />
 
       {/* Financial summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

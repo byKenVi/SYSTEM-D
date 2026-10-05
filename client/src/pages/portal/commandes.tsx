@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -342,31 +344,37 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 w-full">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-[220px] w-full rounded-2xl" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <Card className="border-dashed border-2 bg-transparent">
-            <CardContent className="flex flex-col items-center justify-center p-16 text-center">
-              <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
-                <ShoppingCart className="h-10 w-10 text-muted-foreground/50" />
-              </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2">Aucune commande disponible</h3>
-              <p className="text-muted-foreground max-w-sm mb-6">
-                Les commandes apparaissent ici une fois vos demandes de services approuvées par l'administration.
-              </p>
-              <Button size="lg" asChild className="shadow-sm">
-                <Link href={`/portal/forms${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Créer une demande
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : viewMode === "list" ? (
+        <AsyncContentRegion
+          isLoading={isLoading}
+          isEmpty={filtered.length === 0}
+          loadingFallback={
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 w-full" aria-hidden>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-[220px] w-full rounded-2xl" />
+              ))}
+            </div>
+          }
+          emptyFallback={
+            <Card className="border-dashed border-2 bg-transparent">
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={ShoppingCart}
+                  title="Aucune commande disponible"
+                  description="Les commandes apparaissent ici une fois vos demandes de services approuvées par l'administration."
+                  action={
+                    <Button size="lg" asChild className="shadow-sm">
+                      <Link href={`/portal/forms${viewAsContactId ? `?viewAs=${viewAsContactId}` : ""}`}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Créer une demande
+                      </Link>
+                    </Button>
+                  }
+                />
+              </CardContent>
+            </Card>
+          }
+        >
+        {viewMode === "list" ? (
           <div className="flex flex-col gap-2">
             {filtered.map((form) => {
               const TypeIcon = TYPE_ICONS[form.formType] || FileText;
@@ -548,6 +556,7 @@ export default function PortalCommandes({ viewAsContactId }: { viewAsContactId?:
             })}
           </div>
         )}
+        </AsyncContentRegion>
       </div>
 
       {/* Confirm dialog */}

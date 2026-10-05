@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
 import {
   Select,
   SelectContent,
@@ -272,12 +273,17 @@ export default function AdminLivraisons() {
       <Card>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Truck className="h-10 w-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm font-medium">Aucune livraison trouvée</p>
-              <p className="mx-auto mt-2 max-w-md text-xs">Les livraisons apparaîtront après la soumission d’une demande Livraison ou la création d’une livraison liée depuis un dossier de co-packing.</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate("/admin/forms")}>Voir les soumissions</Button>
-            </div>
+            <EmptyState
+              compact
+              icon={Truck}
+              title="Aucune livraison trouvée"
+              description="Les livraisons apparaîtront après la soumission d'une demande Livraison ou la création d'une livraison liée depuis un dossier de co-packing."
+              action={
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin/forms")}>
+                  Voir les soumissions
+                </Button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
