@@ -144,8 +144,8 @@ Avant chaque lot de changements UI:
 Ordre recommandé pour les « gros changements » à venir:
 
 1. ~~**Fondations layout:** skip link, `#main-content`, touch targets mobile, `EmptyState`, utilitaire loading `aria-busy`.~~ **Fait (2026-10-05)** — voir `client/src/components/{skip-to-main-content,empty-state,async-content-region}.tsx`, `App.tsx`, `index.css` (reduced-motion).
-2. ~~**Navigation (amorcé):** breadcrumbs + `PageHeader` / `PageBreadcrumb`.~~ **Partiel** — admin/portail `contact-detail`, `order-detail`, `customer-detail` ; reste: produits, `local-order-detail`, `form-editor`.
-3. ~~**Listes (amorcé):** `EmptyState` + `AsyncContentRegion`.~~ **Partiel** — forms, notifications, commandes admin/portail, livraisons admin/portail ; reste: contacts, inventaire, orders/boutique.
+2. ~~**Navigation (amorcé):** breadcrumbs + `PageHeader` / `PageBreadcrumb`.~~ **Partiel** — détails commande/client/produit (Shopify + Système D), `local-order-detail` ; reste: `form-editor`, détail soumission admin.
+3. ~~**Listes (amorcé):** `EmptyState` + `AsyncContentRegion`.~~ **Partiel** — forms, notifications, commandes, livraisons, contacts, inventaire ; reste: onglets boutique/orders admin.
 4. **Listes à fort trafic:** DataTable commandes/contacts/orders.
 5. **Formulaires:** contrat erreurs (inline + summary) dans `form-editor` et forms métier.
 6. **Dashboards:** fraîcheur des données + empty/loading unifiés.
