@@ -143,8 +143,8 @@ Avant chaque lot de changements UI:
 
 Ordre recommandé pour les « gros changements » à venir:
 
-1. **Fondations layout:** skip link, `#main-content`, touch targets mobile, `EmptyState`, utilitaire loading `aria-busy`.
-2. **Navigation:** breadcrumbs sur pages détail + composant `PageHeader` (titre + actions + breadcrumb).
+1. ~~**Fondations layout:** skip link, `#main-content`, touch targets mobile, `EmptyState`, utilitaire loading `aria-busy`.~~ **Fait (2026-10-05)** — voir `client/src/components/{skip-to-main-content,empty-state,async-content-region}.tsx`, `App.tsx`, `index.css` (reduced-motion).
+2. ~~**Navigation (amorcé):** breadcrumbs + `PageHeader` / `PageBreadcrumb`.~~ **Partiel** — `contact-detail`, `portal/order-detail` ; étendre aux autres pages détail.
 3. **Listes à fort trafic:** DataTable commandes/contacts/orders.
 4. **Formulaires:** contrat erreurs (inline + summary) dans `form-editor` et forms métier.
 5. **Dashboards:** fraîcheur des données + empty/loading unifiés.
