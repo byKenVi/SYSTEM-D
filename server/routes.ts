@@ -39,6 +39,12 @@ import {
   ShopifyOrderCreateError,
 } from "./shopify-api";
 import { reconcileClientProductOrder } from "./shopify-client-order-reconciliation";
+import {
+  buildAdminOrderQueue,
+  ensureBooksSalesOrderForSystemdOrder,
+  ensureZohoProjectWhenProcessingSystemdOrder,
+  ensureZohoProjectWhenProcessingShopifyOrder,
+} from "./order-zoho-integration";
 
 function buildStatusNotification(
   formType: string,
@@ -745,6 +751,16 @@ export async function registerRoutes(
       res.json({ ...kpis, lowStockProducts });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/orders-queue", isAuthenticated, isAdmin, async (_req, res) => {
+    try {
+      const items = await buildAdminOrderQueue();
+      res.json({ items, totalCount: items.length });
+    } catch (error: any) {
+      console.error("Error building admin orders queue:", error);
+      res.status(500).json({ message: error.message || "Failed to build orders queue" });
     }
   });
 
@@ -3402,6 +3418,7 @@ export async function registerRoutes(
                   price: (updateData.price ?? form.price) as string | null,
                   approvedQuantity: (updateData.approvedQuantity ?? form.approvedQuantity) as string | null,
                   zohoSalesOrderNumber: (updateData.zohoSalesOrderNumber ?? form.zohoSalesOrderNumber) as string | null,
+                  zohoSalesOrderUrl: (updateData.zohoSalesOrderUrl ?? form.zohoSalesOrderUrl) as string | null,
                   createdAt: form.createdAt,
                   updatedAt: new Date(),
                 },
@@ -5143,6 +5160,7 @@ export async function registerRoutes(
           shopifyPaymentConfirmedAt: new Date(),
         });
         if (!paidOrder) throw new Error("Impossible d’enregistrer la commande Shopify payée dans Système D.");
+        void ensureBooksSalesOrderForSystemdOrder(paidOrder.id);
       } catch (error: any) {
         const orderDefinitelyRejected = error instanceof ShopifyOrderCreateError && error.outcome === "rejected";
         const debitDefinitelyRejected = isShopifyDebitDefinitelyRejected(error);
@@ -5539,6 +5557,7 @@ export async function registerRoutes(
           shopifyCreditTransactionId: debitResult.transactionId,
         });
         if (!paidOrder) throw new Error("Impossible d'enregistrer la commande payée.");
+        void ensureBooksSalesOrderForSystemdOrder(paidOrder.id);
       } catch (error: any) {
         // Once a debit request is submitted, transport/API failures are ambiguous:
         // Shopify may have committed it even when the response was lost. Only a
@@ -5832,6 +5851,7 @@ export async function registerRoutes(
           shopifyCreditTransactionId: transaction.id,
         });
         if (!updated) return res.status(409).json({ message: "La commande a déjà été résolue." });
+        void ensureBooksSalesOrderForSystemdOrder(orderId);
         await storage.createActivityLog({
           type: "shopify_credit_reconciliation_paid",
           status: "success",
@@ -5893,6 +5913,9 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateSystemdOrder(orderId, { fulfillmentStatus });
+      if (fulfillmentStatus === "processing") {
+        void ensureZohoProjectWhenProcessingSystemdOrder(orderId);
+      }
       await storage.createActivityLog({
         type: "systemd_order_fulfillment",
         status: "success",
@@ -5912,6 +5935,54 @@ export async function registerRoutes(
       return res.json(updated);
     } catch (error: any) {
       console.error("Error updating SystemD fulfillment:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/admin/shopify-orders/:integrationId/:shopifyOrderId/fulfillment", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const integrationId = Number(req.params.integrationId);
+      const shopifyOrderId = String(req.params.shopifyOrderId);
+      const fulfillmentStatus = String(req.body?.fulfillmentStatus ?? "");
+      if (!Number.isInteger(integrationId) || integrationId <= 0) {
+        return res.status(400).json({ message: "Intégration invalide" });
+      }
+      if (!(["processing", "completed"] as const).includes(fulfillmentStatus as "processing" | "completed")) {
+        return res.status(400).json({ message: "Statut de traitement invalide" });
+      }
+
+      const order = (await storage.getShopifyOrders()).find(
+        (candidate) => candidate.integrationId === integrationId && candidate.shopifyOrderId === shopifyOrderId,
+      );
+      if (!order) return res.status(404).json({ message: "Commande Shopify introuvable" });
+
+      const allowedNext = order.operationalFulfillmentStatus === "to_process"
+        ? "processing"
+        : order.operationalFulfillmentStatus === "processing" ? "completed" : null;
+      if (fulfillmentStatus !== allowedNext) {
+        return res.status(409).json({ message: "Transition de traitement invalide" });
+      }
+
+      await storage.updateShopifyOrderZohoFields(integrationId, shopifyOrderId, {
+        operationalFulfillmentStatus: fulfillmentStatus,
+      });
+      if (fulfillmentStatus === "processing") {
+        void ensureZohoProjectWhenProcessingShopifyOrder(integrationId, shopifyOrderId);
+      }
+
+      await storage.createActivityLog({
+        type: "shopify_direct_order_fulfillment",
+        status: "success",
+        message: `Shopify ${order.name}: ${order.operationalFulfillmentStatus} → ${fulfillmentStatus}`,
+        metadata: JSON.stringify({ integrationId, shopifyOrderId, from: order.operationalFulfillmentStatus, to: fulfillmentStatus }),
+      });
+
+      const refreshed = (await storage.getShopifyOrders()).find(
+        (candidate) => candidate.integrationId === integrationId && candidate.shopifyOrderId === shopifyOrderId,
+      );
+      return res.json(refreshed ?? order);
+    } catch (error: any) {
+      console.error("Error updating Shopify operational fulfillment:", error);
       return res.status(500).json({ message: error.message });
     }
   });

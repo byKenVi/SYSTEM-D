@@ -53,6 +53,7 @@ export function buildAuthUrl(region: string = "us"): string {
   const params = new URLSearchParams({
     scope: [
       "ZohoInventory.FullAccess.all",
+      "ZohoBooks.fullaccess.all",
       "ZohoProjects.portals.READ",
       "ZohoProjects.projects.CREATE",
       "ZohoProjects.projects.READ",

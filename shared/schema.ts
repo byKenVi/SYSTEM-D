@@ -76,6 +76,11 @@ export const shopifyOrders = pgTable("shopify_orders", {
   lineItems: jsonb("line_items").notNull().default([]),
   shopName: text("shop_name"),
   storeUrl: text("store_url").notNull(),
+  operationalFulfillmentStatus: text("operational_fulfillment_status").notNull().default("to_process"),
+  zohoBooksSalesOrderId: text("zoho_books_sales_order_id"),
+  zohoBooksSalesOrderNumber: text("zoho_books_sales_order_number"),
+  zohoBooksSalesOrderUrl: text("zoho_books_sales_order_url"),
+  zohoProjectId: text("zoho_project_id"),
   syncedAt: timestamp("synced_at").defaultNow(),
 }, (table) => ({
   integrationOrderUnique: unique().on(table.integrationId, table.shopifyOrderId),
@@ -154,6 +159,7 @@ export const adminSettings = pgTable("admin_settings", {
   zohoInventoryRefreshToken: text("zoho_inventory_refresh_token"),
   zohoInventoryOrgId: text("zoho_inventory_org_id"),
   zohoInventoryOrgName: text("zoho_inventory_org_name"),
+  zohoBooksOrgId: text("zoho_books_org_id"),
   zohoAccessToken: text("zoho_access_token"),
   zohoTokenExpiresAt: timestamp("zoho_token_expires_at"),
   zohoRegion: text("zoho_region").default("us"),
@@ -325,6 +331,10 @@ export const systemdOrders = pgTable("systemd_orders", {
   stockReservationStatus: text("stock_reservation_status").notNull().default("pending"),
   stockReservedAt: timestamp("stock_reserved_at"),
   lineItems: jsonb("line_items").notNull().default([]),
+  zohoBooksSalesOrderId: text("zoho_books_sales_order_id"),
+  zohoBooksSalesOrderNumber: text("zoho_books_sales_order_number"),
+  zohoBooksSalesOrderUrl: text("zoho_books_sales_order_url"),
+  zohoProjectId: text("zoho_project_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

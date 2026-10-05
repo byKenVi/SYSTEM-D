@@ -145,6 +145,16 @@ app.use((req, res, next) => {
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS fulfillment_status TEXT NOT NULL DEFAULT 'to_process'`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reservation_status TEXT NOT NULL DEFAULT 'pending'`);
   await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS stock_reserved_at TIMESTAMP`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_number TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_url TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS zoho_project_id TEXT`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS operational_fulfillment_status TEXT NOT NULL DEFAULT 'to_process'`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_id TEXT`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_number TEXT`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_url TEXT`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_project_id TEXT`);
+  await pool.query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS zoho_books_org_id TEXT`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent_active`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status IN ('pending', 'pending_shopify', 'payment_reconciliation_required')`);

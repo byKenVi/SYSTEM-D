@@ -139,6 +139,7 @@ export function buildProjectPayload(
     price?: string | number | null;
     approvedQuantity?: string | number | null;
     zohoSalesOrderNumber?: string | null;
+    zohoSalesOrderUrl?: string | null;
     createdAt?: Date | null;
     updatedAt?: Date | null;
   },
@@ -174,7 +175,10 @@ export function buildProjectPayload(
     lines.push(`Quantité approuvée : ${Number(form.approvedQuantity).toLocaleString("fr-CA")} unités`);
   }
   if (form.zohoSalesOrderNumber) {
-    lines.push(`Bon de commande Zoho : ${form.zohoSalesOrderNumber}`);
+    lines.push(`Bon de commande Zoho Inventory : ${form.zohoSalesOrderNumber}`);
+  }
+  if (form.zohoSalesOrderUrl) {
+    lines.push(`Lien commande Inventory : ${form.zohoSalesOrderUrl}`);
   }
 
   // Extract key fields from JSONB data
@@ -191,6 +195,70 @@ export function buildProjectPayload(
   if (extraFields.length > 0) lines.push("", ...extraFields);
 
   lines.push(``, `Lien interne : ${appDomain}/admin/forms/${form.id ?? ""}`);
+
+  return { name, description: lines.join("\n") };
+}
+
+export function buildOrderProjectPayload(
+  order: {
+    systemdOrderId: number | null;
+    shopifyOrderName?: string | null;
+    shopifyOrderId?: string | null;
+    amountCents: number;
+    currency: string;
+    lineItems: unknown;
+    zohoBooksSalesOrderNumber?: string | null;
+    zohoBooksSalesOrderUrl?: string | null;
+    source: "systemd" | "client_product" | "shopify_direct";
+    shopName?: string | null;
+    storeUrl?: string | null;
+  },
+  contact: { name: string; email?: string | null; companyName?: string | null },
+  appDomain: string,
+): { name: string; description: string } {
+  const sourceLabels: Record<string, string> = {
+    systemd: "Commande Système D",
+    client_product: "Produit client · Shopify",
+    shopify_direct: "Shopify direct",
+  };
+  const typeLabel = sourceLabels[order.source] ?? order.source;
+  const ref = order.shopifyOrderName ?? (order.systemdOrderId ? `SD-${order.systemdOrderId}` : "Commande");
+  const name = `${ref} — ${typeLabel} — ${contact.companyName || contact.name}`;
+
+  const lines: string[] = [
+    `Source             : ${typeLabel}`,
+    order.systemdOrderId != null ? `N° commande Système D : #${order.systemdOrderId}` : null,
+    order.shopifyOrderName ? `N° commande Shopify   : ${order.shopifyOrderName}` : null,
+    order.shopifyOrderId ? `ID Shopify            : ${order.shopifyOrderId}` : null,
+    order.shopName ? `Boutique              : ${order.shopName}` : null,
+    order.storeUrl ? `URL boutique          : ${order.storeUrl}` : null,
+    `Client                : ${contact.name}${contact.companyName ? ` — ${contact.companyName}` : ""}`,
+    contact.email ? `Courriel              : ${contact.email}` : null,
+    `Montant               : ${(order.amountCents / 100).toLocaleString("fr-CA", { minimumFractionDigits: 2 })} ${order.currency.toUpperCase()}`,
+  ].filter(Boolean) as string[];
+
+  if (order.zohoBooksSalesOrderNumber) {
+    lines.push(`Commande Zoho Books   : ${order.zohoBooksSalesOrderNumber}`);
+  }
+  if (order.zohoBooksSalesOrderUrl) {
+    lines.push(`Lien Zoho Books       : ${order.zohoBooksSalesOrderUrl}`);
+  }
+
+  const items = Array.isArray(order.lineItems) ? (order.lineItems as Record<string, unknown>[]) : [];
+  if (items.length > 0) {
+    lines.push("", "Articles :");
+    for (const item of items) {
+      const title = String(item.name ?? item.title ?? "Article");
+      const qty = Number(item.quantity) || 1;
+      const rate = Number(item.unitPrice ?? item.price ?? 0);
+      const sku = item.sku ? ` (${item.sku})` : "";
+      lines.push(`  • ${title}${sku} × ${qty} @ ${rate.toLocaleString("fr-CA", { minimumFractionDigits: 2 })} $`);
+    }
+  }
+
+  if (order.systemdOrderId != null) {
+    lines.push("", `Lien interne : ${appDomain}/admin/orders/systemd/${order.systemdOrderId}`);
+  }
 
   return { name, description: lines.join("\n") };
 }

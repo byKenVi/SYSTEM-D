@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { classifyShopifyFailure, fetchShopifyOrders } from "./shopify-api";
 import { fetchWooOrders, normalizeWooOrders } from "./woocommerce-api";
 import { log } from "./index";
+import { afterShopifyOrdersSynced } from "./order-zoho-integration";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
 const INITIAL_RETRY_DELAY_MS = 2 * 60 * 1000;
@@ -42,6 +43,9 @@ export async function syncOrdersForIntegration(integration: { id: number; contac
   }
 
   await storage.upsertShopifyOrdersByIntegration(integration.id, orders);
+  await afterShopifyOrdersSynced(integration.id).catch((err) => {
+    log(`Post-sync Zoho Books hook failed for integration ${integration.id}: ${err.message}`, "orders-sync");
+  });
   await storage.updateShopifyIntegration(integration.id, {
     lastOrderSyncAt: new Date(),
     connectionStatus: "ok",

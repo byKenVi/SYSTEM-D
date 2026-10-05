@@ -3,7 +3,8 @@ import { Fragment, useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AsyncContentRegion, ListLoadingSkeleton } from "@/components/async-content-region";
+import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -97,6 +98,40 @@ interface OrdersResponse {
   totalCount: number;
 }
 
+interface OrderQueueItem {
+  queueKey: string;
+  source: "systemd" | "client_product" | "shopify_direct";
+  systemdOrderId: number | null;
+  shopifyIntegrationId: number | null;
+  shopifyOrderId: string | null;
+  displayNumber: string;
+  shopifyOrderName: string | null;
+  contactId: number;
+  contactName: string | null;
+  companyName: string | null;
+  shopName: string | null;
+  storeUrl: string | null;
+  amountCents: number;
+  currency: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  lineItems: unknown;
+  shopifyAdminUrl: string | null;
+  zohoBooksSalesOrderUrl: string | null;
+  zohoProjectId: string | null;
+  createdAt: string | null;
+}
+
+function QueueSourceBadge({ source }: { source: OrderQueueItem["source"] }) {
+  const map: Record<OrderQueueItem["source"], { label: string; cls: string }> = {
+    systemd: { label: "Système D", cls: "bg-primary/10 text-primary border-primary/20" },
+    client_product: { label: "Produit client", cls: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20" },
+    shopify_direct: { label: "Shopify direct", cls: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" },
+  };
+  const cfg = map[source];
+  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cfg.cls}`}>{cfg.label}</span>;
+}
+
 function FinancialBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-muted-foreground/40 text-xs">—</span>;
   const map: Record<string, { label: string; class: string }> = {
@@ -139,6 +174,17 @@ export default function AdminOrders() {
 
   const [sdSearch, setSdSearch] = useState("");
   const [sdExpandedId, setSdExpandedId] = useState<number | null>(null);
+  const [queueFilter, setQueueFilter] = useState<"all" | "to_process" | "processing">("all");
+
+  const { data: queueData, isLoading: queueLoading, refetch: refetchQueue } = useQuery<{ items: OrderQueueItem[]; totalCount: number }>({
+    queryKey: ["/api/admin/orders-queue"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/orders-queue", { credentials: "include" });
+      if (!response.ok) throw new Error("Impossible de charger la file de traitement");
+      return response.json();
+    },
+    staleTime: 30 * 1000,
+  });
 
   const { data, isLoading, isError: ordersError, refetch: refetchOrders } = useQuery<OrdersResponse>({
     queryKey: ["/api/admin/orders"],
@@ -177,8 +223,39 @@ export default function AdminOrders() {
       const response = await apiRequest("PATCH", `/api/admin/systemd-orders/${id}/fulfillment`, { fulfillmentStatus });
       return response.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders-queue"] });
+    },
   });
+
+  const queueFulfillmentMutation = useMutation({
+    mutationFn: async ({ item, fulfillmentStatus }: { item: OrderQueueItem; fulfillmentStatus: "processing" | "completed" }) => {
+      if (item.systemdOrderId != null) {
+        const response = await apiRequest("PATCH", `/api/admin/systemd-orders/${item.systemdOrderId}/fulfillment`, { fulfillmentStatus });
+        return response.json();
+      }
+      if (item.shopifyIntegrationId != null && item.shopifyOrderId) {
+        const response = await apiRequest(
+          "PATCH",
+          `/api/admin/shopify-orders/${item.shopifyIntegrationId}/${item.shopifyOrderId}/fulfillment`,
+          { fulfillmentStatus },
+        );
+        return response.json();
+      }
+      throw new Error("Commande non traitable");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/systemd-orders"] });
+    },
+  });
+
+  const queueItems = useMemo(() => {
+    const items = queueData?.items ?? [];
+    if (queueFilter === "all") return items;
+    return items.filter((item) => item.fulfillmentStatus === queueFilter);
+  }, [queueData, queueFilter]);
 
   const orders = data?.orders ?? [];
 
@@ -227,13 +304,137 @@ export default function AdminOrders() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Commandes</h1>
-        <p className="text-muted-foreground mt-1">Toutes les commandes de vos boutiques Shopify connectées</p>
+        <p className="text-muted-foreground mt-1">File de traitement unifiée (Système D + Shopify) et historique des sync Shopify</p>
       </div>
+
+      <Card className="border-primary/20">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-lg">À traiter</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Commandes payées en attente ou en cours — toutes boutiques connectées</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={queueFilter} onValueChange={(v) => setQueueFilter(v as typeof queueFilter)}>
+              <SelectTrigger className="h-9 w-40 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="to_process">À traiter</SelectItem>
+                <SelectItem value="processing">En cours</SelectItem>
+              </SelectContent>
+            </Select>
+            {queueData && (
+              <Badge variant="secondary" className="tabular-nums">{queueData.totalCount}</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="responsive-table">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Date</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Boutique</TableHead>
+                  <TableHead>N° commande</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Traitement</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="w-36" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {queueLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-6">
+                      <ListLoadingSkeleton rows={3} rowClassName="h-4 w-full max-w-md mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : queueItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-28 text-center text-sm text-muted-foreground">
+                      Aucune commande dans la file pour ce filtre.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  queueItems.map((item) => {
+                    const lineItems = Array.isArray(item.lineItems) ? item.lineItems : [];
+                    const canProcess = item.fulfillmentStatus !== "completed";
+                    const nextStatus = item.fulfillmentStatus === "processing" ? "completed" : "processing";
+                    const label = item.fulfillmentStatus === "processing" ? "Terminer" : "Commencer";
+                    return (
+                      <TableRow key={item.queueKey} className="group">
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                        </TableCell>
+                        <TableCell><QueueSourceBadge source={item.source} /></TableCell>
+                        <TableCell className="text-sm">
+                          {item.source === "shopify_direct" || item.source === "client_product"
+                            ? (item.shopName ?? item.storeUrl ?? "—")
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono text-sm font-bold">{item.displayNumber}</span>
+                            {item.systemdOrderId != null && item.shopifyOrderName && (
+                              <span className="text-[10px] text-muted-foreground">SD #{item.systemdOrderId}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm font-medium">{item.contactName ?? item.companyName ?? `#${item.contactId}`}</span>
+                        </TableCell>
+                        <TableCell>
+                          {item.fulfillmentStatus === "to_process" && <Badge variant="secondary">À traiter</Badge>}
+                          {item.fulfillmentStatus === "processing" && <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300">En cours</Badge>}
+                          {item.fulfillmentStatus === "stock_to_reserve" && <Badge className="bg-amber-100 text-amber-800">Stock à réserver</Badge>}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm font-bold tabular-nums">
+                          {(item.amountCents / 100).toLocaleString("fr-CA", { style: "currency", currency: item.currency.toUpperCase() })}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {item.systemdOrderId != null && (
+                              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => navigate(`/admin/orders/systemd/${item.systemdOrderId}`)}>Détail</Button>
+                            )}
+                            {item.shopifyAdminUrl && (
+                              <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
+                                <a href={item.shopifyAdminUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
+                              </Button>
+                            )}
+                            {item.zohoBooksSalesOrderUrl && (
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
+                                <a href={item.zohoBooksSalesOrderUrl} target="_blank" rel="noopener noreferrer">Books</a>
+                              </Button>
+                            )}
+                            {canProcess && (
+                              <Button
+                                size="sm"
+                                className="h-8"
+                                disabled={queueFulfillmentMutation.isPending}
+                                onClick={() => queueFulfillmentMutation.mutate({ item, fulfillmentStatus: nextStatus })}
+                              >
+                                {label}
+                              </Button>
+                            )}
+                          </div>
+                          {lineItems.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground text-right mt-1">{lineItems.length} article{lineItems.length > 1 ? "s" : ""}</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {(ordersError || systemdError) && (
         <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
           <span>Les dernières commandes chargées sont conservées. Une mise à jour a échoué.</span>
-          <Button variant="outline" size="sm" onClick={() => { if (ordersError) refetchOrders(); if (systemdError) refetchSystemd(); }}>Réessayer</Button>
+          <Button variant="outline" size="sm" onClick={() => { if (ordersError) refetchOrders(); if (systemdError) refetchSystemd(); refetchQueue(); }}>Réessayer</Button>
         </div>
       )}
 
@@ -340,6 +541,33 @@ export default function AdminOrders() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          <AsyncContentRegion
+            isLoading={isLoading}
+            isEmpty={filtered.length === 0}
+            loadingFallback={<ListLoadingSkeleton rows={8} rowClassName="h-4 w-full mx-4 max-w-[calc(100%-2rem)]" />}
+            emptyFallback={
+              orders.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon={ShoppingCart}
+                  title="Aucune boutique Shopify connectée"
+                  description="Connectez une boutique Shopify dans les Paramètres pour voir les commandes."
+                  action={
+                    <Link href="/admin/settings">
+                      <Button variant="outline" size="sm">Paramètres</Button>
+                    </Link>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  compact
+                  icon={ShoppingCart}
+                  title="Aucune commande ne correspond à vos filtres"
+                  description="Modifiez la recherche ou les filtres paiement / traitement / client."
+                />
+              )
+            }
+          >
            <div className="responsive-table">
             <Table>
               <TableHeader>
@@ -357,35 +585,7 @@ export default function AdminOrders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {Array.from({ length: 10 }).map((_, j) => (
-                        <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} className="h-40 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        {orders.length === 0 ? (
-                          <>
-                            <SiShopify className="h-8 w-8 text-muted-foreground/20" />
-                            <p className="text-sm font-medium text-muted-foreground">Aucune boutique Shopify connectée</p>
-                            <p className="text-xs text-muted-foreground/60">Connectez une boutique Shopify dans les Paramètres pour voir les commandes</p>
-                          </>
-                        ) : (
-                          <>
-                            <ShoppingCart className="h-7 w-7 text-muted-foreground/30" />
-                            <p className="text-sm text-muted-foreground">Aucune commande ne correspond à vos filtres</p>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((order) => {
+                  {filtered.map((order) => {
                     const customer = order.customer
                       ? `${order.customer.first_name} ${order.customer.last_name}`.trim()
                       : order.email ?? null;
@@ -438,11 +638,11 @@ export default function AdminOrders() {
                         </TableCell>
                       </TableRow>
                     );
-                  })
-                )}
+                  })}
               </TableBody>
             </Table>
           </div>
+          </AsyncContentRegion>
         </CardContent>
       </Card>
 
@@ -479,6 +679,19 @@ export default function AdminOrders() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
+            <AsyncContentRegion
+              isLoading={sdLoading}
+              isEmpty={!systemdOrders?.length}
+              loadingFallback={<ListLoadingSkeleton rows={4} rowClassName="h-4 w-full mx-4 max-w-[calc(100%-2rem)]" />}
+              emptyFallback={
+                <EmptyState
+                  compact
+                  icon={Warehouse}
+                  title="Aucune commande locale ou produit client"
+                  description="Les achats suivis dans Système D apparaîtront ici avec leur source."
+                />
+              }
+            >
              <div className="responsive-table">
               <Table>
                 <TableHeader>
@@ -494,28 +707,9 @@ export default function AdminOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sdLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {Array.from({ length: 8 }).map((_, j) => (
-                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  ) : !systemdOrders || systemdOrders.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-40 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <Warehouse className="h-8 w-8 text-muted-foreground/20" />
-                          <p className="text-sm font-medium text-muted-foreground">Aucune commande locale ou produit client</p>
-                          <p className="text-xs text-muted-foreground/60">Les achats suivis dans Système D apparaîtront ici avec leur source.</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (() => {
+                  {(() => {
                       const q = sdSearch.toLowerCase();
-                      const sdFiltered = systemdOrders.filter((o) => {
+                      const sdFiltered = (systemdOrders ?? []).filter((o) => {
                         if (!q) return true;
                         const clientName = (o.contactName ?? o.companyName ?? "").toLowerCase();
                         const products = Array.isArray(o.lineItems) ? o.lineItems.map((l: any) => l.name ?? "").join(" ").toLowerCase() : "";
@@ -628,11 +822,11 @@ export default function AdminOrders() {
                           </Fragment>
                         );
                       });
-                    })()
-                  )}
+                    })()}
                 </TableBody>
               </Table>
             </div>
+            </AsyncContentRegion>
           </CardContent>
         </Card>
       </div>

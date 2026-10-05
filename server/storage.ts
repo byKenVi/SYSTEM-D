@@ -58,6 +58,17 @@ export interface IStorage {
   getShopifyOrders(filters?: { contactId?: number }): Promise<ShopifyOrder[]>;
   getShopifyOrdersByContactIds(contactIds: number[]): Promise<ShopifyOrder[]>;
   upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void>;
+  updateShopifyOrderZohoFields(
+    integrationId: number,
+    shopifyOrderId: string,
+    data: {
+      zohoBooksSalesOrderId?: string;
+      zohoBooksSalesOrderNumber?: string;
+      zohoBooksSalesOrderUrl?: string;
+      zohoProjectId?: string;
+      operationalFulfillmentStatus?: string;
+    },
+  ): Promise<void>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   claimAdminUserId(userId: string): Promise<string>;
@@ -402,6 +413,7 @@ export class DatabaseStorage implements IStorage {
   async upsertShopifyOrdersByIntegration(integrationId: number, orders: InsertShopifyOrder[]): Promise<void> {
     if (orders.length === 0) return;
     for (const order of orders) {
+      const shopifyFulfilled = order.fulfillmentStatus === "fulfilled";
       await db.insert(shopifyOrders)
         .values(order)
         .onConflictDoUpdate({
@@ -420,9 +432,29 @@ export class DatabaseStorage implements IStorage {
             shopName: order.shopName,
             storeUrl: order.storeUrl,
             syncedAt: new Date(),
+            ...(shopifyFulfilled ? { operationalFulfillmentStatus: "completed" as const } : {}),
           },
         });
     }
+  }
+
+  async updateShopifyOrderZohoFields(
+    integrationId: number,
+    shopifyOrderId: string,
+    data: {
+      zohoBooksSalesOrderId?: string;
+      zohoBooksSalesOrderNumber?: string;
+      zohoBooksSalesOrderUrl?: string;
+      zohoProjectId?: string;
+      operationalFulfillmentStatus?: string;
+    },
+  ): Promise<void> {
+    await db.update(shopifyOrders)
+      .set(data)
+      .where(and(
+        eq(shopifyOrders.integrationId, integrationId),
+        eq(shopifyOrders.shopifyOrderId, shopifyOrderId),
+      ));
   }
 
   async getAdminSettings(): Promise<AdminSettings | undefined> {
