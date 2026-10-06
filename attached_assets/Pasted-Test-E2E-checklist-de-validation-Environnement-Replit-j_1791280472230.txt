@@ -1,0 +1,94 @@
+Test E2E — checklist de validation
+Environnement : Replit à jour, compte admin, Zoho reconnecté (scope Books), portail Projects configuré, au moins 1 boutique Shopify active.
+
+Phase A — Prérequis (bloquant)
+✓	Étape	OK si…
+☐
+Deploy + login admin
+App stable, pas d’erreur 500
+☐
+Zoho reconnecté
+Paramètres → connexion Zoho OK
+☐
+Projects
+Portail sélectionné en paramètres
+☐
+Shopify
+Intégration active, sync commandes sans 401
+Phase B — Commande Système D (boutique crédit / catalogue)
+✓	Action	OK si…
+☐
+Passer une petite commande payée (client test TECHMA)
+Statut Payé
+☐
+Admin → Commandes → file À traiter
+Ligne Système D, bon client, montant, articles
+☐
+Attendre ~1 min, Détail commande
+Lien ou ref Zoho Books (ou log activité zoho_books_so_create sans erreur bloquante)
+☐
+Commencer le traitement
+Statut En cours
+☐
+Zoho Projects
+Nouveau projet (nom = n° commande), description avec articles, montant, lien Books
+☐
+Terminer
+Commande sort de « À traiter » / statut terminé
+☐
+Regressions
+Pas de 2e projet Books/SO si tu rafraîchis (idempotent)
+Phase C — Produit client (app → Shopify + crédit)
+✓	Action	OK si…
+☐
+Achat produit client via portail (compte crédit OK)
+Payé + n° Shopify sur la commande System D
+☐
+File À traiter
+Badge Produit client, pas de doublon « Shopify direct » pour le même n°
+☐
+Books + Commencer → Projects
+Même logique que phase B
+Phase D — Shopify direct (hors app)
+✓	Action	OK si…
+☐
+Créer ou repérer une commande payée sur Shopify (admin Shopify), non passée par l’app
+—
+☐
+System D → Sync commandes Shopify (ou attendre le scheduler)
+Commande visible en Shopify direct, boutique affichée
+☐
+Books
+SO Books créé une fois (activité ou lien dans la file)
+☐
+Commencer / Terminer
+Traitement opérationnel + projet Projects au Commencer
+☐
+Lien Shopify (admin)
+Ouvre la bonne commande
+Phase E — Soumissions CMD (régression)
+✓	Action	OK si…
+☐
+Soumission test → Approuver (admin)
+SO Inventory (pas Books) + projet Projects à l’approbation
+☐
+Description projet
+Ref + lien Inventory, pas créé au « Commencer » d’une commande boutique
+Phase F — Cas limites (5 min)
+✓	Cas	OK si…
+☐
+Commande Shopify déjà liée à une systemd payée
+Une seule ligne dans la file (pas double)
+☐
+Filtres file : À traiter / En cours
+Liste cohérente
+☐
+Échec Books simulé (org/scopes)
+Commande reste visible ; erreur journalisée, app utilisable
+Ordre recommandé (1 session ~45–60 min)
+A → B → D → C → E → F
+
+Preuves à noter (pour sign-off client)
+Captures : file À traiter (3 sources si possible), détail avec Books, projet Projects.
+1 ligne d’activité ou log par flux : Books créé, projet créé (ou message d’erreur explicite).
+Si une case échoue, note quelle phase, message UI ou type d’activité (zoho_books_so_create_error, etc.) — on cible le correctif.
