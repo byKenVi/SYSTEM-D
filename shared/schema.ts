@@ -5,6 +5,19 @@ import { pgTable, text, varchar, integer, boolean, timestamp, decimal, jsonb, un
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Browser-bound requests, never bearer tokens. Production schema is applied by Publish.
+export const testAccessRequests = pgTable("test_access_requests", {
+  id: uuid("id").primaryKey(),
+  sessionHash: text("session_hash").notNull(),
+  ipHash: text("ip_hash").notNull(),
+  code: text("code").notNull(),
+  status: text("status").notNull().default("pending"),
+  approvedBy: varchar("approved_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+});
+
 export const contacts = pgTable("contacts", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: text("name").notNull(),

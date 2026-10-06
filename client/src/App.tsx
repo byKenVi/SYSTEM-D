@@ -46,6 +46,8 @@ import PortalNotifications from "@/pages/portal/notifications";
 import LocalOrderDetail from "@/pages/local-order-detail";
 import FormPrintPage from "@/pages/form-print";
 import { SkipToMainContent } from "@/components/skip-to-main-content";
+import TestAccessPage from "@/pages/test-access";
+import { TestAccessBanner } from "@/components/test-access-banner";
 
 interface UserRole {
   role: "admin" | "client";
@@ -63,6 +65,7 @@ function AdminLayout() {
       <SkipToMainContent />
       <AppSidebar role="admin" />
       <SidebarInset className="overflow-y-auto overflow-x-hidden scrollbar-hide bg-background min-w-0">
+        <TestAccessBanner />
         <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-3 py-2 bg-background/95 backdrop-blur-sm border-b border-border/50 shrink-0">
           <SidebarTrigger
             className="touch-target h-11 w-11 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
@@ -165,6 +168,7 @@ function ClientLayout({ viewAsContactId, showAdminReturn }: { viewAsContactId?: 
       <SkipToMainContent />
       <AppSidebar role="client" viewAsContactId={viewAsContactId} />
       <SidebarInset className="overflow-hidden bg-background min-w-0">
+        <TestAccessBanner />
         {viewAsContactId && <ViewAsBanner contactId={viewAsContactId} />}
         {showAdminReturn && <AdminPortalBanner />}
         {/* En-tête mobile : visible uniquement en dessous de md */}
@@ -402,6 +406,14 @@ function AuthenticatedApp() {
 }
 
 function Router() {
+  const [location] = useLocation();
+  if (location === "/test-access") {
+    return <TestAccessPage />;
+  }
+  return <AuthenticatedRouter />;
+}
+
+function AuthenticatedRouter() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {

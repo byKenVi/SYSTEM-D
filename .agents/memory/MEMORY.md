@@ -7,3 +7,4 @@
 - [External side-effect serialization](external-side-effect-locking.md) — every path creating the same Zoho entity must share a DB lock and re-check state after acquisition.
 - [Shopify checkout identity](shopify-checkout-identity.md) — reuse a short-lived server-synced rep identity, but always reread the balance immediately before debit.
 - [Portal Boutique visual validation](portal-boutique-visual-validation.md) — fixed table widths keep product actions reachable; configure OIDC claims in a fresh session after restarts.
+- [Production test access](production-test-access.md) — browser-bound admin-approved inspection is read-only; purchases and other production mutations need separate authorization.

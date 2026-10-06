@@ -131,6 +131,9 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Only the server-side guard sets this after checking approval, browser binding,
+  // expiry, revocation and the endpoint allowlist. Never deserialize it from Passport.
+  if (req.readOnlyTestAccess) return next();
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

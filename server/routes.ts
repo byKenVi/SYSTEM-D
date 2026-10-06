@@ -3,6 +3,7 @@ import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { registerTestAccessRoutes, testAccessGuard } from "./test-access";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
 import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail, sendSystemdOrderConfirmationEmail, sendSystemdOrderAdminEmail } from "./resend";
@@ -193,6 +194,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
+  app.use(testAccessGuard(async (userId) => (await getUserRole({ user: { claims: { sub: userId } } }, true))?.role === "admin"));
   registerAuthRoutes(app);
 
   async function getAdminUserId(): Promise<string | null> {
@@ -200,7 +202,8 @@ export async function registerRoutes(
     return settings?.adminUserId || null;
   }
 
-  async function getUserRole(req: any) {
+  async function getUserRole(req: any, lookupOnly = false) {
+    if (req.readOnlyTestAccess) return { role: "admin" as const, readOnlyTestAccess: true };
     const userId = req.user?.claims?.sub;
     let email = req.user?.claims?.email as string | undefined;
     if (!userId) return null;
@@ -212,7 +215,7 @@ export async function registerRoutes(
     }
 
     const adminId = await getAdminUserId();
-    if (!adminId) {
+    if (!adminId && !lookupOnly) {
       const bootstrapAdminIds = [
         process.env.ADMIN_BOOTSTRAP_USER_ID,
         ...(process.env.ADDITIONAL_ADMIN_IDS || "").split(","),
@@ -274,7 +277,7 @@ export async function registerRoutes(
         // Link the contact to the real user ID if it has no userId, or if the current
         // userId is a placeholder (e.g. "portal-invited-X") and the real Replit sub differs.
         const isPlaceholder = !contactByEmail.userId || contactByEmail.userId.startsWith("portal-invited-");
-        if (isPlaceholder && contactByEmail.userId !== userId) {
+        if (!lookupOnly && isPlaceholder && contactByEmail.userId !== userId) {
           await storage.updateContact(contactByEmail.id, {
             userId,
             status: "active",
@@ -365,6 +368,8 @@ export async function registerRoutes(
       res.status(500).json({ message: "Internal server error" });
     }
   };
+
+  registerTestAccessRoutes(app, isAuthenticated, isAdmin);
 
   type PendingShopifyOAuth = {
     contactId: number;
@@ -856,7 +861,7 @@ export async function registerRoutes(
       const contactId = integration?.contactId ?? cached?.contactId;
       const contact = allContacts.find((c) => c.id === contactId);
 
-      if (integration) {
+      if (integration && !req.readOnlyTestAccess) {
         try {
           const { fetchShopifyOrderDetail } = await import("./shopify-api");
           const order = await fetchShopifyOrderDetail(integration.storeUrl, integration.accessToken, shopifyOrderId);
@@ -5750,7 +5755,7 @@ export async function registerRoutes(
       const orderId = Number(req.params.id);
       let order = (await storage.getSystemdOrders()).find((candidate) => candidate.id === orderId);
       if (!order) return res.status(404).json({ message: "Commande introuvable." });
-      if (order.status === "pending_shopify") {
+      if (order.status === "pending_shopify" && !req.readOnlyTestAccess) {
         order = await reconcileClientProductOrder(order).catch(() => order!);
       }
       const [contact, rep, logs] = await Promise.all([

@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contact, AdminSettings, ShopifyIntegration, ActivityLog } from "@shared/schema";
 type IntegrationWithCount = ShopifyIntegration & { productCount: number; repCount: number; orderCount: number };
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,8 @@ import {
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { SiShopify, SiWoocommerce } from "react-icons/si";
+import TestAccessManagement from "@/pages/admin/test-access-management";
+import { testAccessRequest, type TestAccessStatus } from "@/pages/test-access";
 
 const ZOHO_REGIONS = [
   { value: "us", label: "United States (zoho.com)" },
@@ -126,33 +128,41 @@ export default function AdminSettingsPage() {
   const [logTypeFilter, setLogTypeFilter] = useState("all");
   const [logStatusFilter, setLogStatusFilter] = useState("all");
   const [adminEmailInput, setAdminEmailInput] = useState("");
+  const testAccessSession = useQuery<TestAccessStatus>({
+    queryKey: ["/api/test-access/status"],
+    queryFn: () => testAccessRequest<TestAccessStatus>("/api/test-access/status"),
+    refetchInterval: 3_000,
+    retry: false,
+  });
 
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
   });
 
-  const { data: integrations } = useQuery<IntegrationWithCount[]>({
+  const { data: integrations, isLoading: integrationsLoading, isError: integrationsError, error: integrationsErrorValue } = useQuery<IntegrationWithCount[]>({
     queryKey: ["/api/shopify-integrations"],
   });
   const { data: shopifyOAuthConfig } = useQuery<{ callbackUrl: string; configured: boolean }>({
     queryKey: ["/api/auth/shopify/callback-url"],
+    enabled: !testAccessSession.isLoading && testAccessSession.data?.status !== "approved",
   });
 
-  const { data: adminSettings, isLoading: settingsLoading } = useQuery<AdminSettings & { zohoInventoryConnected?: boolean }>({
+  const { data: adminSettings, isLoading: settingsLoading } = useQuery<AdminSettings & { zohoInventoryConnected?: boolean; zohoBooksOrgId?: string | null }>({
     queryKey: ["/api/admin-settings"],
   });
 
   const { data: zohoCallbackUrlData } = useQuery<{ callbackUrl: string }>({
     queryKey: ["/api/auth/zoho/callback-url"],
+    enabled: !testAccessSession.isLoading && testAccessSession.data?.status !== "approved",
     staleTime: Infinity,
   });
 
   const { data: pendingOrgs } = useQuery<{ organizations: any[] }>({
     queryKey: ["/api/auth/zoho/pending-organizations"],
-    enabled: orgSelectOpen,
+    enabled: orgSelectOpen && !testAccessSession.isLoading && testAccessSession.data?.status !== "approved",
   });
 
-  const { data: logs, isLoading: logsLoading } = useQuery<ActivityLog[]>({
+  const { data: logs, isLoading: logsLoading, isError: logsError, error: logsErrorValue } = useQuery<ActivityLog[]>({
     queryKey: ["/api/activity-logs"],
     refetchInterval: 30_000,
   });
@@ -218,7 +228,7 @@ export default function AdminSettingsPage() {
       const body = await r.json();
       return body;
     }),
-    enabled: isZohoConnected,
+    enabled: isZohoConnected && !testAccessSession.isLoading && testAccessSession.data?.status !== "approved",
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -560,6 +570,107 @@ export default function AdminSettingsPage() {
     updateAdminEmailsMutation.mutate(additionalAdminEmails.filter((e) => e !== email));
   };
 
+  if (testAccessSession.data?.status === "approved") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Paramètres</h1>
+          <p className="mt-1 text-muted-foreground">Aperçu des connexions configurées · session d’inspection en lecture seule.</p>
+        </div>
+        <TestAccessManagement />
+        <section className="space-y-4" aria-labelledby="readonly-integrations-title">
+          <div>
+            <h2 id="readonly-integrations-title" className="text-lg font-semibold">État des intégrations</h2>
+            <p className="text-sm text-muted-foreground">Informations de configuration uniquement — aucune connexion n’est testée depuis cette session.</p>
+          </div>
+          {settingsLoading || integrationsLoading ? (
+            <div className="grid gap-4 md:grid-cols-2"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3"><h3 className="font-semibold">Zoho Inventory</h3></CardHeader>
+                  <CardContent className="space-y-1 text-sm">
+                    <p>Configuration : <span className="font-medium">{adminSettings?.zohoInventoryConnected ? "Connecté" : "Non configuré"}</span></p>
+                    <p>Organisation : {adminSettings?.zohoInventoryOrgName || "Non renseignée"}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-3"><h3 className="font-semibold">Zoho Projects</h3></CardHeader>
+                  <CardContent className="space-y-1 text-sm">
+                    <p>Portail sélectionné : <span className="font-medium">{adminSettings?.zohoProjectsPortalName || (adminSettings?.zohoProjectsPortalId ? `Portail ${adminSettings.zohoProjectsPortalId}` : "Aucun")}</span></p>
+                    {adminSettings?.zohoProjectsLastTestedAt && (
+                      <p className="text-muted-foreground">Dernière vérification enregistrée : {new Date(adminSettings.zohoProjectsLastTestedAt).toLocaleString("fr-FR")}</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-3"><h3 className="font-semibold">Zoho Books</h3></CardHeader>
+                  <CardContent className="text-sm">
+                    Organisation : {adminSettings?.zohoBooksOrgId || "Aucune organisation configurée"}
+                  </CardContent>
+                </Card>
+              </div>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Boutiques connectées</CardTitle>
+                  <CardDescription>État et derniers événements disponibles pour chaque boutique.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {integrationsError ? (
+                    <div role="alert" className="text-sm text-destructive">Impossible de charger les boutiques : {(integrationsErrorValue as Error)?.message}</div>
+                  ) : !integrations?.length ? (
+                    <p className="text-sm text-muted-foreground">Aucune boutique configurée.</p>
+                  ) : integrations.map((integration) => {
+                    const contact = contacts?.find((item) => item.id === integration.contactId);
+                    return (
+                      <div key={integration.id} className="rounded-md border p-3 text-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium">{integration.shopName || integration.storeUrl}</p>
+                            <p className="break-all text-xs text-muted-foreground">{integration.storeUrl}</p>
+                            {contact && <p className="mt-1 text-xs text-muted-foreground">{contact.name}</p>}
+                          </div>
+                          <Badge variant={integration.isActive ? "default" : "secondary"}>
+                            {integration.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        {integration.lastConnectionError && <p className="mt-2 text-xs text-destructive">Dernière erreur : {integration.lastConnectionError}</p>}
+                        {integration.lastOrderSyncAt && <p className="mt-1 text-xs text-muted-foreground">Dernière synchronisation des commandes : {new Date(integration.lastOrderSyncAt).toLocaleString("fr-FR")}</p>}
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </section>
+        <section aria-labelledby="readonly-activity-title" className="space-y-3">
+          <div>
+            <h2 id="readonly-activity-title" className="text-lg font-semibold">Journal d’activité récent</h2>
+            <p className="text-sm text-muted-foreground">Repères de vérification, en consultation uniquement.</p>
+          </div>
+          <Card><CardContent className="p-4">
+            {logsLoading ? (
+              <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+            ) : logsError ? (
+              <p role="alert" className="text-sm text-destructive">Impossible de charger le journal : {(logsErrorValue as Error)?.message}</p>
+            ) : logs?.length ? (
+              <ul className="divide-y">
+                {logs.slice(0, 8).map((entry) => (
+                  <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                    <span>{entry.message}</span>
+                    <time className="text-xs text-muted-foreground">{entry.createdAt ? new Date(entry.createdAt).toLocaleString("fr-FR") : "Date inconnue"}</time>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-muted-foreground">Aucune entrée récente.</p>}
+          </CardContent></Card>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -571,6 +682,7 @@ export default function AdminSettingsPage() {
         <TabsList data-testid="tabs-settings">
           <TabsTrigger value="integrations" data-testid="tab-integrations">Intégrations</TabsTrigger>
           <TabsTrigger value="activity-log" data-testid="tab-activity-log">Journal d'activité</TabsTrigger>
+          <TabsTrigger value="test-access" data-testid="tab-test-access">Accès de test</TabsTrigger>
         </TabsList>
 
         {/* ── Integrations Tab ── */}
@@ -1584,6 +1696,9 @@ export default function AdminSettingsPage() {
                </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="test-access" className="mt-6">
+          <TestAccessManagement />
         </TabsContent>
       </Tabs>
     </div>

@@ -6,6 +6,13 @@ import { isAuthenticated } from "./replitAuth";
 export function registerAuthRoutes(app: Express): void {
   // Get current authenticated user
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+    if (req.readOnlyTestAccess) {
+      return res.json({
+        id: `test-access:${req.readOnlyTestAccess.id}`,
+        firstName: "Accès de test", lastName: "Lecture seule", email: null,
+        readOnlyTestAccess: true,
+      });
+    }
     try {
       const userId = req.user.claims.sub;
       const user = await authStorage.getUser(userId);
