@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { seedDatabase } from "./seed";
 import { startShopifySyncScheduler } from "./shopify-sync";
 import { startShopifyOrdersSyncScheduler } from "./shopify-orders-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
@@ -168,7 +167,6 @@ app.use((req, res, next) => {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_zoho_catalog_status ON zoho_catalog (status) WHERE is_deleted = FALSE`);
 
   await registerRoutes(httpServer, app);
-  await seedDatabase();
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

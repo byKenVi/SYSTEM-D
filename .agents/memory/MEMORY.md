@@ -9,3 +9,4 @@
 - [Portal Boutique visual validation](portal-boutique-visual-validation.md) — fixed table widths keep product actions reachable; configure OIDC claims in a fresh session after restarts.
 - [Production test access](production-test-access.md) — browser-bound admin-approved inspection is read-only; purchases and other production mutations need separate authorization.
 - [Zoho Books authorization](zoho-books-authorization.md) — existing Inventory grants may need new Books consent; validate Books organizations independently, without creating orders.
+- [Test data hygiene](test-data-hygiene.md) — clean before publication; delete proven fixtures only, not ambiguous paid orders or Zoho-linked forms.

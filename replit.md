@@ -46,7 +46,6 @@ server/
   routes.ts            - All API routes
   storage.ts           - Database storage layer
   db.ts                - Database connection
-  seed.ts              - Seed data
   resend.ts            - Email sending via Resend integration
   zoho-auth.ts         - Zoho OAuth 2.0 flow (auth URL, token exchange, refresh)
   zoho-api.ts          - Zoho Inventory API calls (items, contacts, sales orders)
