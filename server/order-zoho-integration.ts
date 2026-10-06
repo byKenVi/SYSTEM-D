@@ -8,6 +8,10 @@ import { createBooksSalesOrder, getZohoBooksSalesOrderUrl, type BooksLineItem } 
 import { getZohoRegion } from "./zoho-api";
 import { createZohoProject, buildOrderProjectPayload } from "./zoho-projects";
 import { normalizeShopifyStoreUrl } from "./shopify-credit-policy";
+import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./shopify-order-identity";
+import { shopifyAdminUrl } from "@shared/shopify-urls";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 function appDomainFromEnv(): string {
   const raw = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost:5000";
@@ -57,6 +61,13 @@ function booksLineItemsFromShopify(order: ShopifyOrder): BooksLineItem[] {
 }
 
 export async function ensureBooksSalesOrderForSystemdOrder(orderId: number): Promise<void> {
+  await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`books-systemd:${orderId}`}))`);
+    await createBooksSalesOrderForSystemdOrderIfMissing(orderId);
+  });
+}
+
+async function createBooksSalesOrderForSystemdOrderIfMissing(orderId: number): Promise<void> {
   const orders = await storage.getSystemdOrders();
   const order = orders.find((o) => o.id === orderId);
   if (!order || order.status !== "paid") return;
@@ -110,6 +121,18 @@ export async function ensureBooksSalesOrderForShopifyOrder(
   integrationId: number,
   shopifyOrderId: string,
 ): Promise<void> {
+  const candidate = (await storage.getShopifyOrders()).find(order =>
+    order.integrationId === integrationId && order.shopifyOrderId === shopifyOrderId);
+  if (!candidate) return;
+  const store = normalizeShopifyStoreUrl(candidate.storeUrl) || `integration-${integrationId}`;
+  await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`books-shopify:${store}:${shopifyOrderId}`}))`);
+    // Re-read after acquisition; all aliases of the same store/order share this lock.
+    await createBooksSalesOrderForShopifyOrderIfMissing(integrationId, shopifyOrderId);
+  });
+}
+
+async function createBooksSalesOrderForShopifyOrderIfMissing(integrationId: number, shopifyOrderId: string): Promise<void> {
   const all = await storage.getShopifyOrders();
   const order = all.find((o) => o.integrationId === integrationId && o.shopifyOrderId === shopifyOrderId);
   if (!order) return;
@@ -117,11 +140,22 @@ export async function ensureBooksSalesOrderForShopifyOrder(
   if (order.financialStatus === "voided" || order.financialStatus === "refunded") return;
   if (order.financialStatus !== "paid" && order.financialStatus !== "partially_paid") return;
 
-  const systemdLinked = (await storage.getSystemdOrders()).some(
-    (o) => o.shopifyIntegrationId === integrationId && o.shopifyOrderId === shopifyOrderId && o.status === "paid",
-  );
+  const systemdLinked = buildPaidSystemdShopifyKeys(await storage.getSystemdOrders(), all)
+    .has(`${integrationId}:${shopifyOrderId}`);
   if (systemdLinked) return;
 
+  const existingAlias = all.find(candidate =>
+    candidate.shopifyOrderId === shopifyOrderId
+    && normalizeShopifyStoreUrl(candidate.storeUrl) === normalizeShopifyStoreUrl(order.storeUrl)
+    && candidate.zohoBooksSalesOrderId);
+  if (existingAlias) {
+    await storage.updateShopifyOrderZohoFields(integrationId, shopifyOrderId, {
+      zohoBooksSalesOrderId: existingAlias.zohoBooksSalesOrderId ?? undefined,
+      zohoBooksSalesOrderNumber: existingAlias.zohoBooksSalesOrderNumber ?? undefined,
+      zohoBooksSalesOrderUrl: existingAlias.zohoBooksSalesOrderUrl ?? undefined,
+    });
+    return;
+  }
   const contact = await storage.getContact(order.contactId);
   const email = order.email ?? contact?.email;
   if (!email) {
@@ -334,7 +368,7 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
     storage.getContacts(),
   ]);
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
-  const systemdKeys = buildSystemdShopifyKeySet(systemdOrders);
+  const systemdKeys = buildPaidSystemdShopifyKeys(systemdOrders, shopifyOrders);
   const items: AdminOrderQueueItem[] = [];
 
   for (const order of systemdOrders) {
@@ -367,7 +401,7 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
     });
   }
 
-  for (const order of shopifyOrders) {
+  for (const order of dedupeOperationalShopifyOrders(shopifyOrders)) {
     if (!isShopifyOrderEligibleForOpsQueue(order, systemdKeys)) continue;
     const contact = contactMap.get(order.contactId);
     const amountCents = Math.round(parseFloat(order.totalPrice || "0") * 100);
@@ -389,9 +423,7 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
       paymentStatus: order.financialStatus ?? "unknown",
       fulfillmentStatus: order.operationalFulfillmentStatus,
       lineItems: order.lineItems,
-      shopifyAdminUrl: order.storeUrl
-        ? `https://${normalizeShopifyStoreUrl(order.storeUrl)}/admin/orders/${order.shopifyOrderId}`
-        : null,
+      shopifyAdminUrl: shopifyAdminUrl(order.storeUrl, "orders", order.shopifyOrderId) || null,
       zohoBooksSalesOrderUrl: order.zohoBooksSalesOrderUrl,
       zohoProjectId: order.zohoProjectId,
       createdAt: order.shopifyCreatedAt?.toISOString?.() ?? null,
@@ -408,8 +440,8 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
 
 export async function afterShopifyOrdersSynced(integrationId: number): Promise<void> {
   const orders = await storage.getShopifyOrders();
-  const systemdKeys = buildSystemdShopifyKeySet(await storage.getSystemdOrders());
-  for (const order of orders) {
+  const systemdKeys = buildPaidSystemdShopifyKeys(await storage.getSystemdOrders(), orders);
+  for (const order of dedupeOperationalShopifyOrders(orders)) {
     if (order.integrationId !== integrationId) continue;
     if (!isShopifyOrderEligibleForOpsQueue(order, systemdKeys)) continue;
     await ensureBooksSalesOrderForShopifyOrder(integrationId, order.shopifyOrderId);

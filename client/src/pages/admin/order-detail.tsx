@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { PageHeader } from "@/components/page-header";
+import { shopifyAdminUrl } from "@shared/shopify-urls";
 
 interface ShopifyAddress {
   first_name?: string;
@@ -285,7 +286,7 @@ export default function AdminOrderDetail() {
 
   const order = data?.order;
   const isWooCommerce = data?.platform === "woocommerce";
-  const shopifyOrderUrl = storeUrl && !isWooCommerce ? `https://${storeUrl}/admin/orders/${shopifyOrderId}` : null;
+  const shopifyOrderUrl = !isWooCommerce ? shopifyAdminUrl(storeUrl, "orders", shopifyOrderId) : undefined;
 
   if (isLoading) {
     return (
@@ -562,7 +563,7 @@ export default function AdminOrderDetail() {
                   </div>
                 )}
                 {order.customer.id && (
-                  <a href={`https://${storeUrl}/admin/customers/${order.customer.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                  <a href={shopifyAdminUrl(storeUrl, "customers", order.customer.id)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                     <ExternalLink className="h-3 w-3" />Voir dans Shopify
                   </a>
                 )}

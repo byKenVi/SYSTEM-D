@@ -5,6 +5,7 @@
 import { getValidAccessToken, getZohoDomains, refreshAccessToken } from "./zoho-auth";
 import { storage } from "./storage";
 import { getZohoRegion } from "./zoho-api";
+import { BooksConfigurationError, chooseBooksOrganization, type BooksOrganization } from "./zoho-books-policy";
 
 const BOOKS_WEB_DOMAINS: Record<string, string> = {
   us: "books.zoho.com",
@@ -15,11 +16,79 @@ const BOOKS_WEB_DOMAINS: Record<string, string> = {
   ca: "books.zohocloud.ca",
 };
 
-async function getBooksOrgId(region: string): Promise<string> {
+async function getBooksOrgId(): Promise<string> {
   const settings = await storage.getAdminSettings();
-  const orgId = settings?.zohoBooksOrgId || settings?.zohoInventoryOrgId;
-  if (!orgId) throw new Error("Zoho Books organization ID not configured");
+  const orgId = settings?.zohoBooksOrgId;
+  if (!orgId) throw new BooksConfigurationError("BOOKS_ORGANIZATION_REQUIRED", "Configurez l’organisation Zoho Books dans Paramètres avant de créer un bon de commande.");
   return orgId;
+}
+
+function booksApiError(status: number, code: unknown): BooksConfigurationError {
+  if (status === 429) return new BooksConfigurationError("BOOKS_RATE_LIMITED", "Zoho limite temporairement les requêtes. Réessayez plus tard.", 429);
+  if (status === 401 || status === 403 || code === 57 || String(code).includes("SCOPE")) {
+    return new BooksConfigurationError("BOOKS_SCOPE_REQUIRED", "Reconnectez Zoho depuis Paramètres et autorisez l’accès à Zoho Books, puis réessayez.", 403);
+  }
+  return new BooksConfigurationError("BOOKS_API_ERROR", "Zoho Books n’a pas accepté la requête. Vérifiez l’organisation sélectionnée ou réessayez plus tard.", 502);
+}
+
+async function requestBooksData(path: string, region: string, token: string, method = "GET", body?: unknown) {
+  const { api } = getZohoDomains(region);
+  const options = (accessToken: string): RequestInit => ({
+    method, signal: AbortSignal.timeout(20_000),
+    headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, "Content-Type": "application/json" },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  let response = await fetch(`https://${api}/books/v3${path}`, options(token));
+  let data = await response.json().catch(() => ({}));
+  // Missing scopes cannot be fixed by a refresh; never misclassify rate limits.
+  if (response.status === 401 && data.code !== 57 && !String(data.code).includes("SCOPE")) {
+    response = await fetch(`https://${api}/books/v3${path}`, options(await refreshAccessToken(region)));
+    data = await response.json().catch(() => ({}));
+  }
+  if (!response.ok || data.code !== 0) throw booksApiError(response.status, data.code);
+  return data;
+}
+
+export async function fetchBooksOrganizations(): Promise<BooksOrganization[]> {
+  const settings = await storage.getAdminSettings();
+  if (!settings?.zohoInventoryRefreshToken) {
+    throw new BooksConfigurationError("BOOKS_NOT_CONNECTED", "Connectez d’abord Zoho dans Paramètres.", 409);
+  }
+  const region = settings.zohoRegion || "us";
+  const data = await requestBooksData("/organizations", region, await getValidAccessToken(region));
+  return (Array.isArray(data.organizations) ? data.organizations : [])
+    .filter((org: any) => org.is_active !== false && /^\d+$/.test(String(org.organization_id)))
+    .map((org: any) => ({ organization_id: String(org.organization_id), name: String(org.name || org.organization_id), currency_code: org.currency_code }));
+}
+
+async function validateBooksReads(organizationId: string): Promise<void> {
+  const region = await getZohoRegion();
+  const token = await getValidAccessToken(region);
+  for (const path of ["/salesorders", "/contacts"]) {
+    await requestBooksData(`${path}?organization_id=${encodeURIComponent(organizationId)}&per_page=1`, region, token);
+  }
+}
+
+export async function configureBooksOrganization(requestedId?: string) {
+  const settings = await storage.getAdminSettings();
+  const organizations = await fetchBooksOrganizations();
+  const organization = chooseBooksOrganization(organizations, settings?.zohoInventoryOrgId, requestedId);
+  await validateBooksReads(organization.organization_id);
+  // Targeted write only: never restore a stale OAuth token from a settings snapshot.
+  await storage.upsertAdminSettings({ zohoBooksOrgId: organization.organization_id });
+  await storage.createActivityLog({
+    type: "zoho_books_configured", status: "success",
+    message: `Zoho Books configuré pour ${organization.name}; accès en lecture vérifié, aucune commande créée.`,
+  });
+  return { organizationId: organization.organization_id, organizationName: organization.name, message: "Zoho Books configuré. L’accès aux contacts et bons de commande a été vérifié en lecture seule." };
+}
+
+export async function testBooksConnection() {
+  const organizationId = await getBooksOrgId();
+  const organizations = await fetchBooksOrganizations();
+  chooseBooksOrganization(organizations, null, organizationId);
+  await validateBooksReads(organizationId);
+  return { ok: true, organizationId, message: "Connexion Zoho Books vérifiée en lecture seule. Aucune commande créée." };
 }
 
 async function booksRequest(
@@ -29,33 +98,10 @@ async function booksRequest(
   region?: string,
 ): Promise<any> {
   const r = region ?? (await getZohoRegion());
+  const orgId = await getBooksOrgId();
   const token = await getValidAccessToken(r);
-  const orgId = await getBooksOrgId(r);
-  const { api } = getZohoDomains(r);
   const sep = path.includes("?") ? "&" : "?";
-  const url = `https://${api}/books/v3${path}${sep}organization_id=${orgId}`;
-
-  const buildOptions = (accessToken: string): RequestInit => ({
-    method,
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-
-  let res = await fetch(url, buildOptions(token));
-  if (res.status === 401) {
-    const freshToken = await refreshAccessToken(r);
-    res = await fetch(url, buildOptions(freshToken));
-  }
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Zoho Books ${method} ${path} failed: ${res.status} ${text}`);
-  }
-
-  return res.json();
+  return requestBooksData(`${path}${sep}organization_id=${encodeURIComponent(orgId)}`, r, token, method, body);
 }
 
 export function getZohoBooksSalesOrderUrl(region: string, salesorderId: string): string {

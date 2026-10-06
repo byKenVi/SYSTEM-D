@@ -3,7 +3,8 @@ import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { registerTestAccessRoutes, testAccessGuard } from "./test-access";
+import { registerTestAccessRoutes, testAccessGuard, sameOrigin } from "./test-access";
+import { registerZohoBooksRoutes } from "./zoho-books-routes";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { insertShopifyIntegrationSchema, insertAdminSettingsSchema } from "@shared/schema";
 import { sendInviteEmail, sendFormSubmissionEmail, sendFormStatusEmail, sendFormAdminNotificationEmail, sendSystemdOrderConfirmationEmail, sendSystemdOrderAdminEmail } from "./resend";
@@ -370,6 +371,7 @@ export async function registerRoutes(
   };
 
   registerTestAccessRoutes(app, isAuthenticated, isAdmin);
+  registerZohoBooksRoutes(app, isAuthenticated, isAdmin, sameOrigin);
 
   type PendingShopifyOAuth = {
     contactId: number;
@@ -1850,9 +1852,7 @@ export async function registerRoutes(
       const org = orgs[0];
       const expiresAt = new Date(Date.now() + (tokens.expires_in - 60) * 1000);
 
-      const existing = await storage.getAdminSettings();
       await storage.upsertAdminSettings({
-        ...(existing || {}),
         zohoInventoryRefreshToken: tokens.refresh_token,
         zohoInventoryOrgId: org.organization_id,
         zohoInventoryOrgName: org.name,
@@ -1860,6 +1860,7 @@ export async function registerRoutes(
         zohoTokenExpiresAt: expiresAt,
         zohoRegion: region,
       });
+      invalidateAccessTokenCache();
 
       if (orgs.length > 1) {
         // Store pending orgs in memory for selection step
@@ -1894,9 +1895,7 @@ export async function registerRoutes(
       if (!org) return res.status(404).json({ message: "Organization not found" });
 
       const expiresAt = new Date(Date.now() + (tokens.expires_in - 60) * 1000);
-      const existing = await storage.getAdminSettings();
       await storage.upsertAdminSettings({
-        ...(existing || {}),
         zohoInventoryRefreshToken: tokens.refresh_token,
         zohoInventoryOrgId: org.organization_id,
         zohoInventoryOrgName: org.name,
@@ -1904,6 +1903,7 @@ export async function registerRoutes(
         zohoTokenExpiresAt: expiresAt,
         zohoRegion: tokens.region,
       });
+      invalidateAccessTokenCache();
 
       delete (global as any).__zoho_pending_orgs;
       delete (global as any).__zoho_pending_tokens;
@@ -1921,6 +1921,7 @@ export async function registerRoutes(
       // Zoho Projects settings (portalId, portalName) are preserved intentionally
       // so they survive reconnection without requiring reconfiguration.
       await storage.disconnectZohoInventory();
+      invalidateAccessTokenCache();
       await storage.createActivityLog({
         type: "zoho_inventory_disconnect",
         status: "success",

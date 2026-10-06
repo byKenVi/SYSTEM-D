@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useParams, useLocation, Link } from "wouter";
 import type { Contact, Product, ShopifyIntegration } from "@shared/schema";
+import { shopifyAdminUrl } from "@shared/shopify-urls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -430,7 +431,7 @@ export default function ContactDetail() {
                   )}
                 </div>
                 {integration ? (
-                  <a href={`https://${integration.storeUrl}/admin`} target="_blank" rel="noopener noreferrer">
+                  <a href={shopifyAdminUrl(integration.storeUrl)} target="_blank" rel="noopener noreferrer">
                     <Button variant="ghost" size="icon" className="h-6 w-6">
                       <ExternalLink className="h-3 w-3" />
                     </Button>

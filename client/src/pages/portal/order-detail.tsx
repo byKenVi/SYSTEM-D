@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { PageBreadcrumb } from "@/components/page-header";
+import { shopifyAdminUrl } from "@shared/shopify-urls";
 
 function fmt(date?: string | null) {
   if (!date) return "—";
@@ -102,7 +103,7 @@ export default function PortalOrderDetail() {
   const order = data?.order;
   const isWooCommerce = data?.platform === "woocommerce";
   const shopifyOrderUrl = storeUrl && shopifyOrderId && !isWooCommerce
-    ? `https://${storeUrl}/admin/orders/${shopifyOrderId}`
+    ? shopifyAdminUrl(storeUrl, "orders", shopifyOrderId)
     : null;
 
   if (isLoading) {

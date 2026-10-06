@@ -35,6 +35,7 @@ import {
   Package,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
+import { shopifyAdminUrl } from "@shared/shopify-urls";
 
 interface SystemdOrder {
   id: number;
@@ -589,7 +590,7 @@ export default function AdminOrders() {
                     const customer = order.customer
                       ? `${order.customer.first_name} ${order.customer.last_name}`.trim()
                       : order.email ?? null;
-                    const shopifyOrderUrl = `https://${order.storeUrl}/admin/orders/${order.id}`;
+                    const shopifyOrderUrl = shopifyAdminUrl(order.storeUrl, "orders", order.id);
                     return (
                       <TableRow key={`${order.storeUrl}-${order.id}`} data-testid={`row-order-${order.id}`} className="group cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate(`/admin/orders/${order.id}?store=${encodeURIComponent(order.storeUrl)}${order.contactId ? `&contactId=${order.contactId}` : ""}&returnTo=/admin/orders`)}>
                         <TableCell className="font-medium font-mono text-sm">{order.name}</TableCell>

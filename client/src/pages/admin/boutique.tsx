@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, Contact } from "@shared/schema";
 import { dedupeCatalogProducts } from "@shared/catalog-product-deduplication";
+import { shopifyAdminUrl } from "@shared/shopify-urls";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1115,7 +1116,7 @@ export default function AdminBoutique() {
                   <TableBody>
                       {filteredOrders.map((order) => {
                         const customer = order.customer ? `${order.customer.first_name} ${order.customer.last_name}`.trim() : order.email ?? null;
-                        const shopifyOrderUrl = order.storeUrl ? `https://${order.storeUrl}/admin/orders/${order.id}` : null;
+                        const shopifyOrderUrl = shopifyAdminUrl(order.storeUrl, "orders", order.id);
                         const detailParams = new URLSearchParams({
                           store: order.storeUrl,
                           integrationId: String(order.integrationId),
@@ -1243,7 +1244,7 @@ export default function AdminBoutique() {
                     ) : filteredCustomers.map((c) => {
                       const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ") || "—";
                       const location = [c.default_address?.city, c.default_address?.province, c.default_address?.country].filter(Boolean).join(", ");
-                      const shopifyCustomerUrl = `https://${c.storeUrl}/admin/customers/${c.id}`;
+                      const shopifyCustomerUrl = shopifyAdminUrl(c.storeUrl, "customers", c.id);
                       const dateStr = new Date(c.created_at).toLocaleDateString("fr-CA", { month: "short", day: "numeric", year: "numeric" });
                       return (
                         <TableRow key={`${c.storeUrl}-${c.id}`} data-testid={`row-customer-${c.id}`} className="group cursor-pointer" onClick={() => {

@@ -55,6 +55,7 @@ import { useLocation } from "wouter";
 import { SiShopify, SiWoocommerce } from "react-icons/si";
 import TestAccessManagement from "@/pages/admin/test-access-management";
 import { testAccessRequest, type TestAccessStatus } from "@/pages/test-access";
+import { ZohoBooksSettings } from "@/components/zoho-books-settings";
 
 const ZOHO_REGIONS = [
   { value: "us", label: "United States (zoho.com)" },
@@ -220,6 +221,9 @@ export default function AdminSettingsPage() {
   }, []);
 
   const isZohoConnected = !!adminSettings?.zohoInventoryConnected;
+  const canManageZohoBooks = !testAccessSession.isLoading
+    && !testAccessSession.isError
+    && !["approved", "expired", "revoked"].includes(testAccessSession.data?.status || "");
 
   // Live connection test — only fires when the Integrations tab is visible and Zoho appears connected
   const { data: zohoTestResult } = useQuery<{ ok: boolean; rateLimited?: boolean; reason?: string; message?: string }>({
@@ -607,7 +611,7 @@ export default function AdminSettingsPage() {
                 <Card>
                   <CardHeader className="pb-3"><h3 className="font-semibold">Zoho Books</h3></CardHeader>
                   <CardContent className="text-sm">
-                    Organisation : {adminSettings?.zohoBooksOrgId || "Aucune organisation configurée"}
+                    ID d’organisation Books enregistré : {adminSettings?.zohoBooksOrgId || "Aucune organisation configurée"}
                   </CardContent>
                 </Card>
               </div>
@@ -1115,6 +1119,13 @@ export default function AdminSettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            {canManageZohoBooks && (
+              <ZohoBooksSettings
+                enabled={canManageZohoBooks}
+                onReconnect={() => connectZohoMutation.mutate()}
+              />
+            )}
 
             {/* Store Integrations Card */}
             <Card>
