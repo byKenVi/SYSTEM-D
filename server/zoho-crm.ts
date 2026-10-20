@@ -21,7 +21,14 @@ const CRM_WEB_DOMAINS: Record<string, string> = {
   ca: "crm.zohocloud.ca",
 };
 
-/** Nom de l'étape du pipeline où atterrissent les commandes. Surchargable sans redeploy. */
+// ── Cible CRM configurable (sans redeploy) ───────────────────────────────────
+// Le module "Pipelines" affiché dans le CRM est l'étiquette du module dont le
+// nom API reste "Deals". Si l'org utilise un nom API différent, le surcharger ici.
+/** Nom API du module (par défaut "Deals"; l'org SystemD peut l'afficher "Pipelines"). */
+export const ORDER_DEAL_MODULE = process.env.ZOHO_CRM_ORDER_MODULE || "Deals";
+/** Pipeline (layout) cible si multi-pipelines; vide = pipeline par défaut. */
+export const ORDER_DEAL_PIPELINE = process.env.ZOHO_CRM_ORDER_PIPELINE || "";
+/** Étape où atterrissent les commandes. */
 export const ORDER_DEAL_STAGE = process.env.ZOHO_CRM_ORDER_STAGE || "Commande reçue";
 
 export class CrmError extends Error {
@@ -38,8 +45,10 @@ function crmApiBase(region: string): string {
 
 export function getCrmDealUrl(region: string, dealId: string): string {
   const domain = CRM_WEB_DOMAINS[region] || CRM_WEB_DOMAINS.us;
-  // Deep link vers l'enregistrement; le module Deals utilise l'onglet Potentials.
-  return `https://${domain}/crm/tab/Potentials/${dealId}`;
+  // Deep link vers l'enregistrement. Le module Deals utilise l'onglet legacy
+  // "Potentials"; pour un module custom on retombe sur son nom API.
+  const tab = ORDER_DEAL_MODULE === "Deals" ? "Potentials" : ORDER_DEAL_MODULE;
+  return `https://${domain}/crm/tab/${tab}/${dealId}`;
 }
 
 function isScopeError(status: number, body: any): boolean {
@@ -117,11 +126,12 @@ export async function createCrmDeal(
     Amount: Number.isFinite(params.amount) ? params.amount : 0,
     Closing_Date: closing,
   };
+  if (ORDER_DEAL_PIPELINE) record.Pipeline = ORDER_DEAL_PIPELINE;
   if (params.description) record.Description = params.description;
   if (params.accountId) record.Account_Name = { id: params.accountId };
   if (params.contactId) record.Contact_Name = { id: params.contactId };
 
-  const { data } = await crmRequest("POST", "/Deals", { data: [record] }, region);
+  const { data } = await crmRequest("POST", `/${ORDER_DEAL_MODULE}`, { data: [record] }, region);
   const first = data?.data?.[0];
   if (first?.code !== "SUCCESS" || !first?.details?.id) {
     const reason = first?.message || data?.message || "réponse inattendue";
@@ -137,7 +147,7 @@ export async function updateCrmDeal(
   fields: Record<string, unknown>,
 ): Promise<void> {
   const region = await getZohoRegion();
-  const { data } = await crmRequest("PUT", "/Deals", { data: [{ id: dealId, ...fields }] }, region);
+  const { data } = await crmRequest("PUT", `/${ORDER_DEAL_MODULE}`, { data: [{ id: dealId, ...fields }] }, region);
   const first = data?.data?.[0];
   if (first && first.code !== "SUCCESS") {
     throw new CrmError(`Mise à jour du devis CRM refusée : ${first.message || "erreur inconnue"}`);
@@ -152,7 +162,7 @@ export async function uploadDealAttachment(
 ): Promise<void> {
   const region = await getZohoRegion();
   const base = crmApiBase(region);
-  const url = `${base}/Deals/${dealId}/Attachments`;
+  const url = `${base}/${ORDER_DEAL_MODULE}/${dealId}/Attachments`;
 
   const send = async (token: string) => {
     const form = new FormData();
