@@ -722,6 +722,9 @@ export interface OrderPdfData {
   storeName?: string | null;
   /** Libellé lisible de la provenance, ex. "Shopify direct". */
   sourceLabel: string;
+  /** Personne ayant passé la commande (acheteur/représentant). */
+  ordererName?: string | null;
+  ordererEmail?: string | null;
   date?: Date | string | null;
   currency: string;
   /** Total en dollars. */
@@ -766,6 +769,10 @@ function addOrderHeader(doc: PDFKit.PDFDocument, order: OrderPdfData, contact?: 
   doc.fontSize(9).font("Helvetica").fillColor(MEDIUM_GRAY);
   if (order.storeName) {
     doc.text(`Boutique: ${order.storeName}`, 50, metaY);
+    metaY += 14;
+  }
+  if (order.ordererName) {
+    doc.text(`Commandé par: ${order.ordererName}${order.ordererEmail ? ` (${order.ordererEmail})` : ""}`, 50, metaY);
     metaY += 14;
   }
   if (contact) {

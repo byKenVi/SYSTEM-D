@@ -462,27 +462,35 @@ function buildDealDescription(input: {
   storeName: string;
   reference: string;
   contact: Contact;
+  ordererName?: string | null;
+  ordererEmail?: string | null;
   totalDollars: number;
   currency: string;
   lineItems: OrderPdfLineItem[];
   booksSalesOrderNumber?: string | null;
   projectUrl?: string | null;
 }): string {
+  const money = (n: number) => n.toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const lines: (string | null)[] = [
     `Source : ${input.sourceLabel}`,
     `Boutique : ${input.storeName}`,
     `Commande : ${input.reference}`,
+    input.ordererName
+      ? `Commandé par : ${input.ordererName}${input.ordererEmail ? ` (${input.ordererEmail})` : ""}`
+      : null,
     `Client : ${input.contact.name}${input.contact.companyName ? ` — ${input.contact.companyName}` : ""}`,
     input.contact.email ? `Courriel : ${input.contact.email}` : null,
-    `Montant : ${input.totalDollars.toLocaleString("fr-CA", { minimumFractionDigits: 2 })} ${input.currency.toUpperCase()}`,
+    `Montant : ${money(input.totalDollars)} ${input.currency.toUpperCase()}`,
   ];
   if (input.booksSalesOrderNumber) lines.push(`Bon de commande Zoho Books : ${input.booksSalesOrderNumber}`);
   const items = input.lineItems;
   if (items.length > 0) {
-    lines.push("", "Articles :");
+    lines.push("", `Articles (${items.length}) :`);
     for (const li of items) {
-      const sku = li.sku ? ` (${li.sku})` : "";
-      lines.push(`  • ${li.name}${sku} × ${li.quantity} @ ${li.unitPrice.toLocaleString("fr-CA", { minimumFractionDigits: 2 })} $`);
+      const sku = li.sku ? `  ·  SKU ${li.sku}` : "";
+      const lineTotal = li.unitPrice * (Number(li.quantity) || 0);
+      lines.push(`  • ${li.name}${sku}`);
+      lines.push(`      ${li.quantity} × ${money(li.unitPrice)} $ = ${money(lineTotal)} $`);
     }
   }
   if (input.projectUrl) lines.push("", `Projet : ${input.projectUrl}`);
@@ -498,6 +506,8 @@ interface CrmDealFlowInput {
   currency: string;
   lineItems: OrderPdfLineItem[];
   contact: Contact;
+  ordererName?: string | null;
+  ordererEmail?: string | null;
   booksSalesOrderNumber?: string | null;
   createdAtISO?: string | null;
 }
@@ -520,6 +530,8 @@ async function runCrmDealFlow(
     storeName: input.storeName,
     reference: input.reference,
     contact: input.contact,
+    ordererName: input.ordererName,
+    ordererEmail: input.ordererEmail,
     totalDollars,
     currency: input.currency,
     lineItems: input.lineItems,
@@ -563,6 +575,8 @@ async function runCrmDealFlow(
         reference: input.dealName,
         storeName: input.storeName,
         sourceLabel: input.sourceLabel,
+        ordererName: input.ordererName,
+        ordererEmail: input.ordererEmail,
         date: input.createdAtISO ?? null,
         currency: input.currency,
         total: totalDollars,
@@ -597,6 +611,8 @@ async function runCrmDealFlow(
         storeName: input.storeName,
         reference: input.reference,
         contact: input.contact,
+        ordererName: input.ordererName,
+        ordererEmail: input.ordererEmail,
         totalDollars,
         currency: input.currency,
         lineItems: input.lineItems,
@@ -676,6 +692,8 @@ export async function ensureCrmDealForShopifyOrder(
   const reference = order.name;
   const dealName = `${storeName} ${reference}`;
   const totalCents = Math.round(parseFloat(order.totalPrice || "0") * 100);
+  const ordererName = [order.customerFirstName, order.customerLastName]
+    .map((p) => (p ?? "").trim()).filter(Boolean).join(" ") || null;
 
   try {
     await runCrmDealFlow(
@@ -684,6 +702,8 @@ export async function ensureCrmDealForShopifyOrder(
         totalCents, currency: order.currency,
         lineItems: normalizeLineItemsForPdf(order.lineItems),
         contact,
+        ordererName,
+        ordererEmail: order.email,
         booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
         createdAtISO: order.shopifyCreatedAt?.toISOString?.() ?? null,
       },
