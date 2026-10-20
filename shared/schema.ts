@@ -94,6 +94,8 @@ export const shopifyOrders = pgTable("shopify_orders", {
   zohoBooksSalesOrderNumber: text("zoho_books_sales_order_number"),
   zohoBooksSalesOrderUrl: text("zoho_books_sales_order_url"),
   zohoProjectId: text("zoho_project_id"),
+  zohoCrmDealId: text("zoho_crm_deal_id"),
+  zohoCrmDealUrl: text("zoho_crm_deal_url"),
   syncedAt: timestamp("synced_at").defaultNow(),
 }, (table) => ({
   integrationOrderUnique: unique().on(table.integrationId, table.shopifyOrderId),
@@ -348,6 +350,8 @@ export const systemdOrders = pgTable("systemd_orders", {
   zohoBooksSalesOrderNumber: text("zoho_books_sales_order_number"),
   zohoBooksSalesOrderUrl: text("zoho_books_sales_order_url"),
   zohoProjectId: text("zoho_project_id"),
+  zohoCrmDealId: text("zoho_crm_deal_id"),
+  zohoCrmDealUrl: text("zoho_crm_deal_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

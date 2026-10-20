@@ -119,6 +119,7 @@ interface OrderQueueItem {
   lineItems: unknown;
   shopifyAdminUrl: string | null;
   zohoBooksSalesOrderUrl: string | null;
+  zohoCrmDealUrl: string | null;
   zohoProjectId: string | null;
   createdAt: string | null;
 }
@@ -405,6 +406,11 @@ export default function AdminOrders() {
                             {item.zohoBooksSalesOrderUrl && (
                               <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
                                 <a href={item.zohoBooksSalesOrderUrl} target="_blank" rel="noopener noreferrer">Books</a>
+                              </Button>
+                            )}
+                            {item.zohoCrmDealUrl && (
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
+                                <a href={item.zohoCrmDealUrl} target="_blank" rel="noopener noreferrer">Devis</a>
                               </Button>
                             )}
                             {canProcess && (

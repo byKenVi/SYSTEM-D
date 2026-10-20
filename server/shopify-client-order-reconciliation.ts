@@ -241,8 +241,8 @@ export async function reconcileClientProductOrder(order: SystemdOrder): Promise<
     }
   }
 
-  const { ensureBooksSalesOrderForSystemdOrder } = await import("./order-zoho-integration");
-  void ensureBooksSalesOrderForSystemdOrder(paid.id);
+  const { ensureZohoOrderPipelineForSystemdOrder } = await import("./order-zoho-integration");
+  void ensureZohoOrderPipelineForSystemdOrder(paid.id);
 
   await storage.createActivityLog({
     type: "shopify_client_product_order_paid",

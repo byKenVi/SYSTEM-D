@@ -153,6 +153,10 @@ app.use((req, res, next) => {
   await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_number TEXT`);
   await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_books_sales_order_url TEXT`);
   await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_project_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS zoho_crm_deal_id TEXT`);
+  await pool.query(`ALTER TABLE systemd_orders ADD COLUMN IF NOT EXISTS zoho_crm_deal_url TEXT`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_crm_deal_id TEXT`);
+  await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS zoho_crm_deal_url TEXT`);
   await pool.query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS zoho_books_org_id TEXT`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent_active`);

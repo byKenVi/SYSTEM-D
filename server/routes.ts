@@ -43,7 +43,7 @@ import {
 import { reconcileClientProductOrder } from "./shopify-client-order-reconciliation";
 import {
   buildAdminOrderQueue,
-  ensureBooksSalesOrderForSystemdOrder,
+  ensureZohoOrderPipelineForSystemdOrder,
   ensureZohoProjectWhenProcessingSystemdOrder,
   ensureZohoProjectWhenProcessingShopifyOrder,
 } from "./order-zoho-integration";
@@ -867,14 +867,14 @@ export async function registerRoutes(
         try {
           const { fetchShopifyOrderDetail } = await import("./shopify-api");
           const order = await fetchShopifyOrderDetail(integration.storeUrl, integration.accessToken, shopifyOrderId);
-          return res.json({ order, contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl: normalizeShopifyStoreUrl(integration.storeUrl), integrationId: integration.id, liveUnavailable: false });
+          return res.json({ order, contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: integration.shopName, storeUrl: normalizeShopifyStoreUrl(integration.storeUrl), integrationId: integration.id, zohoCrmDealUrl: cached?.zohoCrmDealUrl ?? null, liveUnavailable: false });
         } catch (liveError: any) {
           if (!cached) throw liveError;
           await storage.createActivityLog({ type: "shopify_order_live_fallback", status: "error", message: `Détail local affiché pour ${cached.name}; Shopify live indisponible` }).catch(() => {});
         }
       }
       if (!cached) return res.status(404).json({ message: "Commande introuvable" });
-      return res.json({ order: cachedOrderAsShopify(cached), contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: cached.shopName, storeUrl: normalizeShopifyStoreUrl(cached.storeUrl), integrationId: cached.integrationId, liveUnavailable: true, warning: "Détails locaux affichés. Shopify live indisponible." });
+      return res.json({ order: cachedOrderAsShopify(cached), contactId, contactName: contact?.name ?? null, companyName: contact?.companyName ?? null, shopName: cached.shopName, storeUrl: normalizeShopifyStoreUrl(cached.storeUrl), integrationId: cached.integrationId, zohoCrmDealUrl: cached.zohoCrmDealUrl ?? null, liveUnavailable: true, warning: "Détails locaux affichés. Shopify live indisponible." });
     } catch (error: any) {
       console.error("Error fetching order detail:", error);
       res.status(500).json({ message: error.message || "Failed to fetch order detail" });
@@ -5166,7 +5166,7 @@ export async function registerRoutes(
           shopifyPaymentConfirmedAt: new Date(),
         });
         if (!paidOrder) throw new Error("Impossible d’enregistrer la commande Shopify payée dans Système D.");
-        void ensureBooksSalesOrderForSystemdOrder(paidOrder.id);
+        void ensureZohoOrderPipelineForSystemdOrder(paidOrder.id);
       } catch (error: any) {
         const orderDefinitelyRejected = error instanceof ShopifyOrderCreateError && error.outcome === "rejected";
         const debitDefinitelyRejected = isShopifyDebitDefinitelyRejected(error);
@@ -5563,7 +5563,7 @@ export async function registerRoutes(
           shopifyCreditTransactionId: debitResult.transactionId,
         });
         if (!paidOrder) throw new Error("Impossible d'enregistrer la commande payée.");
-        void ensureBooksSalesOrderForSystemdOrder(paidOrder.id);
+        void ensureZohoOrderPipelineForSystemdOrder(paidOrder.id);
       } catch (error: any) {
         // Once a debit request is submitted, transport/API failures are ambiguous:
         // Shopify may have committed it even when the response was lost. Only a
@@ -5857,7 +5857,7 @@ export async function registerRoutes(
           shopifyCreditTransactionId: transaction.id,
         });
         if (!updated) return res.status(409).json({ message: "La commande a déjà été résolue." });
-        void ensureBooksSalesOrderForSystemdOrder(orderId);
+        void ensureZohoOrderPipelineForSystemdOrder(orderId);
         await storage.createActivityLog({
           type: "shopify_credit_reconciliation_paid",
           status: "success",

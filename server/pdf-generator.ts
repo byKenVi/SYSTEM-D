@@ -702,3 +702,154 @@ export function generateFormPdf(
     doc.end();
   });
 }
+
+// ─── Order / "Devis" PDF ──────────────────────────────────────────────────────
+// Généré pour chaque commande (Système D ou Shopify direct) afin d'être joint au
+// devis CRM et au projet Zoho. Volontairement découplé de FormSubmission : la
+// couche d'orchestration normalise les articles avant de les passer ici.
+
+export interface OrderPdfLineItem {
+  name: string;
+  sku?: string | null;
+  quantity: number;
+  /** Prix unitaire en dollars (déjà converti, pas en cents). */
+  unitPrice: number;
+}
+
+export interface OrderPdfData {
+  /** Nom/numéro affiché, ex. "Mapei #1234". */
+  reference: string;
+  storeName?: string | null;
+  /** Libellé lisible de la provenance, ex. "Shopify direct". */
+  sourceLabel: string;
+  date?: Date | string | null;
+  currency: string;
+  /** Total en dollars. */
+  total: number;
+  lineItems: OrderPdfLineItem[];
+  salesOrderNumber?: string | null;
+  dealUrl?: string | null;
+  projectUrl?: string | null;
+}
+
+export interface OrderPdfContact {
+  name: string;
+  email?: string | null;
+  companyName?: string | null;
+}
+
+function formatMoney(amount: number, currency: string): string {
+  const safe = Number.isFinite(amount) ? amount : 0;
+  return `${safe.toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency.toUpperCase()}`;
+}
+
+function addOrderHeader(doc: PDFKit.PDFDocument, order: OrderPdfData, contact?: OrderPdfContact) {
+  doc.rect(0, 0, doc.page.width, 80).fill(BRAND_COLOR);
+
+  doc.fontSize(22).fillColor("#ffffff").font("Helvetica-Bold")
+    .text("SYSTÈME-D", 50, 20, { width: 300 });
+  doc.fontSize(9).fillColor("#aaaacc").font("Helvetica")
+    .text("Entreposage & Logistique", 50, 48);
+
+  doc.fontSize(14).fillColor("#ffffff").font("Helvetica-Bold")
+    .text(order.reference, doc.page.width - 250, 20, { width: 200, align: "right" });
+  doc.fontSize(9).fillColor("#aaaacc").font("Helvetica")
+    .text("Bon de commande", doc.page.width - 250, 44, { width: 200, align: "right" });
+
+  doc.fillColor("#333333");
+  doc.y = 95;
+
+  doc.fontSize(13).font("Helvetica-Bold").fillColor(ACCENT_COLOR)
+    .text("Détail de la commande", 50, 95);
+
+  let metaY = 115;
+  doc.fontSize(9).font("Helvetica").fillColor(MEDIUM_GRAY);
+  if (order.storeName) {
+    doc.text(`Boutique: ${order.storeName}`, 50, metaY);
+    metaY += 14;
+  }
+  if (contact) {
+    doc.text(`Client: ${contact.name}${contact.companyName ? ` — ${contact.companyName}` : ""}`, 50, metaY);
+    metaY += 14;
+    if (contact.email) {
+      doc.text(`Courriel: ${contact.email}`, 50, metaY);
+      metaY += 14;
+    }
+  }
+  const dateStr = order.date ? new Date(order.date).toLocaleDateString("fr-CA") : new Date().toLocaleDateString("fr-CA");
+  doc.text(`Date: ${dateStr}`, 50, metaY);
+  metaY += 14;
+  doc.text(`Source: ${order.sourceLabel}`, 50, metaY);
+  metaY += 14;
+
+  doc.moveTo(50, metaY + 4).lineTo(doc.page.width - 50, metaY + 4).strokeColor(TABLE_BORDER).lineWidth(0.5).stroke();
+  doc.y = metaY + 14;
+}
+
+export function generateOrderPdf(order: OrderPdfData, contact?: OrderPdfContact): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: "LETTER",
+      margins: { top: 50, bottom: 50, left: 50, right: 50 },
+      bufferPages: true,
+      info: {
+        Title: order.reference,
+        Author: "Système-D",
+        Subject: order.reference,
+      },
+    });
+
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    addOrderHeader(doc, order, contact);
+
+    sectionTitle(doc, "Articles");
+    const headers = ["Article", "SKU", "Qté", "Prix unit.", "Total"];
+    const colWidths = [230, 110, 40, 75, 57]; // somme = 512 (largeur utile LETTER)
+    const rows = (order.lineItems || []).map((li) => {
+      const qty = Number(li.quantity) || 0;
+      const unit = Number(li.unitPrice) || 0;
+      return [
+        li.name || "Article",
+        li.sku || "—",
+        String(li.quantity ?? ""),
+        formatMoney(unit, order.currency),
+        formatMoney(unit * qty, order.currency),
+      ];
+    });
+    drawTable(doc, headers, rows, colWidths);
+
+    checkPageBreak(doc, 24);
+    doc.moveDown(0.3);
+    doc.fontSize(11).font("Helvetica-Bold").fillColor(ACCENT_COLOR)
+      .text(`Total: ${formatMoney(order.total, order.currency)}`, 50, doc.y, {
+        width: doc.page.width - 100,
+        align: "right",
+      });
+
+    if (order.salesOrderNumber || order.dealUrl || order.projectUrl) {
+      sectionTitle(doc, "Références");
+      if (order.salesOrderNumber) fieldRow(doc, "Bon de commande Zoho Books", order.salesOrderNumber);
+      if (order.dealUrl) fieldRow(doc, "Devis (CRM)", order.dealUrl);
+      if (order.projectUrl) fieldRow(doc, "Projet", order.projectUrl);
+    }
+
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      const bottom = doc.page.height - doc.page.margins.bottom - 18;
+      doc.fontSize(7).fillColor(MEDIUM_GRAY).font("Helvetica");
+      doc.text(order.reference, 50, bottom, { width: 200, align: "left", lineBreak: false });
+      doc.text(`Page ${i + 1} / ${range.count}`, doc.page.width - 150, bottom, { width: 100, align: "right", lineBreak: false });
+      doc.text("Système-D  •  Confidentiel", 50, bottom, { width: doc.page.width - 100, align: "center", lineBreak: false });
+    }
+
+    doc.switchToPage(range.start + range.count - 1);
+    (doc as any).y = doc.page.height - doc.page.margins.bottom - 20;
+
+    doc.end();
+  });
+}

@@ -119,6 +119,34 @@ export async function createZohoProject(
   return project as ZohoProject;
 }
 
+// ── Upload a document (PDF) into a project's Documents ────────────────────────
+export async function uploadProjectDocument(
+  portalId: string,
+  projectId: string,
+  filename: string,
+  pdf: Buffer,
+): Promise<void> {
+  const settings = await storage.getAdminSettings();
+  const region = settings?.zohoRegion || "us";
+  const baseUrl = getProjectsBaseUrl(region);
+  const token = await getValidAccessToken();
+
+  const form = new FormData();
+  form.append("uploaddoc", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), filename);
+
+  const res = await fetch(`${baseUrl}/portal/${portalId}/projects/${projectId}/documents/`, {
+    method: "POST",
+    headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Zoho Projects document upload error ${res.status}: ${errBody}`);
+  }
+}
+
 // ── Labels for form types ─────────────────────────────────────────────────────
 const FORM_TYPE_LABELS: Record<string, string> = {
   entreposage: "Entreposage",

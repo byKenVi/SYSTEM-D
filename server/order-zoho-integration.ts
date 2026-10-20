@@ -3,11 +3,13 @@
  */
 
 import { storage } from "./storage";
-import type { ShopifyOrder, SystemdOrder } from "@shared/schema";
+import type { Contact, ShopifyOrder, SystemdOrder } from "@shared/schema";
 import { createBooksSalesOrder, getZohoBooksSalesOrderUrl, type BooksLineItem } from "./zoho-books";
 import { getZohoRegion } from "./zoho-api";
-import { createZohoProject, buildOrderProjectPayload } from "./zoho-projects";
+import { createZohoProject, buildOrderProjectPayload, uploadProjectDocument } from "./zoho-projects";
 import { normalizeShopifyStoreUrl } from "./shopify-credit-policy";
+import { generateOrderPdf, type OrderPdfLineItem } from "./pdf-generator";
+import { createCrmDeal, updateCrmDeal, uploadDealAttachment, ORDER_DEAL_STAGE } from "./zoho-crm";
 import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./shopify-order-identity";
 import { shopifyAdminUrl } from "@shared/shopify-urls";
 import { db } from "./db";
@@ -357,6 +359,7 @@ export type AdminOrderQueueItem = {
   lineItems: unknown;
   shopifyAdminUrl: string | null;
   zohoBooksSalesOrderUrl: string | null;
+  zohoCrmDealUrl: string | null;
   zohoProjectId: string | null;
   createdAt: string | null;
 };
@@ -396,6 +399,7 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
       lineItems: order.lineItems,
       shopifyAdminUrl: order.shopifyAdminUrl,
       zohoBooksSalesOrderUrl: order.zohoBooksSalesOrderUrl,
+      zohoCrmDealUrl: order.zohoCrmDealUrl,
       zohoProjectId: order.zohoProjectId,
       createdAt: order.createdAt?.toISOString?.() ?? null,
     });
@@ -425,6 +429,7 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
       lineItems: order.lineItems,
       shopifyAdminUrl: shopifyAdminUrl(order.storeUrl, "orders", order.shopifyOrderId) || null,
       zohoBooksSalesOrderUrl: order.zohoBooksSalesOrderUrl,
+      zohoCrmDealUrl: order.zohoCrmDealUrl,
       zohoProjectId: order.zohoProjectId,
       createdAt: order.shopifyCreatedAt?.toISOString?.() ?? null,
     });
@@ -438,6 +443,277 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
   return items;
 }
 
+// ─── Devis CRM (pipeline) + projet + PDF, au paiement ─────────────────────────
+// Chaque commande payée (Système D ou Shopify direct) devient un "devis" dans le
+// module Deals, avec un projet du même nom et un PDF joint aux deux.
+
+function normalizeLineItemsForPdf(lineItems: unknown): OrderPdfLineItem[] {
+  const items = Array.isArray(lineItems) ? (lineItems as any[]) : [];
+  return items.map((it) => ({
+    name: String(it.name ?? it.title ?? "Article"),
+    sku: it.sku ?? null,
+    quantity: Number(it.quantity) || 1,
+    unitPrice: Number(it.unitPrice ?? it.price ?? 0) || 0,
+  }));
+}
+
+function buildDealDescription(input: {
+  sourceLabel: string;
+  storeName: string;
+  reference: string;
+  contact: Contact;
+  totalDollars: number;
+  currency: string;
+  lineItems: OrderPdfLineItem[];
+  booksSalesOrderNumber?: string | null;
+  projectUrl?: string | null;
+}): string {
+  const lines: (string | null)[] = [
+    `Source : ${input.sourceLabel}`,
+    `Boutique : ${input.storeName}`,
+    `Commande : ${input.reference}`,
+    `Client : ${input.contact.name}${input.contact.companyName ? ` — ${input.contact.companyName}` : ""}`,
+    input.contact.email ? `Courriel : ${input.contact.email}` : null,
+    `Montant : ${input.totalDollars.toLocaleString("fr-CA", { minimumFractionDigits: 2 })} ${input.currency.toUpperCase()}`,
+  ];
+  if (input.booksSalesOrderNumber) lines.push(`Bon de commande Zoho Books : ${input.booksSalesOrderNumber}`);
+  const items = input.lineItems;
+  if (items.length > 0) {
+    lines.push("", "Articles :");
+    for (const li of items) {
+      const sku = li.sku ? ` (${li.sku})` : "";
+      lines.push(`  • ${li.name}${sku} × ${li.quantity} @ ${li.unitPrice.toLocaleString("fr-CA", { minimumFractionDigits: 2 })} $`);
+    }
+  }
+  if (input.projectUrl) lines.push("", `Projet : ${input.projectUrl}`);
+  return lines.filter((l) => l !== null).join("\n");
+}
+
+interface CrmDealFlowInput {
+  storeName: string;
+  dealName: string;
+  reference: string;
+  sourceLabel: string;
+  totalCents: number;
+  currency: string;
+  lineItems: OrderPdfLineItem[];
+  contact: Contact;
+  booksSalesOrderNumber?: string | null;
+  createdAtISO?: string | null;
+}
+
+/**
+ * Crée le devis, le projet (même nom), le PDF joint aux deux, et le lien croisé.
+ * `persist.dealCreated` est appelé DÈS la création du devis pour garantir
+ * l'idempotence même si une étape ultérieure échoue.
+ */
+async function runCrmDealFlow(
+  input: CrmDealFlowInput,
+  persist: {
+    dealCreated: (dealId: string, dealUrl: string) => Promise<void>;
+    projectCreated?: (projectId: string) => Promise<void>;
+  },
+): Promise<void> {
+  const totalDollars = input.totalCents / 100;
+  const baseDescription = buildDealDescription({
+    sourceLabel: input.sourceLabel,
+    storeName: input.storeName,
+    reference: input.reference,
+    contact: input.contact,
+    totalDollars,
+    currency: input.currency,
+    lineItems: input.lineItems,
+    booksSalesOrderNumber: input.booksSalesOrderNumber,
+  });
+
+  const { dealId, dealUrl } = await createCrmDeal({
+    dealName: input.dealName,
+    amount: totalDollars,
+    stage: ORDER_DEAL_STAGE,
+    description: baseDescription,
+    accountId: input.contact.zohoCrmAccountId,
+    contactId: input.contact.zohoCrmContactId,
+  });
+  await persist.dealCreated(dealId, dealUrl);
+
+  const settings = await storage.getAdminSettings();
+  let projectId: string | null = null;
+  let projectUrl: string | null = null;
+  if (settings?.zohoProjectsPortalId) {
+    try {
+      const project = await createZohoProject(settings.zohoProjectsPortalId, {
+        name: input.dealName,
+        description: `${baseDescription}\n\nDevis CRM : ${dealUrl}`,
+      });
+      projectId = project.id;
+      projectUrl = project.link?.self?.url ?? null;
+      if (persist.projectCreated) await persist.projectCreated(projectId);
+    } catch (err: any) {
+      await storage.createActivityLog({
+        type: "zoho_project_create_error", status: "error",
+        message: `Projet Zoho échoué pour ${input.dealName}: ${err.message}`,
+      }).catch(() => {});
+    }
+  }
+
+  // PDF (avec les deux liens) joint au devis et déposé dans les documents du projet.
+  try {
+    const pdf = await generateOrderPdf(
+      {
+        reference: input.dealName,
+        storeName: input.storeName,
+        sourceLabel: input.sourceLabel,
+        date: input.createdAtISO ?? null,
+        currency: input.currency,
+        total: totalDollars,
+        lineItems: input.lineItems,
+        salesOrderNumber: input.booksSalesOrderNumber ?? null,
+        dealUrl,
+        projectUrl,
+      },
+      { name: input.contact.name, email: input.contact.email, companyName: input.contact.companyName },
+    );
+    const filename = `${input.dealName.replace(/[^\w.-]+/g, "_")}.pdf`;
+    await uploadDealAttachment(dealId, filename, pdf);
+    if (projectId && settings?.zohoProjectsPortalId) {
+      await uploadProjectDocument(settings.zohoProjectsPortalId, projectId, filename, pdf).catch((err) =>
+        storage.createActivityLog({
+          type: "zoho_project_doc_error", status: "error",
+          message: `PDF projet échoué ${input.dealName}: ${err.message}`,
+        }).catch(() => {}));
+    }
+  } catch (err: any) {
+    await storage.createActivityLog({
+      type: "zoho_crm_deal_pdf_error", status: "error",
+      message: `PDF devis échoué ${input.dealName}: ${err.message}`,
+    }).catch(() => {});
+  }
+
+  // Lien retour devis → projet.
+  if (projectUrl) {
+    await updateCrmDeal(dealId, {
+      Description: buildDealDescription({
+        sourceLabel: input.sourceLabel,
+        storeName: input.storeName,
+        reference: input.reference,
+        contact: input.contact,
+        totalDollars,
+        currency: input.currency,
+        lineItems: input.lineItems,
+        booksSalesOrderNumber: input.booksSalesOrderNumber,
+        projectUrl,
+      }),
+    }).catch(() => {});
+  }
+}
+
+export async function ensureCrmDealForSystemdOrder(orderId: number): Promise<void> {
+  const order = (await storage.getSystemdOrders()).find((o) => o.id === orderId);
+  if (!order || order.status !== "paid") return;
+  if (order.zohoCrmDealId) return;
+  const contact = await storage.getContact(order.contactId);
+  if (!contact) return;
+
+  let storeName = "Système D";
+  if (order.shopifyIntegrationId) {
+    const integ = await storage.getShopifyIntegration(order.shopifyIntegrationId);
+    if (integ?.shopName) storeName = integ.shopName;
+  }
+  const reference = order.shopifyOrderName ?? `#${order.id}`;
+  const dealName = `${storeName} ${reference}`;
+  const source = (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd";
+  const sourceLabel = source === "client_product" ? "Produit client · Shopify" : "Commande Système D";
+
+  try {
+    await runCrmDealFlow(
+      {
+        storeName, dealName, reference, sourceLabel,
+        totalCents: order.amount, currency: order.currency,
+        lineItems: normalizeLineItemsForPdf(order.lineItems),
+        contact,
+        booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
+        createdAtISO: order.createdAt?.toISOString?.() ?? null,
+      },
+      {
+        dealCreated: (dealId, dealUrl) =>
+          storage.updateSystemdOrder(orderId, { zohoCrmDealId: dealId, zohoCrmDealUrl: dealUrl }).then(() => {}),
+        projectCreated: order.zohoProjectId
+          ? undefined
+          : (projectId) => storage.updateSystemdOrder(orderId, { zohoProjectId: projectId }).then(() => {}),
+      },
+    );
+    await storage.createActivityLog({
+      type: "zoho_crm_deal_create", status: "success",
+      message: `Devis CRM créé pour commande Système D ${dealName}`,
+      metadata: JSON.stringify({ orderId, dealName }),
+    }).catch(() => {});
+  } catch (err: any) {
+    await storage.createActivityLog({
+      type: "zoho_crm_deal_create_error", status: "error",
+      message: `Devis CRM échoué pour ${dealName}: ${err.message}`,
+    }).catch(() => {});
+  }
+}
+
+export async function ensureCrmDealForShopifyOrder(
+  integrationId: number,
+  shopifyOrderId: string,
+): Promise<void> {
+  const order = (await storage.getShopifyOrders()).find(
+    (o) => o.integrationId === integrationId && o.shopifyOrderId === shopifyOrderId,
+  );
+  if (!order || order.zohoCrmDealId) return;
+  if (order.financialStatus === "voided" || order.financialStatus === "refunded") return;
+  if (order.financialStatus !== "paid" && order.financialStatus !== "partially_paid") return;
+  const systemdLinked = (await storage.getSystemdOrders()).some(
+    (o) => o.shopifyIntegrationId === integrationId && o.shopifyOrderId === shopifyOrderId && o.status === "paid",
+  );
+  if (systemdLinked) return;
+  const contact = await storage.getContact(order.contactId);
+  if (!contact) return;
+
+  const storeName = order.shopName ?? "Boutique";
+  const reference = order.name;
+  const dealName = `${storeName} ${reference}`;
+  const totalCents = Math.round(parseFloat(order.totalPrice || "0") * 100);
+
+  try {
+    await runCrmDealFlow(
+      {
+        storeName, dealName, reference, sourceLabel: "Shopify direct",
+        totalCents, currency: order.currency,
+        lineItems: normalizeLineItemsForPdf(order.lineItems),
+        contact,
+        booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
+        createdAtISO: order.shopifyCreatedAt?.toISOString?.() ?? null,
+      },
+      {
+        dealCreated: (dealId, dealUrl) =>
+          storage.updateShopifyOrderZohoFields(integrationId, shopifyOrderId, { zohoCrmDealId: dealId, zohoCrmDealUrl: dealUrl }),
+        projectCreated: order.zohoProjectId
+          ? undefined
+          : (projectId) => storage.updateShopifyOrderZohoFields(integrationId, shopifyOrderId, { zohoProjectId: projectId }),
+      },
+    );
+    await storage.createActivityLog({
+      type: "zoho_crm_deal_create", status: "success",
+      message: `Devis CRM créé pour Shopify ${dealName}`,
+      metadata: JSON.stringify({ integrationId, shopifyOrderId, dealName }),
+    }).catch(() => {});
+  } catch (err: any) {
+    await storage.createActivityLog({
+      type: "zoho_crm_deal_create_error", status: "error",
+      message: `Devis CRM échoué pour ${dealName}: ${err.message}`,
+    }).catch(() => {});
+  }
+}
+
+/** Point d'entrée unique au paiement d'une commande Système D : Books → Devis CRM. */
+export async function ensureZohoOrderPipelineForSystemdOrder(orderId: number): Promise<void> {
+  await ensureBooksSalesOrderForSystemdOrder(orderId);
+  await ensureCrmDealForSystemdOrder(orderId);
+}
+
 export async function afterShopifyOrdersSynced(integrationId: number): Promise<void> {
   const orders = await storage.getShopifyOrders();
   const systemdKeys = buildPaidSystemdShopifyKeys(await storage.getSystemdOrders(), orders);
@@ -445,5 +721,6 @@ export async function afterShopifyOrdersSynced(integrationId: number): Promise<v
     if (order.integrationId !== integrationId) continue;
     if (!isShopifyOrderEligibleForOpsQueue(order, systemdKeys)) continue;
     await ensureBooksSalesOrderForShopifyOrder(integrationId, order.shopifyOrderId);
+    await ensureCrmDealForShopifyOrder(integrationId, order.shopifyOrderId);
   }
 }

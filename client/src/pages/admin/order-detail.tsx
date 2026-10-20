@@ -179,6 +179,7 @@ interface OrderDetailResponse {
   storeUrl: string;
   platform?: string;
   integrationId?: number;
+  zohoCrmDealUrl?: string | null;
   liveUnavailable?: boolean;
   warning?: string;
 }
@@ -369,13 +370,22 @@ export default function AdminOrderDetail() {
           </>
         }
         actions={
-          shopifyOrderUrl ? (
-            <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-order">
-              <Button variant="outline" size="sm">
-                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir dans Shopify
-              </Button>
-            </a>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {data.zohoCrmDealUrl && (
+              <a href={data.zohoCrmDealUrl} target="_blank" rel="noopener noreferrer" data-testid="link-crm-deal">
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir le devis
+                </Button>
+              </a>
+            )}
+            {shopifyOrderUrl && (
+              <a href={shopifyOrderUrl} target="_blank" rel="noopener noreferrer" data-testid="link-shopify-order">
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir dans Shopify
+                </Button>
+              </a>
+            )}
+          </div>
         }
       />
 
