@@ -154,6 +154,194 @@ export async function findOrCreateCrmContact(input: CrmContactInput): Promise<st
   return null;
 }
 
+// ── Commande client (module Sales_Orders) ───────────────────────────────────
+// Cible réelle demandée : les commandes payées vont dans « Commandes client »
+// (module standard Sales_Orders), pas dans le pipeline Deals.
+/** Nom API du module « Commandes client » (standard Zoho = Sales_Orders). */
+export const ORDER_SO_MODULE = process.env.ZOHO_CRM_ORDER_MODULE || "Sales_Orders";
+/** Valeur du champ Status posée à la création (« Nouvelle commande »). */
+export const ORDER_SO_STATUS = process.env.ZOHO_CRM_ORDER_STATUS || "Nouvelle commande";
+
+export function getCrmSalesOrderUrl(region: string, soId: string): string {
+  const domain = CRM_WEB_DOMAINS[region] || CRM_WEB_DOMAINS.us;
+  return `https://${domain}/crm/tab/SalesOrders/${soId}`;
+}
+
+/** Recherche un produit CRM par code (SKU) puis par nom. Renvoie l'id ou null. */
+async function findCrmProductId(
+  region: string,
+  input: { code?: string; name?: string },
+): Promise<string | null> {
+  const tryCriteria = async (criteria: string): Promise<string | null> => {
+    try {
+      const { status, data } = await crmRequest(
+        "GET",
+        `/Products/search?criteria=${encodeURIComponent(criteria)}`,
+        undefined,
+        region,
+      );
+      if (status === 204) return null;
+      const id = data?.data?.[0]?.id;
+      return id ? String(id) : null;
+    } catch {
+      return null;
+    }
+  };
+  if (input.code) {
+    const id = await tryCriteria(`(Product_Code:equals:${input.code})`);
+    if (id) return id;
+  }
+  // Recherche par nom seulement si pas de caractères qui cassent le critère.
+  if (input.name && !/[()]/.test(input.name)) {
+    const id = await tryCriteria(`(Product_Name:equals:${input.name})`);
+    if (id) return id;
+  }
+  return null;
+}
+
+// Cache process (utile au backfill) : évite recherches/créations redondantes.
+const productCache = new Map<string, string | null>();
+
+/**
+ * Trouve (par code/nom) ou crée un produit CRM pour une ligne de commande, et
+ * renvoie son id. Les lignes d'une commande client DOIVENT référencer un
+ * produit du module Products. Idempotent via recherche-d'abord + cache.
+ */
+export async function findOrCreateCrmProduct(input: {
+  name?: string | null;
+  code?: string | null;
+  unitPrice?: number | null;
+}): Promise<string | null> {
+  const name = (input.name ?? "").trim();
+  const code = (input.code ?? "").trim();
+  const cacheKey = code ? `c:${code}` : name ? `n:${name.toLowerCase()}` : "";
+  if (!cacheKey) return null;
+  if (productCache.has(cacheKey)) return productCache.get(cacheKey) ?? null;
+
+  const region = await getZohoRegion();
+  let id = await findCrmProductId(region, { code, name });
+  if (!id) {
+    const record: Record<string, unknown> = {
+      Product_Name: name || code || "Article",
+      Product_Active: true,
+    };
+    if (code) record.Product_Code = code;
+    if (Number.isFinite(input.unitPrice) && (input.unitPrice as number) > 0) {
+      record.Unit_Price = input.unitPrice;
+    }
+    try {
+      const { data } = await crmRequest("POST", `/Products`, { data: [record] }, region);
+      const first = data?.data?.[0];
+      if (first?.code === "SUCCESS" && first?.details?.id) id = String(first.details.id);
+    } catch {
+      id = null;
+    }
+  }
+  productCache.set(cacheKey, id);
+  return id;
+}
+
+export interface CrmSalesOrderLine {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  description?: string | null;
+}
+
+export interface CrmSalesOrderParams {
+  /** Objet de la commande, ex. "Mapei #1014". */
+  subject: string;
+  status?: string;
+  description?: string;
+  accountId?: string | null;
+  contactId?: string | null;
+  lines: CrmSalesOrderLine[];
+}
+
+/** Crée une commande client (Sales_Orders) et renvoie son id + URL. */
+export async function createCrmSalesOrder(
+  params: CrmSalesOrderParams,
+): Promise<{ soId: string; soUrl: string }> {
+  const region = await getZohoRegion();
+  const record: Record<string, unknown> = {
+    Subject: params.subject,
+    Status: params.status || ORDER_SO_STATUS,
+  };
+  if (params.description) record.Description = params.description;
+  if (params.accountId) record.Account_Name = { id: params.accountId };
+  if (params.contactId) record.Contact_Name = { id: params.contactId };
+  record.Ordered_Items = params.lines.map((l) => {
+    const item: Record<string, unknown> = {
+      Product_Name: { id: l.productId },
+      Quantity: Number.isFinite(l.quantity) ? l.quantity : 1,
+      List_Price: Number.isFinite(l.unitPrice) ? l.unitPrice : 0,
+    };
+    if (l.description) item.Description = l.description;
+    return item;
+  });
+
+  const { data } = await crmRequest("POST", `/${ORDER_SO_MODULE}`, { data: [record] }, region);
+  const first = data?.data?.[0];
+  if (first?.code !== "SUCCESS" || !first?.details?.id) {
+    const detail = first?.details ? ` (${JSON.stringify(first.details)})` : "";
+    const reason = first?.message || data?.message || "réponse inattendue";
+    throw new CrmError(`Création de la commande client refusée : ${reason}${detail}`);
+  }
+  const soId = String(first.details.id);
+  return { soId, soUrl: getCrmSalesOrderUrl(region, soId) };
+}
+
+/** Met à jour des champs d'une commande client existante. */
+export async function updateCrmSalesOrder(
+  soId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  const region = await getZohoRegion();
+  const { data } = await crmRequest("PUT", `/${ORDER_SO_MODULE}`, { data: [{ id: soId, ...fields }] }, region);
+  const first = data?.data?.[0];
+  if (first && first.code !== "SUCCESS") {
+    throw new CrmError(`Mise à jour de la commande client refusée : ${first.message || "erreur inconnue"}`);
+  }
+}
+
+/** Joint un PDF à une commande client (related list Attachments). */
+export async function uploadSalesOrderAttachment(
+  soId: string,
+  filename: string,
+  pdf: Buffer,
+): Promise<void> {
+  const region = await getZohoRegion();
+  const base = crmApiBase(region);
+  const url = `${base}/${ORDER_SO_MODULE}/${soId}/Attachments`;
+
+  const send = async (token: string) => {
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), filename);
+    return fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    });
+  };
+
+  let token = await getValidAccessToken(region);
+  let response = await send(token);
+  let data = await response.json().catch(() => ({}));
+  if (response.status === 401 && !isScopeError(response.status, data)) {
+    token = await refreshAccessToken(region);
+    response = await send(token);
+    data = await response.json().catch(() => ({}));
+  }
+  if (isScopeError(response.status, data)) {
+    throw new CrmError("Reconnectez Zoho et autorisez l’accès au CRM pour joindre le PDF.", true);
+  }
+  const first = data?.data?.[0];
+  if (first && first.code !== "SUCCESS") {
+    throw new CrmError(`Pièce jointe refusée par le CRM : ${first.message || "erreur inconnue"}`);
+  }
+}
+
 export interface CrmDealParams {
   /** Nom de l'opportunité, ex. "Mapei #1234". */
   dealName: string;

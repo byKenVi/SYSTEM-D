@@ -9,7 +9,14 @@ import { getZohoRegion } from "./zoho-api";
 import { createZohoProject, buildOrderProjectPayload, uploadProjectDocument } from "./zoho-projects";
 import { normalizeShopifyStoreUrl } from "./shopify-credit-policy";
 import { generateOrderPdf, type OrderPdfLineItem } from "./pdf-generator";
-import { createCrmDeal, updateCrmDeal, uploadDealAttachment, findOrCreateCrmContact, ORDER_DEAL_STAGE } from "./zoho-crm";
+import {
+  findOrCreateCrmContact,
+  findOrCreateCrmProduct,
+  createCrmSalesOrder,
+  updateCrmSalesOrder,
+  uploadSalesOrderAttachment,
+  type CrmSalesOrderLine,
+} from "./zoho-crm";
 import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./shopify-order-identity";
 import { shopifyAdminUrl } from "@shared/shopify-urls";
 import { db } from "./db";
@@ -443,9 +450,12 @@ export async function buildAdminOrderQueue(): Promise<AdminOrderQueueItem[]> {
   return items;
 }
 
-// ─── Devis CRM (pipeline) + projet + PDF, au paiement ─────────────────────────
-// Chaque commande payée (Système D ou Shopify direct) devient un "devis" dans le
-// module Deals, avec un projet du même nom et un PDF joint aux deux.
+// ─── Commande client CRM (Sales_Orders) + projet + PDF, au paiement ──────────
+// Chaque commande payée (Système D ou Shopify direct) devient une « commande
+// client » (module Sales_Orders, Status « Nouvelle commande ») avec ses articles
+// en sous-formulaire, un projet du même nom et un PDF joint aux deux.
+// NB : les colonnes `zoho_crm_deal_*` conservent leur nom mais stockent
+// désormais l'id/url de la commande client.
 
 function normalizeLineItemsForPdf(lineItems: unknown): OrderPdfLineItem[] {
   const items = Array.isArray(lineItems) ? (lineItems as any[]) : [];
@@ -559,9 +569,35 @@ interface CrmDealFlowInput {
 }
 
 /**
- * Crée le devis, le projet (même nom), le PDF joint aux deux, et le lien croisé.
- * `persist.dealCreated` est appelé DÈS la création du devis pour garantir
- * l'idempotence même si une étape ultérieure échoue.
+ * Convertit les lignes de commande en lignes « Articles commandés » : chaque
+ * article est résolu (ou créé) comme produit CRM et référencé par son id.
+ * Les articles non résolus sont ignorés (le produit n'a pas pu être créé).
+ */
+async function buildSalesOrderLines(lineItems: OrderPdfLineItem[]): Promise<CrmSalesOrderLine[]> {
+  const lines: CrmSalesOrderLine[] = [];
+  for (const it of lineItems) {
+    const productId = await findOrCreateCrmProduct({
+      name: it.name,
+      code: it.sku,
+      unitPrice: it.unitPrice,
+    });
+    if (!productId) continue;
+    lines.push({
+      productId,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      description: it.name,
+    });
+  }
+  return lines;
+}
+
+/**
+ * Crée la commande client (Sales_Orders) avec ses articles, le projet (même
+ * nom), le PDF joint aux deux, et le lien croisé. `persist.dealCreated` est
+ * appelé DÈS la création pour garantir l'idempotence même si une étape
+ * ultérieure échoue. (Les colonnes `zoho_crm_deal_*` stockent désormais
+ * l'id/url de la commande client.)
  */
 async function runCrmDealFlow(
   input: CrmDealFlowInput,
@@ -592,15 +628,20 @@ async function runCrmDealFlow(
     contact: input.contact,
   });
 
-  const { dealId, dealUrl } = await createCrmDeal({
-    dealName: input.dealName,
-    amount: totalDollars,
-    stage: ORDER_DEAL_STAGE,
+  const lines = await buildSalesOrderLines(input.lineItems);
+  if (lines.length === 0) {
+    // Ordered_Items est obligatoire : sans article résolu, Zoho refuserait.
+    throw new Error("aucun article n'a pu être résolu/créé comme produit CRM");
+  }
+
+  const { soId, soUrl } = await createCrmSalesOrder({
+    subject: input.dealName,
     description: baseDescription,
     accountId: input.contact.zohoCrmAccountId,
     contactId: dealContactId,
+    lines,
   });
-  await persist.dealCreated(dealId, dealUrl);
+  await persist.dealCreated(soId, soUrl);
 
   const settings = await storage.getAdminSettings();
   let projectId: string | null = null;
@@ -609,7 +650,7 @@ async function runCrmDealFlow(
     try {
       const project = await createZohoProject(settings.zohoProjectsPortalId, {
         name: input.dealName,
-        description: `${baseDescription}\n\nDevis CRM : ${dealUrl}`,
+        description: `${baseDescription}\n\nCommande client : ${soUrl}`,
       });
       projectId = project.id;
       projectUrl = project.link?.self?.url ?? null;
@@ -622,7 +663,7 @@ async function runCrmDealFlow(
     }
   }
 
-  // PDF (avec les deux liens) joint au devis et déposé dans les documents du projet.
+  // PDF (avec les deux liens) joint à la commande et déposé dans les documents du projet.
   try {
     const pdf = await generateOrderPdf(
       {
@@ -636,13 +677,13 @@ async function runCrmDealFlow(
         total: totalDollars,
         lineItems: input.lineItems,
         salesOrderNumber: input.booksSalesOrderNumber ?? null,
-        dealUrl,
+        dealUrl: soUrl,
         projectUrl,
       },
       { name: input.contact.name, email: input.contact.email, companyName: input.contact.companyName },
     );
     const filename = `${input.dealName.replace(/[^\w.-]+/g, "_")}.pdf`;
-    await uploadDealAttachment(dealId, filename, pdf);
+    await uploadSalesOrderAttachment(soId, filename, pdf);
     if (projectId && settings?.zohoProjectsPortalId) {
       await uploadProjectDocument(settings.zohoProjectsPortalId, projectId, filename, pdf).catch((err) =>
         storage.createActivityLog({
@@ -653,13 +694,13 @@ async function runCrmDealFlow(
   } catch (err: any) {
     await storage.createActivityLog({
       type: "zoho_crm_deal_pdf_error", status: "error",
-      message: `PDF devis échoué ${input.dealName}: ${err.message}`,
+      message: `PDF commande client échoué ${input.dealName}: ${err.message}`,
     }).catch(() => {});
   }
 
-  // Lien retour devis → projet.
+  // Lien retour commande → projet.
   if (projectUrl) {
-    await updateCrmDeal(dealId, {
+    await updateCrmSalesOrder(soId, {
       Description: buildDealDescription({
         sourceLabel: input.sourceLabel,
         storeName: input.storeName,
@@ -677,10 +718,13 @@ async function runCrmDealFlow(
   }
 }
 
-export async function ensureCrmDealForSystemdOrder(orderId: number): Promise<void> {
+export async function ensureCrmDealForSystemdOrder(
+  orderId: number,
+  options?: { force?: boolean },
+): Promise<void> {
   const order = (await storage.getSystemdOrders()).find((o) => o.id === orderId);
   if (!order || order.status !== "paid") return;
-  if (order.zohoCrmDealId) return;
+  if (order.zohoCrmDealId && !options?.force) return;
   const contact = await storage.getContact(order.contactId);
   if (!contact) return;
 
@@ -714,13 +758,13 @@ export async function ensureCrmDealForSystemdOrder(orderId: number): Promise<voi
     );
     await storage.createActivityLog({
       type: "zoho_crm_deal_create", status: "success",
-      message: `Devis CRM créé pour commande Système D ${dealName}`,
+      message: `Commande client CRM créée pour Système D ${dealName}`,
       metadata: JSON.stringify({ orderId, dealName }),
     }).catch(() => {});
   } catch (err: any) {
     await storage.createActivityLog({
       type: "zoho_crm_deal_create_error", status: "error",
-      message: `Devis CRM échoué pour ${dealName}: ${err.message}`,
+      message: `Commande client CRM échouée pour ${dealName}: ${err.message}`,
     }).catch(() => {});
   }
 }
@@ -728,11 +772,13 @@ export async function ensureCrmDealForSystemdOrder(orderId: number): Promise<voi
 export async function ensureCrmDealForShopifyOrder(
   integrationId: number,
   shopifyOrderId: string,
+  options?: { force?: boolean },
 ): Promise<void> {
   const order = (await storage.getShopifyOrders()).find(
     (o) => o.integrationId === integrationId && o.shopifyOrderId === shopifyOrderId,
   );
-  if (!order || order.zohoCrmDealId) return;
+  if (!order) return;
+  if (order.zohoCrmDealId && !options?.force) return;
   if (order.financialStatus === "voided" || order.financialStatus === "refunded") return;
   if (order.financialStatus !== "paid" && order.financialStatus !== "partially_paid") return;
   const systemdLinked = (await storage.getSystemdOrders()).some(
@@ -773,20 +819,20 @@ export async function ensureCrmDealForShopifyOrder(
     );
     await storage.createActivityLog({
       type: "zoho_crm_deal_create", status: "success",
-      message: `Devis CRM créé pour Shopify ${dealName}`,
+      message: `Commande client CRM créée pour Shopify ${dealName}`,
       metadata: JSON.stringify({ integrationId, shopifyOrderId, dealName }),
     }).catch(() => {});
   } catch (err: any) {
     await storage.createActivityLog({
       type: "zoho_crm_deal_create_error", status: "error",
-      message: `Devis CRM échoué pour ${dealName}: ${err.message}`,
+      message: `Commande client CRM échouée pour ${dealName}: ${err.message}`,
     }).catch(() => {});
   }
 }
 
 /**
- * Ré-écrit la description des devis CRM DÉJÀ créés avec le format courant
- * (ex. ajout de « Commandé par »), sans créer de doublon ni toucher aux PDF.
+ * Ré-écrit la description + le contact des commandes client DÉJÀ créées avec le
+ * format courant, sans en créer de nouvelles ni toucher aux PDF/articles.
  * Utile après un changement de mise en forme de la description.
  */
 export async function refreshCrmDealDescriptions(): Promise<{ updated: number; failed: number }> {
@@ -835,7 +881,7 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
     });
     if (dealContactId) fields.Contact_Name = { id: dealContactId };
     try {
-      await updateCrmDeal(order.zohoCrmDealId, fields);
+      await updateCrmSalesOrder(order.zohoCrmDealId, fields);
       updated++;
     } catch {
       failed++;
@@ -858,7 +904,7 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
     });
     try {
-      await updateCrmDeal(order.zohoCrmDealId, { Description: description });
+      await updateCrmSalesOrder(order.zohoCrmDealId, { Description: description });
       updated++;
     } catch {
       failed++;
@@ -868,7 +914,44 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
   return { updated, failed };
 }
 
-/** Point d'entrée unique au paiement d'une commande Système D : Books → Devis CRM. */
+/**
+ * Recrée en « commande client » (Sales_Orders) les commandes qui pointaient
+ * encore vers un ancien Deal (ou n'avaient rien). Idempotent : une commande
+ * déjà migrée (URL contenant /SalesOrders/) est ignorée. Les anciens Deals ne
+ * sont pas supprimés (à nettoyer manuellement dans Zoho si souhaité).
+ */
+export async function remigrateCrmDealsToSalesOrders(): Promise<{ migrated: number; skipped: number; failed: number }> {
+  let migrated = 0, skipped = 0, failed = 0;
+  const isSalesOrder = (url?: string | null) => !!url && url.includes("/SalesOrders/");
+
+  for (const order of await storage.getSystemdOrders()) {
+    if (order.status !== "paid") continue;
+    if (isSalesOrder(order.zohoCrmDealUrl)) { skipped++; continue; }
+    try {
+      await ensureCrmDealForSystemdOrder(order.id, { force: true });
+      const after = (await storage.getSystemdOrders()).find((o) => o.id === order.id);
+      if (isSalesOrder(after?.zohoCrmDealUrl)) migrated++; else failed++;
+    } catch { failed++; }
+  }
+
+  const shopifyOrders = await storage.getShopifyOrders();
+  const systemdKeys = buildPaidSystemdShopifyKeys(await storage.getSystemdOrders(), shopifyOrders);
+  for (const order of dedupeOperationalShopifyOrders(shopifyOrders)) {
+    if (!isShopifyOrderEligibleForOpsQueue(order, systemdKeys)) continue;
+    if (isSalesOrder(order.zohoCrmDealUrl)) { skipped++; continue; }
+    try {
+      await ensureCrmDealForShopifyOrder(order.integrationId, order.shopifyOrderId, { force: true });
+      const after = (await storage.getShopifyOrders()).find(
+        (o) => o.integrationId === order.integrationId && o.shopifyOrderId === order.shopifyOrderId,
+      );
+      if (isSalesOrder(after?.zohoCrmDealUrl)) migrated++; else failed++;
+    } catch { failed++; }
+  }
+
+  return { migrated, skipped, failed };
+}
+
+/** Point d'entrée unique au paiement d'une commande Système D : Books → commande client CRM. */
 export async function ensureZohoOrderPipelineForSystemdOrder(orderId: number): Promise<void> {
   await ensureBooksSalesOrderForSystemdOrder(orderId);
   await ensureCrmDealForSystemdOrder(orderId);

@@ -374,7 +374,7 @@ export default function AdminOrderDetail() {
             {data.zohoCrmDealUrl && (
               <a href={data.zohoCrmDealUrl} target="_blank" rel="noopener noreferrer" data-testid="link-crm-deal">
                 <Button variant="outline" size="sm">
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir le devis
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Voir la commande client
                 </Button>
               </a>
             )}

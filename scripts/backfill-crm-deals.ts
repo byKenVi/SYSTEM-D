@@ -14,18 +14,31 @@ import {
   ensureCrmDealForSystemdOrder,
   ensureCrmDealForShopifyOrder,
   refreshCrmDealDescriptions,
+  remigrateCrmDealsToSalesOrders,
   isShopifyOrderEligibleForOpsQueue,
 } from "../server/order-zoho-integration";
 import { buildPaidSystemdShopifyKeys } from "../server/shopify-order-identity";
 
 const dryRun = process.argv.includes("--dry-run");
 const refresh = process.argv.includes("--refresh");
+const remigrate = process.argv.includes("--remigrate");
 
 async function main() {
-  // Mode rafraîchissement : met à jour la description des devis DÉJÀ créés
-  // (ex. pour appliquer « Commandé par ») sans créer de nouveaux devis.
+  // Mode remigration : recrée en « commande client » (Sales_Orders) les
+  // commandes qui pointaient vers un ancien Deal (ou n'avaient rien).
+  // Idempotent : ce qui est déjà une commande client est ignoré.
+  if (remigrate) {
+    console.log("[backfill] Mode --remigrate : (re)création des commandes client Sales_Orders…");
+    const { migrated, skipped, failed } = await remigrateCrmDealsToSalesOrders();
+    console.log(`[backfill] Commandes client créées : ${migrated}, ignorées (déjà à jour) : ${skipped}, échecs : ${failed}.`);
+    console.log("[backfill] Les anciens Deals de test restent dans Zoho (pipeline) — à supprimer manuellement si besoin.");
+    return;
+  }
+
+  // Mode rafraîchissement : met à jour la description/contact des commandes
+  // client DÉJÀ créées, sans en créer de nouvelles.
   if (refresh) {
-    console.log("[backfill] Mode --refresh : mise à jour des descriptions des devis existants…");
+    console.log("[backfill] Mode --refresh : mise à jour des descriptions des commandes client existantes…");
     const { updated, failed } = await refreshCrmDealDescriptions();
     console.log(`[backfill] Descriptions mises à jour : ${updated}, échecs : ${failed}.`);
     return;

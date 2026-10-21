@@ -410,7 +410,7 @@ export default function AdminOrders() {
                             )}
                             {item.zohoCrmDealUrl && (
                               <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
-                                <a href={item.zohoCrmDealUrl} target="_blank" rel="noopener noreferrer">Devis</a>
+                                <a href={item.zohoCrmDealUrl} target="_blank" rel="noopener noreferrer">Commande client</a>
                               </Button>
                             )}
                             {canProcess && (
