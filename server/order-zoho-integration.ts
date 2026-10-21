@@ -19,6 +19,7 @@ import {
   type CrmOrderAddress,
 } from "./zoho-crm";
 import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./shopify-order-identity";
+import { fetchShopifyOrderDetail } from "./shopify-api";
 import { shopifyAdminUrl } from "@shared/shopify-urls";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
@@ -1015,6 +1016,51 @@ export async function remigrateCrmDealsToSalesOrders(): Promise<{ migrated: numb
   }
 
   return { migrated, skipped, failed };
+}
+
+/**
+ * Rattrapage adresses : va chercher chaque commande Shopify (ayant une commande
+ * client CRM) directement sur Shopify, en extrait les adresses (repli sur
+ * l'adresse par défaut du client), les écrit en base ET les pousse sur la
+ * commande client CRM. Permet de remplir les adresses sans attendre une re-sync.
+ */
+export async function syncOrderAddressesFromShopify(): Promise<{ updated: number; noAddress: number; failed: number }> {
+  let updated = 0, noAddress = 0, failed = 0;
+  const integCache = new Map<number, { storeUrl: string; accessToken: string } | null>();
+  const getInteg = async (id: number) => {
+    if (!integCache.has(id)) {
+      const i = await storage.getShopifyIntegration(id);
+      integCache.set(id, i ? { storeUrl: i.storeUrl, accessToken: i.accessToken } : null);
+    }
+    return integCache.get(id);
+  };
+
+  for (const order of await storage.getShopifyOrders()) {
+    if (!order.zohoCrmDealId) continue; // on ne patche que les commandes déjà dans le CRM
+    const integ = await getInteg(order.integrationId);
+    if (!integ) { failed++; continue; }
+    try {
+      const raw = await fetchShopifyOrderDetail(integ.storeUrl, integ.accessToken, order.shopifyOrderId) as any;
+      const billing = normalizeShopifyAddress(raw.billing_address) ?? normalizeShopifyAddress(raw.customer?.default_address);
+      const shipping = normalizeShopifyAddress(raw.shipping_address) ?? billing;
+      if (!billing && !shipping) { noAddress++; continue; }
+
+      await storage.updateShopifyOrderAddresses(order.integrationId, order.shopifyOrderId, {
+        billingAddress: raw.billing_address ?? raw.customer?.default_address ?? null,
+        shippingAddress: raw.shipping_address ?? raw.billing_address ?? raw.customer?.default_address ?? null,
+      });
+
+      const fields: Record<string, unknown> = {};
+      Object.assign(fields, addressUpdateFields(billing, "Billing"), addressUpdateFields(shipping, "Shipping"));
+      if (Object.keys(fields).length > 0) {
+        await updateCrmSalesOrder(order.zohoCrmDealId, fields);
+      }
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+  return { updated, noAddress, failed };
 }
 
 /** Point d'entrée unique au paiement d'une commande Système D : Books → commande client CRM. */

@@ -71,6 +71,11 @@ export interface IStorage {
       operationalFulfillmentStatus?: string;
     },
   ): Promise<void>;
+  updateShopifyOrderAddresses(
+    integrationId: number,
+    shopifyOrderId: string,
+    data: { billingAddress?: unknown; shippingAddress?: unknown },
+  ): Promise<void>;
 
   getAdminSettings(): Promise<AdminSettings | undefined>;
   claimAdminUserId(userId: string): Promise<string>;
@@ -457,6 +462,19 @@ export class DatabaseStorage implements IStorage {
   ): Promise<void> {
     await db.update(shopifyOrders)
       .set(data)
+      .where(and(
+        eq(shopifyOrders.integrationId, integrationId),
+        eq(shopifyOrders.shopifyOrderId, shopifyOrderId),
+      ));
+  }
+
+  async updateShopifyOrderAddresses(
+    integrationId: number,
+    shopifyOrderId: string,
+    data: { billingAddress?: unknown; shippingAddress?: unknown },
+  ): Promise<void> {
+    await db.update(shopifyOrders)
+      .set(data as any)
       .where(and(
         eq(shopifyOrders.integrationId, integrationId),
         eq(shopifyOrders.shopifyOrderId, shopifyOrderId),

@@ -15,6 +15,7 @@ import {
   ensureCrmDealForShopifyOrder,
   refreshCrmDealDescriptions,
   remigrateCrmDealsToSalesOrders,
+  syncOrderAddressesFromShopify,
   isShopifyOrderEligibleForOpsQueue,
 } from "../server/order-zoho-integration";
 import { buildPaidSystemdShopifyKeys } from "../server/shopify-order-identity";
@@ -23,8 +24,17 @@ const dryRun = process.argv.includes("--dry-run");
 const refresh = process.argv.includes("--refresh");
 const remigrate = process.argv.includes("--remigrate");
 const reset = process.argv.includes("--reset");
+const addresses = process.argv.includes("--addresses");
 
 async function main() {
+  // Mode adresses : va chercher les adresses sur Shopify et les pousse en base
+  // + sur la commande client CRM (sans re-sync ni redéploiement).
+  if (addresses) {
+    console.log("[backfill] Mode --addresses : récupération des adresses depuis Shopify…");
+    const { updated, noAddress, failed } = await syncOrderAddressesFromShopify();
+    console.log(`[backfill] Adresses posées : ${updated}, sans adresse Shopify : ${noAddress}, échecs : ${failed}.`);
+    return;
+  }
   // Mode reset : efface les pointeurs CRM/projet (zoho_crm_deal_*, zoho_project_id)
   // des commandes payées pour repartir à neuf. GARDE le Books SO. À utiliser APRÈS
   // avoir supprimé dans Zoho les commandes client/projets de test, puis --remigrate.
