@@ -728,6 +728,81 @@ export async function ensureCrmDealForShopifyOrder(
   }
 }
 
+/**
+ * Ré-écrit la description des devis CRM DÉJÀ créés avec le format courant
+ * (ex. ajout de « Commandé par »), sans créer de doublon ni toucher aux PDF.
+ * Utile après un changement de mise en forme de la description.
+ */
+export async function refreshCrmDealDescriptions(): Promise<{ updated: number; failed: number }> {
+  let updated = 0;
+  let failed = 0;
+  const contactCache = new Map<number, Contact | undefined>();
+  const getContact = async (id: number) => {
+    if (!contactCache.has(id)) contactCache.set(id, await storage.getContact(id));
+    return contactCache.get(id);
+  };
+  const integCache = new Map<number, string | null>();
+  const getStoreName = async (integrationId: number | null): Promise<string> => {
+    if (!integrationId) return "Système D";
+    if (!integCache.has(integrationId)) {
+      const integ = await storage.getShopifyIntegration(integrationId);
+      integCache.set(integrationId, integ?.shopName ?? null);
+    }
+    return integCache.get(integrationId) ?? "Système D";
+  };
+
+  for (const order of await storage.getShopifyOrders()) {
+    if (!order.zohoCrmDealId) continue;
+    const contact = await getContact(order.contactId);
+    if (!contact) continue;
+    const ordererName = [order.customerFirstName, order.customerLastName]
+      .map((p) => (p ?? "").trim()).filter(Boolean).join(" ") || null;
+    const description = buildDealDescription({
+      sourceLabel: "Shopify direct",
+      storeName: order.shopName ?? "Boutique",
+      reference: order.name,
+      contact,
+      ordererName,
+      ordererEmail: order.email,
+      totalDollars: parseFloat(order.totalPrice || "0") || 0,
+      currency: order.currency,
+      lineItems: normalizeLineItemsForPdf(order.lineItems),
+      booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
+    });
+    try {
+      await updateCrmDeal(order.zohoCrmDealId, { Description: description });
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+
+  for (const order of await storage.getSystemdOrders()) {
+    if (!order.zohoCrmDealId) continue;
+    const contact = await getContact(order.contactId);
+    if (!contact) continue;
+    const source = (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd";
+    const description = buildDealDescription({
+      sourceLabel: source === "client_product" ? "Produit client · Shopify" : "Commande Système D",
+      storeName: await getStoreName(order.shopifyIntegrationId),
+      reference: order.shopifyOrderName ?? `#${order.id}`,
+      contact,
+      totalDollars: order.amount / 100,
+      currency: order.currency,
+      lineItems: normalizeLineItemsForPdf(order.lineItems),
+      booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
+    });
+    try {
+      await updateCrmDeal(order.zohoCrmDealId, { Description: description });
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { updated, failed };
+}
+
 /** Point d'entrée unique au paiement d'une commande Système D : Books → Devis CRM. */
 export async function ensureZohoOrderPipelineForSystemdOrder(orderId: number): Promise<void> {
   await ensureBooksSalesOrderForSystemdOrder(orderId);

@@ -13,13 +13,24 @@ import { storage } from "../server/storage";
 import {
   ensureCrmDealForSystemdOrder,
   ensureCrmDealForShopifyOrder,
+  refreshCrmDealDescriptions,
   isShopifyOrderEligibleForOpsQueue,
 } from "../server/order-zoho-integration";
 import { buildPaidSystemdShopifyKeys } from "../server/shopify-order-identity";
 
 const dryRun = process.argv.includes("--dry-run");
+const refresh = process.argv.includes("--refresh");
 
 async function main() {
+  // Mode rafraîchissement : met à jour la description des devis DÉJÀ créés
+  // (ex. pour appliquer « Commandé par ») sans créer de nouveaux devis.
+  if (refresh) {
+    console.log("[backfill] Mode --refresh : mise à jour des descriptions des devis existants…");
+    const { updated, failed } = await refreshCrmDealDescriptions();
+    console.log(`[backfill] Descriptions mises à jour : ${updated}, échecs : ${failed}.`);
+    return;
+  }
+
   const [systemdOrders, shopifyOrders] = await Promise.all([
     storage.getSystemdOrders(),
     storage.getShopifyOrders(),
