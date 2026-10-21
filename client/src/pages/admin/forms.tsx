@@ -95,7 +95,9 @@ export default function AdminForms() {
     onSuccess: (form: FormSubmission) => {
       queryClient.invalidateQueries({ queryKey: ["/api/forms"] });
       setNewFormOpen(false);
-      navigate(`/admin/forms/${form.id}`);
+      // Ouvrir directement le formulaire en édition (nouvelle soumission vide) :
+      // évite d'atterrir sur la vue lecture puis de devoir cliquer « Modifier ».
+      navigate(`/admin/forms/${form.id}/edit`);
     },
     onError: (err: any) => {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
