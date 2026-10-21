@@ -68,6 +68,8 @@ async function main() {
       console.log(`[SHOPIFY] ${o.name}  int=${o.integrationId}  financial=${o.financialStatus}  currency=${o.currency}`);
       console.log(`  zohoCrmDealId=${o.zohoCrmDealId ?? "(vide)"}  url=${o.zohoCrmDealUrl ?? "(vide)"}`);
       console.log(`  customer=${o.customerFirstName ?? ""} ${o.customerLastName ?? ""}  email=${o.email ?? "—"}`);
+      console.log(`  billing_address:  ${JSON.stringify(o.billingAddress ?? null)}`);
+      console.log(`  shipping_address: ${JSON.stringify(o.shippingAddress ?? null)}`);
       console.log(await describeContact(o.contactId));
       console.log(describeLineItems(o.lineItems));
       console.log("");
