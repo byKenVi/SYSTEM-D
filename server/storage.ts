@@ -431,6 +431,8 @@ export class DatabaseStorage implements IStorage {
             customerFirstName: order.customerFirstName,
             customerLastName: order.customerLastName,
             lineItems: order.lineItems,
+            billingAddress: order.billingAddress,
+            shippingAddress: order.shippingAddress,
             shopName: order.shopName,
             storeUrl: order.storeUrl,
             syncedAt: new Date(),

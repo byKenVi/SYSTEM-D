@@ -87,6 +87,8 @@ export const shopifyOrders = pgTable("shopify_orders", {
   customerFirstName: text("customer_first_name"),
   customerLastName: text("customer_last_name"),
   lineItems: jsonb("line_items").notNull().default([]),
+  billingAddress: jsonb("billing_address"),
+  shippingAddress: jsonb("shipping_address"),
   shopName: text("shop_name"),
   storeUrl: text("store_url").notNull(),
   operationalFulfillmentStatus: text("operational_fulfillment_status").notNull().default("to_process"),

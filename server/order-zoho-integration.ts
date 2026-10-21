@@ -16,6 +16,7 @@ import {
   updateCrmSalesOrder,
   uploadSalesOrderAttachment,
   type CrmSalesOrderLine,
+  type CrmOrderAddress,
 } from "./zoho-crm";
 import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./shopify-order-identity";
 import { shopifyAdminUrl } from "@shared/shopify-urls";
@@ -568,6 +569,38 @@ interface CrmDealFlowInput {
   createdAtISO?: string | null;
   /** Projet déjà rattaché à la commande : réutilisé au lieu d'en créer un (évite les doublons). */
   existingProjectId?: string | null;
+  billingAddress?: CrmOrderAddress | null;
+  shippingAddress?: CrmOrderAddress | null;
+}
+
+/** Normalise une adresse Shopify ({address1,city,province,country,zip}) vers CrmOrderAddress. */
+function normalizeShopifyAddress(addr: unknown): CrmOrderAddress | null {
+  if (!addr || typeof addr !== "object") return null;
+  const a = addr as Record<string, any>;
+  const out: CrmOrderAddress = {
+    street: a.address1 ?? a.address2 ?? null,
+    city: a.city ?? null,
+    state: a.province ?? a.province_code ?? null,
+    zip: a.zip ?? null,
+    country: a.country ?? a.country_code ?? null,
+  };
+  // Au moins un champ renseigné pour valoir la peine.
+  return Object.values(out).some(Boolean) ? out : null;
+}
+
+/** Construit les champs d'adresse (Billing ou Shipping) pour une mise à jour de commande. */
+function addressUpdateFields(
+  addr: CrmOrderAddress | null,
+  prefix: "Billing" | "Shipping",
+): Record<string, unknown> {
+  const f: Record<string, unknown> = {};
+  if (!addr) return f;
+  if (addr.street) f[`${prefix}_Street`] = addr.street;
+  if (addr.city) f[`${prefix}_City`] = addr.city;
+  if (addr.state) f[`${prefix}_State`] = addr.state;
+  if (addr.zip) f[`${prefix}_Code`] = addr.zip;
+  if (addr.country) f[`${prefix}_Country`] = addr.country;
+  return f;
 }
 
 /**
@@ -653,6 +686,8 @@ async function runCrmDealFlow(
     accountId: input.contact.zohoCrmAccountId,
     contactId: dealContactId,
     lines,
+    billingAddress: input.billingAddress,
+    shippingAddress: input.shippingAddress,
   });
   await persist.dealCreated(soId, soUrl);
 
@@ -762,6 +797,9 @@ export async function ensureCrmDealForSystemdOrder(
         booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
         createdAtISO: order.createdAt?.toISOString?.() ?? null,
         existingProjectId: order.zohoProjectId,
+        // Commande plateforme : pas d'adresse par commande → repli sur l'adresse du contact.
+        billingAddress: contact.companyAddress ? { street: contact.companyAddress } : null,
+        shippingAddress: contact.companyAddress ? { street: contact.companyAddress } : null,
       },
       {
         dealCreated: (dealId, dealUrl) =>
@@ -824,6 +862,8 @@ export async function ensureCrmDealForShopifyOrder(
         booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
         createdAtISO: order.shopifyCreatedAt?.toISOString?.() ?? null,
         existingProjectId: order.zohoProjectId,
+        billingAddress: normalizeShopifyAddress(order.billingAddress),
+        shippingAddress: normalizeShopifyAddress(order.shippingAddress),
       },
       {
         dealCreated: (dealId, dealUrl) =>
@@ -896,6 +936,11 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       contact,
     });
     if (dealContactId) fields.Contact_Name = { id: dealContactId };
+    Object.assign(
+      fields,
+      addressUpdateFields(normalizeShopifyAddress(order.billingAddress), "Billing"),
+      addressUpdateFields(normalizeShopifyAddress(order.shippingAddress), "Shipping"),
+    );
     try {
       await updateCrmSalesOrder(order.zohoCrmDealId, fields);
       updated++;
@@ -919,8 +964,13 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       lineItems: normalizeLineItemsForPdf(order.lineItems),
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
     });
+    const fields: Record<string, unknown> = { Description: description };
+    if (contact.companyAddress) {
+      fields.Billing_Street = contact.companyAddress;
+      fields.Shipping_Street = contact.companyAddress;
+    }
     try {
-      await updateCrmSalesOrder(order.zohoCrmDealId, { Description: description });
+      await updateCrmSalesOrder(order.zohoCrmDealId, fields);
       updated++;
     } catch {
       failed++;

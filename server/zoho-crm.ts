@@ -274,6 +274,15 @@ export interface CrmSalesOrderLine {
   description?: string | null;
 }
 
+/** Adresse normalisée pour les champs Billing et Shipping d'une commande. */
+export interface CrmOrderAddress {
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+}
+
 export interface CrmSalesOrderParams {
   /** Objet de la commande, ex. "Mapei #1014". */
   subject: string;
@@ -282,6 +291,8 @@ export interface CrmSalesOrderParams {
   accountId?: string | null;
   contactId?: string | null;
   lines: CrmSalesOrderLine[];
+  billingAddress?: CrmOrderAddress | null;
+  shippingAddress?: CrmOrderAddress | null;
 }
 
 /** Crée une commande client (Sales_Orders) et renvoie son id + URL. */
@@ -296,6 +307,16 @@ export async function createCrmSalesOrder(
   if (params.description) record.Description = params.description;
   if (params.accountId) record.Account_Name = { id: params.accountId };
   if (params.contactId) record.Contact_Name = { id: params.contactId };
+  const applyAddress = (addr: CrmOrderAddress | null | undefined, prefix: "Billing" | "Shipping") => {
+    if (!addr) return;
+    if (addr.street) record[`${prefix}_Street`] = addr.street;
+    if (addr.city) record[`${prefix}_City`] = addr.city;
+    if (addr.state) record[`${prefix}_State`] = addr.state;
+    if (addr.zip) record[`${prefix}_Code`] = addr.zip;
+    if (addr.country) record[`${prefix}_Country`] = addr.country;
+  };
+  applyAddress(params.billingAddress, "Billing");
+  applyAddress(params.shippingAddress, "Shipping");
   record.Ordered_Items = params.lines.map((l) => {
     const item: Record<string, unknown> = {
       Product_Name: { id: l.productId },

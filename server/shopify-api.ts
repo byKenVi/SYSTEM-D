@@ -804,6 +804,14 @@ export interface ShopifyOrder {
     country: string;
     zip: string;
   };
+  billing_address?: {
+    name: string;
+    address1: string;
+    city: string;
+    province: string;
+    country: string;
+    zip: string;
+  };
   customer?: {
     first_name: string;
     last_name: string;

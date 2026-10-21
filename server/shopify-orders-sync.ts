@@ -37,6 +37,8 @@ export async function syncOrdersForIntegration(integration: { id: number; contac
       customerFirstName: o.customer?.first_name ?? null,
       customerLastName: o.customer?.last_name ?? null,
       lineItems: (o.line_items ?? []) as any,
+      billingAddress: (o.billing_address ?? null) as any,
+      shippingAddress: (o.shipping_address ?? null) as any,
       shopName: integration.shopName,
       storeUrl: integration.storeUrl,
     }));
