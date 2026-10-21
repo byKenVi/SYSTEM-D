@@ -67,25 +67,50 @@ async function main() {
   console.log(`\n→ Module : api_name="${target.api_name}"  label="${target.plural_label}"`);
   console.log(`  ⇒ ZOHO_CRM_ORDER_MODULE=${target.api_name}`);
 
-  const fields = (await crmGet(`/settings/fields?module=${encodeURIComponent(target.api_name)}`)).fields ?? [];
-  console.log(`\n=== Champs (${fields.length}) ===`);
-  const mandatory: string[] = [];
-  for (const f of fields) {
-    const required = f.system_mandatory || f.required;
-    if (required && !f.read_only) mandatory.push(f.api_name);
-    const flags = [
-      required ? "OBLIGATOIRE" : null,
-      f.read_only ? "lecture-seule" : null,
-    ].filter(Boolean).join(", ");
-    console.log(
-      `  ${f.api_name}  [${f.data_type}]  « ${f.field_label} »${flags ? `  (${flags})` : ""}`,
-    );
-    const pick = (f.pick_list_values ?? []).map((p: any) => p.display_value);
-    if (pick.length) console.log(`        valeurs : ${pick.join(" | ")}`);
+  const subformModules = new Set<string>();
+
+  async function dumpFields(moduleApi: string, indent = ""): Promise<string[]> {
+    const fields = (await crmGet(`/settings/fields?module=${encodeURIComponent(moduleApi)}`)).fields ?? [];
+    console.log(`${indent}=== Champs de ${moduleApi} (${fields.length}) ===`);
+    const mandatory: string[] = [];
+    for (const f of fields) {
+      const required = f.system_mandatory || f.required;
+      if (required && !f.read_only) mandatory.push(f.api_name);
+      const flags = [
+        required ? "OBLIGATOIRE" : null,
+        f.read_only ? "lecture-seule" : null,
+      ].filter(Boolean).join(", ");
+      // Cible d'un lookup (ex. Product_Name → Products).
+      const lookupTo = f.lookup?.module?.api_name ?? f.association_details?.lookup_field?.api_name;
+      const extra = [
+        flags ? `(${flags})` : null,
+        lookupTo ? `→ ${lookupTo}` : null,
+      ].filter(Boolean).join("  ");
+      console.log(`${indent}  ${f.api_name}  [${f.data_type}]  « ${f.field_label} »${extra ? `  ${extra}` : ""}`);
+      const pick = (f.pick_list_values ?? []).map((p: any) => p.display_value);
+      if (pick.length) console.log(`${indent}        valeurs : ${pick.join(" | ")}`);
+      // Détecter les sous-formulaires (ex. Ordered_Items) pour les déplier ensuite.
+      const subMod = f.data_type === "subform"
+        ? (f.subform?.module ?? f.association_details?.related_module?.api_name ?? f.api_name)
+        : null;
+      if (subMod) {
+        const name = typeof subMod === "string" ? subMod : subMod.api_name;
+        if (name) {
+          subformModules.add(name);
+          console.log(`${indent}        ↳ sous-formulaire : ${name}`);
+        }
+      }
+    }
+    console.log(`${indent}Obligatoires: ${mandatory.length ? mandatory.join(", ") : "(aucun hors lecture-seule)"}`);
+    return mandatory;
   }
 
-  console.log(`\n=== Champs obligatoires (à fournir à la création) ===`);
-  console.log("  " + (mandatory.length ? mandatory.join(", ") : "(aucun hors lecture-seule)"));
+  await dumpFields(target.api_name);
+
+  for (const sub of subformModules) {
+    console.log(`\n----- Sous-formulaire « ${sub} » (lignes d'articles) -----`);
+    await dumpFields(sub, "  ").catch((e) => console.log("  (échec: " + e.message + ")"));
+  }
 }
 
 main()
