@@ -35,6 +35,7 @@ export interface ZohoPortal {
 
 export interface ZohoProject {
   id: string;
+  id_string?: string;
   name: string;
   link?: { self?: { url?: string } };
 }
@@ -113,10 +114,16 @@ export async function createZohoProject(
     throw new Error(`Zoho Projects create error ${res.status}: ${errBody}`);
   }
 
-  const data = await res.json();
+  // Les ids de projet Zoho dépassent Number.MAX_SAFE_INTEGER : res.json() perd
+  // la précision sur le champ numérique `id`. On relit `id_string` (texte, non
+  // corrompu) directement dans le corps brut pour l'utiliser comme id fiable.
+  const rawText = await res.text();
+  const data = JSON.parse(rawText);
   const project = data.projects?.[0];
   if (!project) throw new Error("Zoho Projects API returned no project in response");
-  return project as ZohoProject;
+  const idStringMatch = rawText.match(/"id_string"\s*:\s*"(\d+)"/);
+  const safeId = project.id_string || idStringMatch?.[1] || String(project.id);
+  return { ...project, id: safeId, id_string: safeId } as ZohoProject;
 }
 
 // ── Upload a document (PDF) into a project's Documents ────────────────────────

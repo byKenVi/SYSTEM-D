@@ -252,6 +252,11 @@ export async function findOrCreateCrmProduct(input: {
     const first = data?.data?.[0];
     if (first?.code === "SUCCESS" && first?.details?.id) {
       id = String(first.details.id);
+    } else if (first?.details?.duplicate_record?.id) {
+      // Produit déjà présent (souvent nom avec parenthèses, non cherchable) :
+      // Zoho renvoie l'id de l'existant → on le réutilise et on le réactive.
+      id = String(first.details.duplicate_record.id);
+      await reactivateCrmProduct(region, id);
     } else {
       const reason = first?.message || data?.message || "réponse inattendue";
       const detail = first?.details ? ` (${JSON.stringify(first.details)})` : "";
