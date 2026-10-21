@@ -11,6 +11,7 @@ import { storage } from "../server/storage";
 const TYPES = new Set([
   "zoho_crm_deal_create",
   "zoho_crm_deal_create_error",
+  "zoho_crm_product_error",
   "zoho_crm_deal_pdf_error",
   "zoho_project_create_error",
   "zoho_project_doc_error",

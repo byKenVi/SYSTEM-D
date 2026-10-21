@@ -573,14 +573,25 @@ interface CrmDealFlowInput {
  * article est résolu (ou créé) comme produit CRM et référencé par son id.
  * Les articles non résolus sont ignorés (le produit n'a pas pu être créé).
  */
-async function buildSalesOrderLines(lineItems: OrderPdfLineItem[]): Promise<CrmSalesOrderLine[]> {
+async function buildSalesOrderLines(
+  lineItems: OrderPdfLineItem[],
+  dealName: string,
+): Promise<CrmSalesOrderLine[]> {
   const lines: CrmSalesOrderLine[] = [];
   for (const it of lineItems) {
-    const productId = await findOrCreateCrmProduct({
-      name: it.name,
-      code: it.sku,
-      unitPrice: it.unitPrice,
-    });
+    let productId: string | null = null;
+    try {
+      productId = await findOrCreateCrmProduct({
+        name: it.name,
+        code: it.sku,
+        unitPrice: it.unitPrice,
+      });
+    } catch (err: any) {
+      await storage.createActivityLog({
+        type: "zoho_crm_product_error", status: "error",
+        message: `Article ignoré sur ${dealName} (${it.sku ?? "sans sku"}): ${err.message}`,
+      }).catch(() => {});
+    }
     if (!productId) continue;
     lines.push({
       productId,
@@ -628,7 +639,7 @@ async function runCrmDealFlow(
     contact: input.contact,
   });
 
-  const lines = await buildSalesOrderLines(input.lineItems);
+  const lines = await buildSalesOrderLines(input.lineItems, input.dealName);
   if (lines.length === 0) {
     // Ordered_Items est obligatoire : sans article résolu, Zoho refuserait.
     throw new Error("aucun article n'a pu être résolu/créé comme produit CRM");

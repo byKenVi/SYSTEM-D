@@ -167,12 +167,12 @@ export function getCrmSalesOrderUrl(region: string, soId: string): string {
   return `https://${domain}/crm/tab/SalesOrders/${soId}`;
 }
 
-/** Recherche un produit CRM par code (SKU) puis par nom. Renvoie l'id ou null. */
-async function findCrmProductId(
+/** Recherche un produit CRM par code (SKU) puis par nom. Renvoie {id, active}. */
+async function findCrmProduct(
   region: string,
   input: { code?: string; name?: string },
-): Promise<string | null> {
-  const tryCriteria = async (criteria: string): Promise<string | null> => {
+): Promise<{ id: string; active: boolean } | null> {
+  const tryCriteria = async (criteria: string): Promise<{ id: string; active: boolean } | null> => {
     try {
       const { status, data } = await crmRequest(
         "GET",
@@ -181,31 +181,46 @@ async function findCrmProductId(
         region,
       );
       if (status === 204) return null;
-      const id = data?.data?.[0]?.id;
-      return id ? String(id) : null;
+      const rec = data?.data?.[0];
+      if (!rec?.id) return null;
+      // Product_Active absent => on suppose actif (ne pas bloquer inutilement).
+      return { id: String(rec.id), active: rec.Product_Active !== false };
     } catch {
       return null;
     }
   };
   if (input.code) {
-    const id = await tryCriteria(`(Product_Code:equals:${input.code})`);
-    if (id) return id;
+    const r = await tryCriteria(`(Product_Code:equals:${input.code})`);
+    if (r) return r;
   }
   // Recherche par nom seulement si pas de caractères qui cassent le critère.
   if (input.name && !/[()]/.test(input.name)) {
-    const id = await tryCriteria(`(Product_Name:equals:${input.name})`);
-    if (id) return id;
+    const r = await tryCriteria(`(Product_Name:equals:${input.name})`);
+    if (r) return r;
   }
   return null;
+}
+
+/** Réactive un produit (Zoho refuse d'ajouter un produit inactif à une commande). */
+async function reactivateCrmProduct(region: string, id: string): Promise<void> {
+  try {
+    await crmRequest("PUT", `/Products`, { data: [{ id, Product_Active: true }] }, region);
+  } catch {
+    /* best-effort */
+  }
 }
 
 // Cache process (utile au backfill) : évite recherches/créations redondantes.
 const productCache = new Map<string, string | null>();
 
+export class ProductResolveError extends Error {}
+
 /**
  * Trouve (par code/nom) ou crée un produit CRM pour une ligne de commande, et
  * renvoie son id. Les lignes d'une commande client DOIVENT référencer un
- * produit du module Products. Idempotent via recherche-d'abord + cache.
+ * produit ACTIF du module Products : un produit trouvé mais inactif est
+ * réactivé. Idempotent via recherche-d'abord + cache. Lève ProductResolveError
+ * si la création échoue (pour remonter la raison exacte à l'appelant).
  */
 export async function findOrCreateCrmProduct(input: {
   name?: string | null;
@@ -219,8 +234,12 @@ export async function findOrCreateCrmProduct(input: {
   if (productCache.has(cacheKey)) return productCache.get(cacheKey) ?? null;
 
   const region = await getZohoRegion();
-  let id = await findCrmProductId(region, { code, name });
-  if (!id) {
+  const found = await findCrmProduct(region, { code, name });
+  let id: string | null = null;
+  if (found) {
+    id = found.id;
+    if (!found.active) await reactivateCrmProduct(region, id);
+  } else {
     const record: Record<string, unknown> = {
       Product_Name: name || code || "Article",
       Product_Active: true,
@@ -229,12 +248,14 @@ export async function findOrCreateCrmProduct(input: {
     if (Number.isFinite(input.unitPrice) && (input.unitPrice as number) > 0) {
       record.Unit_Price = input.unitPrice;
     }
-    try {
-      const { data } = await crmRequest("POST", `/Products`, { data: [record] }, region);
-      const first = data?.data?.[0];
-      if (first?.code === "SUCCESS" && first?.details?.id) id = String(first.details.id);
-    } catch {
-      id = null;
+    const { data } = await crmRequest("POST", `/Products`, { data: [record] }, region);
+    const first = data?.data?.[0];
+    if (first?.code === "SUCCESS" && first?.details?.id) {
+      id = String(first.details.id);
+    } else {
+      const reason = first?.message || data?.message || "réponse inattendue";
+      const detail = first?.details ? ` (${JSON.stringify(first.details)})` : "";
+      throw new ProductResolveError(`produit « ${name || code} » non créé : ${reason}${detail}`);
     }
   }
   productCache.set(cacheKey, id);
