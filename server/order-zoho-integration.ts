@@ -9,7 +9,7 @@ import { getZohoRegion } from "./zoho-api";
 import { createZohoProject, buildOrderProjectPayload, uploadProjectDocument } from "./zoho-projects";
 import { normalizeShopifyStoreUrl } from "./shopify-credit-policy";
 import { generateOrderPdf, type OrderPdfLineItem } from "./pdf-generator";
-import { createCrmDeal, updateCrmDeal, uploadDealAttachment, ORDER_DEAL_STAGE } from "./zoho-crm";
+import { createCrmDeal, updateCrmDeal, uploadDealAttachment, findOrCreateCrmContact, ORDER_DEAL_STAGE } from "./zoho-crm";
 import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./shopify-order-identity";
 import { shopifyAdminUrl } from "@shared/shopify-urls";
 import { db } from "./db";
@@ -457,6 +457,50 @@ function normalizeLineItemsForPdf(lineItems: unknown): OrderPdfLineItem[] {
   }));
 }
 
+/** Sépare un nom complet en prénom / nom (Last_Name requis côté CRM). */
+function splitFullName(
+  full?: string | null,
+  firstName?: string | null,
+  lastName?: string | null,
+): { firstName: string | null; lastName: string | null } {
+  const first = (firstName ?? "").trim();
+  const last = (lastName ?? "").trim();
+  if (first || last) return { firstName: first || null, lastName: last || null };
+  const parts = (full ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: null, lastName: null };
+  if (parts.length === 1) return { firstName: null, lastName: parts[0] };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
+}
+
+/**
+ * Résout l'id du contact CRM à rattacher au devis : le vrai client qui a passé
+ * la commande si on a son nom (créé/retrouvé dans le CRM, rattaché au compte),
+ * sinon le contact d'intégration par défaut.
+ */
+async function resolveDealContactId(input: {
+  ordererName?: string | null;
+  ordererEmail?: string | null;
+  ordererFirstName?: string | null;
+  ordererLastName?: string | null;
+  contact: Contact;
+}): Promise<string | null | undefined> {
+  const { lastName, firstName } = splitFullName(
+    input.ordererName,
+    input.ordererFirstName,
+    input.ordererLastName,
+  );
+  if (lastName) {
+    const resolved = await findOrCreateCrmContact({
+      firstName,
+      lastName,
+      email: input.ordererEmail,
+      accountId: input.contact.zohoCrmAccountId,
+    }).catch(() => null);
+    if (resolved) return resolved;
+  }
+  return input.contact.zohoCrmContactId;
+}
+
 function buildDealDescription(input: {
   sourceLabel: string;
   storeName: string;
@@ -508,6 +552,8 @@ interface CrmDealFlowInput {
   contact: Contact;
   ordererName?: string | null;
   ordererEmail?: string | null;
+  ordererFirstName?: string | null;
+  ordererLastName?: string | null;
   booksSalesOrderNumber?: string | null;
   createdAtISO?: string | null;
 }
@@ -538,13 +584,21 @@ async function runCrmDealFlow(
     booksSalesOrderNumber: input.booksSalesOrderNumber,
   });
 
+  const dealContactId = await resolveDealContactId({
+    ordererName: input.ordererName,
+    ordererEmail: input.ordererEmail,
+    ordererFirstName: input.ordererFirstName,
+    ordererLastName: input.ordererLastName,
+    contact: input.contact,
+  });
+
   const { dealId, dealUrl } = await createCrmDeal({
     dealName: input.dealName,
     amount: totalDollars,
     stage: ORDER_DEAL_STAGE,
     description: baseDescription,
     accountId: input.contact.zohoCrmAccountId,
-    contactId: input.contact.zohoCrmContactId,
+    contactId: dealContactId,
   });
   await persist.dealCreated(dealId, dealUrl);
 
@@ -704,6 +758,8 @@ export async function ensureCrmDealForShopifyOrder(
         contact,
         ordererName,
         ordererEmail: order.email,
+        ordererFirstName: order.customerFirstName,
+        ordererLastName: order.customerLastName,
         booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
         createdAtISO: order.shopifyCreatedAt?.toISOString?.() ?? null,
       },
@@ -769,8 +825,17 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       lineItems: normalizeLineItemsForPdf(order.lineItems),
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
     });
+    const fields: Record<string, unknown> = { Description: description };
+    const dealContactId = await resolveDealContactId({
+      ordererName,
+      ordererEmail: order.email,
+      ordererFirstName: order.customerFirstName,
+      ordererLastName: order.customerLastName,
+      contact,
+    });
+    if (dealContactId) fields.Contact_Name = { id: dealContactId };
     try {
-      await updateCrmDeal(order.zohoCrmDealId, { Description: description });
+      await updateCrmDeal(order.zohoCrmDealId, fields);
       updated++;
     } catch {
       failed++;

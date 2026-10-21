@@ -98,6 +98,62 @@ async function crmRequest(
   return { status: response.status, data };
 }
 
+export interface CrmContactInput {
+  firstName?: string | null;
+  lastName: string;
+  email?: string | null;
+  /** Compte CRM auquel rattacher le contact (ex. le compte de la boutique). */
+  accountId?: string | null;
+}
+
+/** Recherche un contact CRM par email exact. Renvoie son id, ou null si absent. */
+async function findCrmContactByEmail(region: string, email: string): Promise<string | null> {
+  try {
+    const { status, data } = await crmRequest(
+      "GET",
+      `/Contacts/search?email=${encodeURIComponent(email)}`,
+      undefined,
+      region,
+    );
+    if (status === 204) return null;
+    const id = data?.data?.[0]?.id;
+    return id ? String(id) : null;
+  } catch {
+    // Une recherche en échec ne doit pas bloquer la création du devis.
+    return null;
+  }
+}
+
+/**
+ * Trouve (par email) ou crée un contact CRM pour la personne qui a passé la
+ * commande, puis renvoie son id. Renvoie null si impossible (ex. pas de nom).
+ * Idempotent : un re-run retrouve le contact créé précédemment via l'email.
+ */
+export async function findOrCreateCrmContact(input: CrmContactInput): Promise<string | null> {
+  const region = await getZohoRegion();
+  const lastName = (input.lastName ?? "").trim();
+  if (!lastName) return null;
+
+  if (input.email) {
+    const existing = await findCrmContactByEmail(region, input.email.trim());
+    if (existing) return existing;
+  }
+
+  const record: Record<string, unknown> = { Last_Name: lastName };
+  if (input.firstName?.trim()) record.First_Name = input.firstName.trim();
+  if (input.email?.trim()) record.Email = input.email.trim();
+  if (input.accountId) record.Account_Name = { id: input.accountId };
+
+  try {
+    const { data } = await crmRequest("POST", `/Contacts`, { data: [record] }, region);
+    const first = data?.data?.[0];
+    if (first?.code === "SUCCESS" && first?.details?.id) return String(first.details.id);
+  } catch {
+    // Ignorer : on retombera sur le contact d'intégration par défaut.
+  }
+  return null;
+}
+
 export interface CrmDealParams {
   /** Nom de l'opportunité, ex. "Mapei #1234". */
   dealName: string;
