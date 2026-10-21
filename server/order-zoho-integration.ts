@@ -566,6 +566,8 @@ interface CrmDealFlowInput {
   ordererLastName?: string | null;
   booksSalesOrderNumber?: string | null;
   createdAtISO?: string | null;
+  /** Projet déjà rattaché à la commande : réutilisé au lieu d'en créer un (évite les doublons). */
+  existingProjectId?: string | null;
 }
 
 /**
@@ -655,13 +657,14 @@ async function runCrmDealFlow(
   await persist.dealCreated(soId, soUrl);
 
   const settings = await storage.getAdminSettings();
-  let projectId: string | null = null;
+  let projectId: string | null = input.existingProjectId ?? null;
   let projectUrl: string | null = null;
-  if (settings?.zohoProjectsPortalId) {
+  // Ne créer un projet que si la commande n'en a pas déjà un (anti-doublon).
+  if (settings?.zohoProjectsPortalId && !projectId) {
     try {
       const project = await createZohoProject(settings.zohoProjectsPortalId, {
         name: input.dealName,
-        description: `${baseDescription}\n\nCommande client : ${soUrl}`,
+        description: `Commande client : ${soUrl}\n\n${baseDescription}`,
       });
       projectId = project.id;
       projectUrl = project.link?.self?.url ?? null;
@@ -758,6 +761,7 @@ export async function ensureCrmDealForSystemdOrder(
         contact,
         booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
         createdAtISO: order.createdAt?.toISOString?.() ?? null,
+        existingProjectId: order.zohoProjectId,
       },
       {
         dealCreated: (dealId, dealUrl) =>
@@ -819,6 +823,7 @@ export async function ensureCrmDealForShopifyOrder(
         ordererLastName: order.customerLastName,
         booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
         createdAtISO: order.shopifyCreatedAt?.toISOString?.() ?? null,
+        existingProjectId: order.zohoProjectId,
       },
       {
         dealCreated: (dealId, dealUrl) =>

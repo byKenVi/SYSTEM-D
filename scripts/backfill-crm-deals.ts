@@ -22,8 +22,31 @@ import { buildPaidSystemdShopifyKeys } from "../server/shopify-order-identity";
 const dryRun = process.argv.includes("--dry-run");
 const refresh = process.argv.includes("--refresh");
 const remigrate = process.argv.includes("--remigrate");
+const reset = process.argv.includes("--reset");
 
 async function main() {
+  // Mode reset : efface les pointeurs CRM/projet (zoho_crm_deal_*, zoho_project_id)
+  // des commandes payées pour repartir à neuf. GARDE le Books SO. À utiliser APRÈS
+  // avoir supprimé dans Zoho les commandes client/projets de test, puis --remigrate.
+  if (reset) {
+    let n = 0;
+    for (const o of await storage.getSystemdOrders()) {
+      if (o.status !== "paid") continue;
+      if (!o.zohoCrmDealId && !o.zohoProjectId) continue;
+      await storage.updateSystemdOrder(o.id, { zohoCrmDealId: null, zohoCrmDealUrl: null, zohoProjectId: null });
+      n++;
+    }
+    for (const o of await storage.getShopifyOrders()) {
+      if (!o.zohoCrmDealId && !o.zohoProjectId) continue;
+      await storage.updateShopifyOrderZohoFields(o.integrationId, o.shopifyOrderId, {
+        zohoCrmDealId: null, zohoCrmDealUrl: null, zohoProjectId: null,
+      });
+      n++;
+    }
+    console.log(`[backfill] Reset : ${n} commande(s) remises à zéro (CRM + projet). Books conservé.`);
+    console.log("[backfill] Lancez ensuite : npx tsx scripts/backfill-crm-deals.ts --remigrate");
+    return;
+  }
   // Mode remigration : recrée en « commande client » (Sales_Orders) les
   // commandes qui pointaient vers un ancien Deal (ou n'avaient rien).
   // Idempotent : ce qui est déjà une commande client est ignoré.

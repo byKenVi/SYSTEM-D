@@ -65,9 +65,9 @@ export interface IStorage {
       zohoBooksSalesOrderId?: string;
       zohoBooksSalesOrderNumber?: string;
       zohoBooksSalesOrderUrl?: string;
-      zohoProjectId?: string;
-      zohoCrmDealId?: string;
-      zohoCrmDealUrl?: string;
+      zohoProjectId?: string | null;
+      zohoCrmDealId?: string | null;
+      zohoCrmDealUrl?: string | null;
       operationalFulfillmentStatus?: string;
     },
   ): Promise<void>;
@@ -447,9 +447,9 @@ export class DatabaseStorage implements IStorage {
       zohoBooksSalesOrderId?: string;
       zohoBooksSalesOrderNumber?: string;
       zohoBooksSalesOrderUrl?: string;
-      zohoProjectId?: string;
-      zohoCrmDealId?: string;
-      zohoCrmDealUrl?: string;
+      zohoProjectId?: string | null;
+      zohoCrmDealId?: string | null;
+      zohoCrmDealUrl?: string | null;
       operationalFulfillmentStatus?: string;
     },
   ): Promise<void> {
