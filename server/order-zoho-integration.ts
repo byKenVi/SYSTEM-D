@@ -4,10 +4,8 @@
 
 import { storage } from "./storage";
 import type { Contact, ShopifyOrder, SystemdOrder } from "@shared/schema";
-import { createBooksSalesOrder, getZohoBooksSalesOrderUrl, type BooksLineItem } from "./zoho-books";
 import { getZohoRegion } from "./zoho-api";
 import { createZohoProject, buildOrderProjectPayload, uploadProjectDocument } from "./zoho-projects";
-import { normalizeShopifyStoreUrl } from "./shopify-credit-policy";
 import { generateOrderPdf, type OrderPdfLineItem } from "./pdf-generator";
 import {
   findOrCreateCrmContact,
@@ -29,200 +27,6 @@ function appDomainFromEnv(): string {
   const domains = raw.split(",").map((d) => d.trim()).filter(Boolean);
   const preferred = domains.find((d) => !d.endsWith(".replit.app")) || domains[0];
   return /^https?:\/\//i.test(preferred) ? preferred : `https://${preferred}`;
-}
-
-function systemdReference(order: SystemdOrder): string {
-  return order.shopifyOrderName ?? `SD-${order.id}`;
-}
-
-function booksLineItemsFromSystemd(order: SystemdOrder): BooksLineItem[] {
-  const items = Array.isArray(order.lineItems) ? (order.lineItems as any[]) : [];
-  if (items.length === 0) {
-    return [{
-      name: "Commande Système D",
-      quantity: 1,
-      rate: order.amount / 100,
-      description: `Commande #${order.id}`,
-    }];
-  }
-  return items.map((item) => ({
-    name: String(item.name ?? "Article"),
-    sku: item.sku ?? null,
-    quantity: Number(item.quantity) || 1,
-    rate: Number(item.unitPrice) || 0,
-    description: item.zohoItemId ? `Zoho item: ${item.zohoItemId}` : undefined,
-  }));
-}
-
-function booksLineItemsFromShopify(order: ShopifyOrder): BooksLineItem[] {
-  const items = Array.isArray(order.lineItems) ? (order.lineItems as any[]) : [];
-  if (items.length === 0) {
-    return [{
-      name: order.name,
-      quantity: 1,
-      rate: parseFloat(order.totalPrice || "0") || 0,
-    }];
-  }
-  return items.map((item) => ({
-    name: String(item.title ?? item.name ?? "Article"),
-    sku: item.sku ?? null,
-    quantity: Number(item.quantity) || 1,
-    rate: parseFloat(item.price ?? "0") || 0,
-  }));
-}
-
-export async function ensureBooksSalesOrderForSystemdOrder(orderId: number): Promise<void> {
-  await db.transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`books-systemd:${orderId}`}))`);
-    await createBooksSalesOrderForSystemdOrderIfMissing(orderId);
-  });
-}
-
-async function createBooksSalesOrderForSystemdOrderIfMissing(orderId: number): Promise<void> {
-  const orders = await storage.getSystemdOrders();
-  const order = orders.find((o) => o.id === orderId);
-  if (!order || order.status !== "paid") return;
-  if (order.zohoBooksSalesOrderId) return;
-
-  const contact = await storage.getContact(order.contactId);
-  if (!contact?.email) {
-    console.warn(`[zoho-books] Skip SO systemd #${orderId}: contact sans courriel`);
-    return;
-  }
-
-  try {
-    const source = (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd";
-    const { salesorderId, salesorderNumber } = await createBooksSalesOrder({
-      referenceNumber: systemdReference(order),
-      customer: {
-        name: contact.name,
-        email: contact.email,
-        companyName: contact.companyName,
-      },
-      lineItems: booksLineItemsFromSystemd(order),
-      notes: [
-        `Source Système D: ${source}`,
-        `Commande interne #${order.id}`,
-        order.shopifyOrderName ? `Shopify: ${order.shopifyOrderName}` : null,
-      ].filter(Boolean).join("\n"),
-    });
-    const region = await getZohoRegion();
-    await storage.updateSystemdOrder(orderId, {
-      zohoBooksSalesOrderId: salesorderId,
-      zohoBooksSalesOrderNumber: salesorderNumber,
-      zohoBooksSalesOrderUrl: getZohoBooksSalesOrderUrl(region, salesorderId),
-    });
-    await storage.createActivityLog({
-      type: "zoho_books_so_create",
-      status: "success",
-      message: `Books SO ${salesorderNumber} créé pour commande Système D #${orderId}`,
-      metadata: JSON.stringify({ orderId, salesorderId }),
-    });
-  } catch (error: any) {
-    console.error(`[zoho-books] systemd #${orderId}: ${error.message}`);
-    await storage.createActivityLog({
-      type: "zoho_books_so_create_error",
-      status: "error",
-      message: `Books SO échoué pour commande #${orderId}: ${error.message}`,
-    }).catch(() => {});
-  }
-}
-
-export async function ensureBooksSalesOrderForShopifyOrder(
-  integrationId: number,
-  shopifyOrderId: string,
-): Promise<void> {
-  const candidate = (await storage.getShopifyOrders()).find(order =>
-    order.integrationId === integrationId && order.shopifyOrderId === shopifyOrderId);
-  if (!candidate) return;
-  const store = normalizeShopifyStoreUrl(candidate.storeUrl) || `integration-${integrationId}`;
-  await db.transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`books-shopify:${store}:${shopifyOrderId}`}))`);
-    // Re-read after acquisition; all aliases of the same store/order share this lock.
-    await createBooksSalesOrderForShopifyOrderIfMissing(integrationId, shopifyOrderId);
-  });
-}
-
-async function createBooksSalesOrderForShopifyOrderIfMissing(integrationId: number, shopifyOrderId: string): Promise<void> {
-  const all = await storage.getShopifyOrders();
-  const order = all.find((o) => o.integrationId === integrationId && o.shopifyOrderId === shopifyOrderId);
-  if (!order) return;
-  if (order.zohoBooksSalesOrderId) return;
-  if (order.financialStatus === "voided" || order.financialStatus === "refunded") return;
-  if (order.financialStatus !== "paid" && order.financialStatus !== "partially_paid") return;
-
-  const systemdLinked = buildPaidSystemdShopifyKeys(await storage.getSystemdOrders(), all)
-    .has(`${integrationId}:${shopifyOrderId}`);
-  if (systemdLinked) return;
-
-  const existingAlias = all.find(candidate =>
-    candidate.shopifyOrderId === shopifyOrderId
-    && normalizeShopifyStoreUrl(candidate.storeUrl) === normalizeShopifyStoreUrl(order.storeUrl)
-    && candidate.zohoBooksSalesOrderId);
-  if (existingAlias) {
-    await storage.updateShopifyOrderZohoFields(integrationId, shopifyOrderId, {
-      zohoBooksSalesOrderId: existingAlias.zohoBooksSalesOrderId ?? undefined,
-      zohoBooksSalesOrderNumber: existingAlias.zohoBooksSalesOrderNumber ?? undefined,
-      zohoBooksSalesOrderUrl: existingAlias.zohoBooksSalesOrderUrl ?? undefined,
-    });
-    return;
-  }
-  const contact = await storage.getContact(order.contactId);
-  const email = order.email ?? contact?.email;
-  if (!email) {
-    console.warn(`[zoho-books] Skip SO Shopify ${order.name}: pas de courriel`);
-    return;
-  }
-
-  try {
-    const { salesorderId, salesorderNumber } = await createBooksSalesOrder({
-      referenceNumber: order.name,
-      customer: {
-        name: contact?.name ?? order.customerFirstName ?? order.name,
-        email,
-        companyName: contact?.companyName,
-      },
-      lineItems: booksLineItemsFromShopify(order),
-      notes: [
-        "Source: Shopify (commande boutique directe)",
-        `Boutique: ${order.shopName ?? order.storeUrl}`,
-        `Shopify ID: ${shopifyOrderId}`,
-      ].join("\n"),
-    });
-    const region = await getZohoRegion();
-    await storage.updateShopifyOrderZohoFields(integrationId, shopifyOrderId, {
-      zohoBooksSalesOrderId: salesorderId,
-      zohoBooksSalesOrderNumber: salesorderNumber,
-      zohoBooksSalesOrderUrl: getZohoBooksSalesOrderUrl(region, salesorderId),
-    });
-    await storage.createActivityLog({
-      type: "zoho_books_so_create",
-      status: "success",
-      message: `Books SO ${salesorderNumber} créé pour Shopify ${order.name}`,
-      metadata: JSON.stringify({ integrationId, shopifyOrderId, salesorderId }),
-    });
-    await storage.createNotification({
-      contactId: order.contactId,
-      category: "commande",
-      type: "shopify_direct_order_admin_action",
-      title: `Commande Shopify ${order.name} à traiter`,
-      message: `${order.shopName ?? order.storeUrl} — commande payée sur Shopify (hors parcours app).`,
-      metadata: {
-        adminOnly: true,
-        shopifyIntegrationId: integrationId,
-        shopifyOrderId,
-        tab: "orders",
-        orderSource: "shopify_direct",
-      },
-    }).catch(() => {});
-  } catch (error: any) {
-    console.error(`[zoho-books] Shopify ${order.name}: ${error.message}`);
-    await storage.createActivityLog({
-      type: "zoho_books_so_create_error",
-      status: "error",
-      message: `Books SO échoué pour Shopify ${order.name}: ${error.message}`,
-    }).catch(() => {});
-  }
 }
 
 export async function ensureZohoProjectWhenProcessingSystemdOrder(orderId: number): Promise<void> {
@@ -879,6 +683,22 @@ export async function ensureCrmDealForShopifyOrder(
       message: `Commande client CRM créée pour Shopify ${dealName}`,
       metadata: JSON.stringify({ integrationId, shopifyOrderId, dealName }),
     }).catch(() => {});
+    if (!options?.force) {
+      await storage.createNotification({
+        contactId: order.contactId,
+        category: "commande",
+        type: "shopify_direct_order_admin_action",
+        title: `Commande Shopify ${order.name} à traiter`,
+        message: `${order.shopName ?? order.storeUrl} — commande payée sur Shopify (hors parcours app).`,
+        metadata: {
+          adminOnly: true,
+          shopifyIntegrationId: integrationId,
+          shopifyOrderId,
+          tab: "orders",
+          orderSource: "shopify_direct",
+        },
+      }).catch(() => {});
+    }
   } catch (err: any) {
     await storage.createActivityLog({
       type: "zoho_crm_deal_create_error", status: "error",
@@ -1037,6 +857,9 @@ export async function syncOrderAddressesFromShopify(): Promise<{ updated: number
 
   for (const order of await storage.getShopifyOrders()) {
     if (!order.zohoCrmDealId) continue; // on ne patche que les commandes déjà dans le CRM
+    // Un ancien Deal (/Potentials/) n'est pas une commande client : un PUT dessus
+    // via /Sales_Orders/ renverrait 404. On ne touche que les vraies Sales_Orders.
+    if (!order.zohoCrmDealUrl || !order.zohoCrmDealUrl.includes("/SalesOrders/")) continue;
     const integ = await getInteg(order.integrationId);
     if (!integ) { failed++; continue; }
     try {
@@ -1056,16 +879,24 @@ export async function syncOrderAddressesFromShopify(): Promise<{ updated: number
         await updateCrmSalesOrder(order.zohoCrmDealId, fields);
       }
       updated++;
-    } catch {
+    } catch (err: any) {
       failed++;
+      const reason = err?.message ?? String(err);
+      console.error(`[addresses] ✗ ${order.name} (dealId=${order.zohoCrmDealId}, url=${order.zohoCrmDealUrl ?? "?"}): ${reason}`);
+      await storage.createActivityLog({
+        type: "zoho_crm_deal_create_error", status: "error",
+        message: `Adresses échouées ${order.name}: ${reason}`,
+      }).catch(() => {});
     }
   }
   return { updated, noAddress, failed };
 }
 
-/** Point d'entrée unique au paiement d'une commande Système D : Books → commande client CRM. */
+/**
+ * Point d'entrée au paiement : commande client CRM seulement. Books ne reçoit la
+ * commande qu'à l'état « Commande planifier » (voir crm-planned-orders.ts).
+ */
 export async function ensureZohoOrderPipelineForSystemdOrder(orderId: number): Promise<void> {
-  await ensureBooksSalesOrderForSystemdOrder(orderId);
   await ensureCrmDealForSystemdOrder(orderId);
 }
 
@@ -1075,7 +906,6 @@ export async function afterShopifyOrdersSynced(integrationId: number): Promise<v
   for (const order of dedupeOperationalShopifyOrders(orders)) {
     if (order.integrationId !== integrationId) continue;
     if (!isShopifyOrderEligibleForOpsQueue(order, systemdKeys)) continue;
-    await ensureBooksSalesOrderForShopifyOrder(integrationId, order.shopifyOrderId);
     await ensureCrmDealForShopifyOrder(integrationId, order.shopifyOrderId);
   }
 }
