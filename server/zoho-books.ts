@@ -23,12 +23,13 @@ async function getBooksOrgId(): Promise<string> {
   return orgId;
 }
 
-function booksApiError(status: number, code: unknown): BooksConfigurationError {
+function booksApiError(status: number, code: unknown, zohoMessage?: unknown): BooksConfigurationError {
   if (status === 429) return new BooksConfigurationError("BOOKS_RATE_LIMITED", "Zoho limite temporairement les requêtes. Réessayez plus tard.", 429);
   if (status === 401 || status === 403 || code === 57 || String(code).includes("SCOPE")) {
     return new BooksConfigurationError("BOOKS_SCOPE_REQUIRED", "Reconnectez Zoho depuis Paramètres et autorisez l’accès à Zoho Books, puis réessayez.", 403);
   }
-  return new BooksConfigurationError("BOOKS_API_ERROR", "Zoho Books n’a pas accepté la requête. Vérifiez l’organisation sélectionnée ou réessayez plus tard.", 502);
+  const detail = typeof zohoMessage === "string" && zohoMessage ? ` (Zoho : ${zohoMessage})` : "";
+  return new BooksConfigurationError("BOOKS_API_ERROR", `Zoho Books n’a pas accepté la requête. Vérifiez l’organisation sélectionnée ou réessayez plus tard.${detail}`, 502);
 }
 
 async function requestBooksData(path: string, region: string, token: string, method = "GET", body?: unknown) {
@@ -45,7 +46,7 @@ async function requestBooksData(path: string, region: string, token: string, met
     response = await fetch(`https://${api}/books/v3${path}`, options(await refreshAccessToken(region)));
     data = await response.json().catch(() => ({}));
   }
-  if (!response.ok || data.code !== 0) throw booksApiError(response.status, data.code);
+  if (!response.ok || data.code !== 0) throw booksApiError(response.status, data.code, data.message);
   return data;
 }
 
@@ -151,32 +152,42 @@ async function ensureBooksContact(contact: {
 export type BooksLineItem = {
   name: string;
   sku?: string | null;
+  /** Article Books/Inventory : sans lui, la ligne est du texte libre (pas de mouvement de stock). */
+  itemId?: string | null;
   quantity: number;
   rate: number;
   description?: string;
 };
+
+export type BooksCustomField = { customfield_id: string; value: string };
+
+function toBooksLineItems(items: BooksLineItem[]) {
+  return items.map((item) => item.itemId
+    ? { item_id: item.itemId, quantity: item.quantity, rate: item.rate, ...(item.description ? { description: item.description } : {}) }
+    : {
+        name: item.name,
+        description: item.description ?? (item.sku ? `SKU: ${item.sku}` : undefined),
+        quantity: item.quantity,
+        rate: item.rate,
+      });
+}
 
 export async function createBooksSalesOrder(params: {
   referenceNumber: string;
   customer: { name: string; email: string; companyName?: string | null };
   lineItems: BooksLineItem[];
   notes?: string;
+  customFields?: BooksCustomField[];
 }): Promise<{ salesorderId: string; salesorderNumber: string }> {
   const region = await getZohoRegion();
   const customerId = await ensureBooksContact(params.customer);
 
-  const line_items = params.lineItems.map((item) => ({
-    name: item.name,
-    description: item.description ?? (item.sku ? `SKU: ${item.sku}` : undefined),
-    quantity: item.quantity,
-    rate: item.rate,
-  }));
-
   const data = await booksRequest("POST", "/salesorders", {
     customer_id: customerId,
     reference_number: params.referenceNumber,
-    line_items,
+    line_items: toBooksLineItems(params.lineItems),
     notes: params.notes,
+    ...(params.customFields?.length ? { custom_fields: params.customFields } : {}),
   }, region);
 
   const so = data.salesorder;
@@ -186,4 +197,33 @@ export async function createBooksSalesOrder(params: {
     salesorderId: so.salesorder_id,
     salesorderNumber: so.salesorder_number ?? so.salesorder_id,
   };
+}
+
+/** Remplace les lignes (et le tag) d'un bon de commande existant. Échoue s'il est déjà facturé/expédié. */
+export async function updateBooksSalesOrder(salesorderId: string, params: {
+  referenceNumber: string;
+  lineItems: BooksLineItem[];
+  notes?: string;
+  customFields?: BooksCustomField[];
+}): Promise<void> {
+  await booksRequest("PUT", `/salesorders/${encodeURIComponent(salesorderId)}`, {
+    reference_number: params.referenceNumber,
+    line_items: toBooksLineItems(params.lineItems),
+    ...(params.notes ? { notes: params.notes } : {}),
+    ...(params.customFields?.length ? { custom_fields: params.customFields } : {}),
+  });
+}
+
+/** « Confirmer » dans l'interface Books = statut API « open ». */
+export async function confirmBooksSalesOrder(salesorderId: string): Promise<void> {
+  await booksRequest("POST", `/salesorders/${encodeURIComponent(salesorderId)}/status/open`);
+}
+
+/** Bon de commande Books portant exactement cette référence, ou null. */
+export async function findBooksSalesOrderByReference(
+  referenceNumber: string,
+): Promise<{ salesorderId: string; salesorderNumber: string } | null> {
+  const data = await booksRequest("GET", `/salesorders?reference_number=${encodeURIComponent(referenceNumber)}`);
+  const match = (data.salesorders ?? []).find((so: any) => so.reference_number === referenceNumber);
+  return match ? { salesorderId: String(match.salesorder_id), salesorderNumber: String(match.salesorder_number ?? match.salesorder_id) } : null;
 }

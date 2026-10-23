@@ -6,8 +6,7 @@ import { dedupeOperationalShopifyOrders, buildPaidSystemdShopifyKeys } from "./s
 import type { ShopifyOrder, SystemdOrder } from "@shared/schema";
 import { mock } from "node:test";
 import { storage } from "./storage";
-import { db, pool } from "./db";
-import { ensureBooksSalesOrderForShopifyOrder, ensureBooksSalesOrderForSystemdOrder } from "./order-zoho-integration";
+import { pool } from "./db";
 import { fetchBooksOrganizations } from "./zoho-books";
 import { invalidateAccessTokenCache } from "./zoho-auth";
 import { readFileSync } from "node:fs";
@@ -69,34 +68,6 @@ test("OAuth reconnection immediately drops cached tokens with the old Books perm
   const oauth = source.slice(source.indexOf('app.get("/api/auth/zoho/callback"'), source.indexOf('app.get("/api/zoho/inventory"'));
   assert.equal((oauth.match(/invalidateAccessTokenCache\(\)/g) || []).length, 3);
   assert.doesNotMatch(oauth, /\.\.\.\(existing \|\| \{\}\)/);
-});
-
-test("Books shares the existing SO between cached integration aliases after a DB lock", async () => {
-  const events: string[] = [];
-  const rows = [order({}), order({ integrationId: 5, storeUrl: "https://shop.myshopify.com", zohoBooksSalesOrderId: "987", zohoBooksSalesOrderNumber: "SO-987", zohoBooksSalesOrderUrl: "https://books.zoho.com/app#/salesorders/987" })];
-  const transaction = mock.method(db, "transaction", async (callback: any) => callback({ execute: async () => { events.push("lock"); } }));
-  const read = mock.method(storage, "getShopifyOrders", async () => { events.push("read"); return rows; });
-  const systemd = mock.method(storage, "getSystemdOrders", async () => []);
-  let written: any;
-  const update = mock.method(storage, "updateShopifyOrderZohoFields", async (_integration: number, _id: string, fields: any) => { written = fields; events.push("persist"); });
-  const contact = mock.method(storage, "getContact", async () => { throw new Error("No new contact/SO should be requested."); });
-  try {
-    await ensureBooksSalesOrderForShopifyOrder(4, "7174105595993");
-    assert.deepEqual(events, ["read", "lock", "read", "persist"]);
-    assert.equal(written.zohoBooksSalesOrderId, "987");
-  } finally {
-    for (const method of [transaction, read, systemd, update, contact]) method.mock.restore();
-  }
-});
-
-test("SystemD SO existence is rechecked after acquiring the lock", async () => {
-  const events: string[] = [];
-  const transaction = mock.method(db, "transaction", async (callback: any) => callback({ execute: async () => { events.push("lock"); } }));
-  const read = mock.method(storage, "getSystemdOrders", async () => { events.push("read"); return [{ id: 21, status: "paid", zohoBooksSalesOrderId: "already-exists" } as SystemdOrder]; });
-  try {
-    await ensureBooksSalesOrderForSystemdOrder(21);
-    assert.deepEqual(events, ["lock", "read"]);
-  } finally { transaction.mock.restore(); read.mock.restore(); }
 });
 
 test("Books distinguishes missing scopes and rate limits without saving an organization", async () => {

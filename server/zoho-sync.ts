@@ -17,6 +17,7 @@
 
 import { storage } from "./storage";
 import { syncFullZohoCatalog } from "./zoho-catalog";
+import { syncCatalogProductsToCrm } from "./crm-product-sync";
 import { log } from "./index";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000; // check every 60s whether a sync is due
@@ -60,6 +61,16 @@ export function startZohoSyncScheduler() {
 
       // Update the last-sync timestamp so the next cycle waits correctly
       await storage.updateZohoLastSyncAt(now);
+
+      // Écrit dans le CRM de production : activé seulement après validation de scripts/sync-crm-products.ts.
+      if (process.env.ZOHO_CRM_PRODUCT_SYNC === "on") {
+        try {
+          const crm = await syncCatalogProductsToCrm();
+          log(`CRM products sync: ${crm.created} created, ${crm.updated} updated, ${crm.errors.length} errors`, "zoho-sync");
+        } catch (err: any) {
+          log(`CRM products sync error: ${err.message}`, "zoho-sync");
+        }
+      }
 
     } catch (err: any) {
       if (err.message?.includes("429") || err.message?.includes("QUOTA_EXHAUSTED")) {

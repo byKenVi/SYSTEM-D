@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { startShopifySyncScheduler } from "./shopify-sync";
 import { startShopifyOrdersSyncScheduler } from "./shopify-orders-sync";
 import { startZohoSyncScheduler } from "./zoho-sync";
+import { startCrmPlannedOrdersScheduler } from "./crm-planned-orders";
 import { startShopifyWritebackScheduler } from "./shopify-writeback";
 import { startMapiBalanceRefreshScheduler } from "./mapi-balance-refresh";
 import { startShopifyClientOrderReconciliationScheduler } from "./shopify-client-order-reconciliation";
@@ -209,6 +210,7 @@ app.use((req, res, next) => {
       startShopifyWritebackScheduler();
       startMapiBalanceRefreshScheduler();
       startShopifyClientOrderReconciliationScheduler();
+      startCrmPlannedOrdersScheduler();
     },
   );
 })();

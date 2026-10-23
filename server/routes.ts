@@ -47,6 +47,7 @@ import {
   ensureZohoProjectWhenProcessingSystemdOrder,
   ensureZohoProjectWhenProcessingShopifyOrder,
 } from "./order-zoho-integration";
+import { handlePlannedCrmOrder } from "./crm-planned-orders";
 
 function buildStatusNotification(
   formType: string,
@@ -1068,6 +1069,29 @@ export async function registerRoutes(
       console.error("Webhook error:", error);
       res.status(500).json({ message: "Webhook processing failed" });
     }
+  });
+
+  // Workflow CRM « Commandes client » : État = Commande planifier → envoi vers Zoho Books.
+  // Configurer dans Zoho CRM → Configuration → Automatisation → Actions → Webhooks :
+  //   URL    : https://{DOMAIN}/api/webhooks/zoho-crm/sales-order-planned
+  //   Méthode: POST, paramètre « id » = ID de la commande client
+  //   En-tête: X-Zoho-Webhook-Secret: {ZOHO_CRM_ORDER_WEBHOOK_SECRET}
+  //   (si les en-têtes ne sont pas disponibles : paramètre « secret » à la place)
+  app.post("/api/webhooks/zoho-crm/sales-order-planned", async (req: any, res) => {
+    const expectedSecret = process.env.ZOHO_CRM_ORDER_WEBHOOK_SECRET;
+    if (!expectedSecret) return res.status(401).json({ message: "Webhook not configured" });
+    const provided = String(req.headers["x-zoho-webhook-secret"] ?? req.body?.secret ?? req.query?.secret ?? "");
+    const { timingSafeEqual } = await import("crypto");
+    const a = Buffer.from(expectedSecret, "utf8");
+    const b = Buffer.from(provided, "utf8");
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return res.status(401).json({ message: "Invalid webhook secret" });
+    }
+    const id = String(req.body?.id ?? req.query?.id ?? "").trim();
+    if (!/^\d+$/.test(id)) return res.status(400).json({ message: "Missing or invalid id" });
+    // Répondre tout de suite : le CRM coupe les webhooks lents. Le statut est revérifié côté CRM.
+    res.status(202).json({ accepted: true });
+    void handlePlannedCrmOrder(id, "webhook");
   });
 
   app.get("/api/products", isAuthenticated, isAdmin, async (req, res) => {

@@ -389,6 +389,144 @@ export async function uploadSalesOrderAttachment(
   }
 }
 
+/** Commande client complète (avec Ordered_Items), ou null si introuvable. */
+export async function getCrmSalesOrder(soId: string): Promise<any | null> {
+  const region = await getZohoRegion();
+  const { status, data } = await crmRequest("GET", `/${ORDER_SO_MODULE}/${encodeURIComponent(soId)}`, undefined, region);
+  if (status === 204 || status === 404) return null;
+  if (status >= 400) throw new CrmError(`Lecture de la commande client ${soId} refusée : ${data?.message || status}`);
+  return data?.data?.[0] ?? null;
+}
+
+/** Codes (SKU) et noms des produits CRM, indexés par id. */
+export async function getCrmProductsByIds(
+  ids: string[],
+): Promise<Map<string, { code: string | null; name: string | null }>> {
+  const out = new Map<string, { code: string | null; name: string | null }>();
+  if (ids.length === 0) return out;
+  const region = await getZohoRegion();
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { status, data } = await crmRequest(
+      "GET",
+      `/Products?ids=${chunk.map(encodeURIComponent).join(",")}&fields=Product_Code,Product_Name`,
+      undefined,
+      region,
+    );
+    if (status >= 400) throw new CrmError(`Lecture des produits CRM refusée : ${data?.message || status}`);
+    for (const p of data?.data ?? []) {
+      out.set(String(p.id), { code: p.Product_Code ?? null, name: p.Product_Name ?? null });
+    }
+  }
+  return out;
+}
+
+/** Email + nom d'un contact CRM (pour retrouver/créer le client Books). */
+export async function getCrmContact(
+  contactId: string,
+): Promise<{ email: string | null; name: string } | null> {
+  const region = await getZohoRegion();
+  const { status, data } = await crmRequest("GET", `/Contacts/${encodeURIComponent(contactId)}`, undefined, region);
+  if (status >= 400 || status === 204) return null;
+  const c = data?.data?.[0];
+  if (!c) return null;
+  const name = [c.First_Name, c.Last_Name].filter(Boolean).join(" ") || c.Full_Name || "";
+  return { email: c.Email ?? null, name };
+}
+
+/** Ids des commandes client à un statut donné, modifiées depuis `since`. */
+export async function searchCrmSalesOrderIdsByStatus(status: string, since: Date): Promise<string[]> {
+  const region = await getZohoRegion();
+  const sinceIso = since.toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const criteria = `((Status:equals:${status})and(Modified_Time:greater_equal:${sinceIso}))`;
+  const ids: string[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const { status: http, data } = await crmRequest(
+      "GET",
+      `/${ORDER_SO_MODULE}/search?criteria=${encodeURIComponent(criteria)}&per_page=200&page=${page}`,
+      undefined,
+      region,
+    );
+    if (http === 204) break;
+    if (http >= 400) throw new CrmError(`Recherche des commandes « ${status} » refusée : ${data?.message || http}`);
+    for (const rec of data?.data ?? []) ids.push(String(rec.id));
+    if (!data?.info?.more_records) break;
+  }
+  return ids;
+}
+
+/** Ajoute une note visible sur la commande client. */
+export async function addCrmSalesOrderNote(soId: string, title: string, content: string): Promise<void> {
+  const region = await getZohoRegion();
+  const { data } = await crmRequest(
+    "POST",
+    `/${ORDER_SO_MODULE}/${encodeURIComponent(soId)}/Notes`,
+    { data: [{ Note_Title: title, Note_Content: content }] },
+    region,
+  );
+  const first = data?.data?.[0];
+  if (first && first.code !== "SUCCESS") {
+    throw new CrmError(`Note refusée par le CRM : ${first.message || "erreur inconnue"}`);
+  }
+}
+
+export interface CrmProductSummary {
+  id: string;
+  name: string;
+  code: string | null;
+  unitPrice: number | null;
+  active: boolean;
+}
+
+/** Tous les produits CRM (paginés par 200). */
+export async function listAllCrmProducts(): Promise<CrmProductSummary[]> {
+  const region = await getZohoRegion();
+  const out: CrmProductSummary[] = [];
+  let pageToken: string | null = null;
+  for (let page = 1; page <= 500; page++) {
+    const cursor: string = pageToken ? `page_token=${encodeURIComponent(pageToken)}` : `page=${page}`;
+    const { status, data } = await crmRequest(
+      "GET",
+      `/Products?fields=Product_Name,Product_Code,Unit_Price,Product_Active&per_page=200&${cursor}`,
+      undefined,
+      region,
+    );
+    if (status === 204) break;
+    if (status >= 400) throw new CrmError(`Lecture des produits CRM refusée : ${data?.message || status}`);
+    for (const p of data?.data ?? []) {
+      out.push({
+        id: String(p.id),
+        name: String(p.Product_Name ?? ""),
+        code: p.Product_Code ?? null,
+        unitPrice: typeof p.Unit_Price === "number" ? p.Unit_Price : null,
+        active: p.Product_Active !== false,
+      });
+    }
+    if (!data?.info?.more_records) break;
+    pageToken = data?.info?.next_page_token ?? null;
+  }
+  return out;
+}
+
+/** Crée (POST) ou met à jour (PUT) des produits CRM par lots de 100. Renvoie le nombre de succès et les erreurs. */
+export async function upsertCrmProductsBatch(
+  method: "POST" | "PUT",
+  records: Record<string, unknown>[],
+): Promise<{ ok: number; errors: string[] }> {
+  const region = await getZohoRegion();
+  let ok = 0;
+  const errors: string[] = [];
+  for (let i = 0; i < records.length; i += 100) {
+    const chunk = records.slice(i, i + 100);
+    const { data } = await crmRequest(method, `/Products`, { data: chunk }, region);
+    (data?.data ?? []).forEach((r: any, idx: number) => {
+      if (r?.code === "SUCCESS") ok++;
+      else errors.push(`${chunk[idx]?.Product_Code ?? chunk[idx]?.Product_Name ?? "?"}: ${r?.message ?? "erreur"}`);
+    });
+  }
+  return { ok, errors };
+}
+
 export interface CrmDealParams {
   /** Nom de l'opportunité, ex. "Mapei #1234". */
   dealName: string;
