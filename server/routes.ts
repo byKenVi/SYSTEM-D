@@ -1085,10 +1085,19 @@ export async function registerRoutes(
     const a = Buffer.from(expectedSecret, "utf8");
     const b = Buffer.from(provided, "utf8");
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      // Console seulement : l'URL est publique, pas d'écriture en base pour un appel non authentifié.
+      console.warn(`[crm-planned] webhook refusé : secret ${provided ? "incorrect" : "absent"} (en-tête X-Zoho-Webhook-Secret)`);
       return res.status(401).json({ message: "Invalid webhook secret" });
     }
     const id = String(req.body?.id ?? req.query?.id ?? "").trim();
-    if (!/^\d+$/.test(id)) return res.status(400).json({ message: "Missing or invalid id" });
+    if (!/^\d+$/.test(id)) {
+      await storage.createActivityLog({
+        type: "zoho_books_so_planned_error", status: "error",
+        message: `Webhook CRM « Commande planifier » reçu sans id valide (reçu ${JSON.stringify(id)}) : vérifier le paramètre « id » du webhook`,
+        metadata: JSON.stringify({ body: req.body, query: req.query }),
+      }).catch(() => {});
+      return res.status(400).json({ message: "Missing or invalid id" });
+    }
     // Répondre tout de suite : le CRM coupe les webhooks lents. Le statut est revérifié côté CRM.
     res.status(202).json({ accepted: true });
     void handlePlannedCrmOrder(id, "webhook");

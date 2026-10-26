@@ -170,13 +170,22 @@ export type PlannedOrderOutcome = "sent" | "already_sent" | "not_planned" | "not
  * Envoie une commande client planifiée vers Books. Idempotent (verrou par
  * commande + vérification de l'existant), sûr à rappeler.
  */
-export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: "webhook" | "catch-up"): Promise<PlannedOrderOutcome> {
+export type PlannedOrderTrigger = "webhook" | "catch-up" | "manual";
+
+export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: PlannedOrderTrigger): Promise<PlannedOrderOutcome> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`crm-planned-books:${crmSoId}`}))`);
 
     const so = await getCrmSalesOrder(crmSoId);
-    if (!so) return "not_found";
-    if (so.Status !== PLANNED_STATUS) return "not_planned";
+    if (!so) {
+      await logSkipped(crmSoId, trigger, "commande client introuvable dans le CRM");
+      return "not_found";
+    }
+    if (so.Status !== PLANNED_STATUS) {
+      // Valeur API exacte : un libellé renommé dans le CRM garde parfois son ancienne valeur.
+      await logSkipped(crmSoId, trigger, `État reçu ${JSON.stringify(so.Status)} ≠ attendu ${JSON.stringify(PLANNED_STATUS)}`);
+      return "not_planned";
+    }
 
     const local = await findLocalOrder(crmSoId);
     const fromApp = local !== null;
@@ -259,8 +268,17 @@ export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: "webh
   });
 }
 
+async function logSkipped(crmSoId: string, trigger: PlannedOrderTrigger, reason: string): Promise<void> {
+  console.warn(`[crm-planned] ${crmSoId} non envoyée (${trigger}) : ${reason}`);
+  await storage.createActivityLog({
+    type: "zoho_books_so_planned", status: "warning",
+    message: `Commande client CRM ${crmSoId} non envoyée vers Books (${trigger}) : ${reason}`,
+    metadata: JSON.stringify({ crmSoId }),
+  }).catch(() => {});
+}
+
 /** Version « ne lève jamais » pour le webhook et le rattrapage : erreurs journalisées. */
-export async function handlePlannedCrmOrder(crmSoId: string, trigger: "webhook" | "catch-up"): Promise<void> {
+export async function handlePlannedCrmOrder(crmSoId: string, trigger: PlannedOrderTrigger): Promise<void> {
   try {
     await sendPlannedCrmOrderToBooks(crmSoId, trigger);
   } catch (err: any) {
