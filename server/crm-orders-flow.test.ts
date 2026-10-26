@@ -61,6 +61,18 @@ test("Product sync creates missing items, updates changed ones, never touches in
   assert.equal(plan.unchanged, 0);
 });
 
+test("A zero catalog price never overwrites a real CRM price", () => {
+  const plan = planCrmProductSync(
+    [
+      { name: "Mortier MK10", sku: "MK10", price: "0.0000", status: "active" },
+      { name: "Nouveau", sku: "NEW", price: "0", status: "active" },
+    ],
+    [{ id: "1", name: "Mortier MK10", code: "MK10", unitPrice: 24.99, active: true }],
+  );
+  assert.deepEqual(plan.updates, []);
+  assert.deepEqual(plan.creates, [{ Product_Name: "Nouveau", Product_Active: true, Product_Code: "NEW" }]);
+});
+
 test("Re-running the product sync on an aligned CRM changes nothing", () => {
   const plan = planCrmProductSync(
     [{ name: "Mortier MK10", sku: "MK10", price: "12.5", status: "active" }],

@@ -35,7 +35,9 @@ export function planCrmProductSync(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const price = item.price != null ? Number(item.price) : null;
+    // Les articles Books/Inventory sont souvent à 0 $ (prix tenus dans Shopify) : 0 = « pas de prix », jamais écrit.
+    const rawPrice = item.price != null ? Number(item.price) : NaN;
+    const price = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : null;
     const match = (item.sku && byCode.get(norm(item.sku))) || byNameWithoutCode.get(norm(item.name));
     if (!match) {
       plan.creates.push({
