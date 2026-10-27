@@ -48,6 +48,7 @@ import {
   ensureZohoProjectWhenProcessingShopifyOrder,
 } from "./order-zoho-integration";
 import { handlePlannedCrmOrder } from "./crm-planned-orders";
+import { ORDER_WEBHOOK_PATH, isValidShopifyWebhook } from "./shopify-webhook-policy";
 
 function buildStatusNotification(
   formType: string,
@@ -1101,6 +1102,25 @@ export async function registerRoutes(
     // Répondre tout de suite : le CRM coupe les webhooks lents. Le statut est revérifié côté CRM.
     res.status(202).json({ accepted: true });
     void handlePlannedCrmOrder(id, "webhook");
+  });
+
+  // Webhooks Shopify « commandes » (abonnés par ensureOrderWebhooks) : déclenchent
+  // une synchro immédiate de la boutique au lieu d'attendre le polling.
+  app.post(ORDER_WEBHOOK_PATH, async (req: any, res) => {
+    const settings = await storage.getAdminSettings().catch(() => undefined);
+    const secrets = [process.env.SHOPIFY_CLIENT_SECRET, settings?.shopifyAppClientSecret]
+      .map((s) => (s ?? "").trim())
+      .filter(Boolean);
+    if (!isValidShopifyWebhook(req.rawBody as Buffer | undefined, req.get("x-shopify-hmac-sha256"), secrets)) {
+      // Console seulement : l'URL est publique, pas d'écriture en base pour un appel non authentifié.
+      console.warn(`[shopify-webhook] signature invalide (${req.get("x-shopify-topic") ?? "?"} de ${req.get("x-shopify-shop-domain") ?? "?"})`);
+      return res.status(401).json({ message: "Invalid signature" });
+    }
+    // Répondre tout de suite : Shopify attend une réponse en quelques secondes.
+    res.status(200).json({ received: true });
+    const { scheduleOrderSyncFromWebhook } = await import("./shopify-orders-sync");
+    void scheduleOrderSyncFromWebhook(String(req.get("x-shopify-shop-domain") ?? ""))
+      .catch((err) => console.error(`[shopify-webhook] ${err.message}`));
   });
 
   app.get("/api/products", isAuthenticated, isAdmin, async (req, res) => {

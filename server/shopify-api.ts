@@ -876,6 +876,39 @@ export async function fetchShopifyLocations(
   return (data.locations || []).map((loc: any) => ({ id: loc.id, name: loc.name }));
 }
 
+/** Abonnements webhook de l'app sur cette boutique. */
+export async function listShopifyWebhooks(
+  storeUrl: string,
+  accessToken: string,
+): Promise<{ id: number; topic: string; address: string }[]> {
+  const res = await fetch(`${buildBaseUrl(storeUrl)}/webhooks.json?limit=250`, {
+    headers: buildHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw Object.assign(new Error(`Shopify Webhooks API error ${res.status}: ${text}`), { status: res.status });
+  }
+  const data = await res.json();
+  return (data.webhooks || []).map((w: any) => ({ id: w.id, topic: w.topic, address: w.address }));
+}
+
+export async function createShopifyWebhook(
+  storeUrl: string,
+  accessToken: string,
+  topic: string,
+  address: string,
+): Promise<void> {
+  const res = await fetch(`${buildBaseUrl(storeUrl)}/webhooks.json`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({ webhook: { topic, address, format: "json" } }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw Object.assign(new Error(`Shopify webhook ${topic} refusé (${res.status}) : ${text}`), { status: res.status });
+  }
+}
+
 export interface ShopifyCustomer {
   id: number;
   email: string | null;

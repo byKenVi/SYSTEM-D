@@ -1,20 +1,41 @@
+import { normalizeShopifyStoreUrl } from "@shared/shopify-urls";
 import { storage } from "./storage";
 import { classifyShopifyFailure, fetchShopifyOrders } from "./shopify-api";
 import { fetchWooOrders, normalizeWooOrders } from "./woocommerce-api";
 import { log } from "./index";
 import { afterShopifyOrdersSynced } from "./order-zoho-integration";
+import { getShopifyAccessToken } from "./shopify-token";
+import { ensureOrderWebhooks, publicOrderWebhookAddress } from "./shopify-order-webhooks";
 
 const SYNC_CHECK_INTERVAL_MS = 60_000;
 const INITIAL_RETRY_DELAY_MS = 2 * 60 * 1000;
 const MAX_RETRY_DELAY_MS = 60 * 60 * 1000;
 const PERMISSION_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
+/** Shopify envoie create + paid à quelques secondes d'écart : une seule synchro pour la rafale. */
+const WEBHOOK_DEBOUNCE_MS = 5_000;
 let isSyncing = false;
+
+// Une seule synchro à la fois par boutique (polling, webhook ou bouton manuel) :
+// deux synchros simultanées pourraient créer deux fois la même commande client CRM.
+const integrationQueues = new Map<number, Promise<unknown>>();
+const webhookTimers = new Map<number, NodeJS.Timeout>();
+
+function runExclusive<T>(integrationId: number, task: () => Promise<T>): Promise<T> {
+  const previous = integrationQueues.get(integrationId) ?? Promise.resolve();
+  const run = previous.catch(() => {}).then(task);
+  integrationQueues.set(integrationId, run.catch(() => {}));
+  return run;
+}
 
 function retryDelayFor(errorCount: number): number {
   return Math.min(MAX_RETRY_DELAY_MS, INITIAL_RETRY_DELAY_MS * 2 ** Math.min(Math.max(errorCount - 1, 0), 5));
 }
 
-export async function syncOrdersForIntegration(integration: { id: number; contactId: number; storeUrl: string; accessToken: string; shopName: string | null; platform?: string; platformConfig?: any }) {
+export function syncOrdersForIntegration(integration: { id: number; contactId: number; storeUrl: string; accessToken: string; shopName: string | null; platform?: string; platformConfig?: any }) {
+  return runExclusive(integration.id, () => syncOrdersNow(integration));
+}
+
+async function syncOrdersNow(integration: { id: number; contactId: number; storeUrl: string; accessToken: string; shopName: string | null; platform?: string; platformConfig?: any }) {
   const platform = integration.platform ?? "shopify";
   let orders;
   if (platform === "woocommerce") {
@@ -22,7 +43,8 @@ export async function syncOrdersForIntegration(integration: { id: number; contac
     const rawOrders = await fetchWooOrders(integration.storeUrl, integration.accessToken, consumerSecret, 100);
     orders = normalizeWooOrders(rawOrders, integration.id, integration.contactId, integration.storeUrl, integration.shopName);
   } else {
-    const rawOrders = await fetchShopifyOrders(integration.storeUrl, integration.accessToken, 250);
+    const accessToken = await getShopifyAccessToken(integration);
+    const rawOrders = await fetchShopifyOrders(integration.storeUrl, accessToken, 250);
     orders = rawOrders.map((o) => ({
       integrationId: integration.id,
       contactId: integration.contactId,
@@ -58,8 +80,41 @@ export async function syncOrdersForIntegration(integration: { id: number; contac
   return orders.length;
 }
 
+/**
+ * Appelé par le webhook Shopify : synchronise tout de suite les commandes de la
+ * boutique (après une courte fenêtre qui regroupe create + paid). Ignore les
+ * boutiques inactives ou dont la synchro des commandes est désactivée.
+ */
+export async function scheduleOrderSyncFromWebhook(shopDomain: string): Promise<boolean> {
+  const domain = normalizeShopifyStoreUrl(shopDomain);
+  const integrations = (await storage.getShopifyIntegrations()).filter((i) =>
+    (i.platform ?? "shopify") === "shopify"
+    && i.isActive
+    && i.orderSyncFrequencyMinutes > 0
+    && normalizeShopifyStoreUrl(i.storeUrl) === domain,
+  );
+  for (const integration of integrations) {
+    if (webhookTimers.has(integration.id)) continue;
+    webhookTimers.set(integration.id, setTimeout(() => {
+      webhookTimers.delete(integration.id);
+      void (async () => {
+        // Relire la ligne : le jeton a pu être renouvelé depuis la réception du webhook.
+        const fresh = (await storage.getShopifyIntegrations()).find((i) => i.id === integration.id);
+        if (!fresh) return;
+        const count = await syncOrdersForIntegration(fresh);
+        log(`Orders webhook sync: upserted ${count} orders for integration ${fresh.id} (${fresh.storeUrl})`, "orders-sync");
+      })().catch((err) => log(`Orders webhook sync failed for integration ${integration.id}: ${err.message}`, "orders-sync"));
+    }, WEBHOOK_DEBOUNCE_MS));
+  }
+  return integrations.length > 0;
+}
+
 export function startShopifyOrdersSyncScheduler() {
   log("Shopify orders auto-sync scheduler started (checks every 60s)", "orders-sync");
+  const webhookAddress = publicOrderWebhookAddress();
+  log(webhookAddress
+    ? `Shopify order webhooks → ${webhookAddress}`
+    : "Shopify order webhooks disabled: set SHOPIFY_APP_URL (public https URL) to receive orders instantly", "orders-sync");
 
   setInterval(async () => {
     if (isSyncing) {
@@ -82,6 +137,8 @@ export function startShopifyOrdersSyncScheduler() {
             status: "success",
             message: `Orders auto-sync: ${count} order${count !== 1 ? "s" : ""} updated from ${integration.storeUrl}`,
           });
+          await ensureOrderWebhooks(integration).catch((err) =>
+            log(`Order webhooks registration failed for integration ${integration.id}: ${err.message}`, "orders-sync"));
         } catch (err: any) {
           const failureKind = classifyShopifyFailure(err);
           const errorCount = ((integration as any).consecutiveErrors ?? 0) + 1;
