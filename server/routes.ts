@@ -1072,7 +1072,7 @@ export async function registerRoutes(
     }
   });
 
-  // Workflow CRM « Commandes client » : État = Commande planifier → envoi vers Zoho Books.
+  // Workflow CRM « Commandes client » : État = Commande planifier → envoi vers Zoho Inventory (commande + prélèvement).
   // Configurer dans Zoho CRM → Configuration → Automatisation → Actions → Webhooks :
   //   URL    : https://{DOMAIN}/api/webhooks/zoho-crm/sales-order-planned
   //   Méthode: POST, paramètre « id » = ID de la commande client
@@ -1093,7 +1093,7 @@ export async function registerRoutes(
     const id = String(req.body?.id ?? req.query?.id ?? "").trim();
     if (!/^\d+$/.test(id)) {
       await storage.createActivityLog({
-        type: "zoho_books_so_planned_error", status: "error",
+        type: "zoho_inventory_so_planned_error", status: "error",
         message: `Webhook CRM « Commande planifier » reçu sans id valide (reçu ${JSON.stringify(id)}) : vérifier le paramètre « id » du webhook`,
         metadata: JSON.stringify({ body: req.body, query: req.query }),
       }).catch(() => {});

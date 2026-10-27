@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapCrmItemsToBooksLines } from "./crm-planned-orders";
+import { mapCrmItemsToInventoryLines } from "./crm-planned-orders";
 import { planCrmProductSync } from "./crm-product-sync";
 
 const catalog = [
@@ -8,12 +8,12 @@ const catalog = [
   { zohoItemId: "INV-2", sku: null, name: "Seau vide" },
 ];
 
-test("CRM lines are linked to Books items by SKU, then by exact name", () => {
+test("CRM lines are linked to Inventory items by SKU, then by exact name", () => {
   const codes = new Map([
     ["p1", { code: "mk10 ", name: "Mortier MK10 (CRM)" }],
     ["p2", { code: null, name: "seau VIDE" }],
   ]);
-  const { lines, unmatched } = mapCrmItemsToBooksLines(
+  const { lines, unmatched } = mapCrmItemsToInventoryLines(
     [
       { productId: "p1", productName: "x", quantity: 2, listPrice: 5, description: null },
       { productId: "p2", productName: "x", quantity: 1, listPrice: 0, description: null },
@@ -23,12 +23,12 @@ test("CRM lines are linked to Books items by SKU, then by exact name", () => {
   );
   assert.deepEqual(lines.map((l) => l.itemId), ["INV-1", "INV-2"]);
   assert.equal(lines[0].quantity, 2);
-  assert.equal(lines[0].rate, 5, "the original price is kept: the 100% discount is applied by Books");
+  assert.equal(lines[0].rate, 5, "the original price is kept so the order keeps its value");
   assert.deepEqual(unmatched, []);
 });
 
 test("Unknown products stay as free-text lines and are reported", () => {
-  const { lines, unmatched } = mapCrmItemsToBooksLines(
+  const { lines, unmatched } = mapCrmItemsToInventoryLines(
     [{ productId: "p9", productName: "Inconnu", quantity: 1, listPrice: 3, description: null }],
     new Map([["p9", { code: "ZZ-9", name: "Inconnu" }]]),
     catalog,

@@ -1,22 +1,36 @@
 /**
- * Sortie du CRM vers Zoho Books : quand une commande client passe à l'état
- * « Commande planifier », on crée (ou complète) et confirme le bon de commande
- * Books à partir des lignes ACTUELLES du CRM (corrections du service client
- * incluses), reliées aux articles d'inventaire par SKU.
+ * Sortie du CRM vers Zoho Inventory : quand une commande client passe à l'état
+ * « Commande planifier », on crée (ou complète) et confirme la commande
+ * Inventory à partir des lignes ACTUELLES du CRM (corrections du service client
+ * incluses), reliées aux articles d'inventaire par SKU, puis on ouvre la liste
+ * de prélèvement dans l'entrepôt du client (1re étape : « Picking »).
+ *
+ * Pas de facture : le stock sort à l'expédition du colis (mode stock physique),
+ * les prix restent sur la commande pour garder sa valeur.
  *
  * Déclencheurs : webhook d'un workflow CRM + rattrapage périodique (webhooks
  * perdus). Le tout est désactivé tant que ZOHO_CRM_ORDER_WEBHOOK_SECRET n'est
  * pas défini.
- *
- * Les commandes venues de l'app portent un tag (champ personnalisé Books) qui
- * déclenche le rabais de 100 % à la facturation (automatisation côté Books).
  */
 
 import { sql } from "drizzle-orm";
 import type { ShopifyOrder, SystemdOrder, ZohoCatalogItem } from "@shared/schema";
 import { db } from "./db";
 import { storage } from "./storage";
-import { getZohoRegion } from "./zoho-api";
+import {
+  confirmInventorySalesOrder,
+  createInventoryPicklist,
+  createInventorySalesOrder,
+  ensureZohoContact,
+  findInventorySalesOrderByReference,
+  getInventorySalesOrder,
+  getZohoRegion,
+  getZohoSOUrl,
+  listInventoryLocations,
+  updateInventorySalesOrder,
+  type InventoryOrderLine,
+  type InventorySalesOrder,
+} from "./zoho-api";
 import {
   addCrmSalesOrderNote,
   getCrmContact,
@@ -25,21 +39,17 @@ import {
   searchCrmSalesOrderIdsByStatus,
 } from "./zoho-crm";
 import {
-  confirmBooksSalesOrder,
-  createBooksSalesOrder,
-  findBooksSalesOrderByReference,
-  getZohoBooksSalesOrderUrl,
-  updateBooksSalesOrder,
-  type BooksCustomField,
-  type BooksLineItem,
-} from "./zoho-books";
+  buildPicklistLines,
+  resolvePickLocation,
+  storeNameFromSubject,
+  type InventoryLocation,
+} from "./inventory-order-policy";
 
 export const PLANNED_STATUS = process.env.ZOHO_CRM_ORDER_PLANNED_STATUS || "Commande planifier";
-/** customfield_id (numérique) du champ personnalisé Books « Source » — l'API refuse le nom API. */
-const SOURCE_FIELD = process.env.ZOHO_BOOKS_ORDER_SOURCE_FIELD_ID || "";
-const SOURCE_VALUE = process.env.ZOHO_BOOKS_ORDER_SOURCE_VALUE || "Application";
 const CATCH_UP_INTERVAL_MS = 30 * 60_000;
 const CATCH_UP_LOOKBACK_MS = 48 * 60 * 60_000;
+/** Commande déjà traitée dans Zoho avant ce flux (ancien envoi au paiement) : on n'y touche plus. */
+const UNMANAGED_STAGE = "unmanaged";
 
 export function isPlannedOrdersFlowEnabled(): boolean {
   return !!process.env.ZOHO_CRM_ORDER_WEBHOOK_SECRET;
@@ -53,18 +63,18 @@ export interface CrmOrderedItem {
   description: string | null;
 }
 
-export interface MappedBooksLines {
-  lines: BooksLineItem[];
-  /** Lignes sans article Books correspondant (envoyées en texte libre : pas de mouvement de stock). */
+export interface MappedInventoryLines {
+  lines: InventoryOrderLine[];
+  /** Lignes sans article Inventory correspondant (envoyées en texte libre : ni stock ni prélèvement). */
   unmatched: string[];
 }
 
-/** Relie chaque ligne CRM à un article Books/Inventory : SKU d'abord, puis nom exact. */
-export function mapCrmItemsToBooksLines(
+/** Relie chaque ligne CRM à un article Inventory : SKU d'abord, puis nom exact. */
+export function mapCrmItemsToInventoryLines(
   items: CrmOrderedItem[],
   productCodes: Map<string, { code: string | null; name: string | null }>,
   catalog: Pick<ZohoCatalogItem, "zohoItemId" | "sku" | "name">[],
-): MappedBooksLines {
+): MappedInventoryLines {
   const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
   const bySku = new Map<string, string>();
   const byName = new Map<string, string>();
@@ -73,7 +83,7 @@ export function mapCrmItemsToBooksLines(
     if (!byName.has(norm(c.name))) byName.set(norm(c.name), c.zohoItemId);
   }
 
-  const lines: BooksLineItem[] = [];
+  const lines: InventoryOrderLine[] = [];
   const unmatched: string[] = [];
   for (const it of items) {
     const product = it.productId ? productCodes.get(it.productId) : undefined;
@@ -121,19 +131,20 @@ async function findLocalOrder(crmSoId: string): Promise<LocalOrder | null> {
   return shopify.length ? { kind: "shopify", orders: shopify } : null;
 }
 
-function existingBooksSo(local: LocalOrder | null): { id: string; number: string | null } | null {
+/** Commande créée au paiement par l'ancien flux Books (même organisation que Inventory). */
+function previousSalesOrderId(local: LocalOrder | null): string | null {
   if (!local) return null;
   const rows = local.kind === "systemd" ? [local.order] : local.orders;
-  const hit = rows.find((o) => o.zohoBooksSalesOrderId);
-  return hit ? { id: hit.zohoBooksSalesOrderId!, number: hit.zohoBooksSalesOrderNumber ?? null } : null;
+  return rows.find((o) => o.zohoBooksSalesOrderId)?.zohoBooksSalesOrderId ?? null;
 }
 
-async function persistBooksSo(local: LocalOrder | null, salesorderId: string, salesorderNumber: string): Promise<void> {
+async function persistSalesOrder(local: LocalOrder | null, order: InventorySalesOrder): Promise<void> {
   if (!local) return;
+  // Colonnes « zoho_books_* » réutilisées : Books et Inventory partagent la même commande.
   const fields = {
-    zohoBooksSalesOrderId: salesorderId,
-    zohoBooksSalesOrderNumber: salesorderNumber,
-    zohoBooksSalesOrderUrl: getZohoBooksSalesOrderUrl(await getZohoRegion(), salesorderId),
+    zohoBooksSalesOrderId: order.salesorderId,
+    zohoBooksSalesOrderNumber: order.salesorderNumber,
+    zohoBooksSalesOrderUrl: getZohoSOUrl(await getZohoRegion(), order.salesorderId),
   };
   if (local.kind === "systemd") {
     await storage.updateSystemdOrder(local.order.id, fields);
@@ -142,39 +153,67 @@ async function persistBooksSo(local: LocalOrder | null, salesorderId: string, sa
   }
 }
 
-async function resolveBooksCustomer(
-  local: LocalOrder | null,
-  so: any,
-): Promise<{ name: string; email: string; companyName?: string | null }> {
-  // On facture le client (propriétaire de la boutique), jamais l'acheteur final.
+/** Acheteur à prévenir aux étapes du colis (jamais le propriétaire de la boutique). */
+async function resolveBuyer(local: LocalOrder | null): Promise<{ email: string | null; name: string | null }> {
+  let shopifyOrder: ShopifyOrder | undefined;
+  if (local?.kind === "shopify") {
+    shopifyOrder = local.orders[0];
+  } else if (local?.kind === "systemd" && local.order.shopifyOrderId) {
+    shopifyOrder = (await storage.getShopifyOrders()).find((o) =>
+      o.integrationId === local.order.shopifyIntegrationId && o.shopifyOrderId === local.order.shopifyOrderId);
+  }
+  if (!shopifyOrder) return { email: null, name: null };
+  const name = [shopifyOrder.customerFirstName, shopifyOrder.customerLastName]
+    .map((p) => (p ?? "").trim()).filter(Boolean).join(" ");
+  return { email: shopifyOrder.email ?? null, name: name || null };
+}
+
+async function resolveCustomerId(local: LocalOrder | null, so: any): Promise<string> {
+  // Le client de la commande est le propriétaire de la boutique, jamais l'acheteur final.
   const contactId = local?.kind === "systemd" ? local.order.contactId : local?.orders[0]?.contactId;
   if (contactId != null) {
     const contact = await storage.getContact(contactId);
-    if (contact?.email) return { name: contact.name, email: contact.email, companyName: contact.companyName };
+    if (contact?.email) return ensureZohoContact({ name: contact.name, email: contact.email, companyName: contact.companyName });
   }
   const crmContactId = so?.Contact_Name?.id ? String(so.Contact_Name.id) : null;
   const crmContact = crmContactId ? await getCrmContact(crmContactId) : null;
   if (!crmContact?.email) {
-    throw new Error("aucun courriel client (contact CRM sans email) : impossible de créer le client Books");
+    throw new Error("aucun courriel client (contact CRM sans email) : impossible de créer le client Inventory");
   }
-  return {
+  return ensureZohoContact({
     name: crmContact.name || so?.Account_Name?.name || "Client",
     email: crmContact.email,
     companyName: so?.Account_Name?.name ?? null,
-  };
+  });
+}
+
+async function resolveLocation(local: LocalOrder | null, so: any): Promise<InventoryLocation> {
+  const contactId = local?.kind === "systemd" ? local.order.contactId : local?.orders[0]?.contactId;
+  const contact = contactId != null ? await storage.getContact(contactId) : undefined;
+  const hints = [
+    local?.kind === "shopify" ? local.orders[0]?.shopName : null,
+    contact?.companyName,
+    so?.Account_Name?.name,
+    storeNameFromSubject(so?.Subject),
+  ];
+  const location = resolvePickLocation(await listInventoryLocations(), hints, process.env.ZOHO_INVENTORY_LOCATION_ID);
+  if (!location) {
+    throw new Error("entrepôt Inventory introuvable pour ce client : définir ZOHO_INVENTORY_LOCATION_ID");
+  }
+  return location;
 }
 
 export type PlannedOrderOutcome = "sent" | "already_sent" | "not_planned" | "not_found";
-
-/**
- * Envoie une commande client planifiée vers Books. Idempotent (verrou par
- * commande + vérification de l'existant), sûr à rappeler.
- */
 export type PlannedOrderTrigger = "webhook" | "catch-up" | "manual";
 
-export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: PlannedOrderTrigger): Promise<PlannedOrderOutcome> {
+/**
+ * Envoie une commande client planifiée vers Inventory (commande confirmée +
+ * liste de prélèvement). Idempotent (verrou par commande + lien en base +
+ * référence CRM-…), sûr à rappeler : une étape ratée est reprise au rappel.
+ */
+export async function sendPlannedCrmOrderToInventory(crmSoId: string, trigger: PlannedOrderTrigger): Promise<PlannedOrderOutcome> {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`crm-planned-books:${crmSoId}`}))`);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`crm-planned-inventory:${crmSoId}`}))`);
 
     const so = await getCrmSalesOrder(crmSoId);
     if (!so) {
@@ -187,6 +226,9 @@ export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: Plann
       return "not_planned";
     }
 
+    const link = await storage.getCrmInventoryOrder(crmSoId);
+    if (link?.picklistId || link?.stage === UNMANAGED_STAGE) return "already_sent";
+
     const local = await findLocalOrder(crmSoId);
     const fromApp = local !== null;
     const reference = `CRM-${so.SO_Number ?? crmSoId}`;
@@ -195,74 +237,120 @@ export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: Plann
     const items = readOrderedItems(so);
     if (items.length === 0) throw new Error("la commande client n'a aucun article");
     const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
-    const { lines, unmatched } = mapCrmItemsToBooksLines(
+    const { lines, unmatched } = mapCrmItemsToInventoryLines(
       items,
       await getCrmProductsByIds(productIds),
       await storage.getZohoCatalogItems(false),
     );
-
-    const customFields: BooksCustomField[] = fromApp && SOURCE_FIELD ? [{ customfield_id: SOURCE_FIELD, value: SOURCE_VALUE }] : [];
+    const location = await resolveLocation(local, so);
     const notes = [
       label,
-      fromApp ? "Source : Application Système D — rabais 100 % à appliquer à la facturation" : "Source : saisie manuelle CRM",
+      fromApp ? "Source : Application Système D" : "Source : saisie manuelle CRM",
       `Commande client CRM : ${so.SO_Number ?? crmSoId}`,
       shippingLine(so),
     ].filter(Boolean).join("\n");
 
-    // Déjà envoyé par ce flux (référence CRM-…) : on ne retouche rien.
-    const alreadySent = await findBooksSalesOrderByReference(reference);
-    if (alreadySent) {
-      await persistBooksSo(local, alreadySent.salesorderId, alreadySent.salesorderNumber);
-      return "already_sent";
-    }
-
-    // Bon créé au paiement par l'ancien flux : on l'aligne sur le CRM (lignes, tag, référence).
-    const existing = existingBooksSo(local);
-
-    let salesorderId: string;
-    let salesorderNumber: string;
+    // Commande Inventory : reprise (envoi précédent incomplet), ancienne commande
+    // créée au paiement, ou nouvelle.
+    let order: InventorySalesOrder;
     let action: string;
-    if (existing) {
-      salesorderId = existing.id;
-      salesorderNumber = existing.number ?? existing.id;
+    const previous = link
+      ? await getInventorySalesOrder(link.inventorySoId)
+      : await findInventorySalesOrderByReference(reference);
+    if (previous) {
+      order = previous;
+      action = "reprise";
+    } else if (previousSalesOrderId(local)) {
+      const previousId = previousSalesOrderId(local)!;
       try {
-        await updateBooksSalesOrder(salesorderId, { referenceNumber: reference, lineItems: lines, notes, customFields });
-        action = "mis à jour";
+        order = await updateInventorySalesOrder(previousId, { referenceNumber: reference, lineItems: lines, location, notes });
+        action = "mise à jour";
       } catch (err: any) {
-        // Déjà facturé / expédié : on ne touche plus, on se contente de le relier.
-        await persistBooksSo(local, salesorderId, salesorderNumber);
+        // Déjà expédiée ou facturée : on ne touche plus, on se contente de la relier.
+        await storage.upsertCrmInventoryOrder({ crmSoId, label, inventorySoId: previousId, stage: UNMANAGED_STAGE });
         await storage.createActivityLog({
-          type: "zoho_books_so_planned", status: "success",
-          message: `${label} déjà dans Books (${salesorderNumber}), non modifié : ${err.message}`,
+          type: "zoho_inventory_so_planned", status: "warning",
+          message: `${label} : commande ${previousId} déjà traitée dans Zoho, non modifiée : ${err.message}`,
+          metadata: JSON.stringify({ crmSoId, salesorderId: previousId }),
         }).catch(() => {});
         return "already_sent";
       }
     } else {
-      const customer = await resolveBooksCustomer(local, so);
-      const created = await createBooksSalesOrder({ referenceNumber: reference, customer, lineItems: lines, notes, customFields });
-      salesorderId = created.salesorderId;
-      salesorderNumber = created.salesorderNumber;
-      action = "créé";
+      order = await createInventorySalesOrder({
+        customerId: await resolveCustomerId(local, so),
+        referenceNumber: reference,
+        lineItems: lines,
+        location,
+        notes,
+      });
+      action = "créée";
     }
-    await persistBooksSo(local, salesorderId, salesorderNumber);
+    await persistSalesOrder(local, order);
+    const buyer = await resolveBuyer(local);
+    await storage.upsertCrmInventoryOrder({
+      crmSoId,
+      crmSoNumber: so.SO_Number ? String(so.SO_Number) : null,
+      label,
+      inventorySoId: order.salesorderId,
+      inventorySoNumber: order.salesorderNumber,
+      locationId: location.locationId,
+      buyerEmail: buyer.email,
+      buyerName: buyer.name,
+    });
 
     let confirmError: string | null = null;
-    await confirmBooksSalesOrder(salesorderId).catch((err: any) => { confirmError = err.message; });
+    if (order.status === "draft") {
+      await confirmInventorySalesOrder(order.salesorderId).catch((err: any) => { confirmError = err.message; });
+    }
 
-    const url = getZohoBooksSalesOrderUrl(await getZohoRegion(), salesorderId);
-    const noteLines = [
-      `Bon de commande Books ${salesorderNumber} ${action}${confirmError ? " (À CONFIRMER manuellement dans Books)" : " et confirmé"}.`,
-      url,
-      fromApp ? (SOURCE_FIELD ? "Tag application posé : rabais 100 % à la facturation." : "Commande application : appliquer le rabais 100 % manuellement (tag Books non configuré).") : null,
-      unmatched.length ? `⚠ Articles non reliés à l'inventaire (texte libre, stock non déduit) : ${unmatched.join(", ")}` : null,
-    ].filter(Boolean).join("\n");
-    await addCrmSalesOrderNote(crmSoId, "Envoyée vers Zoho Books", noteLines).catch(() => {});
+    let picklist: { picklistId: string; picklistNumber: string } | null = null;
+    let picklistError: string | null = null;
+    const picklistLines = buildPicklistLines(order.salesorderId, order.lines);
+    if (confirmError) {
+      picklistError = "commande non confirmée";
+    } else if (picklistLines.length === 0) {
+      picklistError = "aucun article d'inventaire à prélever";
+    } else {
+      try {
+        picklist = await createInventoryPicklist({ location, lines: picklistLines, notes: label });
+        await storage.upsertCrmInventoryOrder({
+          crmSoId,
+          inventorySoId: order.salesorderId,
+          picklistId: picklist.picklistId,
+          picklistNumber: picklist.picklistNumber,
+          stage: "picking",
+        });
+      } catch (err: any) {
+        picklistError = err.message;
+      }
+    }
+
+    const problems = [
+      confirmError ? `confirmation échouée : ${confirmError}` : null,
+      picklistError ? `prélèvement non créé : ${picklistError}` : null,
+      unmatched.length ? `${unmatched.length} article(s) non relié(s)` : null,
+    ].filter(Boolean);
+
+    // Note CRM seulement quand quelque chose a changé : un rattrapage qui échoue
+    // encore ne doit pas empiler une note toutes les 30 minutes.
+    if (action !== "reprise" || picklist) {
+      const url = getZohoSOUrl(await getZohoRegion(), order.salesorderId);
+      const noteLines = [
+        `Commande Inventory ${order.salesorderNumber} ${action}${confirmError ? " (À CONFIRMER manuellement dans Inventory)" : " et confirmée"}.`,
+        picklist
+          ? `Prélèvement ${picklist.picklistNumber} créé dans l'entrepôt ${location.name}.`
+          : `⚠ Prélèvement à créer manuellement dans Inventory (${picklistError}). Nouvel essai automatique dans 30 minutes.`,
+        url,
+        unmatched.length ? `⚠ Articles non reliés à l'inventaire (texte libre, stock non déduit) : ${unmatched.join(", ")}` : null,
+      ].filter(Boolean).join("\n");
+      await addCrmSalesOrderNote(crmSoId, "Envoyée vers Zoho Inventory", noteLines).catch(() => {});
+    }
 
     await storage.createActivityLog({
-      type: "zoho_books_so_planned",
-      status: confirmError || unmatched.length ? "warning" : "success",
-      message: `${label} → Books ${salesorderNumber} ${action} (${trigger})${confirmError ? ` ; confirmation échouée : ${confirmError}` : ""}${unmatched.length ? ` ; ${unmatched.length} article(s) non relié(s)` : ""}`,
-      metadata: JSON.stringify({ crmSoId, salesorderId, fromApp, unmatched }),
+      type: "zoho_inventory_so_planned",
+      status: problems.length ? "warning" : "success",
+      message: `${label} → Inventory ${order.salesorderNumber} ${action}${picklist ? `, prélèvement ${picklist.picklistNumber}` : ""} (${trigger})${problems.length ? ` ; ${problems.join(" ; ")}` : ""}`,
+      metadata: JSON.stringify({ crmSoId, salesorderId: order.salesorderId, picklistId: picklist?.picklistId ?? null, locationId: location.locationId, fromApp, unmatched }),
     }).catch(() => {});
     return "sent";
   });
@@ -271,8 +359,8 @@ export async function sendPlannedCrmOrderToBooks(crmSoId: string, trigger: Plann
 async function logSkipped(crmSoId: string, trigger: PlannedOrderTrigger, reason: string): Promise<void> {
   console.warn(`[crm-planned] ${crmSoId} non envoyée (${trigger}) : ${reason}`);
   await storage.createActivityLog({
-    type: "zoho_books_so_planned", status: "warning",
-    message: `Commande client CRM ${crmSoId} non envoyée vers Books (${trigger}) : ${reason}`,
+    type: "zoho_inventory_so_planned", status: "warning",
+    message: `Commande client CRM ${crmSoId} non envoyée vers Inventory (${trigger}) : ${reason}`,
     metadata: JSON.stringify({ crmSoId }),
   }).catch(() => {});
 }
@@ -280,38 +368,37 @@ async function logSkipped(crmSoId: string, trigger: PlannedOrderTrigger, reason:
 /** Version « ne lève jamais » pour le webhook et le rattrapage : erreurs journalisées. */
 export async function handlePlannedCrmOrder(crmSoId: string, trigger: PlannedOrderTrigger): Promise<void> {
   try {
-    await sendPlannedCrmOrderToBooks(crmSoId, trigger);
+    await sendPlannedCrmOrderToInventory(crmSoId, trigger);
   } catch (err: any) {
     console.error(`[crm-planned] ${crmSoId} : ${err.message}`);
     await storage.createActivityLog({
-      type: "zoho_books_so_planned_error", status: "error",
-      message: `Envoi vers Books échoué pour la commande client CRM ${crmSoId} (${trigger}) : ${err.message}`,
+      type: "zoho_inventory_so_planned_error", status: "error",
+      message: `Envoi vers Inventory échoué pour la commande client CRM ${crmSoId} (${trigger}) : ${err.message}`,
       metadata: JSON.stringify({ crmSoId }),
     }).catch(() => {});
     if (trigger === "webhook") {
-      await addCrmSalesOrderNote(crmSoId, "Échec de l'envoi vers Zoho Books", `${err.message}\nNouvel essai automatique dans 30 minutes.`).catch(() => {});
+      await addCrmSalesOrderNote(crmSoId, "Échec de l'envoi vers Zoho Inventory", `${err.message}\nNouvel essai automatique dans 30 minutes.`).catch(() => {});
     }
   }
 }
 
 async function catchUpPlannedOrders(): Promise<void> {
   const settings = await storage.getAdminSettings();
-  if (!settings?.zohoInventoryRefreshToken || !settings.zohoBooksOrgId) return;
+  if (!settings?.zohoInventoryRefreshToken || !settings.zohoInventoryOrgId) return;
   const ids = await searchCrmSalesOrderIdsByStatus(PLANNED_STATUS, new Date(Date.now() - CATCH_UP_LOOKBACK_MS));
-  const systemd = await storage.getSystemdOrders();
-  const shopify = await storage.getShopifyOrders();
+  // Déjà en prélèvement → rien à faire, sans appel API.
+  const done = new Set((await storage.getCrmInventoryOrders())
+    .filter((l) => l.picklistId || l.stage === UNMANAGED_STAGE)
+    .map((l) => l.crmSoId));
   for (const id of ids) {
-    // Déjà relié localement à un bon Books → rien à faire, sans appel API.
-    const linked = systemd.some((o) => o.zohoCrmDealId === id && o.zohoBooksSalesOrderId)
-      || shopify.some((o) => o.zohoCrmDealId === id && o.zohoBooksSalesOrderId);
-    if (linked) continue;
+    if (done.has(id)) continue;
     await handlePlannedCrmOrder(id, "catch-up");
   }
 }
 
 export function startCrmPlannedOrdersScheduler(): void {
   if (!isPlannedOrdersFlowEnabled()) {
-    console.log("[crm-planned] CRM → Books (Commande planifier) désactivé : ZOHO_CRM_ORDER_WEBHOOK_SECRET non défini");
+    console.log("[crm-planned] CRM → Inventory (Commande planifier) désactivé : ZOHO_CRM_ORDER_WEBHOOK_SECRET non défini");
     return;
   }
   const run = () => catchUpPlannedOrders().catch((err) => console.error(`[crm-planned] rattrapage : ${err.message}`));

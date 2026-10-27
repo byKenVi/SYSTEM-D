@@ -1,21 +1,22 @@
 /**
- * Diagnostic du flux CRM → Books (« Commande planifier ») pour UNE commande :
- * configuration, État exact renvoyé par l'API CRM, lien local, bon Books déjà
- * existant, correspondance des articles, dernières entrées du journal.
+ * Diagnostic du flux CRM → Inventory (« Commande planifier ») pour UNE commande :
+ * configuration, État exact renvoyé par l'API CRM, entrepôt retenu, commande
+ * Inventory et prélèvement existants, correspondance des articles, journal.
  * Lecture seule par défaut.
  *
  * Usage (Replit) :
- *   npx tsx scripts/check-planned-order.ts "#1014"            # commande Shopify / Système D
- *   npx tsx scripts/check-planned-order.ts 5843210000001234567 # id CRM de la commande client
- *   npx tsx scripts/check-planned-order.ts "#1014" --send     # + envoi réel vers Books
+ *   npx tsx scripts/check-planned-order.ts --locations           # entrepôts Inventory seulement
+ *   npx tsx scripts/check-planned-order.ts "#1014"               # commande Shopify / Système D
+ *   npx tsx scripts/check-planned-order.ts 5843210000001234567   # id CRM de la commande client
+ *   npx tsx scripts/check-planned-order.ts "#1014" --send        # + envoi réel vers Inventory
  */
 
 import { storage } from "../server/storage";
 import { getValidAccessToken, getZohoDomains } from "../server/zoho-auth";
-import { getZohoRegion } from "../server/zoho-api";
+import { findInventorySalesOrderByReference, getZohoRegion, listInventoryLocations } from "../server/zoho-api";
 import { getCrmProductsByIds, getCrmSalesOrder } from "../server/zoho-crm";
-import { findBooksSalesOrderByReference } from "../server/zoho-books";
-import { PLANNED_STATUS, mapCrmItemsToBooksLines, sendPlannedCrmOrderToBooks } from "../server/crm-planned-orders";
+import { PLANNED_STATUS, mapCrmItemsToInventoryLines, sendPlannedCrmOrderToInventory } from "../server/crm-planned-orders";
+import { resolvePickLocation, storeNameFromSubject } from "../server/inventory-order-policy";
 
 const MODULE = process.env.ZOHO_CRM_ORDER_MODULE || "Sales_Orders";
 const send = process.argv.includes("--send");
@@ -48,7 +49,19 @@ async function resolveCrmId(ref: string): Promise<string | null> {
   return byNumber;
 }
 
+async function printLocations() {
+  console.log("── Entrepôts Inventory ──");
+  for (const l of await listInventoryLocations()) {
+    console.log(`  ${l.locationId}  ${l.name}  [type ${l.type ?? "?"}, ${l.status ?? "?"}${l.parentLocationId ? `, parent ${l.parentLocationId}` : ""}]`);
+  }
+  console.log(`  ZOHO_INVENTORY_LOCATION_ID : ${process.env.ZOHO_INVENTORY_LOCATION_ID || "(non défini : choix automatique par nom du client)"}`);
+}
+
 async function main() {
+  if (process.argv.includes("--locations")) {
+    await printLocations();
+    return;
+  }
   const ref = (process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "").trim();
   if (!ref) {
     console.log('Donnez une commande, ex: npx tsx scripts/check-planned-order.ts "#1014"');
@@ -59,7 +72,6 @@ async function main() {
   const secret = process.env.ZOHO_CRM_ORDER_WEBHOOK_SECRET;
   console.log(`  ZOHO_CRM_ORDER_WEBHOOK_SECRET : ${secret ? `défini (${secret.length} caractères)` : "ABSENT → flux désactivé"}`);
   console.log(`  État attendu                  : ${JSON.stringify(PLANNED_STATUS)}`);
-  console.log(`  ZOHO_BOOKS_ORDER_SOURCE_FIELD_ID : ${process.env.ZOHO_BOOKS_ORDER_SOURCE_FIELD_ID || "(absent : pas de tag rabais)"}`);
   console.log("  ⚠ Ce sont les secrets de l'espace de travail ; le site déployé n'a les siens qu'après un redéploiement.\n");
 
   const crmId = await resolveCrmId(ref);
@@ -81,15 +93,31 @@ async function main() {
 
   const local = (await storage.getSystemdOrders()).find((o) => o.zohoCrmDealId === crmId)
     ?? (await storage.getShopifyOrders()).find((o) => o.zohoCrmDealId === crmId);
-  console.log(`  Commande de l'app : ${local ? "oui (tag rabais si configuré)" : "non (saisie manuelle CRM, sans tag)"}`);
+  console.log(`  Commande de l'app : ${local ? "oui" : "non (saisie manuelle CRM)"}`);
   if (local?.zohoBooksSalesOrderId) {
-    console.log(`  Bon Books déjà relié en base : ${local.zohoBooksSalesOrderNumber ?? local.zohoBooksSalesOrderId}`);
+    console.log(`  Commande Zoho déjà reliée en base : ${local.zohoBooksSalesOrderNumber ?? local.zohoBooksSalesOrderId}`);
   }
 
-  console.log("\n── Zoho Books ──");
+  console.log("\n── Entrepôt ──");
+  const contact = local ? await storage.getContact(local.contactId) : undefined;
+  const location = resolvePickLocation(
+    await listInventoryLocations(),
+    [(local as any)?.shopName, contact?.companyName, so.Account_Name?.name, storeNameFromSubject(so.Subject)],
+    process.env.ZOHO_INVENTORY_LOCATION_ID,
+  );
+  console.log(location
+    ? `  ✓ ${location.name} (${location.locationId})`
+    : "  ✗ aucun entrepôt retenu → définir ZOHO_INVENTORY_LOCATION_ID (voir --locations)");
+
+  console.log("\n── Zoho Inventory ──");
+  const link = await storage.getCrmInventoryOrder(crmId);
+  if (link) {
+    console.log(`  Lien en base : commande ${link.inventorySoNumber ?? link.inventorySoId}, étape ${link.stage}, prélèvement ${link.picklistNumber ?? "—"}`);
+    console.log(`  Acheteur à prévenir : ${link.buyerEmail ?? "(aucun courriel)"}`);
+  }
   const reference = `CRM-${so.SO_Number ?? crmId}`;
-  const existing = await findBooksSalesOrderByReference(reference);
-  console.log(`  Référence ${reference} : ${existing ? `déjà envoyée (${existing.salesorderNumber})` : "aucun bon de commande"}`);
+  const existing = await findInventorySalesOrderByReference(reference);
+  console.log(`  Référence ${reference} : ${existing ? `commande ${existing.salesorderNumber} (${existing.status})` : "aucune commande"}`);
 
   console.log("\n── Articles ──");
   const items = (Array.isArray(so.Ordered_Items) ? so.Ordered_Items : []).map((row: any) => ({
@@ -100,26 +128,28 @@ async function main() {
     description: row?.Description ?? null,
   }));
   const productIds = Array.from(new Set(items.map((i: any) => i.productId).filter(Boolean))) as string[];
-  const { lines } = mapCrmItemsToBooksLines(items, await getCrmProductsByIds(productIds), await storage.getZohoCatalogItems(false));
+  const { lines } = mapCrmItemsToInventoryLines(items, await getCrmProductsByIds(productIds), await storage.getZohoCatalogItems(false));
   if (lines.length === 0) console.log("  ✗ aucun article : l'envoi échouera");
   for (const l of lines) {
-    console.log(`  ${l.itemId ? "✓" : "⚠ non relié"}  ${l.quantity} × ${l.name}${l.sku ? ` (${l.sku})` : ""} @ ${l.rate}`);
+    console.log(`  ${l.itemId ? "✓" : "⚠ non relié (pas de prélèvement)"}  ${l.quantity} × ${l.name}${l.sku ? ` (${l.sku})` : ""} @ ${l.rate}`);
   }
 
-  console.log("\n── Journal d'activité (flux Books planifié) ──");
+  console.log("\n── Journal d'activité (flux Inventory planifié) ──");
   const logs = (await storage.getActivityLogs(500))
-    .filter((l: any) => String(l.type).startsWith("zoho_books_so_planned") && `${l.message}${l.metadata ?? ""}`.includes(crmId))
+    .filter((l: any) => /^zoho_(inventory|books)_so_planned/.test(String(l.type)) && `${l.message}${l.metadata ?? ""}`.includes(crmId))
     .slice(0, 10);
   if (logs.length === 0) console.log("  (aucune entrée : le webhook n'a jamais atteint l'app pour cette commande)");
   for (const l of logs as any[]) console.log(`  [${l.createdAt?.toISOString?.() ?? l.createdAt}] ${l.status} : ${l.message}`);
 
   if (!send) {
-    console.log("\nLecture seule. Ajoutez --send pour lancer l'envoi vers Books maintenant.");
+    console.log("\nLecture seule. Ajoutez --send pour lancer l'envoi vers Inventory maintenant.");
     return;
   }
-  console.log("\n── Envoi vers Books (manuel) ──");
-  const outcome = await sendPlannedCrmOrderToBooks(crmId, "manual");
+  console.log("\n── Envoi vers Inventory (manuel) ──");
+  const outcome = await sendPlannedCrmOrderToInventory(crmId, "manual");
   console.log(`  Résultat : ${outcome}`);
+  const after = await storage.getCrmInventoryOrder(crmId);
+  if (after) console.log(`  Commande ${after.inventorySoNumber}, prélèvement ${after.picklistNumber ?? "non créé (voir journal)"}`);
 }
 
 main()

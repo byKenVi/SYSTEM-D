@@ -161,6 +161,24 @@ app.use((req, res, next) => {
   await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS billing_address JSONB`);
   await pool.query(`ALTER TABLE shopify_orders ADD COLUMN IF NOT EXISTS shipping_address JSONB`);
   await pool.query(`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS zoho_books_org_id TEXT`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_inventory_orders (
+      crm_so_id TEXT PRIMARY KEY,
+      crm_so_number TEXT,
+      label TEXT,
+      inventory_so_id TEXT NOT NULL,
+      inventory_so_number TEXT,
+      location_id TEXT,
+      picklist_id TEXT,
+      picklist_number TEXT,
+      stage TEXT NOT NULL DEFAULT 'picking',
+      buyer_email TEXT,
+      buyer_name TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_crm_inventory_orders_so ON crm_inventory_orders (inventory_so_id)`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent`);
   await pool.query(`DROP INDEX IF EXISTS idx_systemd_orders_intent_active`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_systemd_orders_intent_active ON systemd_orders (checkout_intent_key) WHERE status IN ('pending', 'pending_shopify', 'payment_reconciliation_required')`);

@@ -16,6 +16,7 @@ import {
   systemdOrders, type SystemdOrder, type InsertSystemdOrder,
   zohoSyncRuns, type ZohoSyncRun,
   zohoCatalog, type ZohoCatalogItem, type InsertZohoCatalogItem,
+  crmInventoryOrders, type CrmInventoryOrder, type InsertCrmInventoryOrder,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, asc, desc, gt, lt, ne, sql, or, isNull, like, ilike, inArray, notInArray } from "drizzle-orm";
@@ -182,6 +183,11 @@ export interface IStorage {
     total: number; systemd: number; client: number; unresolved: number;
     active: number; inactive: number; deleted: number;
   }>;
+
+  // Commandes CRM planifiées → Zoho Inventory
+  getCrmInventoryOrder(crmSoId: string): Promise<CrmInventoryOrder | undefined>;
+  getCrmInventoryOrders(): Promise<CrmInventoryOrder[]>;
+  upsertCrmInventoryOrder(data: InsertCrmInventoryOrder): Promise<CrmInventoryOrder>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1135,6 +1141,24 @@ export class DatabaseStorage implements IStorage {
       inactive:   Number(result?.inactive ?? 0),
       deleted:    Number(result?.deleted ?? 0),
     };
+  }
+
+  async getCrmInventoryOrder(crmSoId: string): Promise<CrmInventoryOrder | undefined> {
+    const [row] = await db.select().from(crmInventoryOrders).where(eq(crmInventoryOrders.crmSoId, crmSoId));
+    return row;
+  }
+
+  async getCrmInventoryOrders(): Promise<CrmInventoryOrder[]> {
+    return db.select().from(crmInventoryOrders).orderBy(desc(crmInventoryOrders.createdAt));
+  }
+
+  async upsertCrmInventoryOrder(data: InsertCrmInventoryOrder): Promise<CrmInventoryOrder> {
+    const { crmSoId, createdAt: _createdAt, ...changes } = data;
+    const [row] = await db.insert(crmInventoryOrders)
+      .values(data)
+      .onConflictDoUpdate({ target: crmInventoryOrders.crmSoId, set: { ...changes, updatedAt: new Date() } })
+      .returning();
+    return row;
   }
 }
 

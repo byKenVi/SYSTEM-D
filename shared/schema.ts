@@ -432,3 +432,27 @@ export const zohoCatalog = pgTable("zoho_catalog", {
 
 export type ZohoCatalogItem = typeof zohoCatalog.$inferSelect;
 export type InsertZohoCatalogItem = typeof zohoCatalog.$inferInsert;
+
+/**
+ * Commande client CRM passée à « Commande planifier » et envoyée dans Zoho
+ * Inventory : commande Inventory + liste de prélèvement, puis suivi du colis
+ * (miroir du statut dans le CRM, courriels à l'acheteur).
+ */
+export const crmInventoryOrders = pgTable("crm_inventory_orders", {
+  crmSoId: text("crm_so_id").primaryKey(),
+  crmSoNumber: text("crm_so_number"),
+  label: text("label"),
+  inventorySoId: text("inventory_so_id").notNull(),
+  inventorySoNumber: text("inventory_so_number"),
+  locationId: text("location_id"),
+  picklistId: text("picklist_id"),
+  picklistNumber: text("picklist_number"),
+  stage: text("stage").notNull().default("picking"), // picking | packing | shipped | delivered | unmanaged
+  buyerEmail: text("buyer_email"),
+  buyerName: text("buyer_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type CrmInventoryOrder = typeof crmInventoryOrders.$inferSelect;
+export type InsertCrmInventoryOrder = typeof crmInventoryOrders.$inferInsert;

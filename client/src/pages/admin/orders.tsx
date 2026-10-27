@@ -405,7 +405,7 @@ export default function AdminOrders() {
                             )}
                             {item.zohoBooksSalesOrderUrl && (
                               <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
-                                <a href={item.zohoBooksSalesOrderUrl} target="_blank" rel="noopener noreferrer">Books</a>
+                                <a href={item.zohoBooksSalesOrderUrl} target="_blank" rel="noopener noreferrer">Inventory</a>
                               </Button>
                             )}
                             {item.zohoCrmDealUrl && (

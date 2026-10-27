@@ -1,5 +1,6 @@
 import { getValidAccessToken, getZohoDomains, refreshAccessToken } from "./zoho-auth";
 import { storage } from "./storage";
+import { zohoToday, type InventoryLocation, type InventorySoLine, type PicklistLine } from "./inventory-order-policy";
 
 async function zohoRequest(
   method: string,
@@ -678,4 +679,149 @@ export async function createFormSalesOrder(params: {
     salesOrderId: so.salesorder_id,
     salesOrderNumber: so.salesorder_number,
   };
+}
+
+// ── Commandes CRM planifiées → Inventory (commande + prélèvement) ───────────
+
+export async function listInventoryLocations(): Promise<InventoryLocation[]> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest("GET", "/locations", undefined, region);
+  return (data.locations ?? []).map((l: any) => ({
+    locationId: String(l.location_id),
+    name: String(l.location_name ?? ""),
+    type: l.type ?? null,
+    status: l.status ?? null,
+    parentLocationId: l.parent_location_id ? String(l.parent_location_id) : null,
+  }));
+}
+
+export type InventoryOrderLine = {
+  name: string;
+  /** Article Inventory : sans lui, la ligne est du texte libre (ni stock ni prélèvement). */
+  itemId?: string | null;
+  sku?: string | null;
+  quantity: number;
+  rate: number;
+  description?: string;
+};
+
+export type InventorySalesOrder = {
+  salesorderId: string;
+  salesorderNumber: string;
+  status: string;
+  lines: InventorySoLine[];
+};
+
+function toInventoryLineItems(items: InventoryOrderLine[], locationId: string) {
+  return items.map((item) => item.itemId
+    ? {
+        item_id: item.itemId,
+        quantity: item.quantity,
+        rate: item.rate,
+        location_id: locationId,
+        ...(item.description ? { description: item.description } : {}),
+      }
+    : {
+        name: item.name,
+        description: item.description ?? (item.sku ? `SKU: ${item.sku}` : undefined),
+        quantity: item.quantity,
+        rate: item.rate,
+      });
+}
+
+function readInventorySalesOrder(so: any): InventorySalesOrder {
+  if (!so?.salesorder_id) throw new Error("Zoho Inventory n'a renvoyé aucune commande");
+  return {
+    salesorderId: String(so.salesorder_id),
+    salesorderNumber: String(so.salesorder_number ?? so.salesorder_id),
+    status: String(so.status ?? ""),
+    lines: (so.line_items ?? []).map((l: any) => ({
+      lineItemId: String(l.line_item_id),
+      itemId: l.item_id ? String(l.item_id) : null,
+      quantity: Number(l.quantity) || 0,
+    })),
+  };
+}
+
+export async function createInventorySalesOrder(params: {
+  customerId: string;
+  referenceNumber: string;
+  lineItems: InventoryOrderLine[];
+  location: InventoryLocation;
+  notes?: string;
+}): Promise<InventorySalesOrder> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest("POST", "/salesorders", {
+    customer_id: params.customerId,
+    reference_number: params.referenceNumber,
+    // Au niveau de la commande, Zoho attend l'établissement ; l'entrepôt va sur les lignes.
+    ...(params.location.parentLocationId ? { location_id: params.location.parentLocationId } : {}),
+    line_items: toInventoryLineItems(params.lineItems, params.location.locationId),
+    notes: params.notes,
+  }, region);
+  return readInventorySalesOrder(data.salesorder);
+}
+
+/** Remplace les lignes d'une commande existante. Échoue si elle est déjà expédiée ou facturée. */
+export async function updateInventorySalesOrder(salesorderId: string, params: {
+  referenceNumber: string;
+  lineItems: InventoryOrderLine[];
+  location: InventoryLocation;
+  notes?: string;
+}): Promise<InventorySalesOrder> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest("PUT", `/salesorders/${encodeURIComponent(salesorderId)}`, {
+    reference_number: params.referenceNumber,
+    ...(params.location.parentLocationId ? { location_id: params.location.parentLocationId } : {}),
+    line_items: toInventoryLineItems(params.lineItems, params.location.locationId),
+    ...(params.notes ? { notes: params.notes } : {}),
+  }, region);
+  return readInventorySalesOrder(data.salesorder);
+}
+
+export async function confirmInventorySalesOrder(salesorderId: string): Promise<void> {
+  const region = await getZohoRegion();
+  await zohoRequest("POST", `/salesorders/${encodeURIComponent(salesorderId)}/status/confirmed`, undefined, region);
+}
+
+/** Commande Inventory portant exactement cette référence (parmi les plus récentes), ou null. */
+export async function findInventorySalesOrderByReference(referenceNumber: string): Promise<InventorySalesOrder | null> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest(
+    "GET",
+    `/salesorders?reference_number=${encodeURIComponent(referenceNumber)}&per_page=200`,
+    undefined,
+    region,
+  );
+  const match = (data.salesorders ?? []).find((so: any) => so.reference_number === referenceNumber);
+  if (!match) return null;
+  // La liste ne contient pas les lignes : relire la commande complète.
+  const full = await zohoRequest("GET", `/salesorders/${encodeURIComponent(String(match.salesorder_id))}`, undefined, region);
+  return readInventorySalesOrder(full.salesorder);
+}
+
+export async function getInventorySalesOrder(salesorderId: string): Promise<InventorySalesOrder> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest("GET", `/salesorders/${encodeURIComponent(salesorderId)}`, undefined, region);
+  return readInventorySalesOrder(data.salesorder);
+}
+
+/** Liste de prélèvement (statut initial « À démarrer ») pour les articles d'inventaire de la commande. */
+export async function createInventoryPicklist(params: {
+  location: InventoryLocation;
+  lines: PicklistLine[];
+  notes?: string;
+}): Promise<{ picklistId: string; picklistNumber: string }> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest("POST", "/picklists", {
+    date: zohoToday(),
+    location_id: params.location.locationId,
+    parent_entity: "salesorder",
+    group_by: "none",
+    line_items: params.lines,
+    ...(params.notes ? { notes: params.notes } : {}),
+  }, region);
+  const picklist = data.picklist;
+  if (!picklist?.picklist_id) throw new Error("Zoho Inventory n'a renvoyé aucune liste de prélèvement");
+  return { picklistId: String(picklist.picklist_id), picklistNumber: String(picklist.picklist_number ?? picklist.picklist_id) };
 }
