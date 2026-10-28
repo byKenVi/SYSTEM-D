@@ -43,7 +43,7 @@ test("only inventory items with a quantity go to the picklist", () => {
       { lineItemId: "b", itemId: null, quantity: 1 },
       { lineItemId: "c", itemId: "I-2", quantity: 0 },
     ]),
-    [{ salesorder_id: "SO-1", parent_entity_id: "SO-1", so_line_item_id: "a", quantity_to_be_picked: 2 }],
+    [{ salesorder_id: "SO-1", parent_entity_id: "SO-1", so_line_item_id: "a", parent_line_item_id: "a", quantity_to_be_picked: 2 }],
   );
 });
 

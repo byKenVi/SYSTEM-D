@@ -813,14 +813,28 @@ export async function createInventoryPicklist(params: {
   notes?: string;
 }): Promise<{ picklistId: string; picklistNumber: string }> {
   const region = await getZohoRegion();
-  const data = await zohoRequest("POST", "/picklists", {
+  const create = (locationId: string) => zohoRequest("POST", "/picklists", {
     date: zohoToday(),
-    location_id: params.location.locationId,
+    location_id: locationId,
     parent_entity: "salesorder",
     group_by: "none",
     line_items: params.lines,
     ...(params.notes ? { notes: params.notes } : {}),
   }, region);
+  // Comme pour la commande, Zoho peut attendre l'établissement plutôt que l'entrepôt
+  // (« so_line_item_id non valide » sinon) : on essaie l'établissement, puis l'entrepôt.
+  const candidates = Array.from(new Set([params.location.parentLocationId, params.location.locationId].filter(Boolean))) as string[];
+  let data: any;
+  const errors: string[] = [];
+  for (const locationId of candidates) {
+    try {
+      data = await create(locationId);
+      break;
+    } catch (err: any) {
+      errors.push(`lieu ${locationId} : ${err.message}`);
+    }
+  }
+  if (!data) throw new Error(errors.join(" | "));
   const picklist = data.picklist;
   if (!picklist?.picklist_id) throw new Error("Zoho Inventory n'a renvoyé aucune liste de prélèvement");
   return { picklistId: String(picklist.picklist_id), picklistNumber: String(picklist.picklist_number ?? picklist.picklist_id) };

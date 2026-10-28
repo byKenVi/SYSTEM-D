@@ -305,7 +305,9 @@ export async function sendPlannedCrmOrderToInventory(crmSoId: string, trigger: P
 
     let picklist: { picklistId: string; picklistNumber: string } | null = null;
     let picklistError: string | null = null;
-    const picklistLines = buildPicklistLines(order.salesorderId, order.lines);
+    // Lignes relues après confirmation : ce sont celles que le prélèvement référence.
+    const confirmed = confirmError ? order : await getInventorySalesOrder(order.salesorderId).catch(() => order);
+    const picklistLines = buildPicklistLines(order.salesorderId, confirmed.lines);
     if (confirmError) {
       picklistError = "commande non confirmée";
     } else if (picklistLines.length === 0) {

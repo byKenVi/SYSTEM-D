@@ -53,6 +53,7 @@ export interface PicklistLine {
   salesorder_id: string;
   parent_entity_id: string;
   so_line_item_id: string;
+  parent_line_item_id: string;
   quantity_to_be_picked: number;
 }
 
@@ -64,6 +65,7 @@ export function buildPicklistLines(salesorderId: string, lines: InventorySoLine[
       salesorder_id: salesorderId,
       parent_entity_id: salesorderId,
       so_line_item_id: l.lineItemId,
+      parent_line_item_id: l.lineItemId,
       quantity_to_be_picked: l.quantity,
     }));
 }
