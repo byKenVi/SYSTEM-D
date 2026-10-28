@@ -5,7 +5,7 @@
 import { storage } from "./storage";
 import type { Contact, ShopifyOrder, SystemdOrder } from "@shared/schema";
 import { getZohoRegion } from "./zoho-api";
-import { createZohoProject, buildOrderProjectPayload, uploadProjectDocument } from "./zoho-projects";
+import { createZohoProject, buildOrderProjectPayload, getZohoProjectWebUrl, uploadProjectDocument } from "./zoho-projects";
 import { generateOrderPdf, type OrderPdfLineItem } from "./pdf-generator";
 import {
   findOrCreateCrmContact,
@@ -507,7 +507,7 @@ async function runCrmDealFlow(
         description: `Commande client : ${soUrl}\n\n${baseDescription}`,
       });
       projectId = project.id;
-      projectUrl = project.link?.self?.url ?? null;
+      projectUrl = await getZohoProjectWebUrl(projectId);
       if (persist.projectCreated) await persist.projectCreated(projectId);
     } catch (err: any) {
       await storage.createActivityLog({
@@ -747,6 +747,7 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       currency: order.currency,
       lineItems: normalizeLineItemsForPdf(order.lineItems),
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
+      projectUrl: await getZohoProjectWebUrl(order.zohoProjectId),
     });
     const fields: Record<string, unknown> = { Description: description };
     const dealContactId = await resolveDealContactId({
@@ -784,6 +785,7 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       currency: order.currency,
       lineItems: normalizeLineItemsForPdf(order.lineItems),
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
+      projectUrl: await getZohoProjectWebUrl(order.zohoProjectId),
     });
     const fields: Record<string, unknown> = { Description: description };
     if (contact.companyAddress) {

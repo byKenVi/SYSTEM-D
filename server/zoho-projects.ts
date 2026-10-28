@@ -22,6 +22,31 @@ const PROJECTS_BASE: Record<string, string> = {
   ca: "https://projectsapi.zohocloud.ca/restapi",
 };
 
+// Domaines web (navigateur) : l'API ne renvoie que des URL d'API, jamais la page du projet.
+const PROJECTS_WEB: Record<string, string> = {
+  us: "projects.zoho.com",
+  eu: "projects.zoho.eu",
+  in: "projects.zoho.in",
+  au: "projects.zoho.com.au",
+  jp: "projects.zoho.jp",
+  ca: "projects.zohocloud.ca",
+};
+
+/** Page web d'un projet : https://projects.zoho.com/portal/servicessystemed#zp/projects/{id}/dashboard */
+export function projectWebUrl(region: string, portalName: string, projectId: string): string {
+  const domain = PROJECTS_WEB[region] || PROJECTS_WEB.us;
+  return `https://${domain}/portal/${encodeURIComponent(portalName)}#zp/projects/${projectId}/dashboard`;
+}
+
+/** Lien web du projet avec le portail configuré, ou null si le portail n'a pas de nom enregistré. */
+export async function getZohoProjectWebUrl(projectId: string | null | undefined): Promise<string | null> {
+  if (!projectId) return null;
+  const settings = await storage.getAdminSettings();
+  const portalName = settings?.zohoProjectsPortalName?.trim();
+  if (!portalName) return null;
+  return projectWebUrl(settings?.zohoRegion || "us", portalName, projectId);
+}
+
 function getProjectsBaseUrl(region = "us"): string {
   return PROJECTS_BASE[region] || PROJECTS_BASE.us;
 }
