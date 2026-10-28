@@ -5262,6 +5262,9 @@ export async function registerRoutes(
         }
 
         const reconciliationRequired = !!shopifyOrder || orderMayExist || (!!debitResult && !compensationSucceeded) || (debitSubmissionStarted && !debitDefinitelyRejected && !debitResult);
+        const failedStep = !debitResult ? "débit Store Credit" : !shopifyOrder ? "création de la commande Shopify" : "vérification de la commande Shopify";
+        const reason = `${failedStep} : ${error?.message || "erreur inconnue"}`;
+        console.error(`[product-checkout] commande #${order.id} : ${reason}`);
         await storage.updateSystemdOrder(order.id, reconciliationRequired
           ? {
               status: "payment_reconciliation_required",
@@ -5282,18 +5285,19 @@ export async function registerRoutes(
             : "shopify_client_order_compensated",
           status: "error",
           message: reconciliationRequired
-            ? `Commande produit client #${order.id}: résultat Shopify ambigu, aucun second débit autorisé.`
-            : `Commande produit client #${order.id} annulée; tout débit confirmé a été compensé.`,
+            ? `Commande produit client #${order.id}: résultat Shopify ambigu, aucun second débit autorisé (${reason}).`
+            : `Commande produit client #${order.id} annulée; tout débit confirmé a été compensé (${reason}).`,
           metadata: JSON.stringify({
             orderId: order.id,
             debitConfirmed: !!debitResult,
             shopifyOrderId: shopifyOrder?.legacyResourceId ?? null,
+            reason,
           }),
         }).catch(() => {});
         return res.status(503).json({
           message: reconciliationRequired
             ? "Shopify n’a pas permis de conclure la création de la commande. La transaction est bloquée en vérification et aucun nouveau débit ne sera tenté."
-            : "Shopify n’a pas créé la commande. Le débit Store Credit a été annulé ou n’a pas eu lieu.",
+            : `Shopify n’a pas créé la commande. Le débit Store Credit a été annulé ou n’a pas eu lieu. Raison (${reason}).`,
         });
       }
 
