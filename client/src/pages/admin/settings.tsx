@@ -527,6 +527,15 @@ export default function AdminSettingsPage() {
     onError: () => toast({ title: "Erreur", description: "Impossible de déconnecter Zoho Projects.", variant: "destructive" }),
   });
 
+  const fillCrmProjectLinksMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin-settings/zoho-projects/fill-crm-links");
+      return res.json() as Promise<{ message: string }>;
+    },
+    onSuccess: (data) => toast({ title: "Liens projet posés", description: data.message }),
+    onError: (error: any) => toast({ title: "Échec", description: error.message, variant: "destructive" }),
+  });
+
   const selectOrgMutation = useMutation({
     mutationFn: async (organizationId: string) =>
       apiRequest("POST", "/api/auth/zoho/select-organization", { organizationId }),
@@ -1097,6 +1106,18 @@ export default function AdminSettingsPage() {
                         </Button>
                       )}
                     </div>
+
+                    {adminSettings?.zohoProjectsPortalId && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => fillCrmProjectLinksMutation.mutate()}
+                        disabled={fillCrmProjectLinksMutation.isPending}
+                        data-testid="button-fill-crm-project-links"
+                      >
+                        {fillCrmProjectLinksMutation.isPending ? "Mise à jour…" : "Poser le lien projet sur les commandes CRM"}
+                      </Button>
+                    )}
 
                     {adminSettings?.zohoProjectsPortalId && (
                       <Button

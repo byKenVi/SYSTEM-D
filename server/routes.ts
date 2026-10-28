@@ -4194,6 +4194,18 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin-settings/zoho-projects/fill-crm-links", isAuthenticated, isAdmin, async (_req, res) => {
+    try {
+      const { fillCrmProjectLinks } = await import("./order-zoho-integration");
+      const { updated, failed, field } = await fillCrmProjectLinks();
+      const message = `Lien projet (${field}) posé sur ${updated} commande(s) client CRM${failed ? `, ${failed} échec(s)` : ""}.`;
+      await storage.createActivityLog({ type: "zoho_crm_project_links", status: failed ? "warning" : "success", message }).catch(() => {});
+      res.json({ message, updated, failed });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Échec du remplissage des liens projet" });
+    }
+  });
+
   app.post("/api/admin/notifications", isAuthenticated, async (req, res) => {
     try {
       const role = await getUserRole(req);

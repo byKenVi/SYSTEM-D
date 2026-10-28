@@ -845,6 +845,36 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
 }
 
 /**
+ * Remplit uniquement le champ « Ouvrir le projet » des commandes client déjà
+ * créées (rien d'autre n'est réécrit). Les commandes viennent de la base de
+ * l'environnement qui l'exécute : à lancer depuis le site en ligne.
+ */
+export async function fillCrmProjectLinks(): Promise<{ updated: number; failed: number; field: string }> {
+  const field = await getSalesOrderProjectLinkField();
+  if (!field) throw new Error("Champ « Ouvrir le projet » introuvable dans le module Commandes client du CRM");
+  const targets = new Map<string, string | null>();
+  for (const o of await storage.getShopifyOrders()) {
+    if (o.zohoCrmDealId && o.zohoProjectId) targets.set(o.zohoCrmDealId, o.zohoProjectId);
+  }
+  for (const o of await storage.getSystemdOrders()) {
+    if (o.zohoCrmDealId && o.zohoProjectId) targets.set(o.zohoCrmDealId, o.zohoProjectId);
+  }
+  let updated = 0;
+  let failed = 0;
+  for (const [soId, projectId] of Array.from(targets)) {
+    const url = await getZohoProjectWebUrl(projectId);
+    if (!url) { failed++; continue; }
+    try {
+      await updateCrmSalesOrder(soId, { [field]: url });
+      updated++;
+    } catch {
+      failed++;
+    }
+  }
+  return { updated, failed, field };
+}
+
+/**
  * Recrée en « commande client » (Sales_Orders) les commandes qui pointaient
  * encore vers un ancien Deal (ou n'avaient rien). Idempotent : une commande
  * déjà migrée (URL contenant /SalesOrders/) est ignorée. Les anciens Deals ne

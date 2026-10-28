@@ -351,7 +351,7 @@ export async function updateCrmSalesOrder(
   }
 }
 
-const PROJECT_LINK_LABEL = "ouvrir dans projet";
+const PROJECT_LINK_API_NAME = "Ouvrir_le_projet";
 const PROJECT_LINK_CACHE_MS = 60 * 60_000;
 let projectLinkField: { apiName: string | null; at: number } | null = null;
 
@@ -359,8 +359,9 @@ const plainLabel = (label: unknown) =>
   String(label ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
 /**
- * Nom API du champ « Ouvrir dans projet » de la commande client (créé à la main
- * dans le CRM, donc retrouvé par son libellé). null s'il n'existe pas.
+ * Nom API du champ « Ouvrir le projet » de la commande client (créé à la main
+ * dans le CRM). Retrouvé par son nom API, sinon par un libellé du type
+ * « Ouvrir (dans/le) projet ». null s'il n'existe pas.
  */
 export async function getSalesOrderProjectLinkField(): Promise<string | null> {
   if (process.env.ZOHO_CRM_PROJECT_LINK_FIELD) return process.env.ZOHO_CRM_PROJECT_LINK_FIELD;
@@ -368,7 +369,9 @@ export async function getSalesOrderProjectLinkField(): Promise<string | null> {
   const region = await getZohoRegion();
   const { status, data } = await crmRequest("GET", `/settings/fields?module=${ORDER_SO_MODULE}`, undefined, region);
   if (status !== 200) return null;
-  const field = (data?.fields ?? []).find((f: any) => plainLabel(f.field_label) === PROJECT_LINK_LABEL);
+  const fields: any[] = data?.fields ?? [];
+  const field = fields.find((f) => f.api_name === PROJECT_LINK_API_NAME)
+    ?? fields.find((f) => /^ouvrir\b.*\bprojet$/.test(plainLabel(f.field_label)));
   projectLinkField = { apiName: field?.api_name ?? null, at: Date.now() };
   return projectLinkField.apiName;
 }
