@@ -572,7 +572,25 @@ async function runCrmDealFlow(
   }
 }
 
+/**
+ * Une seule création de commande client CRM à la fois par commande, tous
+ * processus confondus (paiement, rattrapage, scripts) : sinon doublon dans le CRM.
+ */
+function withCrmDealLock(key: string, fn: () => Promise<void>): Promise<void> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`crm-deal:${key}`}))`);
+    await fn();
+  });
+}
+
 export async function ensureCrmDealForSystemdOrder(
+  orderId: number,
+  options?: { force?: boolean },
+): Promise<void> {
+  return withCrmDealLock(`systemd:${orderId}`, () => ensureCrmDealForSystemdOrderLocked(orderId, options));
+}
+
+async function ensureCrmDealForSystemdOrderLocked(
   orderId: number,
   options?: { force?: boolean },
 ): Promise<void> {
@@ -628,6 +646,15 @@ export async function ensureCrmDealForSystemdOrder(
 }
 
 export async function ensureCrmDealForShopifyOrder(
+  integrationId: number,
+  shopifyOrderId: string,
+  options?: { force?: boolean },
+): Promise<void> {
+  return withCrmDealLock(`shopify:${integrationId}:${shopifyOrderId}`,
+    () => ensureCrmDealForShopifyOrderLocked(integrationId, shopifyOrderId, options));
+}
+
+async function ensureCrmDealForShopifyOrderLocked(
   integrationId: number,
   shopifyOrderId: string,
   options?: { force?: boolean },
@@ -900,6 +927,37 @@ export async function syncOrderAddressesFromShopify(): Promise<{ updated: number
  */
 export async function ensureZohoOrderPipelineForSystemdOrder(orderId: number): Promise<void> {
   await ensureCrmDealForSystemdOrder(orderId);
+}
+
+const MISSING_DEAL_LOOKBACK_MS = 14 * 24 * 60 * 60_000;
+const MISSING_DEAL_RETRY_MS = 30 * 60_000;
+const MISSING_DEAL_INTERVAL_MS = 10 * 60_000;
+const lastMissingDealAttempt = new Map<number, number>();
+
+/**
+ * Commandes de l'app payées sans commande client CRM : la création au paiement
+ * est unique et sans relance, donc un échec passager (Zoho, redémarrage) la
+ * perdait. On réessaie ici, au plus toutes les 30 min par commande.
+ */
+async function catchUpMissingSystemdCrmDeals(): Promise<void> {
+  const settings = await storage.getAdminSettings();
+  if (!settings?.zohoInventoryRefreshToken) return;
+  const since = Date.now() - MISSING_DEAL_LOOKBACK_MS;
+  for (const order of await storage.getSystemdOrders()) {
+    if (order.status !== "paid" || order.zohoCrmDealId) continue;
+    if (!order.createdAt || order.createdAt.getTime() < since) continue;
+    const last = lastMissingDealAttempt.get(order.id) ?? 0;
+    if (Date.now() - last < MISSING_DEAL_RETRY_MS) continue;
+    lastMissingDealAttempt.set(order.id, Date.now());
+    await ensureCrmDealForSystemdOrder(order.id);
+  }
+}
+
+export function startMissingCrmDealsScheduler(): void {
+  const run = () => catchUpMissingSystemdCrmDeals()
+    .catch((err) => console.error(`[crm-deals] rattrapage : ${err.message}`));
+  setTimeout(run, 2 * 60_000);
+  setInterval(run, MISSING_DEAL_INTERVAL_MS);
 }
 
 export async function afterShopifyOrdersSynced(integrationId: number): Promise<void> {
