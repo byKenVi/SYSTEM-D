@@ -12,6 +12,7 @@ import {
   findOrCreateCrmProduct,
   createCrmSalesOrder,
   updateCrmSalesOrder,
+  getSalesOrderProjectLinkField,
   uploadSalesOrderAttachment,
   type CrmSalesOrderLine,
   type CrmOrderAddress,
@@ -271,6 +272,13 @@ function normalizeLineItemsForPdf(lineItems: unknown): OrderPdfLineItem[] {
     quantity: Number(it.quantity) || 1,
     unitPrice: Number(it.unitPrice ?? it.price ?? 0) || 0,
   }));
+}
+
+/** Champ « Ouvrir dans projet » de la commande client, s'il existe dans le CRM. */
+async function projectLinkFields(projectUrl: string | null): Promise<Record<string, unknown>> {
+  if (!projectUrl) return {};
+  const field = await getSalesOrderProjectLinkField().catch(() => null);
+  return field ? { [field]: projectUrl } : {};
 }
 
 /** Sépare un nom complet en prénom / nom (Last_Name requis côté CRM). */
@@ -571,6 +579,7 @@ async function runCrmDealFlow(
         booksSalesOrderNumber: input.booksSalesOrderNumber,
         projectUrl,
       }),
+      ...await projectLinkFields(projectUrl),
     }).catch(() => {});
   }
 }
@@ -766,6 +775,7 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
     if (!contact) continue;
     const ordererName = [order.customerFirstName, order.customerLastName]
       .map((p) => (p ?? "").trim()).filter(Boolean).join(" ") || null;
+    const projectUrl = await getZohoProjectWebUrl(order.zohoProjectId);
     const description = buildDealDescription({
       sourceLabel: "Shopify direct",
       storeName: order.shopName ?? "Boutique",
@@ -777,9 +787,9 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       currency: order.currency,
       lineItems: normalizeLineItemsForPdf(order.lineItems),
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
-      projectUrl: await getZohoProjectWebUrl(order.zohoProjectId),
+      projectUrl,
     });
-    const fields: Record<string, unknown> = { Description: description };
+    const fields: Record<string, unknown> = { Description: description, ...await projectLinkFields(projectUrl) };
     const dealContactId = await resolveDealContactId({
       ordererName,
       ordererEmail: order.email,
@@ -806,6 +816,7 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
     const contact = await getContact(order.contactId);
     if (!contact) continue;
     const source = (order.lineItems as any[])?.[0]?.source === "client_product" ? "client_product" : "systemd";
+    const projectUrl = await getZohoProjectWebUrl(order.zohoProjectId);
     const description = buildDealDescription({
       sourceLabel: source === "client_product" ? "Produit client · Shopify" : "Commande Système D",
       storeName: await getStoreName(order.shopifyIntegrationId),
@@ -815,9 +826,9 @@ export async function refreshCrmDealDescriptions(): Promise<{ updated: number; f
       currency: order.currency,
       lineItems: normalizeLineItemsForPdf(order.lineItems),
       booksSalesOrderNumber: order.zohoBooksSalesOrderNumber,
-      projectUrl: await getZohoProjectWebUrl(order.zohoProjectId),
+      projectUrl,
     });
-    const fields: Record<string, unknown> = { Description: description };
+    const fields: Record<string, unknown> = { Description: description, ...await projectLinkFields(projectUrl) };
     if (contact.companyAddress) {
       fields.Billing_Street = contact.companyAddress;
       fields.Shipping_Street = contact.companyAddress;

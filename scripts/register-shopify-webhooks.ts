@@ -18,7 +18,7 @@ const checkOnly = process.argv.includes("--check");
 
 async function main() {
   const address = publicOrderWebhookAddress();
-  console.log(`Adresse du webhook : ${address ?? "AUCUNE → définir le secret SHOPIFY_APP_URL=https://servicessystemd.app puis redéployer"}`);
+  console.log(`Adresse du webhook : ${address ?? "AUCUNE → définir le secret SHOPIFY_APP_URL=https://servicessystemed.app puis redéployer"}`);
   console.log(`Secret de signature (SHOPIFY_CLIENT_SECRET) : ${process.env.SHOPIFY_CLIENT_SECRET ? "défini" : "ABSENT → les webhooks seront refusés"}\n`);
 
   const integrations = (await storage.getShopifyIntegrations())

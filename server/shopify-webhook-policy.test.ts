@@ -9,9 +9,9 @@ import {
 } from "./shopify-webhook-policy";
 
 test("webhook address uses the public HTTPS origin only", () => {
-  assert.equal(orderWebhookAddress("https://servicessystemd.app/"), "https://servicessystemd.app/api/webhooks/shopify/orders");
-  assert.equal(orderWebhookAddress("https://servicessystemd.app/admin?x=1"), "https://servicessystemd.app/api/webhooks/shopify/orders");
-  assert.equal(orderWebhookAddress("http://servicessystemd.app"), null);
+  assert.equal(orderWebhookAddress("https://servicessystemed.app/"), "https://servicessystemed.app/api/webhooks/shopify/orders");
+  assert.equal(orderWebhookAddress("https://servicessystemed.app/admin?x=1"), "https://servicessystemed.app/api/webhooks/shopify/orders");
+  assert.equal(orderWebhookAddress("http://servicessystemed.app"), null);
   assert.equal(orderWebhookAddress(""), null);
   assert.equal(orderWebhookAddress(undefined), null);
   assert.equal(orderWebhookAddress("not a url"), null);
@@ -29,7 +29,7 @@ test("HMAC is accepted for any configured secret and rejected otherwise", () => 
 });
 
 test("only topics missing at our address are (re)created", () => {
-  const address = "https://servicessystemd.app/api/webhooks/shopify/orders";
+  const address = "https://servicessystemed.app/api/webhooks/shopify/orders";
   const existing = [
     { topic: "orders/create", address },
     { topic: "orders/paid", address: "https://old-dev.replit.dev/api/webhooks/shopify/orders" },

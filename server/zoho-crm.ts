@@ -351,6 +351,28 @@ export async function updateCrmSalesOrder(
   }
 }
 
+const PROJECT_LINK_LABEL = "ouvrir dans projet";
+const PROJECT_LINK_CACHE_MS = 60 * 60_000;
+let projectLinkField: { apiName: string | null; at: number } | null = null;
+
+const plainLabel = (label: unknown) =>
+  String(label ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+/**
+ * Nom API du champ « Ouvrir dans projet » de la commande client (créé à la main
+ * dans le CRM, donc retrouvé par son libellé). null s'il n'existe pas.
+ */
+export async function getSalesOrderProjectLinkField(): Promise<string | null> {
+  if (process.env.ZOHO_CRM_PROJECT_LINK_FIELD) return process.env.ZOHO_CRM_PROJECT_LINK_FIELD;
+  if (projectLinkField && Date.now() - projectLinkField.at < PROJECT_LINK_CACHE_MS) return projectLinkField.apiName;
+  const region = await getZohoRegion();
+  const { status, data } = await crmRequest("GET", `/settings/fields?module=${ORDER_SO_MODULE}`, undefined, region);
+  if (status !== 200) return null;
+  const field = (data?.fields ?? []).find((f: any) => plainLabel(f.field_label) === PROJECT_LINK_LABEL);
+  projectLinkField = { apiName: field?.api_name ?? null, at: Date.now() };
+  return projectLinkField.apiName;
+}
+
 /** Joint un PDF à une commande client (related list Attachments). */
 export async function uploadSalesOrderAttachment(
   soId: string,
