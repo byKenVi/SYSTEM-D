@@ -27,6 +27,7 @@ import {
   getZohoRegion,
   getZohoSOUrl,
   listInventoryLocations,
+  searchPickableSoLines,
   updateInventorySalesOrder,
   type InventoryOrderLine,
   type InventorySalesOrder,
@@ -42,6 +43,7 @@ import {
   buildPicklistLines,
   resolvePickLocation,
   storeNameFromSubject,
+  unpickableLabels,
   type InventoryLocation,
 } from "./inventory-order-policy";
 
@@ -305,14 +307,34 @@ export async function sendPlannedCrmOrderToInventory(crmSoId: string, trigger: P
 
     let picklist: { picklistId: string; picklistNumber: string } | null = null;
     let picklistError: string | null = null;
-    // Lignes relues après confirmation : ce sont celles que le prélèvement référence.
-    const confirmed = confirmError ? order : await getInventorySalesOrder(order.salesorderId).catch(() => order);
-    const picklistLines = buildPicklistLines(order.salesorderId, confirmed.lines);
+    // Zoho dit lui-même quelles lignes il accepte de prélever : seuls les articles
+    // suivis en stock y figurent.
+    let unpickable: string[] = [];
+    let picklistLines: ReturnType<typeof buildPicklistLines> = [];
+    if (!confirmError) {
+      try {
+        const pickable = await searchPickableSoLines(order.salesorderId);
+        picklistLines = buildPicklistLines(order.salesorderId, pickable);
+        unpickable = unpickableLabels(order.lines, pickable);
+      } catch (err: any) {
+        picklistError = `lignes prélevables illisibles : ${err.message}`;
+      }
+    }
     if (confirmError) {
       picklistError = "commande non confirmée";
-    } else if (picklistLines.length === 0) {
+    } else if (picklistError) {
+      // déjà renseignée
+    } else if (picklistLines.length === 0 && unpickable.length === 0) {
       picklistError = "aucun article d'inventaire à prélever";
     } else {
+      // Aucune ligne déclarée prélevable : dernier essai avec les lignes de la
+      // commande, au cas où la recherche Zoho serait plus stricte que la création.
+      const fallback = picklistLines.length === 0;
+      if (fallback) {
+        picklistLines = buildPicklistLines(order.salesorderId, order.lines
+          .filter((l) => l.itemId)
+          .map((l) => ({ soLineItemId: l.lineItemId, quantityToBePicked: l.quantity })));
+      }
       try {
         picklist = await createInventoryPicklist({ location, lines: picklistLines, notes: label });
         await storage.upsertCrmInventoryOrder({
@@ -322,14 +344,18 @@ export async function sendPlannedCrmOrderToInventory(crmSoId: string, trigger: P
           picklistNumber: picklist.picklistNumber,
           stage: "picking",
         });
+        if (fallback) unpickable = [];
       } catch (err: any) {
-        picklistError = err.message;
+        picklistError = fallback
+          ? `articles non suivis en stock dans Inventory (${unpickable.join(", ")}) : cocher « Suivre le stock pour cet article » sur leur fiche [${err.message}]`
+          : err.message;
       }
     }
 
     const problems = [
       confirmError ? `confirmation échouée : ${confirmError}` : null,
       picklistError ? `prélèvement non créé : ${picklistError}` : null,
+      picklist && unpickable.length ? `hors prélèvement (stock non suivi) : ${unpickable.join(", ")}` : null,
       unmatched.length ? `${unmatched.length} article(s) non relié(s)` : null,
     ].filter(Boolean);
 
@@ -343,6 +369,7 @@ export async function sendPlannedCrmOrderToInventory(crmSoId: string, trigger: P
           ? `Prélèvement ${picklist.picklistNumber} créé dans l'entrepôt ${location.name}.`
           : `⚠ Prélèvement à créer manuellement dans Inventory (${picklistError}). Nouvel essai automatique dans 30 minutes.`,
         url,
+        picklist && unpickable.length ? `⚠ Hors prélèvement (stock non suivi dans Inventory) : ${unpickable.join(", ")}` : null,
         unmatched.length ? `⚠ Articles non reliés à l'inventaire (texte libre, stock non déduit) : ${unmatched.join(", ")}` : null,
       ].filter(Boolean).join("\n");
       await addCrmSalesOrderNote(crmSoId, "Envoyée vers Zoho Inventory", noteLines).catch(() => {});

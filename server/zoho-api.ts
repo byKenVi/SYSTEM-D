@@ -1,6 +1,6 @@
 import { getValidAccessToken, getZohoDomains, refreshAccessToken } from "./zoho-auth";
 import { storage } from "./storage";
-import { zohoToday, type InventoryLocation, type InventorySoLine, type PicklistLine } from "./inventory-order-policy";
+import { zohoToday, type InventoryLocation, type InventorySoLine, type PickableSoLine, type PicklistLine } from "./inventory-order-policy";
 
 async function zohoRequest(
   method: string,
@@ -739,6 +739,7 @@ function readInventorySalesOrder(so: any): InventorySalesOrder {
       lineItemId: String(l.line_item_id),
       itemId: l.item_id ? String(l.item_id) : null,
       quantity: Number(l.quantity) || 0,
+      label: String(l.sku || l.name || ""),
     })),
   };
 }
@@ -804,6 +805,23 @@ export async function getInventorySalesOrder(salesorderId: string): Promise<Inve
   const region = await getZohoRegion();
   const data = await zohoRequest("GET", `/salesorders/${encodeURIComponent(salesorderId)}`, undefined, region);
   return readInventorySalesOrder(data.salesorder);
+}
+
+/** Lignes de la commande que Zoho accepte dans une liste de prélèvement (articles suivis en stock, reste à prélever). */
+export async function searchPickableSoLines(salesorderId: string): Promise<PickableSoLine[]> {
+  const region = await getZohoRegion();
+  const data = await zohoRequest(
+    "GET",
+    `/picklists/searchsolineitems?salesorder_ids_in=${encodeURIComponent(salesorderId)}`,
+    undefined,
+    region,
+  );
+  return (data.so_line_items ?? [])
+    .filter((l: any) => String(l.salesorder_id) === salesorderId)
+    .map((l: any) => ({
+      soLineItemId: String(l.so_line_item_id),
+      quantityToBePicked: Number(l.quantity_to_be_picked) || 0,
+    }));
 }
 
 /** Liste de prélèvement (statut initial « À démarrer ») pour les articles d'inventaire de la commande. */

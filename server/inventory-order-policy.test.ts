@@ -4,6 +4,7 @@ import {
   buildPicklistLines,
   resolvePickLocation,
   storeNameFromSubject,
+  unpickableLabels,
   zohoToday,
   type InventoryLocation,
 } from "./inventory-order-policy";
@@ -36,15 +37,25 @@ test("a forced location wins, even if it is not a warehouse", () => {
   assert.equal(resolvePickLocation(org, ["Mapei"], "missing"), null);
 });
 
-test("only inventory items with a quantity go to the picklist", () => {
+test("only lines Zoho declares pickable, with a quantity left, go to the picklist", () => {
   assert.deepEqual(
     buildPicklistLines("SO-1", [
-      { lineItemId: "a", itemId: "I-1", quantity: 2 },
-      { lineItemId: "b", itemId: null, quantity: 1 },
-      { lineItemId: "c", itemId: "I-2", quantity: 0 },
+      { soLineItemId: "a", quantityToBePicked: 2 },
+      { soLineItemId: "c", quantityToBePicked: 0 },
     ]),
     [{ salesorder_id: "SO-1", parent_entity_id: "SO-1", so_line_item_id: "a", parent_line_item_id: "a", quantity_to_be_picked: 2 }],
   );
+});
+
+test("items Zoho will not pick are named, free-text lines are not", () => {
+  // Cas réel SO-00019 : articles Mapei non suivis en stock, aucune ligne prélevable.
+  const lines = [
+    { lineItemId: "a", itemId: "I-1", quantity: 1, label: "MK10" },
+    { lineItemId: "b", itemId: "I-2", quantity: 1, label: "MK11" },
+    { lineItemId: "c", itemId: null, quantity: 1, label: "Livraison" },
+  ];
+  assert.deepEqual(unpickableLabels(lines, []), ["MK10", "MK11"]);
+  assert.deepEqual(unpickableLabels(lines, [{ soLineItemId: "a", quantityToBePicked: 1 }]), ["MK11"]);
 });
 
 test("store name and Zoho date helpers", () => {

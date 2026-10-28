@@ -47,6 +47,14 @@ export interface InventorySoLine {
   lineItemId: string;
   itemId: string | null;
   quantity: number;
+  /** SKU, sinon nom : sert à nommer les lignes non prélevables. */
+  label?: string;
+}
+
+/** Ligne que Zoho déclare prélevable (GET /picklists/searchsolineitems). */
+export interface PickableSoLine {
+  soLineItemId: string;
+  quantityToBePicked: number;
 }
 
 export interface PicklistLine {
@@ -57,17 +65,29 @@ export interface PicklistLine {
   quantity_to_be_picked: number;
 }
 
-/** Seuls les articles d'inventaire se prélèvent ; les lignes en texte libre restent hors prélèvement. */
-export function buildPicklistLines(salesorderId: string, lines: InventorySoLine[]): PicklistLine[] {
-  return lines
-    .filter((l) => l.itemId && l.quantity > 0)
+/**
+ * Lignes de la liste de prélèvement : seulement celles que Zoho déclare
+ * prélevables. Un article non suivi en stock n'y figure jamais, et l'envoyer
+ * quand même donne « so_line_item_id non valide ».
+ */
+export function buildPicklistLines(salesorderId: string, pickable: PickableSoLine[]): PicklistLine[] {
+  return pickable
+    .filter((l) => l.quantityToBePicked > 0)
     .map((l) => ({
       salesorder_id: salesorderId,
       parent_entity_id: salesorderId,
-      so_line_item_id: l.lineItemId,
-      parent_line_item_id: l.lineItemId,
-      quantity_to_be_picked: l.quantity,
+      so_line_item_id: l.soLineItemId,
+      parent_line_item_id: l.soLineItemId,
+      quantity_to_be_picked: l.quantityToBePicked,
     }));
+}
+
+/** Articles de la commande que Zoho refuse de prélever (en pratique : stock non suivi). */
+export function unpickableLabels(lines: InventorySoLine[], pickable: PickableSoLine[]): string[] {
+  const ok = new Set(pickable.map((p) => p.soLineItemId));
+  return lines
+    .filter((l) => l.itemId && l.quantity > 0 && !ok.has(l.lineItemId))
+    .map((l) => l.label || l.itemId!);
 }
 
 /** Nom du client tiré du sujet CRM « Mapei #1014 » → « Mapei ». */
