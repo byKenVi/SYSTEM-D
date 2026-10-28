@@ -416,8 +416,9 @@ function addressUpdateFields(
 async function buildSalesOrderLines(
   lineItems: OrderPdfLineItem[],
   dealName: string,
-): Promise<CrmSalesOrderLine[]> {
+): Promise<{ lines: CrmSalesOrderLine[]; errors: string[] }> {
   const lines: CrmSalesOrderLine[] = [];
+  const errors: string[] = [];
   for (const it of lineItems) {
     let productId: string | null = null;
     try {
@@ -427,6 +428,7 @@ async function buildSalesOrderLines(
         unitPrice: it.unitPrice,
       });
     } catch (err: any) {
+      errors.push(`${it.sku ?? it.name} : ${err.message}`);
       await storage.createActivityLog({
         type: "zoho_crm_product_error", status: "error",
         message: `Article ignoré sur ${dealName} (${it.sku ?? "sans sku"}): ${err.message}`,
@@ -440,7 +442,7 @@ async function buildSalesOrderLines(
       description: it.name,
     });
   }
-  return lines;
+  return { lines, errors };
 }
 
 /**
@@ -479,10 +481,11 @@ async function runCrmDealFlow(
     contact: input.contact,
   });
 
-  const lines = await buildSalesOrderLines(input.lineItems, input.dealName);
+  const { lines, errors } = await buildSalesOrderLines(input.lineItems, input.dealName);
   if (lines.length === 0) {
     // Ordered_Items est obligatoire : sans article résolu, Zoho refuserait.
-    throw new Error("aucun article n'a pu être résolu/créé comme produit CRM");
+    const why = input.lineItems.length === 0 ? "la commande n'a aucun article" : errors.join(" ; ") || "article sans nom ni sku";
+    throw new Error(`aucun article n'a pu être résolu/créé comme produit CRM (${why})`);
   }
 
   const { soId, soUrl } = await createCrmSalesOrder({
