@@ -84,8 +84,11 @@ function moneyInCents(value: string): bigint {
   if (!/^-?\d+(?:\.\d{1,2})?$/.test(value)) {
     throw new Error("Montant Shopify invalide.");
   }
-  const [whole, decimal = ""] = value.split(".");
-  return BigInt(whole) * 100n + BigInt((decimal + "00").slice(0, 2));
+  // Le signe s'applique aux cents aussi : « -12.50 » vaut -1250, pas -1200 + 50.
+  const negative = value.startsWith("-");
+  const [whole, decimal = ""] = value.replace(/^-/, "").split(".");
+  const cents = BigInt(whole) * 100n + BigInt((decimal + "00").slice(0, 2));
+  return negative ? -cents : cents;
 }
 
 export function assertShopifyDebitProof(input: {

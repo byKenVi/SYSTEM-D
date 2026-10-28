@@ -31,6 +31,14 @@ test("une preuve de débit Shopify exige le compte, le montant, la devise et le 
     transaction: { ...validProof.transaction, amount: "-25.0" },
   }));
 
+  // Montant avec des cents : Shopify renvoie « -12.5 » pour un débit de 12,50 $.
+  assert.doesNotThrow(() => assertShopifyDebitProof({
+    ...validProof,
+    afterBalance: "112.50",
+    expectedAmount: "12.50",
+    transaction: { ...validProof.transaction, amount: "-12.5" },
+  }));
+
   const wrongBalance = { ...validProof, afterBalance: "100.01" };
   assert.throws(
     () => assertShopifyDebitProof(wrongBalance),

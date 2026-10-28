@@ -5262,7 +5262,9 @@ export async function registerRoutes(
         }
 
         const reconciliationRequired = !!shopifyOrder || orderMayExist || (!!debitResult && !compensationSucceeded) || (debitSubmissionStarted && !debitDefinitelyRejected && !debitResult);
-        const failedStep = !debitResult ? "débit Store Credit" : !shopifyOrder ? "création de la commande Shopify" : "vérification de la commande Shopify";
+        const failedStep = !debitResult ? "débit Store Credit"
+          : !shopifyOrderSubmissionStarted ? "vérification du débit Store Credit"
+          : !shopifyOrder ? "création de la commande Shopify" : "vérification de la commande Shopify";
         const reason = `${failedStep} : ${error?.message || "erreur inconnue"}`;
         console.error(`[product-checkout] commande #${order.id} : ${reason}`);
         await storage.updateSystemdOrder(order.id, reconciliationRequired
